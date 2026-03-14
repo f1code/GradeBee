@@ -43,10 +43,10 @@ export default function DriveSetup() {
 
   if (status === 'success' && result) {
     return (
-      <div className="setup-done">
+      <div className="setup-done" data-testid="drive-setup-success">
         <h2>Google Drive Connected</h2>
         <p>Your GradeBee folders are ready.</p>
-        <a href={result.folderUrl} target="_blank" rel="noopener noreferrer">
+        <a href={result.folderUrl} target="_blank" rel="noopener noreferrer" data-testid="drive-link">
           Open GradeBee folder in Drive
         </a>
       </div>
@@ -54,16 +54,16 @@ export default function DriveSetup() {
   }
 
   return (
-    <div className="setup">
+    <div className="setup" data-testid="drive-setup">
       <h2>Connect Google Drive</h2>
       <p>
         GradeBee stores notes and reports in your Google Drive.
         Click below to create the folder structure.
       </p>
-      <button onClick={handleSetup} disabled={status === 'loading'}>
+      <button onClick={handleSetup} disabled={status === 'loading'} data-testid="setup-button">
         {status === 'loading' ? 'Setting up...' : 'Set Up Google Drive'}
       </button>
-      {status === 'error' && <p className="error">{error}</p>}
+      {status === 'error' && <p className="error" data-testid="setup-error">{error}</p>}
     </div>
   )
 }

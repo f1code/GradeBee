@@ -41,6 +41,7 @@ GradeBee/
 │   ├── handler.go             # Scaleway function entrypoint + routing
 │   ├── auth.go                # Clerk auth + Google OAuth token retrieval
 │   └── setup.go               # POST /setup -- creates Drive folder structure
+├── e2e/                       # Playwright end-to-end tests
 ├── infra/                     # Terraform (Scaleway resources)
 ├── docs/                      # Design docs and implementation plans
 ├── Makefile                   # Build and deploy commands
@@ -96,6 +97,20 @@ GradeBee/
    ```
 
    This starts the frontend on `http://localhost:5173` and the backend on `http://localhost:8080`.
+
+## Testing
+
+End-to-end tests use [Playwright](https://playwright.dev) with [Clerk testing tokens](https://clerk.com/docs/testing/playwright) for authenticated flows.
+
+```sh
+# Run all e2e tests (starts the frontend dev server automatically)
+npm run test:e2e
+
+# Run with Playwright's interactive UI
+npm run test:e2e:ui
+```
+
+The `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` environment variables must be set (from `.env`) for the Clerk testing token integration to work. Backend API calls in the Drive setup tests are mocked via Playwright route interception -- no real Google Drive access is needed.
 
 ## Implementation Status
 

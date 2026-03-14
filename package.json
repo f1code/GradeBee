@@ -4,9 +4,14 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "dev:frontend": "cd frontend && npm run dev",
-    "dev:backend": "cd backend && go run ./cmd/server"
+    "dev:backend": "cd backend && go run ./cmd/server",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@clerk/testing": "^2.0.4",
+    "@playwright/test": "^1.58.2",
+    "concurrently": "^9.1.2",
+    "dotenv": "^17.3.1"
   }
 }

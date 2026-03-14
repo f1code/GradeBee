@@ -10,7 +10,8 @@
 
 ## Key Design Decisions
 
-- Clerk manages auth AND stores Google OAuth tokens (access + refresh). Retrieve via Clerk Backend API. Requires custom Google OAuth app in Clerk config to request `drive.file` + `spreadsheets.readonly` scopes.
+- Clerk manages auth AND stores Google OAuth tokens (access + refresh). Retrieve via Clerk Backend API. Requires custom Google OAuth app in Clerk config to request `drive.file` + `spreadsheets.readonly` scopes. **No `drive.readonly`** — full Drive access is a security no-go; scopes cannot be restricted to the app folder.
+- **Upload strategy**: Phase 1–5 use web app upload (drag-drop or file picker). Phase 6 adds "Add from Drive" via Google Picker — user selects files from their Drive (e.g. recent uploads); Picker grants per-file access under `drive.file` without broader scope.
 - Notes stored as Google Docs (not raw Markdown) to enable inline teacher feedback.
 - A lightweight metadata index (JSON file per student in Drive) avoids re-parsing all docs for report generation.
 - No database. Clerk = user store, Google Drive = data store, metadata index = query layer.
@@ -106,18 +107,19 @@
 
 ---
 
-## Phase 6: Polish & Drive Watching (Optional)
+## Phase 6: Add from Drive (Optional)
 
-**Goal**: Reduce friction further — auto-detect uploads instead of requiring web UI.
+**Goal**: Reduce friction — let users pick audio files from their Drive (e.g. files they uploaded elsewhere) without re-uploading.
 
 ### Tasks
-1. Backend: Google Drive push notification (webhook) or periodic poll for new files in `uploads/`
-2. Auto-trigger processing pipeline on new file detection
-3. Notification to teacher (email or in-app) when note is ready for review
-4. Error handling, retry logic, rate limiting
+1. Frontend: "Add from Drive" button — opens Google Picker (filtered for audio files)
+2. User selects file(s) from Drive; Picker grants per-file access under `drive.file` (no additional scopes)
+3. Backend: receive file ID(s), copy or reference file in `GradeBee/uploads/`, trigger processing pipeline
+4. Notification to teacher (email or in-app) when note is ready for review
+5. Error handling, retry logic, rate limiting
 
 ### Verify
-- Drop audio file in Drive → note appears without visiting web app
+- User uploads audio to Drive elsewhere → opens GradeBee → "Add from Drive" → selects file → note generated without re-upload
 
 ---
 

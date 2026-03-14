@@ -21,3 +21,10 @@ infra/*.tfstate.backup
 infra/.terraform.lock.hcl
 infra/*.tfvars
 node_modules
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.clerk/
