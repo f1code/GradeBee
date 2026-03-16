@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/clerk-react'
+import { Show, SignInButton, UserButton } from '@clerk/react'
 import { useState, useEffect } from 'react'
 import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
@@ -27,12 +27,12 @@ function App() {
     <div className="app">
       <header>
         <h1>GradeBee</h1>
-        <SignedIn>
+        <Show when="signed-in">
           <UserButton />
-        </SignedIn>
+        </Show>
       </header>
       <main>
-        <SignedOut>
+        <Show when="signed-out">
           <div className="sign-in-container" data-testid="sign-in-container">
             <h2>Welcome to GradeBee</h2>
             <p>Sign in with Google to get started.</p>
@@ -40,8 +40,8 @@ function App() {
               <button className="sign-in-btn" data-testid="sign-in-button">Sign in with Google</button>
             </SignInButton>
           </div>
-        </SignedOut>
-        <SignedIn>
+        </Show>
+        <Show when="signed-in">
           {setupDone === null ? (
             <p>Loading...</p>
           ) : setupDone ? (
@@ -49,7 +49,7 @@ function App() {
           ) : (
             <DriveSetup onComplete={markSetupDone} />
           )}
-        </SignedIn>
+        </Show>
       </main>
     </div>
   )

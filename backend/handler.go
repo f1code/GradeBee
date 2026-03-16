@@ -8,7 +8,13 @@ import (
 	"strings"
 	"time"
 
+	clerkhttp "github.com/clerk/clerk-sdk-go/v2/http"
 	"github.com/google/uuid"
+)
+
+var (
+	setupHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleSetup))
+	studentsHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGetStudents))
 )
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -62,9 +68,9 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	case (path == "" || path == "health") && r.Method == http.MethodGet:
 		writeJSON(rec, http.StatusOK, map[string]string{"status": "ok"})
 	case path == "setup" && r.Method == http.MethodPost:
-		handleSetup(rec, r)
+		setupHandler.ServeHTTP(rec, r)
 	case path == "students" && r.Method == http.MethodGet:
-		handleGetStudents(rec, r)
+		studentsHandler.ServeHTTP(rec, r)
 	default:
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

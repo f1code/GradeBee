@@ -1,4 +1,4 @@
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/react'
 import { useState } from 'react'
 
 type SetupStatus = 'idle' | 'loading' | 'success' | 'error'

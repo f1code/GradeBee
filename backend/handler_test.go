@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/clerk/clerk-sdk-go/v2"
 )
 
 func init() {
@@ -43,6 +45,17 @@ func TestHandle_OptionsCORS(t *testing.T) {
 	}
 }
 
+func TestHandle_Options_NotProtectedByAuth(t *testing.T) {
+	req := httptest.NewRequest(http.MethodOptions, "/setup", http.NoBody)
+	rec := httptest.NewRecorder()
+
+	Handle(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("OPTIONS /setup: got status %d, want 204 (middleware must not run for OPTIONS)", rec.Code)
+	}
+}
+
 func TestHandle_NotFound(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/nonexistent", http.NoBody)
 	rec := httptest.NewRecorder()
@@ -55,18 +68,14 @@ func TestHandle_NotFound(t *testing.T) {
 }
 
 func TestHandle_GetStudents_NoAuth(t *testing.T) {
-	origDeps := serviceDeps
-	serviceDeps = &mockDepsAuthFail{}
-	defer func() { serviceDeps = origDeps }()
-
 	req := httptest.NewRequest(http.MethodGet, "/students", http.NoBody)
 	req.Header.Set("Authorization", "Bearer invalid-token")
 	rec := httptest.NewRecorder()
 
 	Handle(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("GET /students no auth: got status %d, want 401", rec.Code)
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("GET /students no auth: got status %d, want 403", rec.Code)
 	}
 }
 
@@ -76,33 +85,21 @@ func TestHandle_GetStudents_GoogleTokenFailure(t *testing.T) {
 	defer func() { serviceDeps = origDeps }()
 
 	req := httptest.NewRequest(http.MethodGet, "/students", http.NoBody)
-	req.Header.Set("Authorization", "Bearer test-token")
+	ctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
+		RegisteredClaims: clerk.RegisteredClaims{Subject: "test-user"},
+	})
+	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 
-	Handle(rec, req)
+	handleGetStudents(rec, req)
 
 	if rec.Code != http.StatusBadGateway {
 		t.Errorf("GET /students token fail: got status %d, want 502", rec.Code)
 	}
 }
 
-// mockDepsAuthFail returns auth error from Authenticate.
-type mockDepsAuthFail struct{}
-
-func (mockDepsAuthFail) Authenticate(r *http.Request) (*clerkUser, error) {
-	return nil, &apiError{Status: http.StatusUnauthorized, Err: nil, Code: "unauthorized", Message: "missing Authorization header"}
-}
-
-func (mockDepsAuthFail) GoogleServices(r *http.Request) (*googleServices, error) {
-	return nil, &apiError{Status: http.StatusUnauthorized, Err: nil, Code: "unauthorized", Message: "missing Authorization header"}
-}
-
-// mockDepsGoogleFail returns error from GoogleServices (simulates token retrieval failure).
+// mockDepsGoogleFail returns error from GoogleServices (simulates OAuth token retrieval failure).
 type mockDepsGoogleFail struct{}
-
-func (mockDepsGoogleFail) Authenticate(r *http.Request) (*clerkUser, error) {
-	return &clerkUser{UserID: "test-user"}, nil
-}
 
 func (mockDepsGoogleFail) GoogleServices(r *http.Request) (*googleServices, error) {
 	return nil, &apiError{Status: http.StatusBadGateway, Err: nil, Code: "token_failed", Message: "no Google OAuth token found"}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/clerk/clerk-sdk-go/v2"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
@@ -18,14 +19,16 @@ type googleServices struct {
 	User   *clerkUser
 }
 
-// newGoogleServices authenticates the request and returns Drive + Sheets services.
+// newGoogleServices returns Drive + Sheets services for the authenticated user.
+// Requires SessionClaims in context (set by RequireHeaderAuthorization middleware).
 func newGoogleServices(r *http.Request) (*googleServices, error) {
 	ctx := r.Context()
-	user, err := authenticateRequest(r)
-	if err != nil {
-		return nil, &apiError{Status: http.StatusUnauthorized, Err: err}
+	claims, ok := clerk.SessionClaimsFromContext(ctx)
+	if !ok || claims == nil {
+		return nil, &apiError{Status: http.StatusForbidden, Err: nil, Code: "unauthorized", Message: "missing or invalid session"}
 	}
-	accessToken, err := getGoogleOAuthToken(ctx, user.UserID)
+	userID := claims.Subject
+	accessToken, err := getGoogleOAuthToken(ctx, userID)
 	if err != nil {
 		return nil, &apiError{Status: http.StatusBadGateway, Err: err}
 	}
@@ -40,7 +43,7 @@ func newGoogleServices(r *http.Request) (*googleServices, error) {
 		loggerFromContext(ctx).Error("google services failed", "operation", "sheets.NewService", "error", err)
 		return nil, &apiError{Status: http.StatusInternalServerError, Err: err}
 	}
-	return &googleServices{Drive: driveSrv, Sheets: sheetsSrv, User: user}, nil
+	return &googleServices{Drive: driveSrv, Sheets: sheetsSrv, User: &clerkUser{UserID: userID}}, nil
 }
 
 // apiError is an error that carries an HTTP status code.

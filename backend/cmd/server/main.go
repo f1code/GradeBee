@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/joho/godotenv"
 	handler "github.com/nicogaller/gradebee/backend"
 )
@@ -14,6 +15,9 @@ func main() {
 	if err := godotenv.Load("../.env"); err != nil && !os.IsNotExist(err) {
 		slog.Warn("loading .env", "error", err)
 	}
+
+	// Initialize Clerk SDK for JWT verification and Backend API calls
+	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
 	port := os.Getenv("PORT")
 	if port == "" {
