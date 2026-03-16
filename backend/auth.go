@@ -1,3 +1,6 @@
+// auth.go provides helpers for retrieving authenticated user information from
+// Clerk, specifically the Google OAuth access token required to call Google
+// Drive and Sheets APIs on behalf of the signed-in user.
 package handler
 
 import (

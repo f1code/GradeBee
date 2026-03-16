@@ -1,3 +1,6 @@
+// deps.go defines the dependency-injection interface used by HTTP handlers to
+// obtain Google API service clients. The production implementation delegates to
+// Clerk and Google; tests swap in a stub via the serviceDeps variable.
 package handler
 
 import "net/http"

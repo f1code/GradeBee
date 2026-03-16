@@ -1,3 +1,8 @@
+// logger.go initialises and exposes a package-level structured logger built on
+// top of the standard library's log/slog. Log level and format (text or JSON)
+// are controlled via LOG_LEVEL and LOG_FORMAT environment variables. A
+// request-scoped logger can be attached to a context and retrieved via
+// loggerFromContext / loggerFromRequest.
 package handler
 
 import (

@@ -1,8 +1,9 @@
+// google.go constructs authenticated Google Drive and Sheets API clients for
+// the signed-in user and exposes shared helpers (Drive folder creation, API
+// error types, JSON response writing) used across the handler package.
 package handler
 
 import (
-	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -84,17 +85,8 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, err *apiError) {
 	writeJSON(w, err.Status, resp)
 }
 
-// findOrCreateFolder finds an existing folder or creates it.
-func findOrCreateFolder(srv *drive.Service, parentID, name string) (string, error) {
-	q := fmt.Sprintf("name='%s' and '%s' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false", name, parentID)
-	result, err := srv.Files.List().Q(q).Fields("files(id)").Do()
-	if err != nil {
-		return "", err
-	}
-	if len(result.Files) > 0 {
-		return result.Files[0].Id, nil
-	}
-
+// createFolder creates a folder in Drive. Uses drive.file scope (no listing).
+func createFolder(srv *drive.Service, parentID, name string) (string, error) {
 	folder := &drive.File{
 		Name:     name,
 		MimeType: "application/vnd.google-apps.folder",
@@ -105,17 +97,4 @@ func findOrCreateFolder(srv *drive.Service, parentID, name string) (string, erro
 		return "", err
 	}
 	return created.Id, nil
-}
-
-// getGradeBeeRootID finds the GradeBee root folder.
-func getGradeBeeRootID(ctx context.Context, srv *drive.Service) (string, error) {
-	q := "name='GradeBee' and 'root' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-	result, err := srv.Files.List().Q(q).Fields("files(id)").Context(ctx).Do()
-	if err != nil {
-		return "", err
-	}
-	if len(result.Files) == 0 {
-		return "", fmt.Errorf("GradeBee folder not found — run setup first")
-	}
-	return result.Files[0].Id, nil
 }

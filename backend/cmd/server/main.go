@@ -1,3 +1,7 @@
+// main is the local development entry point for the GradeBee backend server.
+// It is NOT used in production — the Scaleway serverless runtime invokes the
+// handler package directly. This binary loads .env, initialises the Clerk SDK,
+// and starts a plain HTTP server that forwards all requests to handler.Handle.
 package main
 
 import (

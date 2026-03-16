@@ -1,14 +1,15 @@
+// students.go handles the GET /students endpoint that reads the user's
+// ClassSetup spreadsheet from Google Sheets and returns the student roster
+// grouped by class in alphabetical order. It also exposes parseStudentRows,
+// a pure helper used directly by unit tests.
 package handler
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
-
-	"google.golang.org/api/drive/v3"
 )
 
 type studentsResponse struct {
@@ -41,8 +42,16 @@ func handleGetStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	rootID, err := getGradeBeeRootID(ctx, svc.Drive)
+	userID := svc.User.UserID
+
+	// Get spreadsheet ID from Clerk metadata (avoids Drive Files.List which requires restricted scope)
+	meta, err := getGradeBeeMetadata(ctx, userID)
 	if err != nil {
+		log.Error("get students failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if meta == nil || meta.SpreadsheetID == "" {
 		writeAPIError(w, r, &apiError{
 			Status:  http.StatusNotFound,
 			Code:    "no_spreadsheet",
@@ -51,7 +60,10 @@ func handleGetStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	spreadsheetID, err := findClassSetupSpreadsheet(ctx, svc.Drive, rootID)
+	spreadsheetID := meta.SpreadsheetID
+
+	// Verify spreadsheet still exists (drive.file allows Get on files we created)
+	_, err = svc.Drive.Files.Get(spreadsheetID).Fields("id").Context(ctx).Do()
 	if err != nil {
 		writeAPIError(w, r, &apiError{
 			Status:  http.StatusNotFound,
@@ -93,25 +105,13 @@ func handleGetStudents(w http.ResponseWriter, r *http.Request) {
 	for _, c := range classes {
 		studentCount += len(c.Students)
 	}
-	log.Info("get students completed", "user_id", svc.User.UserID, "class_count", classCount, "student_count", studentCount)
+	log.Info("get students completed", "user_id", userID, "class_count", classCount, "student_count", studentCount)
 
 	spreadsheetURL := fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit", spreadsheetID)
 	writeJSON(w, http.StatusOK, studentsResponse{
 		SpreadsheetURL: spreadsheetURL,
 		Classes:        classes,
 	})
-}
-
-func findClassSetupSpreadsheet(ctx context.Context, srv *drive.Service, rootID string) (string, error) {
-	q := fmt.Sprintf("name='ClassSetup' and '%s' in parents and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false", rootID)
-	result, err := srv.Files.List().Q(q).Fields("files(id)").Context(ctx).Do()
-	if err != nil {
-		return "", err
-	}
-	if len(result.Files) == 0 {
-		return "", fmt.Errorf("ClassSetup not found")
-	}
-	return result.Files[0].Id, nil
 }
 
 // parseStudentRows takes raw spreadsheet values ([][]interface{}) and returns

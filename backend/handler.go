@@ -1,3 +1,7 @@
+// handler.go is the main HTTP entrypoint for the GradeBee backend. It wires
+// together routing, CORS headers, request-scoped logging, and response timing.
+// The exported Handle function is invoked by the Scaleway serverless runtime
+// (and by the local dev server in cmd/server/main.go).
 package handler
 
 import (
