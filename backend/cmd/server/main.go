@@ -1,8 +1,7 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -13,15 +12,16 @@ import (
 func main() {
 	// Load .env from project root when running locally (../.env relative to backend/)
 	if err := godotenv.Load("../.env"); err != nil && !os.IsNotExist(err) {
-		log.Printf("warning: loading .env: %v", err)
+		slog.Warn("loading .env", "error", err)
 	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
-	fmt.Printf("Listening on :%s\n", port)
+	slog.Info("server starting", "port", port)
 	if err := http.ListenAndServe(":"+port, http.HandlerFunc(handler.Handle)); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
 	}
 }

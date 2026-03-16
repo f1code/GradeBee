@@ -77,3 +77,75 @@ button:disabled {
   color: #4f46e5;
   text-decoration: underline;
 }
+
+.setup-done a + a {
+  display: block;
+  margin-top: 0.5rem;
+}
+
+.setup-instruction {
+  margin: 1rem 0;
+}
+
+/* Student list */
+.student-list {
+  margin-top: 1rem;
+}
+
+.student-list .toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.student-list .toolbar a {
+  color: #4f46e5;
+}
+
+.class-group {
+  margin-bottom: 1.5rem;
+}
+
+.class-group h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.class-group .count {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: normal;
+}
+
+.class-group ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.class-group li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+/* Empty / info states */
+.info-box {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.info-box a {
+  color: #4f46e5;
+}
+
+.student-list-error {
+  text-align: center;
+  padding: 1.5rem;
+}

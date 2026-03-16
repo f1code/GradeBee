@@ -27,6 +27,8 @@ test.describe('Drive setup flow', () => {
         body: JSON.stringify({
           folderId: 'test-folder-id',
           folderUrl: 'https://drive.google.com/drive/folders/test-folder-id',
+          spreadsheetId: 'test-spreadsheet-id',
+          spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/test-spreadsheet-id/edit',
         }),
       })
     })
@@ -53,6 +55,43 @@ test.describe('Drive setup flow', () => {
       'https://drive.google.com/drive/folders/test-folder-id',
     )
     await expect(driveLink).toHaveAttribute('target', '_blank')
+
+    const spreadsheetLink = page.getByTestId('spreadsheet-link')
+    await expect(spreadsheetLink).toBeVisible()
+    await expect(spreadsheetLink).toHaveAttribute(
+      'href',
+      'https://docs.google.com/spreadsheets/d/test-spreadsheet-id/edit',
+    )
+
+    const continueBtn = page.getByTestId('setup-continue-btn')
+    await expect(continueBtn).toBeVisible()
+    await expect(continueBtn).toHaveText('Continue')
+
+    // Mock /students for when we transition to student list
+    await page.route('**/students', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/test-spreadsheet-id/edit',
+            classes: [
+              { name: '5A', students: [{ name: 'Emma Johnson' }, { name: 'Liam Smith' }] },
+              { name: '5B', students: [{ name: 'Olivia Brown' }, { name: 'Noah Davis' }] },
+            ],
+          }),
+        })
+      } else {
+        await route.continue()
+      }
+    })
+
+    await continueBtn.click()
+
+    // Should transition to student list
+    await expect(page.getByTestId('student-list')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByTestId('class-group-5A')).toBeVisible()
+    await expect(page.getByTestId('class-group-5B')).toBeVisible()
   })
 
   test('shows error state on setup failure and allows retry', async ({ page }) => {
@@ -75,6 +114,8 @@ test.describe('Drive setup flow', () => {
           body: JSON.stringify({
             folderId: 'test-folder-id',
             folderUrl: 'https://drive.google.com/drive/folders/test-folder-id',
+            spreadsheetId: 'test-spreadsheet-id',
+            spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/test-spreadsheet-id/edit',
           }),
         })
       }

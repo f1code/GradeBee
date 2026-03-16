@@ -6,9 +6,15 @@ type SetupStatus = 'idle' | 'loading' | 'success' | 'error'
 interface SetupResult {
   folderId: string
   folderUrl: string
+  spreadsheetId: string
+  spreadsheetUrl: string
 }
 
-export default function DriveSetup() {
+interface DriveSetupProps {
+  onComplete?: (result: SetupResult) => void
+}
+
+export default function DriveSetup({ onComplete }: DriveSetupProps) {
   const { getToken } = useAuth()
   const [status, setStatus] = useState<SetupStatus>('idle')
   const [result, setResult] = useState<SetupResult | null>(null)
@@ -41,6 +47,12 @@ export default function DriveSetup() {
     }
   }
 
+  function handleContinue() {
+    if (result) {
+      onComplete?.(result)
+    }
+  }
+
   if (status === 'success' && result) {
     return (
       <div className="setup-done" data-testid="drive-setup-success">
@@ -49,6 +61,15 @@ export default function DriveSetup() {
         <a href={result.folderUrl} target="_blank" rel="noopener noreferrer" data-testid="drive-link">
           Open GradeBee folder in Drive
         </a>
+        <a href={result.spreadsheetUrl} target="_blank" rel="noopener noreferrer" data-testid="spreadsheet-link">
+          Open ClassSetup spreadsheet
+        </a>
+        <p className="setup-instruction">
+          Add your students to the ClassSetup spreadsheet, then continue.
+        </p>
+        <button onClick={handleContinue} data-testid="setup-continue-btn">
+          Continue
+        </button>
       </div>
     )
   }
