@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/sheets/v4"
 )
 
@@ -183,44 +184,77 @@ func ensureSubfolders(ctx context.Context, svc *googleServices, meta *gradeBeeMe
 	return rootID, spreadsheetID, spreadsheetURL, nil
 }
 
-// createAndMoveClassSetup creates the ClassSetup spreadsheet and moves it into the GradeBee folder.
+// createAndMoveClassSetup creates the ClassSetup spreadsheet inside the
+// GradeBee folder using the Drive API (so only drive.file scope is needed),
+// then populates it via the Sheets API.
 func createAndMoveClassSetup(ctx context.Context, svc *googleServices, rootID string) (spreadsheetID, spreadsheetURL string, err error) {
-	spreadsheet := &sheets.Spreadsheet{
-		Properties: &sheets.SpreadsheetProperties{Title: "ClassSetup"},
-		Sheets: []*sheets.Sheet{{
-			Properties: &sheets.SheetProperties{Title: "Students"},
-			Data: []*sheets.GridData{{
-				RowData: []*sheets.RowData{
-					{
-						Values: []*sheets.CellData{
-							{UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("class")}, UserEnteredFormat: &sheets.CellFormat{TextFormat: &sheets.TextFormat{Bold: true}}},
-							{UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("student")}, UserEnteredFormat: &sheets.CellFormat{TextFormat: &sheets.TextFormat{Bold: true}}},
-						},
-					},
-					{Values: []*sheets.CellData{{UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("5A")}}, {UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("Emma Johnson")}}}},
-					{Values: []*sheets.CellData{{UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("5A")}}, {UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("Liam Smith")}}}},
-					{Values: []*sheets.CellData{{UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("5B")}}, {UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("Olivia Brown")}}}},
-					{Values: []*sheets.CellData{{UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("5B")}}, {UserEnteredValue: &sheets.ExtendedValue{StringValue: strPtr("Noah Davis")}}}},
+	// 1. Create an empty spreadsheet via Drive API directly in the target folder.
+	driveFile := &drive.File{
+		Name:     "ClassSetup",
+		MimeType: "application/vnd.google-apps.spreadsheet",
+		Parents:  []string{rootID},
+	}
+	created, err := svc.Drive.Files.Create(driveFile).Fields("id").Context(ctx).Do()
+	if err != nil {
+		return "", "", fmt.Errorf("creating ClassSetup spreadsheet via Drive: %w", err)
+	}
+	spreadsheetID = created.Id
+	spreadsheetURL = fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit", spreadsheetID)
+
+	// 2. Rename the default sheet to "Students".
+	//    New spreadsheets have one sheet with ID 0.
+	_, err = svc.Sheets.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{{
+			UpdateSheetProperties: &sheets.UpdateSheetPropertiesRequest{
+				Properties: &sheets.SheetProperties{
+					SheetId: 0,
+					Title:   "Students",
 				},
-			}},
+				Fields: "title",
+			},
 		}},
-	}
-
-	created, err := svc.Sheets.Spreadsheets.Create(spreadsheet).Context(ctx).Do()
+	}).Context(ctx).Do()
 	if err != nil {
-		return "", "", fmt.Errorf("creating ClassSetup spreadsheet: %w", err)
+		return "", "", fmt.Errorf("renaming sheet to Students: %w", err)
 	}
 
-	_, err = svc.Drive.Files.Update(created.SpreadsheetId, nil).
-		AddParents(rootID).
-		RemoveParents("root").
-		Context(ctx).
-		Do()
+	// 3. Write header + sample rows.
+	_, err = svc.Sheets.Spreadsheets.Values.Update(spreadsheetID, "Students!A1", &sheets.ValueRange{
+		Values: [][]interface{}{
+			{"class", "student"},
+			{"5A", "Emma Johnson"},
+			{"5A", "Liam Smith"},
+			{"5B", "Olivia Brown"},
+			{"5B", "Noah Davis"},
+		},
+	}).ValueInputOption("RAW").Context(ctx).Do()
 	if err != nil {
-		return "", "", fmt.Errorf("moving spreadsheet to GradeBee folder: %w", err)
+		return "", "", fmt.Errorf("writing ClassSetup data: %w", err)
 	}
 
-	return created.SpreadsheetId, fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit", created.SpreadsheetId), nil
+	// 4. Bold the header row.
+	_, err = svc.Sheets.Spreadsheets.BatchUpdate(spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
+		Requests: []*sheets.Request{{
+			RepeatCell: &sheets.RepeatCellRequest{
+				Range: &sheets.GridRange{
+					SheetId:          0,
+					StartRowIndex:    0,
+					EndRowIndex:      1,
+					StartColumnIndex: 0,
+					EndColumnIndex:   2,
+				},
+				Cell: &sheets.CellData{
+					UserEnteredFormat: &sheets.CellFormat{
+						TextFormat: &sheets.TextFormat{Bold: true},
+					},
+				},
+				Fields: "userEnteredFormat.textFormat.bold",
+			},
+		}},
+	}).Context(ctx).Do()
+	if err != nil {
+		return "", "", fmt.Errorf("formatting ClassSetup header: %w", err)
+	}
+
+	return spreadsheetID, spreadsheetURL, nil
 }
-
-func strPtr(s string) *string { return &s }
