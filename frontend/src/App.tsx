@@ -2,6 +2,7 @@ import { Show, SignInButton, UserButton } from '@clerk/react'
 import { useState, useEffect } from 'react'
 import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
+import AudioUpload from './components/AudioUpload'
 
 const SETUP_DONE_KEY = 'gradebee-setup-done'
 
@@ -45,7 +46,10 @@ function App() {
           {setupDone === null ? (
             <p>Loading...</p>
           ) : setupDone ? (
-            <StudentList onSetupRequired={resetSetupDone} />
+            <>
+              <StudentList onSetupRequired={resetSetupDone} />
+              <AudioUpload />
+            </>
           ) : (
             <DriveSetup onComplete={markSetupDone} />
           )}

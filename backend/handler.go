@@ -17,8 +17,10 @@ import (
 )
 
 var (
-	setupHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleSetup))
-	studentsHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGetStudents))
+	setupHandler      = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleSetup))
+	studentsHandler   = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGetStudents))
+	uploadHandler     = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleUpload))
+	transcribeHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleTranscribe))
 )
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -75,6 +77,10 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		setupHandler.ServeHTTP(rec, r)
 	case path == "students" && r.Method == http.MethodGet:
 		studentsHandler.ServeHTTP(rec, r)
+	case path == "upload" && r.Method == http.MethodPost:
+		uploadHandler.ServeHTTP(rec, r)
+	case path == "transcribe" && r.Method == http.MethodPost:
+		transcribeHandler.ServeHTTP(rec, r)
 	default:
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

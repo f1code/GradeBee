@@ -3,12 +3,27 @@
 // Clerk and Google; tests swap in a stub via the serviceDeps variable.
 package handler
 
-import "net/http"
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+
+	openai "github.com/sashabaranov/go-openai"
+)
+
+// Transcriber abstracts audio-to-text transcription for testability.
+type Transcriber interface {
+	Transcribe(ctx context.Context, filename string, audio io.Reader) (string, error)
+}
 
 // deps abstracts external service calls for testability.
 type deps interface {
 	// GoogleServices returns authenticated Google API clients for the user.
 	GoogleServices(r *http.Request) (*googleServices, error)
+	// GetTranscriber returns a Transcriber implementation.
+	GetTranscriber() (Transcriber, error)
 }
 
 // prodDeps is the real implementation that calls Clerk + Google APIs.
@@ -16,6 +31,31 @@ type prodDeps struct{}
 
 func (prodDeps) GoogleServices(r *http.Request) (*googleServices, error) {
 	return newGoogleServices(r)
+}
+
+func (prodDeps) GetTranscriber() (Transcriber, error) {
+	key := os.Getenv("OPENAI_API_KEY")
+	if key == "" {
+		return nil, fmt.Errorf("OPENAI_API_KEY not set")
+	}
+	return &whisperTranscriber{client: openai.NewClient(key)}, nil
+}
+
+// whisperTranscriber uses the OpenAI Whisper API.
+type whisperTranscriber struct {
+	client *openai.Client
+}
+
+func (w *whisperTranscriber) Transcribe(ctx context.Context, filename string, audio io.Reader) (string, error) {
+	resp, err := w.client.CreateTranscription(ctx, openai.AudioRequest{
+		Model:    openai.Whisper1,
+		FilePath: filename,
+		Reader:   audio,
+	})
+	if err != nil {
+		return "", fmt.Errorf("whisper transcription failed: %w", err)
+	}
+	return resp.Text, nil
 }
 
 // serviceDeps is the active dependency implementation. Tests override this.

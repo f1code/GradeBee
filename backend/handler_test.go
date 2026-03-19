@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -103,4 +104,8 @@ type mockDepsGoogleFail struct{}
 
 func (mockDepsGoogleFail) GoogleServices(r *http.Request) (*googleServices, error) {
 	return nil, &apiError{Status: http.StatusBadGateway, Err: nil, Code: "token_failed", Message: "no Google OAuth token found"}
+}
+
+func (mockDepsGoogleFail) GetTranscriber() (Transcriber, error) {
+	return nil, fmt.Errorf("not configured")
 }
