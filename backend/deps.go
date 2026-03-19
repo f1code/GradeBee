@@ -15,7 +15,7 @@ import (
 
 // Transcriber abstracts audio-to-text transcription for testability.
 type Transcriber interface {
-	Transcribe(ctx context.Context, filename string, audio io.Reader) (string, error)
+	Transcribe(ctx context.Context, filename string, audio io.Reader, prompt string) (string, error)
 }
 
 // deps abstracts external service calls for testability.
@@ -46,7 +46,7 @@ type whisperTranscriber struct {
 	client *openai.Client
 }
 
-func (w *whisperTranscriber) Transcribe(ctx context.Context, filename string, audio io.Reader) (string, error) {
+func (w *whisperTranscriber) Transcribe(ctx context.Context, filename string, audio io.Reader, prompt string) (string, error) {
 	// Peek at magic bytes to detect the real audio format and fix the
 	// filename extension so Whisper parses the stream correctly.
 	header, audio, err := peekReader(audio, 12)
@@ -70,6 +70,7 @@ func (w *whisperTranscriber) Transcribe(ctx context.Context, filename string, au
 		Model:    openai.Whisper1,
 		FilePath: filename,
 		Reader:   audio,
+		Prompt:   prompt,
 	})
 	if err != nil {
 		return "", fmt.Errorf("whisper transcription failed: %w", err)
