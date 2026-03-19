@@ -85,7 +85,24 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		name = header.Filename
-		content = string(data)
+		if isExtractableFile(name) {
+			// PDF or image — extract text via GPT Vision
+			extractor, err := serviceDeps.GetExampleExtractor()
+			if err != nil {
+				log.Error("failed to get example extractor", "error", err)
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "text extraction unavailable"})
+				return
+			}
+			extracted, err := extractor.ExtractText(ctx, name, data)
+			if err != nil {
+				log.Error("failed to extract text from file", "error", err, "filename", name)
+				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to extract text from file"})
+				return
+			}
+			content = extracted
+		} else {
+			content = string(data)
+		}
 	} else {
 		// JSON body with pasted text
 		var req struct {

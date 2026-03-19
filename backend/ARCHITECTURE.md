@@ -24,6 +24,8 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 | DELETE | `/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card      |
 | POST   | `/reports`  | Yes  | `handleGenerateReports` | Generate report cards for students    |
 | POST   | `/reports/regenerate` | Yes | `handleRegenerateReport` | Regenerate a report with feedback |
+| GET    | `/google-token` | Yes | `handleGoogleToken`  | Return user's Google OAuth access token  |
+| POST   | `/drive-import` | Yes | `handleDriveImport`  | Validate + copy Drive file to uploads    |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline.
 
@@ -41,6 +43,7 @@ deps interface {
     GetNoteCreator(svc) → NoteCreator
     GetMetadataIndex(svc) → MetadataIndex
     GetExampleStore(svc)  → ExampleStore
+    GetExampleExtractor() → ExampleExtractor
     GetReportGenerator(svc) → ReportGenerator
 }
 ```
@@ -54,11 +57,12 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `deps`       | `deps.go`        | `prodDeps`             | Top-level DI container         |
 | `Roster`     | `deps.go`        | `sheetsRoster`         | Read student data from Sheets  |
 | `Transcriber`| `deps.go`        | `whisperTranscriber`   | Audio→text via OpenAI Whisper  |
-| `DriveStore` | `drive_store.go` | `sheetsDriveStore`     | Upload/download files on Drive |
+| `DriveStore` | `drive_store.go` | `sheetsDriveStore`     | Upload/download/copy files on Drive |
 | `Extractor`  | `extract.go`     | `gptExtractor`         | Transcript→student extraction  |
 | `NoteCreator`| `notes.go`       | `driveNoteCreator`     | Create Google Doc notes        |
 | `MetadataIndex` | `metadata_index.go` | `driveMetadataIndex` | Per-student note index (index.json) |
 | `ExampleStore` | `report_examples.go` | `driveExampleStore` | CRUD for example report cards  |
+| `ExampleExtractor` | `report_example_extractor.go` | `gptExampleExtractor` | GPT Vision text extraction from PDF/images |
 | `ReportGenerator` | `report_generator.go` | `gptReportGenerator` | GPT-based report card generation |
 
 ## External Services
@@ -92,7 +96,9 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `roster.go`         | `sheetsRoster` — Roster interface impl backed by Sheets API       |
 | `upload.go`         | POST /upload — multipart audio → Drive uploads folder             |
 | `transcribe.go`     | POST /transcribe — Drive download → Whisper API                   |
-| `drive_store.go`    | `DriveStore` interface + `sheetsDriveStore` (Drive CRUD)          |
+| `drive_store.go`    | `DriveStore` interface + `sheetsDriveStore` (Drive CRUD + Copy)   |
+| `drive_import.go`   | POST /drive-import — validate + copy Drive file to uploads folder |
+| `google_token.go`   | GET /google-token — return user's Google OAuth access token       |
 | `extract.go`        | `Extractor` interface + GPT implementation for transcript analysis|
 | `extract_handler.go`| POST /extract — transcript analysis → matched students            |
 | `notes.go`          | `NoteCreator` interface + Drive/Docs implementation               |
@@ -100,6 +106,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `metadata_index.go` | `MetadataIndex` interface + Drive impl, shared folder utils       |
 | `report_examples.go`| `ExampleStore` interface + Drive impl for example report cards    |
 | `report_examples_handler.go` | GET/POST/DELETE /report-examples handlers            |
+| `report_example_extractor.go` | GPT Vision extraction of text from PDF/image uploads |
 | `report_generator.go` | `ReportGenerator` interface + GPT impl, feedback reader        |
 | `report_prompt.go`  | GPT prompt construction for report generation                     |
 | `reports_handler.go`| POST /reports + POST /reports/regenerate handlers                 |

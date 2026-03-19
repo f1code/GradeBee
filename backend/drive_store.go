@@ -15,6 +15,10 @@ type DriveStore interface {
 	Download(ctx context.Context, fileID string) (io.ReadCloser, error)
 	FileName(ctx context.Context, fileID string) (string, error)
 	Upload(ctx context.Context, parentID string, name string, content io.Reader) (fileID string, err error)
+	// Copy duplicates a file into the given folder, returning the new file ID.
+	Copy(ctx context.Context, fileID string, destFolderID string, newName string) (string, error)
+	// GetMimeType returns the MIME type of a file.
+	GetMimeType(ctx context.Context, fileID string) (string, error)
 }
 
 // sheetsDriveStore is the production DriveStore backed by a *drive.Service.
@@ -52,4 +56,24 @@ func (s *sheetsDriveStore) Upload(ctx context.Context, parentID, name string, co
 		return "", fmt.Errorf("drive upload: %w", err)
 	}
 	return created.Id, nil
+}
+
+func (s *sheetsDriveStore) Copy(ctx context.Context, fileID, destFolderID, newName string) (string, error) {
+	copyFile := &drive.File{
+		Name:    newName,
+		Parents: []string{destFolderID},
+	}
+	copied, err := s.svc.Files.Copy(fileID, copyFile).Fields("id").Context(ctx).Do()
+	if err != nil {
+		return "", fmt.Errorf("drive copy: %w", err)
+	}
+	return copied.Id, nil
+}
+
+func (s *sheetsDriveStore) GetMimeType(ctx context.Context, fileID string) (string, error) {
+	fileMeta, err := s.svc.Files.Get(fileID).Fields("mimeType").Context(ctx).Do()
+	if err != nil {
+		return "", fmt.Errorf("drive get mime type: %w", err)
+	}
+	return fileMeta.MimeType, nil
 }

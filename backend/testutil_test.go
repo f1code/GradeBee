@@ -34,6 +34,10 @@ type stubDriveStore struct {
 	fileNameErr  error
 	uploadID     string
 	uploadErr    error
+	copyID       string
+	copyErr      error
+	mimeType     string
+	mimeTypeErr  error
 }
 
 func (s *stubDriveStore) Download(_ context.Context, _ string) (io.ReadCloser, error) {
@@ -46,6 +50,14 @@ func (s *stubDriveStore) FileName(_ context.Context, _ string) (string, error) {
 
 func (s *stubDriveStore) Upload(_ context.Context, _, _ string, _ io.Reader) (string, error) {
 	return s.uploadID, s.uploadErr
+}
+
+func (s *stubDriveStore) Copy(_ context.Context, _, _, _ string) (string, error) {
+	return s.copyID, s.copyErr
+}
+
+func (s *stubDriveStore) GetMimeType(_ context.Context, _ string) (string, error) {
+	return s.mimeType, s.mimeTypeErr
 }
 
 // stubTranscriber implements Transcriber for tests.
@@ -115,6 +127,10 @@ func (m *mockDepsAll) GetMetadataIndex(_ *googleServices) MetadataIndex {
 
 func (m *mockDepsAll) GetExampleStore(_ *googleServices) ExampleStore {
 	return nil
+}
+
+func (m *mockDepsAll) GetExampleExtractor() (ExampleExtractor, error) {
+	return nil, fmt.Errorf("not configured")
 }
 
 func (m *mockDepsAll) GetReportGenerator(_ *googleServices) (ReportGenerator, error) {

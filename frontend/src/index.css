@@ -540,6 +540,17 @@ button:disabled {
   font-weight: 400;
 }
 
+.drive-import-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+.drive-import-row .btn-secondary {
+  font-size: 0.9rem;
+  padding: 0.55rem 1.1rem;
+}
+
 /* Upload progress / transcribing states */
 .upload-progress {
   background: var(--chalk);

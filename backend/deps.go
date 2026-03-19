@@ -43,6 +43,8 @@ type deps interface {
 	GetMetadataIndex(svc *googleServices) MetadataIndex
 	// GetExampleStore returns an ExampleStore for the authenticated user's Drive.
 	GetExampleStore(svc *googleServices) ExampleStore
+	// GetExampleExtractor returns an ExampleExtractor for PDF/image text extraction.
+	GetExampleExtractor() (ExampleExtractor, error)
 	// GetReportGenerator returns a ReportGenerator.
 	GetReportGenerator(svc *googleServices) (ReportGenerator, error)
 }
@@ -85,6 +87,10 @@ func (prodDeps) GetMetadataIndex(svc *googleServices) MetadataIndex {
 
 func (prodDeps) GetExampleStore(svc *googleServices) ExampleStore {
 	return newDriveExampleStore(svc.Drive)
+}
+
+func (prodDeps) GetExampleExtractor() (ExampleExtractor, error) {
+	return newGPTExampleExtractor()
 }
 
 func (prodDeps) GetReportGenerator(svc *googleServices) (ReportGenerator, error) {

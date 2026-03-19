@@ -1,9 +1,10 @@
 import { useAuth } from '@clerk/react'
 import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { uploadAudio, transcribeAudio, extractFromTranscript, createNotes } from '../api'
+import { uploadAudio, transcribeAudio, extractFromTranscript, createNotes, getGoogleToken, importFromDrive } from '../api'
 import type { ExtractResult, NoteResult } from '../api'
 import NoteConfirmation from './NoteConfirmation'
+import { useDrivePicker } from '../hooks/useDrivePicker'
 
 type UploadStatus = 'idle' | 'uploading' | 'transcribing' | 'extracting' | 'confirming' | 'saving' | 'saved' | 'error'
 
@@ -33,6 +34,16 @@ function HoneycombSpinner() {
   )
 }
 
+function DriveIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M8.01 2.56L1.38 14H7.37L14 2.56H8.01Z" fill="#E8A317" opacity="0.7" />
+      <path d="M22.62 14H10.38L7.37 19.44H19.61L22.62 14Z" fill="#C4880F" />
+      <path d="M14 2.56L22.62 14L19.61 19.44L11 7.56L14 2.56Z" fill="#E8A317" opacity="0.5" />
+    </svg>
+  )
+}
+
 export default function AudioUpload() {
   const { getToken } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -44,6 +55,7 @@ export default function AudioUpload() {
   const [savedNotes, setSavedNotes] = useState<NoteResult[] | null>(null)
   const [error, setError] = useState<string>('')
   const [dragOver, setDragOver] = useState(false)
+  const { openPicker } = useDrivePicker()
 
   async function processFile(file: File) {
     if (file.size > MAX_SIZE_BYTES) {
@@ -71,6 +83,46 @@ export default function AudioUpload() {
       const extraction = await extractFromTranscript(
         transcribeResult.transcript,
         uploadResult.fileId,
+        getToken
+      )
+      setExtractResult(extraction)
+      setStatus('confirming')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setStatus('error')
+    }
+  }
+
+  async function handleDriveImport() {
+    setError('')
+    setTranscript('')
+    setExtractResult(null)
+    setSavedNotes(null)
+
+    try {
+      // Get Google OAuth token for Picker
+      const { accessToken } = await getGoogleToken(getToken)
+
+      // Open Picker — returns null if user cancels
+      const picked = await openPicker(accessToken)
+      if (!picked) return
+
+      setFileName(picked.name)
+      setStatus('uploading')
+
+      // Copy the file into GradeBee/uploads/
+      const importResult = await importFromDrive(picked.id, picked.name, getToken)
+      setFileId(importResult.fileId)
+
+      // Continue with the same pipeline as file upload
+      setStatus('transcribing')
+      const transcribeResult = await transcribeAudio(importResult.fileId, getToken)
+      setTranscript(transcribeResult.transcript)
+
+      setStatus('extracting')
+      const extraction = await extractFromTranscript(
+        transcribeResult.transcript,
+        importResult.fileId,
         getToken
       )
       setExtractResult(extraction)
@@ -169,6 +221,17 @@ export default function AudioUpload() {
                 style={{ display: 'none' }}
                 data-testid="file-input"
               />
+            </div>
+            <div className="drive-import-row">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleDriveImport}
+                data-testid="drive-import-btn"
+              >
+                <DriveIcon />
+                Add from Drive
+              </button>
             </div>
           </motion.div>
         )}

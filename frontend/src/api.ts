@@ -229,3 +229,36 @@ export async function regenerateReport(
   if (!resp.ok) throw new Error(body.error || 'Report regeneration failed')
   return body
 }
+
+// --- Google Token / Drive Import ---
+
+export async function getGoogleToken(
+  getToken: () => Promise<string | null>
+): Promise<{ accessToken: string }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/google-token`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to get Google token')
+  return body
+}
+
+export async function importFromDrive(
+  fileId: string,
+  fileName: string,
+  getToken: () => Promise<string | null>
+): Promise<{ fileId: string; fileName: string }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/drive-import`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId, fileName }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Drive import failed')
+  return body
+}

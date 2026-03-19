@@ -28,6 +28,8 @@ var (
 	reportExamplesDeleteHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleDeleteReportExample))
 	reportsHandler              = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGenerateReports))
 	reportsRegenerateHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleRegenerateReport))
+	googleTokenHandler          = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGoogleToken))
+	driveImportHandler          = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleDriveImport))
 )
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -102,6 +104,10 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		reportsHandler.ServeHTTP(rec, r)
 	case path == "reports/regenerate" && r.Method == http.MethodPost:
 		reportsRegenerateHandler.ServeHTTP(rec, r)
+	case path == "google-token" && r.Method == http.MethodGet:
+		googleTokenHandler.ServeHTTP(rec, r)
+	case path == "drive-import" && r.Method == http.MethodPost:
+		driveImportHandler.ServeHTTP(rec, r)
 	default:
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

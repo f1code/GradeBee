@@ -135,6 +135,10 @@ func (mockDepsGoogleFail) GetExampleStore(_ *googleServices) ExampleStore {
 	return nil
 }
 
+func (mockDepsGoogleFail) GetExampleExtractor() (ExampleExtractor, error) {
+	return nil, fmt.Errorf("not configured")
+}
+
 func (mockDepsGoogleFail) GetReportGenerator(_ *googleServices) (ReportGenerator, error) {
 	return nil, fmt.Errorf("not configured")
 }

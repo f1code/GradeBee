@@ -94,15 +94,18 @@ export default function ReportExamples() {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".txt,.md,.text"
+                accept=".txt,.md,.text,.pdf,.png,.jpg,.jpeg,.webp"
                 multiple
                 style={{ display: 'none' }}
                 onChange={(e) => handleFiles(e.target.files)}
               />
               {uploading ? (
-                <div className="honeycomb-spinner" />
+                <>
+                  <div className="honeycomb-spinner" />
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.7 }}>Extracting text…</p>
+                </>
               ) : (
-                <p>Drop text files here or click to upload</p>
+                <p>Drop files here or click to upload<br/><span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Text, PDF, or image files</span></p>
               )}
             </div>
 
