@@ -2,6 +2,9 @@
 
 ## Go Backend
 
+Refer to `backend/ARCHITECTURE.md` for backend architecture, patterns, and implementation guidelines.
+Update this document when the backend is updated.
+
 After editing Go code in `backend/`, run lint to catch issues:
 
 ```bash
