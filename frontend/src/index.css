@@ -651,3 +651,285 @@ button:disabled {
     padding: 1rem 1.15rem;
   }
 }
+
+/* ── Note Confirmation ─────────────────────────── */
+
+.note-confirmation {
+  background: var(--chalk);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: var(--shadow-md);
+}
+
+.note-confirmation h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 1.25rem;
+  font-size: 1.25rem;
+}
+
+.note-students {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.note-student-card {
+  background: var(--parchment);
+  border-radius: 10px;
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--comb);
+}
+
+.note-student-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.note-student-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.note-student-name strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.note-student-class {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+}
+
+.note-student-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.confidence-badge[data-level="high"] {
+  background: rgba(56, 161, 105, 0.12);
+  color: var(--success-green);
+}
+
+.confidence-badge[data-level="low"] {
+  background: rgba(232, 163, 23, 0.15);
+  color: var(--honey-dark);
+}
+
+.confidence-score {
+  opacity: 0.7;
+  font-size: 0.7rem;
+}
+
+.note-remove-btn {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 0.25rem;
+  line-height: 1;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+
+.note-remove-btn:hover {
+  color: var(--error-red);
+  background: rgba(197, 48, 48, 0.08);
+  transform: none;
+  box-shadow: none;
+}
+
+.note-candidates {
+  margin-bottom: 0.75rem;
+}
+
+.note-candidates-label {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  margin: 0 0 0.35rem;
+}
+
+.note-candidates-list {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.note-candidate-btn {
+  padding: 0.3rem 0.65rem !important;
+  font-size: 0.8rem !important;
+}
+
+.note-summary-input {
+  width: 100%;
+  border: 1px solid var(--comb);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--chalk);
+  resize: vertical;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.note-summary-input:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.15);
+}
+
+.note-empty-students {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.note-meta-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.note-meta-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.note-meta-field label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.note-meta-field input {
+  border: 1px solid var(--comb);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--ink);
+  background: var(--chalk);
+  transition: border-color 0.2s;
+}
+
+.note-meta-field input:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.15);
+}
+
+.note-transcript-section {
+  margin-bottom: 1.25rem;
+}
+
+.note-transcript-toggle {
+  background: none;
+  border: none;
+  color: var(--honey-dark);
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0;
+  font-weight: 500;
+}
+
+.note-transcript-toggle:hover {
+  color: var(--honey);
+  transform: none;
+  box-shadow: none;
+}
+
+.note-transcript-section .transcript-text {
+  margin-top: 0.5rem;
+}
+
+.note-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.note-actions button:first-child:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Success state */
+
+.note-success {
+  text-align: center;
+  padding: 1rem 0;
+}
+
+.note-success-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.note-success h3 {
+  text-align: center;
+}
+
+.note-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  align-items: center;
+}
+
+.note-doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--honey-dark);
+  font-weight: 500;
+  text-decoration: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.note-doc-link:hover {
+  background: var(--honey-light);
+}
+
+@media (max-width: 480px) {
+  .note-meta-row {
+    flex-direction: column;
+  }
+
+  .note-student-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

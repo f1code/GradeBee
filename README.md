@@ -106,7 +106,7 @@ GradeBee/
 - Node.js
 - Go 1.24+
 - A [Clerk](https://clerk.com) account configured with Google OAuth (requesting `drive.file` scope only; no restricted scopes like `drive.metadata.readonly` — IDs are stored in Clerk user metadata)
-- A Google Cloud project with the **Google Drive API** and **Google Sheets API** enabled ([Drive](https://console.developers.google.com/apis/api/drive.googleapis.com) · [Sheets](https://console.developers.google.com/apis/api/sheets.googleapis.com))
+- A Google Cloud project with the **Google Drive API**, **Google Sheets API**, and **Google Docs API** enabled ([Drive](https://console.developers.google.com/apis/api/drive.googleapis.com) · [Sheets](https://console.developers.google.com/apis/api/sheets.googleapis.com) · [Docs](https://console.developers.google.com/apis/api/docs.googleapis.com))
 
 ### Setup
 

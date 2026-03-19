@@ -21,6 +21,8 @@ var (
 	studentsHandler   = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGetStudents))
 	uploadHandler     = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleUpload))
 	transcribeHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleTranscribe))
+	extractHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleExtract))
+	notesHandler      = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleCreateNotes))
 )
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -81,6 +83,10 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		uploadHandler.ServeHTTP(rec, r)
 	case path == "transcribe" && r.Method == http.MethodPost:
 		transcribeHandler.ServeHTTP(rec, r)
+	case path == "extract" && r.Method == http.MethodPost:
+		extractHandler.ServeHTTP(rec, r)
+	case path == "notes" && r.Method == http.MethodPost:
+		notesHandler.ServeHTTP(rec, r)
 	default:
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

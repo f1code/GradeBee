@@ -17,6 +17,8 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters and pr
 | GET    | `/students` | Yes  | `handleGetStudents`  | Read roster from Sheets                  |
 | POST   | `/upload`   | Yes  | `handleUpload`       | Upload audio to Drive                    |
 | POST   | `/transcribe`| Yes | `handleTranscribe`   | Download from Drive → Whisper → text     |
+| POST   | `/extract`  | Yes  | `handleExtract`      | Analyze transcript → matched students    |
+| POST   | `/notes`    | Yes  | `handleCreateNotes`  | Create Google Doc notes for students     |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline.
 
@@ -43,13 +45,15 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `Roster`     | `deps.go`        | `sheetsRoster`         | Read student data from Sheets  |
 | `Transcriber`| `deps.go`        | `whisperTranscriber`   | Audio→text via OpenAI Whisper  |
 | `DriveStore` | `drive_store.go` | `sheetsDriveStore`     | Upload/download files on Drive |
+| `Extractor`  | `extract.go`     | `gptExtractor`         | Transcript→student extraction  |
+| `NoteCreator`| `notes.go`       | `driveNoteCreator`     | Create Google Doc notes        |
 
 ## External Services
 
 ### Google APIs (`google.go`)
-- **Auth flow:** Clerk JWT → extract user ID → `getGoogleOAuthToken` (Clerk Backend API) → OAuth2 token → Drive/Sheets clients.
+- **Auth flow:** Clerk JWT → extract user ID → `getGoogleOAuthToken` (Clerk Backend API) → OAuth2 token → Drive/Sheets/Docs clients.
 - Scope: `drive.file` only (app can only access files it created).
-- `googleServices` struct holds `*drive.Service`, `*sheets.Service`, `*clerkUser`.
+- `googleServices` struct holds `*drive.Service`, `*sheets.Service`, `*docs.Service`, `*clerkUser`.
 
 ### Clerk (`auth.go`, `clerk_metadata.go`)
 - JWT verification via middleware.
@@ -76,6 +80,10 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `upload.go`         | POST /upload — multipart audio → Drive uploads folder             |
 | `transcribe.go`     | POST /transcribe — Drive download → Whisper API                   |
 | `drive_store.go`    | `DriveStore` interface + `sheetsDriveStore` (Drive CRUD)          |
+| `extract.go`        | `Extractor` interface + GPT implementation for transcript analysis|
+| `extract_handler.go`| POST /extract — transcript analysis → matched students            |
+| `notes.go`          | `NoteCreator` interface + Drive/Docs implementation               |
+| `notes_handler.go`  | POST /notes — create Google Doc notes for confirmed students      |
 | `audio_format.go`   | Magic-byte detection, 3GP patching, filename extension fixing     |
 | `logger.go`         | slog-based structured logging, request-scoped via context         |
 

@@ -67,6 +67,9 @@ type mockDepsAll struct {
 	driveStore   DriveStore
 	transcriber  Transcriber
 	transErr     error
+	extractor    Extractor
+	extractErr   error
+	noteCreator  NoteCreator
 }
 
 func (m *mockDepsAll) GoogleServices(_ *http.Request) (*googleServices, error) {
@@ -92,4 +95,46 @@ func (m *mockDepsAll) GetRoster(_ context.Context, _ *googleServices) (Roster, e
 
 func (m *mockDepsAll) GetDriveStore(_ *googleServices) DriveStore {
 	return m.driveStore
+}
+
+func (m *mockDepsAll) GetExtractor() (Extractor, error) {
+	if m.extractErr != nil {
+		return nil, m.extractErr
+	}
+	return m.extractor, nil
+}
+
+func (m *mockDepsAll) GetNoteCreator(_ *googleServices) NoteCreator {
+	return m.noteCreator
+}
+
+// stubExtractor implements Extractor for tests.
+type stubExtractor struct {
+	result *ExtractResponse
+	err    error
+}
+
+func (s *stubExtractor) Extract(_ context.Context, _ ExtractRequest) (*ExtractResponse, error) {
+	return s.result, s.err
+}
+
+// stubNoteCreator implements NoteCreator for tests.
+type stubNoteCreator struct {
+	results []*CreateNoteResponse // returned in order
+	err     error
+	calls   []CreateNoteRequest // recorded calls
+	idx     int
+}
+
+func (s *stubNoteCreator) CreateNote(_ context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
+	s.calls = append(s.calls, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.idx < len(s.results) {
+		r := s.results[s.idx]
+		s.idx++
+		return r, nil
+	}
+	return &CreateNoteResponse{DocID: "doc-id", DocURL: "https://docs.google.com/document/d/doc-id/edit"}, nil
 }

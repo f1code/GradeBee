@@ -35,6 +35,10 @@ type deps interface {
 	GetRoster(ctx context.Context, svc *googleServices) (Roster, error)
 	// GetDriveStore returns a DriveStore for the authenticated user's Drive.
 	GetDriveStore(svc *googleServices) DriveStore
+	// GetExtractor returns an Extractor for transcript analysis.
+	GetExtractor() (Extractor, error)
+	// GetNoteCreator returns a NoteCreator for the authenticated user's Drive.
+	GetNoteCreator(svc *googleServices) NoteCreator
 }
 
 // prodDeps is the real implementation that calls Clerk + Google APIs.
@@ -58,6 +62,14 @@ func (prodDeps) GetRoster(ctx context.Context, svc *googleServices) (Roster, err
 
 func (prodDeps) GetDriveStore(svc *googleServices) DriveStore {
 	return newDriveStore(svc)
+}
+
+func (prodDeps) GetExtractor() (Extractor, error) {
+	return newGPTExtractor()
+}
+
+func (prodDeps) GetNoteCreator(svc *googleServices) NoteCreator {
+	return newDriveNoteCreator(svc.Drive, svc.Docs)
 }
 
 // whisperTranscriber uses the OpenAI Whisper API.

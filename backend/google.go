@@ -8,6 +8,7 @@ import (
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"golang.org/x/oauth2"
+	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
@@ -17,6 +18,7 @@ import (
 type googleServices struct {
 	Drive  *drive.Service
 	Sheets *sheets.Service
+	Docs   *docs.Service
 	User   *clerkUser
 }
 
@@ -44,7 +46,12 @@ func newGoogleServices(r *http.Request) (*googleServices, error) {
 		loggerFromContext(ctx).Error("google services failed", "operation", "sheets.NewService", "error", err)
 		return nil, &apiError{Status: http.StatusInternalServerError, Err: err}
 	}
-	return &googleServices{Drive: driveSrv, Sheets: sheetsSrv, User: &clerkUser{UserID: userID}}, nil
+	docsSrv, err := docs.NewService(ctx, option.WithTokenSource(tokenSource))
+	if err != nil {
+		loggerFromContext(ctx).Error("google services failed", "operation", "docs.NewService", "error", err)
+		return nil, &apiError{Status: http.StatusInternalServerError, Err: err}
+	}
+	return &googleServices{Drive: driveSrv, Sheets: sheetsSrv, Docs: docsSrv, User: &clerkUser{UserID: userID}}, nil
 }
 
 // apiError is an error that carries an HTTP status code.

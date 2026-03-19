@@ -118,3 +118,11 @@ func (mockDepsGoogleFail) GetRoster(_ context.Context, _ *googleServices) (Roste
 func (mockDepsGoogleFail) GetDriveStore(_ *googleServices) DriveStore {
 	return nil
 }
+
+func (mockDepsGoogleFail) GetExtractor() (Extractor, error) {
+	return nil, fmt.Errorf("not available")
+}
+
+func (mockDepsGoogleFail) GetNoteCreator(_ *googleServices) NoteCreator {
+	return nil
+}

@@ -1,9 +1,11 @@
 import { useAuth } from '@clerk/react'
 import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { uploadAudio, transcribeAudio } from '../api'
+import { uploadAudio, transcribeAudio, extractFromTranscript, createNotes } from '../api'
+import type { ExtractResult, NoteResult } from '../api'
+import NoteConfirmation from './NoteConfirmation'
 
-type UploadStatus = 'idle' | 'uploading' | 'transcribing' | 'done' | 'error'
+type UploadStatus = 'idle' | 'uploading' | 'transcribing' | 'extracting' | 'confirming' | 'saving' | 'saved' | 'error'
 
 const ACCEPTED_FORMATS = '.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm'
 const MAX_SIZE_MB = 25
@@ -37,6 +39,9 @@ export default function AudioUpload() {
   const [status, setStatus] = useState<UploadStatus>('idle')
   const [fileName, setFileName] = useState<string>('')
   const [transcript, setTranscript] = useState<string>('')
+  const [fileId, setFileId] = useState<string>('')
+  const [extractResult, setExtractResult] = useState<ExtractResult | null>(null)
+  const [savedNotes, setSavedNotes] = useState<NoteResult[] | null>(null)
   const [error, setError] = useState<string>('')
   const [dragOver, setDragOver] = useState(false)
 
@@ -50,18 +55,46 @@ export default function AudioUpload() {
     setFileName(file.name)
     setError('')
     setTranscript('')
+    setExtractResult(null)
+    setSavedNotes(null)
 
     try {
       setStatus('uploading')
       const uploadResult = await uploadAudio(file, getToken)
+      setFileId(uploadResult.fileId)
 
       setStatus('transcribing')
       const transcribeResult = await transcribeAudio(uploadResult.fileId, getToken)
-
       setTranscript(transcribeResult.transcript)
-      setStatus('done')
+
+      setStatus('extracting')
+      const extraction = await extractFromTranscript(
+        transcribeResult.transcript,
+        uploadResult.fileId,
+        getToken
+      )
+      setExtractResult(extraction)
+      setStatus('confirming')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
+      setStatus('error')
+    }
+  }
+
+  async function handleSaveNotes(
+    students: { name: string; class: string; summary: string }[],
+    date: string
+  ) {
+    try {
+      setStatus('saving')
+      const result = await createNotes(
+        { fileId, students, transcript, date },
+        getToken
+      )
+      setSavedNotes(result.notes)
+      setStatus('saved')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create notes')
       setStatus('error')
     }
   }
@@ -91,6 +124,9 @@ export default function AudioUpload() {
     setStatus('idle')
     setFileName('')
     setTranscript('')
+    setFileId('')
+    setExtractResult(null)
+    setSavedNotes(null)
     setError('')
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -167,27 +203,39 @@ export default function AudioUpload() {
           </motion.div>
         )}
 
-        {status === 'done' && (
+        {status === 'extracting' && (
           <motion.div
-            key="done"
-            className="upload-done"
-            data-testid="upload-done"
+            key="extracting"
+            className="upload-progress"
+            data-testid="extract-progress"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <HoneycombSpinner />
+            <p>Analyzing transcript...</p>
+          </motion.div>
+        )}
+
+        {(status === 'confirming' || status === 'saving' || status === 'saved') && extractResult && (
+          <motion.div
+            key="confirming"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <p>✅ Transcription complete for <strong>{fileName}</strong></p>
-            <textarea
-              className="transcript-text"
-              readOnly
-              value={transcript}
-              rows={10}
-              data-testid="transcript-text"
+            <NoteConfirmation
+              extractResult={extractResult}
+              transcript={transcript}
+              fileId={fileId}
+              onSave={handleSaveNotes}
+              onCancel={reset}
+              saving={status === 'saving'}
+              savedNotes={savedNotes}
+              onReset={reset}
             />
-            <button onClick={reset} data-testid="upload-another">
-              Upload another
-            </button>
           </motion.div>
         )}
       </AnimatePresence>
