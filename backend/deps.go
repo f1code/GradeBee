@@ -13,6 +13,13 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
+// Roster abstracts read access to the user's student roster spreadsheet.
+type Roster interface {
+	ClassNames(ctx context.Context) ([]string, error)
+	Students(ctx context.Context) ([]classGroup, error)
+	SpreadsheetURL() string
+}
+
 // Transcriber abstracts audio-to-text transcription for testability.
 type Transcriber interface {
 	Transcribe(ctx context.Context, filename string, audio io.Reader, prompt string) (string, error)
@@ -24,6 +31,10 @@ type deps interface {
 	GoogleServices(r *http.Request) (*googleServices, error)
 	// GetTranscriber returns a Transcriber implementation.
 	GetTranscriber() (Transcriber, error)
+	// GetRoster returns a Roster for the authenticated user's spreadsheet.
+	GetRoster(ctx context.Context, svc *googleServices) (Roster, error)
+	// GetDriveStore returns a DriveStore for the authenticated user's Drive.
+	GetDriveStore(svc *googleServices) DriveStore
 }
 
 // prodDeps is the real implementation that calls Clerk + Google APIs.
@@ -39,6 +50,14 @@ func (prodDeps) GetTranscriber() (Transcriber, error) {
 		return nil, fmt.Errorf("OPENAI_API_KEY not set")
 	}
 	return &whisperTranscriber{client: openai.NewClient(key)}, nil
+}
+
+func (prodDeps) GetRoster(ctx context.Context, svc *googleServices) (Roster, error) {
+	return newSheetsRoster(ctx, svc)
+}
+
+func (prodDeps) GetDriveStore(svc *googleServices) DriveStore {
+	return newDriveStore(svc)
 }
 
 // whisperTranscriber uses the OpenAI Whisper API.

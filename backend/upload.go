@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-
-	"google.golang.org/api/drive/v3"
 )
 
 const maxUploadSize = 25 << 20 // 25 MB (Whisper API limit)
@@ -77,20 +75,17 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	driveFile := &drive.File{
-		Name:    header.Filename,
-		Parents: []string{meta.UploadsID},
-	}
-	created, err := svc.Drive.Files.Create(driveFile).Media(file).Fields("id").Context(ctx).Do()
+	store := serviceDeps.GetDriveStore(svc)
+	fileID, err := store.Upload(ctx, meta.UploadsID, header.Filename, file)
 	if err != nil {
 		log.Error("upload to Drive failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to upload to Google Drive"})
 		return
 	}
 
-	log.Info("upload completed", "user_id", userID, "file_id", created.Id, "file_name", header.Filename)
+	log.Info("upload completed", "user_id", userID, "file_id", fileID, "file_name", header.Filename)
 	writeJSON(w, http.StatusOK, uploadResponse{
-		FileID:   created.Id,
+		FileID:   fileID,
 		FileName: header.Filename,
 	})
 }

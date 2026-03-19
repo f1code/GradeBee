@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -108,4 +109,12 @@ func (mockDepsGoogleFail) GoogleServices(r *http.Request) (*googleServices, erro
 
 func (mockDepsGoogleFail) GetTranscriber() (Transcriber, error) {
 	return nil, fmt.Errorf("not configured")
+}
+
+func (mockDepsGoogleFail) GetRoster(_ context.Context, _ *googleServices) (Roster, error) {
+	return nil, fmt.Errorf("not configured")
+}
+
+func (mockDepsGoogleFail) GetDriveStore(_ *googleServices) DriveStore {
+	return nil
 }

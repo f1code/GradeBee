@@ -1,6 +1,10 @@
 package handler
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 )
@@ -148,5 +152,104 @@ func TestParseStudentRows(t *testing.T) {
 				t.Errorf("parseStudentRows() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestHandleGetStudents_HappyPath(t *testing.T) {
+	origDeps := serviceDeps
+	defer func() { serviceDeps = origDeps }()
+
+	serviceDeps = &mockDepsAll{
+		roster: &stubRoster{
+			students: []classGroup{
+				{Name: "5A", Students: []student{{Name: "Emma"}, {Name: "Liam"}}},
+				{Name: "5B", Students: []student{{Name: "Noah"}}},
+			},
+			url: "https://docs.google.com/spreadsheets/d/abc/edit",
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/students", http.NoBody)
+	rec := httptest.NewRecorder()
+	handleGetStudents(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got status %d, want 200", rec.Code)
+	}
+
+	var resp studentsResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.SpreadsheetURL != "https://docs.google.com/spreadsheets/d/abc/edit" {
+		t.Errorf("spreadsheetUrl = %q", resp.SpreadsheetURL)
+	}
+	if len(resp.Classes) != 2 {
+		t.Errorf("got %d classes, want 2", len(resp.Classes))
+	}
+}
+
+func TestHandleGetStudents_RosterAPIError(t *testing.T) {
+	origDeps := serviceDeps
+	defer func() { serviceDeps = origDeps }()
+
+	serviceDeps = &mockDepsAll{
+		rosterErr: &apiError{Status: 404, Code: "no_spreadsheet", Message: "not found"},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/students", http.NoBody)
+	rec := httptest.NewRecorder()
+	handleGetStudents(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("got status %d, want 404", rec.Code)
+	}
+}
+
+func TestHandleGetStudents_RosterGenericError(t *testing.T) {
+	origDeps := serviceDeps
+	defer func() { serviceDeps = origDeps }()
+
+	serviceDeps = &mockDepsAll{
+		rosterErr: fmt.Errorf("something broke"),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/students", http.NoBody)
+	rec := httptest.NewRecorder()
+	handleGetStudents(rec, req)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("got status %d, want 500", rec.Code)
+	}
+}
+
+func TestHandleGetStudents_EmptySpreadsheet(t *testing.T) {
+	origDeps := serviceDeps
+	defer func() { serviceDeps = origDeps }()
+
+	serviceDeps = &mockDepsAll{
+		roster: &stubRoster{
+			studentsErr: fmt.Errorf("No students found"),
+			url:         "https://docs.google.com/spreadsheets/d/abc/edit",
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/students", http.NoBody)
+	rec := httptest.NewRecorder()
+	handleGetStudents(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("got status %d, want 422", rec.Code)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["error"] != "empty_spreadsheet" {
+		t.Errorf("error = %q, want empty_spreadsheet", body["error"])
+	}
+	if body["spreadsheetUrl"] != "https://docs.google.com/spreadsheets/d/abc/edit" {
+		t.Errorf("spreadsheetUrl = %q", body["spreadsheetUrl"])
 	}
 }

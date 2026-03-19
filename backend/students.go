@@ -42,60 +42,26 @@ func handleGetStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	userID := svc.User.UserID
 
-	// Get spreadsheet ID from Clerk metadata (avoids Drive Files.List which requires restricted scope)
-	meta, err := getGradeBeeMetadata(ctx, userID)
+	roster, err := serviceDeps.GetRoster(ctx, svc)
 	if err != nil {
+		var ae *apiError
+		if errors.As(err, &ae) {
+			writeAPIError(w, r, ae)
+			return
+		}
 		log.Error("get students failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	if meta == nil || meta.SpreadsheetID == "" {
-		writeAPIError(w, r, &apiError{
-			Status:  http.StatusNotFound,
-			Code:    "no_spreadsheet",
-			Message: "ClassSetup spreadsheet not found. Try running setup again.",
-		})
-		return
-	}
 
-	spreadsheetID := meta.SpreadsheetID
-
-	// Verify spreadsheet still exists (drive.file allows Get on files we created)
-	_, err = svc.Drive.Files.Get(spreadsheetID).Fields("id").Context(ctx).Do()
+	classes, err := roster.Students(ctx)
 	if err != nil {
-		writeAPIError(w, r, &apiError{
-			Status:  http.StatusNotFound,
-			Code:    "no_spreadsheet",
-			Message: "ClassSetup spreadsheet not found. Try running setup again.",
-		})
-		return
-	}
-
-	// Read spreadsheet data
-	readRange := "Students!A:B"
-	resp, err := svc.Sheets.Spreadsheets.Values.Get(spreadsheetID, readRange).Context(ctx).Do()
-	if err != nil {
-		log.Error("get students failed", "error", err, "spreadsheet_id", spreadsheetID)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	// Convert [][]interface{} to [][]interface{} for parseStudentRows
-	var rows [][]interface{}
-	if resp.Values != nil {
-		rows = resp.Values
-	}
-
-	classes, err := parseStudentRows(rows)
-	if err != nil {
-		log.Warn("get students failed", "error", err, "spreadsheet_id", spreadsheetID)
-		spreadsheetURL := fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit", spreadsheetID)
+		log.Warn("get students failed", "error", err)
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{
 			"error":          "empty_spreadsheet",
 			"message":        err.Error(),
-			"spreadsheetUrl": spreadsheetURL,
+			"spreadsheetUrl": roster.SpreadsheetURL(),
 		})
 		return
 	}
@@ -105,11 +71,10 @@ func handleGetStudents(w http.ResponseWriter, r *http.Request) {
 	for _, c := range classes {
 		studentCount += len(c.Students)
 	}
-	log.Info("get students completed", "user_id", userID, "class_count", classCount, "student_count", studentCount)
+	log.Info("get students completed", "user_id", svc.User.UserID, "class_count", classCount, "student_count", studentCount)
 
-	spreadsheetURL := fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit", spreadsheetID)
 	writeJSON(w, http.StatusOK, studentsResponse{
-		SpreadsheetURL: spreadsheetURL,
+		SpreadsheetURL: roster.SpreadsheetURL(),
 		Classes:        classes,
 	})
 }
