@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
 import AudioUpload from './components/AudioUpload'
+import ReportGeneration from './components/ReportGeneration'
 
 const SETUP_DONE_KEY = 'gradebee-setup-done'
 
@@ -41,6 +42,7 @@ function BeeIcon({ size = 28 }: { size?: number }) {
 
 function App() {
   const [setupDone, setSetupDoneState] = useState<boolean | null>(null)
+  const [activeTab, setActiveTab] = useState<'notes' | 'reports'>('notes')
 
   useEffect(() => {
     const stored = localStorage.getItem(SETUP_DONE_KEY)
@@ -94,8 +96,28 @@ function App() {
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3 }}
             >
-              <StudentList onSetupRequired={resetSetupDone} />
-              <AudioUpload />
+              <nav className="app-nav">
+                <button
+                  className={`toolbar-link ${activeTab === 'notes' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('notes')}
+                >
+                  🎙️ Notes
+                </button>
+                <button
+                  className={`toolbar-link ${activeTab === 'reports' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('reports')}
+                >
+                  📝 Reports
+                </button>
+              </nav>
+              {activeTab === 'notes' ? (
+                <>
+                  <StudentList onSetupRequired={resetSetupDone} />
+                  <AudioUpload />
+                </>
+              ) : (
+                <ReportGeneration />
+              )}
             </motion.div>
           ) : (
             <DriveSetup onComplete={markSetupDone} />

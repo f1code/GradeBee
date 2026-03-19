@@ -23,6 +23,11 @@ var (
 	transcribeHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleTranscribe))
 	extractHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleExtract))
 	notesHandler      = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleCreateNotes))
+	reportExamplesListHandler   = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleListReportExamples))
+	reportExamplesUploadHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleUploadReportExample))
+	reportExamplesDeleteHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleDeleteReportExample))
+	reportsHandler              = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGenerateReports))
+	reportsRegenerateHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleRegenerateReport))
 )
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -61,7 +66,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -87,6 +92,16 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		extractHandler.ServeHTTP(rec, r)
 	case path == "notes" && r.Method == http.MethodPost:
 		notesHandler.ServeHTTP(rec, r)
+	case path == "report-examples" && r.Method == http.MethodGet:
+		reportExamplesListHandler.ServeHTTP(rec, r)
+	case path == "report-examples" && r.Method == http.MethodPost:
+		reportExamplesUploadHandler.ServeHTTP(rec, r)
+	case path == "report-examples" && r.Method == http.MethodDelete:
+		reportExamplesDeleteHandler.ServeHTTP(rec, r)
+	case path == "reports" && r.Method == http.MethodPost:
+		reportsHandler.ServeHTTP(rec, r)
+	case path == "reports/regenerate" && r.Method == http.MethodPost:
+		reportsRegenerateHandler.ServeHTTP(rec, r)
 	default:
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

@@ -933,3 +933,420 @@ button:disabled {
     align-items: flex-start;
   }
 }
+
+/* ============================================
+   App Navigation
+   ============================================ */
+
+.app-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.25rem;
+  background: var(--comb);
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.toolbar-link {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.toolbar-link:hover {
+  color: var(--ink);
+  background: var(--honey-light);
+}
+
+.toolbar-link.active {
+  background: var(--chalk);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(44, 24, 16, 0.1);
+}
+
+/* ============================================
+   Report Examples
+   ============================================ */
+
+.report-examples {
+  margin-bottom: 1.25rem;
+}
+
+.report-examples-toggle {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.05rem;
+  color: var(--ink);
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.toggle-arrow {
+  font-size: 0.75rem;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+
+.example-count-badge {
+  background: var(--honey);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 10px;
+}
+
+.example-drop-zone {
+  border: 2px dashed var(--honey);
+  background: var(--comb);
+  border-radius: 12px;
+  padding: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin: 0.75rem 0;
+}
+
+.example-drop-zone:hover,
+.example-drop-zone.drag-over {
+  border-style: solid;
+  background: var(--honey-light);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.15);
+}
+
+.example-drop-zone p {
+  color: var(--ink-muted);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.example-error {
+  color: var(--error-red);
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.example-empty {
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+  margin: 0.5rem 0;
+}
+
+.example-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.example-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.75rem;
+  background: var(--chalk);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(44, 24, 16, 0.06);
+}
+
+.example-name {
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.example-delete-btn {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.example-delete-btn:hover {
+  color: var(--error-red);
+  background: rgba(197, 48, 48, 0.08);
+}
+
+/* ============================================
+   Report Generation
+   ============================================ */
+
+.report-generation {
+  max-width: 860px;
+}
+
+.report-generation .section-heading {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.5rem;
+  color: var(--ink);
+  margin-bottom: 1.25rem;
+}
+
+.report-period {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.report-period label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.report-period label span {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.report-period input[type="date"] {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 0.5rem 0.75rem;
+  border: 1.5px solid var(--comb);
+  border-radius: 8px;
+  background: var(--chalk);
+  color: var(--ink);
+  transition: border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.report-period input[type="date"]:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+}
+
+.report-students h3,
+.report-instructions h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin-bottom: 0.75rem;
+}
+
+.report-empty {
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.report-class-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.report-class-card {
+  background: var(--chalk);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 1px 4px rgba(44, 24, 16, 0.08);
+}
+
+.report-class-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--comb);
+  margin-bottom: 0.5rem;
+}
+
+.report-class-header strong {
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+
+.report-class-count {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  margin-left: auto;
+}
+
+.report-student-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.25rem 0.75rem;
+}
+
+.report-student-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 0.2rem 0;
+}
+
+.report-student-item input[type="checkbox"],
+.report-class-header input[type="checkbox"] {
+  accent-color: var(--honey);
+  width: 16px;
+  height: 16px;
+}
+
+.report-instructions textarea {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  padding: 0.75rem;
+  border: 1.5px solid var(--comb);
+  border-radius: 8px;
+  background: var(--chalk);
+  color: var(--ink);
+  resize: vertical;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.report-instructions textarea:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+}
+
+.report-instructions textarea::placeholder {
+  color: var(--ink-muted);
+}
+
+.report-instructions {
+  margin-bottom: 1.25rem;
+}
+
+.report-generate-btn {
+  width: 100%;
+  margin-top: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.btn-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.honeycomb-spinner-sm {
+  width: 18px;
+  height: 18px;
+}
+
+.report-error {
+  background: rgba(197, 48, 48, 0.06);
+  border: 1px solid rgba(197, 48, 48, 0.2);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.report-error p {
+  color: var(--error-red);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.report-results {
+  margin-bottom: 2rem;
+}
+
+.report-results h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.1rem;
+  color: var(--ink);
+  margin-bottom: 0.75rem;
+}
+
+.report-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.report-result-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: var(--chalk);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(44, 24, 16, 0.08);
+}
+
+.report-result-item.skipped {
+  opacity: 0.7;
+}
+
+.report-result-name {
+  font-weight: 500;
+  color: var(--ink);
+  flex: 1;
+}
+
+.report-result-class {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.report-result-badge {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  background: var(--comb);
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+}
+
+.report-doc-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--honey-dark);
+  font-weight: 500;
+  text-decoration: none;
+  font-size: 0.875rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.report-doc-link:hover {
+  background: var(--honey-light);
+}
+
+@media (max-width: 480px) {
+  .report-period {
+    flex-direction: column;
+  }
+  .report-student-list {
+    grid-template-columns: 1fr;
+  }
+}

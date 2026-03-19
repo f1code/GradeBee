@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -106,6 +107,18 @@ func (m *mockDepsAll) GetExtractor() (Extractor, error) {
 
 func (m *mockDepsAll) GetNoteCreator(_ *googleServices) NoteCreator {
 	return m.noteCreator
+}
+
+func (m *mockDepsAll) GetMetadataIndex(_ *googleServices) MetadataIndex {
+	return nil
+}
+
+func (m *mockDepsAll) GetExampleStore(_ *googleServices) ExampleStore {
+	return nil
+}
+
+func (m *mockDepsAll) GetReportGenerator(_ *googleServices) (ReportGenerator, error) {
+	return nil, fmt.Errorf("not configured")
 }
 
 // stubExtractor implements Extractor for tests.

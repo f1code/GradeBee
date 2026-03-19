@@ -2,7 +2,7 @@
 
 ## Overview
 
-Go HTTP backend for GradeBee, a teacher tool for managing student rosters and processing audio recordings (upload → transcribe). Deployed as a **Scaleway serverless function** (single handler entrypoint). Local dev via `cmd/server/main.go`.
+Go HTTP backend for GradeBee, a teacher tool for managing student rosters, processing audio recordings (upload → transcribe), and generating report cards. Deployed as a **Scaleway serverless function** (single handler entrypoint). Local dev via `cmd/server/main.go`.
 
 **Package:** `handler` (all source files in `backend/` share this package).
 
@@ -19,6 +19,11 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters and pr
 | POST   | `/transcribe`| Yes | `handleTranscribe`   | Download from Drive → Whisper → text     |
 | POST   | `/extract`  | Yes  | `handleExtract`      | Analyze transcript → matched students    |
 | POST   | `/notes`    | Yes  | `handleCreateNotes`  | Create Google Doc notes for students     |
+| GET    | `/report-examples` | Yes | `handleListReportExamples` | List example report cards        |
+| POST   | `/report-examples` | Yes | `handleUploadReportExample` | Upload example report card      |
+| DELETE | `/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card      |
+| POST   | `/reports`  | Yes  | `handleGenerateReports` | Generate report cards for students    |
+| POST   | `/reports/regenerate` | Yes | `handleRegenerateReport` | Regenerate a report with feedback |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline.
 
@@ -32,6 +37,11 @@ deps interface {
     GetTranscriber()  → Transcriber
     GetRoster(ctx, svc) → Roster
     GetDriveStore(svc)  → DriveStore
+    GetExtractor()      → Extractor
+    GetNoteCreator(svc) → NoteCreator
+    GetMetadataIndex(svc) → MetadataIndex
+    GetExampleStore(svc)  → ExampleStore
+    GetReportGenerator(svc) → ReportGenerator
 }
 ```
 
@@ -47,6 +57,9 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `DriveStore` | `drive_store.go` | `sheetsDriveStore`     | Upload/download files on Drive |
 | `Extractor`  | `extract.go`     | `gptExtractor`         | Transcript→student extraction  |
 | `NoteCreator`| `notes.go`       | `driveNoteCreator`     | Create Google Doc notes        |
+| `MetadataIndex` | `metadata_index.go` | `driveMetadataIndex` | Per-student note index (index.json) |
+| `ExampleStore` | `report_examples.go` | `driveExampleStore` | CRUD for example report cards  |
+| `ReportGenerator` | `report_generator.go` | `gptReportGenerator` | GPT-based report card generation |
 
 ## External Services
 
@@ -58,7 +71,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 ### Clerk (`auth.go`, `clerk_metadata.go`)
 - JWT verification via middleware.
 - OAuth token retrieval: `user.ListOAuthAccessTokens` for `oauth_google`.
-- **Private metadata** stores Drive resource IDs (`gradeBeeMetadata` struct: folder, spreadsheet, uploads/notes/reports subfolder IDs). This avoids needing `drive.readonly` scope to find resources.
+- **Private metadata** stores Drive resource IDs (`gradeBeeMetadata` struct: folder, spreadsheet, uploads/notes/reports/report-examples subfolder IDs). This avoids needing `drive.readonly` scope to find resources.
 
 ### OpenAI Whisper (`deps.go`)
 - `whisperTranscriber` uses `go-openai` client.
@@ -84,6 +97,12 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `extract_handler.go`| POST /extract — transcript analysis → matched students            |
 | `notes.go`          | `NoteCreator` interface + Drive/Docs implementation               |
 | `notes_handler.go`  | POST /notes — create Google Doc notes for confirmed students      |
+| `metadata_index.go` | `MetadataIndex` interface + Drive impl, shared folder utils       |
+| `report_examples.go`| `ExampleStore` interface + Drive impl for example report cards    |
+| `report_examples_handler.go` | GET/POST/DELETE /report-examples handlers            |
+| `report_generator.go` | `ReportGenerator` interface + GPT impl, feedback reader        |
+| `report_prompt.go`  | GPT prompt construction for report generation                     |
+| `reports_handler.go`| POST /reports + POST /reports/regenerate handlers                 |
 | `audio_format.go`   | Magic-byte detection, 3GP patching, filename extension fixing     |
 | `logger.go`         | slog-based structured logging, request-scoped via context         |
 
@@ -93,7 +112,14 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 GradeBee/              ← root folder (ID in metadata.FolderID)
 ├── uploads/           ← audio files (metadata.UploadsID)
 ├── notes/             ← (metadata.NotesID)
+│   └── {class}/
+│       └── {student}/
+│           ├── index.json       ← note metadata index
+│           └── {student — date} ← Google Doc notes
 ├── reports/           ← (metadata.ReportsID)
+│   └── {YYYY-MM}/
+│       └── {student — class}    ← Google Doc report cards
+├── report-examples/   ← (metadata.ReportExamplesID) plain text example report cards
 └── ClassSetup         ← Google Sheet (metadata.SpreadsheetID)
     └── Sheet "Students": columns A=class, B=student (header row 1)
 ```

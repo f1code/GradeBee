@@ -39,6 +39,12 @@ type deps interface {
 	GetExtractor() (Extractor, error)
 	// GetNoteCreator returns a NoteCreator for the authenticated user's Drive.
 	GetNoteCreator(svc *googleServices) NoteCreator
+	// GetMetadataIndex returns a MetadataIndex for the authenticated user's Drive.
+	GetMetadataIndex(svc *googleServices) MetadataIndex
+	// GetExampleStore returns an ExampleStore for the authenticated user's Drive.
+	GetExampleStore(svc *googleServices) ExampleStore
+	// GetReportGenerator returns a ReportGenerator.
+	GetReportGenerator(svc *googleServices) (ReportGenerator, error)
 }
 
 // prodDeps is the real implementation that calls Clerk + Google APIs.
@@ -69,7 +75,20 @@ func (prodDeps) GetExtractor() (Extractor, error) {
 }
 
 func (prodDeps) GetNoteCreator(svc *googleServices) NoteCreator {
-	return newDriveNoteCreator(svc.Drive, svc.Docs)
+	metaIdx := newDriveMetadataIndex(svc.Drive)
+	return newDriveNoteCreator(svc.Drive, svc.Docs, metaIdx)
+}
+
+func (prodDeps) GetMetadataIndex(svc *googleServices) MetadataIndex {
+	return newDriveMetadataIndex(svc.Drive)
+}
+
+func (prodDeps) GetExampleStore(svc *googleServices) ExampleStore {
+	return newDriveExampleStore(svc.Drive)
+}
+
+func (prodDeps) GetReportGenerator(svc *googleServices) (ReportGenerator, error) {
+	return newGPTReportGenerator(svc.Drive, svc.Docs)
 }
 
 // whisperTranscriber uses the OpenAI Whisper API.

@@ -6,7 +6,7 @@
 - **Backend**: Go serverless functions on Scaleway
 - **Auth**: Clerk (Google OAuth with custom scopes for Drive/Sheets)
 - **Storage**: Google Drive (user's own Drive — no DB needed initially)
-- **AI**: OpenAI Whisper API (transcription), Claude API (extraction/summarization)
+- **AI**: OpenAI Whisper API (transcription), OpenAI API (extraction/summarization)
 
 ## Key Design Decisions
 
@@ -74,7 +74,7 @@
 **Goal**: Extract student names from transcript, match to student list, generate structured notes as Google Docs.
 
 ### Tasks
-1. Backend: Claude API call to extract student name(s) + topic from transcript
+1. Backend: OpenAI API call to extract student name(s) + topic from transcript
 2. Backend: fuzzy match extracted names against student list (handle confidence threshold — if low, return candidates for manual selection)
 3. Frontend: confirmation UI — show matched student, topic, summary. Allow correction.
 4. Backend: `POST /notes` — create Google Doc in `GradeBee/notes/{class}_{student}/` with structured content (transcript, summary, date, topic)
@@ -91,19 +91,25 @@
 
 ## Phase 5: Report Card Generation
 
-**Goal**: Aggregate notes per student into a report card.
+**Goal**: Aggregate notes per student into a report card, styled and laid out to match teacher-provided examples.
 
 ### Tasks
-1. Backend: `POST /reports` — read metadata index for student, fetch summaries (not full docs), call Claude to generate report narrative
-2. Backend: create report as Google Doc in `GradeBee/reports/{term}/`
-3. Frontend: report generation UI — select term/date range, select students or class
-4. Include feedback section in report Doc
-5. Backend: `POST /reports/regenerate` — re-read feedback from Doc, regenerate with feedback incorporated (only touches the one report, reads index + feedback, not all note docs)
+1. Frontend: report generation UI — prompt teacher to select a period (start date / end date) and select students or class
+2. Frontend: **example report cards** — allow teacher to upload or paste 1+ example report cards (images or text). These examples define the target style (tone, voice, vocabulary) and layout (sections, headings, length). Stored in `GradeBee/report-examples/` on Drive. Once set, examples persist across report generations until changed.
+3. Frontend: **additional instructions** — free-text field where the teacher can enter per-generation guidance (e.g. "focus on social skills this term", "keep paragraphs short", "mention the school trip"). Sent with each report request, not persisted.
+4. Backend: `POST /reports` — read metadata index for student, filter notes whose title-embedded date falls within the selected period (ignore file creation/modification time), fetch matching summaries (not full docs). Include example report cards and additional instructions in the GPT prompt so the model matches the desired style/layout. Call GPT to generate report narrative.
+5. Backend: create report as Google Doc in `GradeBee/reports/{term}/`
+6. Include feedback section in report Doc
+7. Backend: `POST /reports/regenerate` — re-read feedback from Doc, regenerate with feedback incorporated (only touches the one report, reads index + feedback, not all note docs). Also re-applies example style and any additional instructions provided.
 
 ### Verify
-- Report aggregates notes correctly
+- Period picker filters notes by title date, not file metadata timestamps
+- Report aggregates only notes within the selected period
+- Generated report matches the tone, structure, and layout of the provided examples
+- Additional instructions are reflected in the generated output
 - Report quality is coherent across multiple notes
 - Feedback → regenerate cycle works without re-reading all note documents
+- Examples persist across sessions; additional instructions are per-request
 
 ---
 

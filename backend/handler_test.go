@@ -126,3 +126,15 @@ func (mockDepsGoogleFail) GetExtractor() (Extractor, error) {
 func (mockDepsGoogleFail) GetNoteCreator(_ *googleServices) NoteCreator {
 	return nil
 }
+
+func (mockDepsGoogleFail) GetMetadataIndex(_ *googleServices) MetadataIndex {
+	return nil
+}
+
+func (mockDepsGoogleFail) GetExampleStore(_ *googleServices) ExampleStore {
+	return nil
+}
+
+func (mockDepsGoogleFail) GetReportGenerator(_ *googleServices) (ReportGenerator, error) {
+	return nil, fmt.Errorf("not configured")
+}

@@ -17,6 +17,7 @@ const (
 	metaKeyUploadsID      = "gradebee_uploads_id"
 	metaKeyNotesID        = "gradebee_notes_id"
 	metaKeyReportsID      = "gradebee_reports_id"
+	metaKeyReportExamplesID = "gradebee_report_examples_id"
 )
 
 // gradeBeeMetadata holds GradeBee Drive/Sheets IDs stored in Clerk user metadata.
@@ -25,7 +26,8 @@ type gradeBeeMetadata struct {
 	SpreadsheetID string `json:"gradebee_spreadsheet_id"`
 	UploadsID     string `json:"gradebee_uploads_id"`
 	NotesID       string `json:"gradebee_notes_id"`
-	ReportsID     string `json:"gradebee_reports_id"`
+	ReportsID        string `json:"gradebee_reports_id"`
+	ReportExamplesID string `json:"gradebee_report_examples_id"`
 }
 
 // getGradeBeeMetadata retrieves GradeBee IDs from the user's Clerk private metadata.
@@ -67,6 +69,9 @@ func setGradeBeeMetadata(ctx context.Context, userID string, meta *gradeBeeMetad
 	}
 	if meta.ReportsID != "" {
 		merge[metaKeyReportsID] = meta.ReportsID
+	}
+	if meta.ReportExamplesID != "" {
+		merge[metaKeyReportExamplesID] = meta.ReportExamplesID
 	}
 	if len(merge) == 0 {
 		return nil

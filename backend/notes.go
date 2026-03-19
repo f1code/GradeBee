@@ -33,23 +33,24 @@ type CreateNoteResponse struct {
 
 // driveNoteCreator creates Google Docs in a class/student subfolder hierarchy.
 type driveNoteCreator struct {
-	drive *drive.Service
-	docs  *docs.Service
+	drive    *drive.Service
+	docs     *docs.Service
+	metaIdx  MetadataIndex
 }
 
-func newDriveNoteCreator(driveSvc *drive.Service, docsSvc *docs.Service) *driveNoteCreator {
-	return &driveNoteCreator{drive: driveSvc, docs: docsSvc}
+func newDriveNoteCreator(driveSvc *drive.Service, docsSvc *docs.Service, metaIdx MetadataIndex) *driveNoteCreator {
+	return &driveNoteCreator{drive: driveSvc, docs: docsSvc, metaIdx: metaIdx}
 }
 
 func (c *driveNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
 	// Resolve or create class subfolder.
-	classFolderID, err := c.findOrCreateFolder(ctx, req.NotesRootID, req.ClassName)
+	classFolderID, err := findOrCreateDriveFolder(ctx, c.drive, req.NotesRootID, req.ClassName)
 	if err != nil {
 		return nil, fmt.Errorf("notes: create class folder: %w", err)
 	}
 
 	// Resolve or create student subfolder within class.
-	studentFolderID, err := c.findOrCreateFolder(ctx, classFolderID, req.StudentName)
+	studentFolderID, err := findOrCreateDriveFolder(ctx, c.drive, classFolderID, req.StudentName)
 	if err != nil {
 		return nil, fmt.Errorf("notes: create student folder: %w", err)
 	}
@@ -68,6 +69,18 @@ func (c *driveNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest
 	// Populate the document with structured content.
 	if err := c.populateDoc(ctx, doc.Id, req); err != nil {
 		return nil, fmt.Errorf("notes: populate doc: %w", err)
+	}
+
+	// Write to metadata index.
+	if c.metaIdx != nil {
+		if err := c.metaIdx.AppendEntry(ctx, req.NotesRootID, req.ClassName, req.StudentName, IndexEntry{
+			DocID:   doc.Id,
+			Date:    req.Date,
+			Summary: req.Summary,
+		}); err != nil {
+			// Log but don't fail note creation for index write errors.
+			loggerFromContext(ctx).Warn("notes: failed to write index entry", "student", req.StudentName, "error", err)
+		}
 	}
 
 	return &CreateNoteResponse{
@@ -146,25 +159,4 @@ func (c *driveNoteCreator) populateDoc(ctx context.Context, docID string, req Cr
 	return err
 }
 
-// findOrCreateFolder looks for a subfolder by name under parentID, creating it if not found.
-func (c *driveNoteCreator) findOrCreateFolder(ctx context.Context, parentID, name string) (string, error) {
-	q := fmt.Sprintf("'%s' in parents and name = '%s' and mimeType = 'application/vnd.google-apps.folder' and trashed = false", parentID, name)
-	list, err := c.drive.Files.List().Q(q).Fields("files(id)").Context(ctx).Do()
-	if err != nil {
-		return "", err
-	}
-	if len(list.Files) > 0 {
-		return list.Files[0].Id, nil
-	}
 
-	// Create the folder.
-	folder, err := c.drive.Files.Create(&drive.File{
-		Name:     name,
-		MimeType: "application/vnd.google-apps.folder",
-		Parents:  []string{parentID},
-	}).Fields("id").Context(ctx).Do()
-	if err != nil {
-		return "", err
-	}
-	return folder.Id, nil
-}
