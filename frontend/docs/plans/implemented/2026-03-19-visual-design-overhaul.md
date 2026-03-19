@@ -6,6 +6,14 @@ Transform GradeBee from generic system-ui styling into a distinctive, warm, educ
 ## Aesthetic Direction: "Warm Classroom"
 Organic, slightly textured, warm palette. Think: kraft paper meets modern UI. Friendly but professional — not childish. The bee theme is a gift; lean into it with honeycomb geometry and amber/gold accents.
 
+Light theme only. Single-column centered layout.
+
+## Deliverables
+
+This plan produces two things:
+1. The code changes listed below
+2. A `frontend/DESIGN.md` file documenting the design system (colors, typography, component patterns, dos/don'ts) so future work stays consistent. Referenced from `AGENTS.md`.
+
 ## Proposed Changes
 
 ### 1. Typography
@@ -36,7 +44,7 @@ Organic, slightly textured, warm palette. Think: kraft paper meets modern UI. Fr
 - File: `index.css`
 
 ### 5. Header
-- Logo: "GradeBee" with a small inline honeycomb SVG icon or 🐝 emoji styled as a badge.
+- Logo: "GradeBee" with a small inline SVG bee/honeycomb icon designed for the project.
 - Bottom border → replace with a decorative honeycomb-pattern divider (thin SVG or CSS gradient).
 - File: `App.tsx`, `index.css`
 
@@ -89,8 +97,5 @@ Organic, slightly textured, warm palette. Think: kraft paper meets modern UI. Fr
 | `src/components/AudioUpload.tsx` | Drop zone icon, spinner, motion |
 | `src/components/DriveSetup.tsx` | Success state card layout |
 | `package.json` | Add `motion` dependency |
-
-## Open Questions
-1. Is there a logo or brand asset to use, or should we design the bee icon in CSS/SVG?
-2. Any preference on light vs dark mode? Plan assumes light. Could add dark mode toggle later.
-3. Should we keep the single-column centered layout, or is a sidebar/nav anticipated for future features?
+| `DESIGN.md` | New — design system reference |
+| `../AGENTS.md` | Add reference to `frontend/DESIGN.md` |

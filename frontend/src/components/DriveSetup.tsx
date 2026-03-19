@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/react'
 import { useState } from 'react'
+import { motion } from 'motion/react'
 
 type SetupStatus = 'idle' | 'loading' | 'success' | 'error'
 
@@ -55,27 +56,55 @@ export default function DriveSetup({ onComplete }: DriveSetupProps) {
 
   if (status === 'success' && result) {
     return (
-      <div className="setup-done" data-testid="drive-setup-success">
+      <motion.div
+        className="setup-done"
+        data-testid="drive-setup-success"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
         <h2>Google Drive Connected</h2>
         <p>Your GradeBee folders are ready.</p>
-        <a href={result.folderUrl} target="_blank" rel="noopener noreferrer" data-testid="drive-link">
-          Open GradeBee folder in Drive
-        </a>
-        <a href={result.spreadsheetUrl} target="_blank" rel="noopener noreferrer" data-testid="spreadsheet-link">
-          Open ClassSetup spreadsheet
-        </a>
+        <div className="setup-done-links">
+          <a
+            href={result.folderUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="drive-link-card"
+            data-testid="drive-link"
+          >
+            <span className="link-icon">📁</span>
+            <span className="link-label">Open GradeBee folder in Drive</span>
+          </a>
+          <a
+            href={result.spreadsheetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="drive-link-card"
+            data-testid="spreadsheet-link"
+          >
+            <span className="link-icon">📊</span>
+            <span className="link-label">Open ClassSetup spreadsheet</span>
+          </a>
+        </div>
         <p className="setup-instruction">
           Add your students to the ClassSetup spreadsheet, then continue.
         </p>
         <button onClick={handleContinue} data-testid="setup-continue-btn">
           Continue
         </button>
-      </div>
+      </motion.div>
     )
   }
 
   return (
-    <div className="setup" data-testid="drive-setup">
+    <motion.div
+      className="setup"
+      data-testid="drive-setup"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+    >
       <h2>Connect Google Drive</h2>
       <p>
         GradeBee stores notes and reports in your Google Drive.
@@ -85,6 +114,6 @@ export default function DriveSetup({ onComplete }: DriveSetupProps) {
         {status === 'loading' ? 'Setting up...' : 'Set Up Google Drive'}
       </button>
       {status === 'error' && <p className="error" data-testid="setup-error">{error}</p>}
-    </div>
+    </motion.div>
   )
 }

@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/react'
 import { useRef, useState } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import { uploadAudio, transcribeAudio } from '../api'
 
 type UploadStatus = 'idle' | 'uploading' | 'transcribing' | 'done' | 'error'
@@ -7,6 +8,28 @@ type UploadStatus = 'idle' | 'uploading' | 'transcribing' | 'done' | 'error'
 const ACCEPTED_FORMATS = '.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm'
 const MAX_SIZE_MB = 25
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
+
+function MicIcon() {
+  return (
+    <svg className="drop-zone-icon" width="40" height="40" viewBox="0 0 40 40" fill="none">
+      <rect x="14" y="6" width="12" height="20" rx="6" fill="#E8A317" opacity="0.25" />
+      <rect x="15" y="7" width="10" height="18" rx="5" stroke="#E8A317" strokeWidth="1.5" fill="none" />
+      <path d="M10 22C10 27.523 14.477 32 20 32C25.523 32 30 27.523 30 22" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <line x1="20" y1="32" x2="20" y2="36" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="15" y1="36" x2="25" y2="36" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function HoneycombSpinner() {
+  return (
+    <div className="honeycomb-spinner">
+      <div className="hex" />
+      <div className="hex" />
+      <div className="hex" />
+    </div>
+  )
+}
 
 export default function AudioUpload() {
   const { getToken } = useAuth()
@@ -73,64 +96,107 @@ export default function AudioUpload() {
   }
 
   return (
-    <div className="audio-upload" data-testid="audio-upload">
+    <motion.div
+      className="audio-upload"
+      data-testid="audio-upload"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: 0.15 }}
+    >
       <h2>Upload Audio</h2>
 
-      {(status === 'idle' || status === 'error') && (
-        <div
-          className={`drop-zone${dragOver ? ' drag-over' : ''}`}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={() => fileInputRef.current?.click()}
-          data-testid="drop-zone"
-        >
-          <p>Drag & drop an audio file here, or click to browse</p>
-          <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ACCEPTED_FORMATS}
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-            data-testid="file-input"
-          />
-        </div>
-      )}
+      <AnimatePresence mode="wait">
+        {(status === 'idle' || status === 'error') && (
+          <motion.div
+            key="dropzone"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.25 }}
+          >
+            <div
+              className={`drop-zone${dragOver ? ' drag-over' : ''}`}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onClick={() => fileInputRef.current?.click()}
+              data-testid="drop-zone"
+            >
+              <MicIcon />
+              <p>Drag & drop an audio file here, or click to browse</p>
+              <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_FORMATS}
+                onChange={handleFileChange}
+                style={{ display: 'none' }}
+                data-testid="file-input"
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {status === 'uploading' && (
+          <motion.div
+            key="uploading"
+            className="upload-progress"
+            data-testid="upload-progress"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <HoneycombSpinner />
+            <p>Uploading <strong>{fileName}</strong>...</p>
+          </motion.div>
+        )}
+
+        {status === 'transcribing' && (
+          <motion.div
+            key="transcribing"
+            className="upload-progress"
+            data-testid="transcribe-progress"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <HoneycombSpinner />
+            <p>Transcribing <strong>{fileName}</strong>... This may take a moment.</p>
+          </motion.div>
+        )}
+
+        {status === 'done' && (
+          <motion.div
+            key="done"
+            className="upload-done"
+            data-testid="upload-done"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <p>✅ Transcription complete for <strong>{fileName}</strong></p>
+            <textarea
+              className="transcript-text"
+              readOnly
+              value={transcript}
+              rows={10}
+              data-testid="transcript-text"
+            />
+            <button onClick={reset} data-testid="upload-another">
+              Upload another
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {status === 'error' && (
         <div className="upload-error" data-testid="upload-error">
           <p>{error}</p>
         </div>
       )}
-
-      {status === 'uploading' && (
-        <div className="upload-progress" data-testid="upload-progress">
-          <p>Uploading <strong>{fileName}</strong>...</p>
-        </div>
-      )}
-
-      {status === 'transcribing' && (
-        <div className="upload-progress" data-testid="transcribe-progress">
-          <p>Transcribing <strong>{fileName}</strong>... This may take a moment.</p>
-        </div>
-      )}
-
-      {status === 'done' && (
-        <div className="upload-done" data-testid="upload-done">
-          <p>✅ Transcription complete for <strong>{fileName}</strong></p>
-          <textarea
-            className="transcript-text"
-            readOnly
-            value={transcript}
-            rows={10}
-            data-testid="transcript-text"
-          />
-          <button onClick={reset} data-testid="upload-another">
-            Upload another
-          </button>
-        </div>
-      )}
-    </div>
+    </motion.div>
   )
 }

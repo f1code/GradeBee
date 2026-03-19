@@ -1,10 +1,43 @@
 import { Show, SignInButton, UserButton } from '@clerk/react'
 import { useState, useEffect } from 'react'
+import { motion } from 'motion/react'
 import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
 import AudioUpload from './components/AudioUpload'
 
 const SETUP_DONE_KEY = 'gradebee-setup-done'
+
+function BeeIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg
+      className="bee-icon"
+      width={size}
+      height={size}
+      viewBox="0 0 32 32"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Honeycomb hexagon */}
+      <path
+        d="M16 2L28.124 9V23L16 30L3.876 23V9L16 2Z"
+        fill="#FFF3D4"
+        stroke="#E8A317"
+        strokeWidth="1.5"
+      />
+      {/* Bee body */}
+      <ellipse cx="16" cy="16.5" rx="5.5" ry="6.5" fill="#E8A317" />
+      {/* Stripes */}
+      <rect x="10.5" y="14" width="11" height="1.8" rx="0.9" fill="#2C1810" />
+      <rect x="10.5" y="17.5" width="11" height="1.8" rx="0.9" fill="#2C1810" />
+      {/* Wings */}
+      <ellipse cx="12" cy="12" rx="3" ry="2" fill="#FFF3D4" opacity="0.85" transform="rotate(-20 12 12)" />
+      <ellipse cx="20" cy="12" rx="3" ry="2" fill="#FFF3D4" opacity="0.85" transform="rotate(20 20 12)" />
+      {/* Eyes */}
+      <circle cx="14" cy="13.8" r="0.9" fill="#2C1810" />
+      <circle cx="18" cy="13.8" r="0.9" fill="#2C1810" />
+    </svg>
+  )
+}
 
 function App() {
   const [setupDone, setSetupDoneState] = useState<boolean | null>(null)
@@ -27,7 +60,10 @@ function App() {
   return (
     <div className="app">
       <header>
-        <h1>GradeBee</h1>
+        <div className="header-logo">
+          <BeeIcon />
+          <h1>GradeBee</h1>
+        </div>
         <Show when="signed-in">
           <UserButton />
         </Show>
@@ -35,21 +71,32 @@ function App() {
       <main>
         <Show when="signed-out">
           <div className="sign-in-container" data-testid="sign-in-container">
-            <h2>Welcome to GradeBee</h2>
-            <p>Sign in with Google to get started.</p>
-            <SignInButton mode="modal">
-              <button className="sign-in-btn" data-testid="sign-in-button">Sign in with Google</button>
-            </SignInButton>
+            <motion.div
+              className="sign-in-card"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            >
+              <h2>Welcome to GradeBee</h2>
+              <p>Sign in with Google to get started.</p>
+              <SignInButton mode="modal">
+                <button className="sign-in-btn" data-testid="sign-in-button">Sign in with Google</button>
+              </SignInButton>
+            </motion.div>
           </div>
         </Show>
         <Show when="signed-in">
           {setupDone === null ? (
-            <p>Loading...</p>
+            <p className="loading-text">Loading...</p>
           ) : setupDone ? (
-            <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.3 }}
+            >
               <StudentList onSetupRequired={resetSetupDone} />
               <AudioUpload />
-            </>
+            </motion.div>
           ) : (
             <DriveSetup onComplete={markSetupDone} />
           )}

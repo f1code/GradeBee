@@ -1,124 +1,412 @@
+/* ============================================================
+   GradeBee — "Warm Classroom" Design System
+   ============================================================ */
+
+/* --- Color tokens --- */
 :root {
-  font-family: system-ui, -apple-system, sans-serif;
-  line-height: 1.5;
-  color: #213547;
-  background-color: #ffffff;
+  --honey: #E8A317;
+  --honey-dark: #C4880F;
+  --honey-light: #FFF3D4;
+  --comb: #F5E6C8;
+  --ink: #2C1810;
+  --ink-muted: #7A6B5D;
+  --parchment: #FBF7F0;
+  --chalk: #FFFFFF;
+  --error-red: #C53030;
+  --success-green: #38A169;
+
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
+
+  /* Shadows (warm-toned) */
+  --shadow-sm: 0 1px 3px rgba(44, 24, 16, 0.06);
+  --shadow-md: 0 4px 12px rgba(44, 24, 16, 0.08);
+  --shadow-lg: 0 8px 24px rgba(44, 24, 16, 0.10);
+  --shadow-lift: 0 6px 16px rgba(44, 24, 16, 0.12);
+
+  /* Radii */
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--ink);
+  background-color: var(--parchment);
 }
 
+/* --- Paper-grain texture overlay --- */
 body {
   margin: 0;
   min-height: 100vh;
+  position: relative;
 }
 
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* --- Global typography --- */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+}
+
+h1 { font-size: 1.75rem; }
+h2 { font-size: 1.4rem; margin-bottom: 0.75rem; }
+h3 { font-size: 1.1rem; }
+
+p {
+  margin: 0.5rem 0;
+  color: var(--ink);
+}
+
+a {
+  color: var(--honey-dark);
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 163, 23, 0.35);
+  text-underline-offset: 2px;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+a:hover {
+  color: var(--honey);
+  text-decoration-color: var(--honey);
+}
+
+/* --- Layout --- */
 .app {
-  max-width: 800px;
+  max-width: 860px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 2rem 2rem 4rem;
 }
 
+/* --- Header --- */
 header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.25rem;
+  position: relative;
 }
 
-header h1 {
-  margin: 0;
-  font-size: 1.5rem;
+/* Honeycomb divider under header */
+header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--honey) 0px,
+    var(--honey) 8px,
+    transparent 8px,
+    transparent 12px,
+    var(--honey-light) 12px,
+    var(--honey-light) 20px,
+    transparent 20px,
+    transparent 24px
+  );
+  mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+  border-radius: 3px;
 }
 
-.sign-in-container {
-  text-align: center;
-  padding: 3rem 0;
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
-.sign-in-btn {
-  background: #4f46e5;
-  color: white;
+.header-logo h1 {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.bee-icon {
+  flex-shrink: 0;
+}
+
+/* --- Buttons --- */
+button, .btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  background: var(--honey);
+  color: var(--ink);
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
-  font-size: 1rem;
+  padding: 0.7rem 1.4rem;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.sign-in-btn:hover {
-  background: #4338ca;
+button:hover, .btn:hover {
+  background: var(--honey-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
 }
 
-button {
-  background: #4f46e5;
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #4338ca;
+button:active, .btn:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 
 button:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
+.btn-secondary {
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.btn-secondary:hover {
+  background: var(--honey-light);
+  border-color: var(--honey);
+}
+
+/* --- Sign-in page --- */
+.sign-in-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 55vh;
+  text-align: center;
+  position: relative;
+}
+
+/* Honeycomb decorative pattern behind sign-in card */
+.sign-in-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+  height: 420px;
+  opacity: 0.08;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23E8A317' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
+  border-radius: 50%;
+  mask-image: radial-gradient(circle, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(circle, black 30%, transparent 70%);
+}
+
+.sign-in-card {
+  position: relative;
+  z-index: 1;
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 3rem 2.5rem;
+  box-shadow: var(--shadow-lg);
+  max-width: 400px;
+  width: 100%;
+}
+
+.sign-in-card h2 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.sign-in-card p {
+  color: var(--ink-muted);
+  margin-bottom: 1.5rem;
+  font-size: 1.05rem;
+}
+
+.sign-in-btn {
+  width: 100%;
+  font-size: 1rem;
+  padding: 0.85rem 1.5rem;
+  justify-content: center;
+}
+
+/* --- Cards (reusable) --- */
+.card {
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-md);
+}
+
+/* --- Error --- */
 .error {
-  color: #dc2626;
+  color: var(--error-red);
   margin-top: 1rem;
+  font-weight: 500;
 }
 
-.setup-done a {
-  color: #4f46e5;
-  text-decoration: underline;
+/* --- Setup/DriveSetup --- */
+.setup {
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
 }
 
-.setup-done a + a {
-  display: block;
-  margin-top: 0.5rem;
+.setup p {
+  color: var(--ink-muted);
+  margin-bottom: 1rem;
+  line-height: 1.65;
+}
+
+.setup-done {
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+}
+
+.setup-done h2 {
+  color: var(--success-green);
+}
+
+.setup-done-links {
+  display: flex;
+  gap: 1rem;
+  margin: 1.25rem 0;
+  flex-wrap: wrap;
+}
+
+.drive-link-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--parchment);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem 1.1rem;
+  text-decoration: none;
+  color: var(--ink);
+  flex: 1;
+  min-width: 200px;
+  transition: all 0.15s ease;
+}
+
+.drive-link-card:hover {
+  border-color: var(--honey);
+  background: var(--honey-light);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+
+.drive-link-card .link-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.25rem;
+}
+
+.drive-link-card .link-label {
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .setup-instruction {
   margin: 1rem 0;
+  color: var(--ink-muted);
 }
 
-/* Student list */
+/* --- Student list --- */
 .student-list {
-  margin-top: 1rem;
+  margin-top: 0;
 }
 
 .student-list .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.75rem;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.student-list .toolbar a {
-  color: #4f46e5;
+.toolbar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  color: var(--ink);
+  padding: 0.5rem 1rem;
+  border-radius: 100px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.toolbar-link:hover {
+  background: var(--honey-light);
+  border-color: var(--honey);
+  text-decoration: none;
 }
 
 .class-group {
-  margin-bottom: 1.5rem;
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.25rem;
 }
 
 .class-group h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
+/* Hexagon bullet before class name */
+.hex-bullet {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
 .class-group .count {
+  font-family: var(--font-body);
   font-size: 0.8rem;
-  color: #6b7280;
-  font-weight: normal;
+  color: var(--ink-muted);
+  font-weight: 400;
 }
 
 .class-group ul {
@@ -128,24 +416,238 @@ button:disabled {
 }
 
 .class-group li {
-  padding: 0.4rem 0;
-  border-bottom: 1px solid #f3f4f6;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease, padding-left 0.12s ease;
+  font-size: 0.95rem;
 }
 
-/* Empty / info states */
+.class-group li:nth-child(even) {
+  background: rgba(245, 230, 200, 0.3);
+}
+
+.class-group li:hover {
+  background: var(--honey-light);
+  padding-left: 1rem;
+}
+
+/* --- Info / empty states --- */
 .info-box {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-  padding: 1.5rem;
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
   text-align: center;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Decorative hex pattern for empty states */
+.info-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.04;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23E8A317' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
+}
+
+.info-box h2 {
+  position: relative;
+}
+
+.info-box p {
+  color: var(--ink-muted);
+  position: relative;
 }
 
 .info-box a {
-  color: #4f46e5;
+  position: relative;
+}
+
+.info-box button {
+  position: relative;
+  margin-top: 1rem;
 }
 
 .student-list-error {
   text-align: center;
-  padding: 1.5rem;
+  padding: 2.5rem 2rem;
+  background: var(--chalk);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+.student-list-error h2 {
+  margin-bottom: 0.5rem;
+}
+
+.student-list-error p {
+  color: var(--ink-muted);
+  margin-bottom: 1rem;
+}
+
+/* --- Audio upload --- */
+.audio-upload {
+  margin-top: 2rem;
+}
+
+.audio-upload h2 {
+  margin-bottom: 1rem;
+}
+
+.drop-zone {
+  border: 2px dashed var(--honey);
+  border-radius: var(--radius);
+  background: var(--comb);
+  padding: 2.5rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.drop-zone:hover {
+  background: var(--honey-light);
+  border-color: var(--honey-dark);
+}
+
+.drop-zone.drag-over {
+  border-style: solid;
+  background: var(--honey-light);
+  box-shadow: 0 0 0 4px rgba(232, 163, 23, 0.15);
+}
+
+.drop-zone-icon {
+  margin-bottom: 0.75rem;
+  opacity: 0.7;
+}
+
+.drop-zone p {
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 0.35rem;
+}
+
+.drop-zone .hint {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+/* Upload progress / transcribing states */
+.upload-progress {
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+}
+
+.upload-progress p {
+  color: var(--ink-muted);
+}
+
+.upload-progress strong {
+  color: var(--ink);
+}
+
+/* Honeycomb spinner */
+.honeycomb-spinner {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 1rem;
+}
+
+.honeycomb-spinner .hex {
+  width: 12px;
+  height: 12px;
+  background: var(--honey);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  animation: hexPulse 0.9s ease-in-out infinite;
+}
+
+.honeycomb-spinner .hex:nth-child(2) { animation-delay: 0.15s; }
+.honeycomb-spinner .hex:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes hexPulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Upload error */
+.upload-error {
+  color: var(--error-red);
+  font-weight: 500;
+  margin-top: 0.75rem;
+}
+
+/* Upload done */
+.upload-done {
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 2rem;
+  box-shadow: var(--shadow-md);
+}
+
+.upload-done > p {
+  margin-bottom: 1rem;
+}
+
+.transcript-text {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  line-height: 1.65;
+  color: var(--ink);
+  background: var(--parchment);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  padding: 1rem;
+  resize: vertical;
+  box-sizing: border-box;
+  margin-bottom: 1rem;
+  transition: border-color 0.15s ease;
+}
+
+.transcript-text:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+}
+
+/* --- Utility --- */
+.loading-text {
+  color: var(--ink-muted);
+  text-align: center;
+  padding: 2rem;
+}
+
+/* --- Responsive --- */
+@media (max-width: 640px) {
+  .app {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .sign-in-card {
+    padding: 2rem 1.5rem;
+  }
+
+  .sign-in-container::before {
+    width: 300px;
+    height: 300px;
+  }
+
+  .setup-done-links {
+    flex-direction: column;
+  }
+
+  .class-group {
+    padding: 1rem 1.15rem;
+  }
 }
