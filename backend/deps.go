@@ -47,6 +47,25 @@ type whisperTranscriber struct {
 }
 
 func (w *whisperTranscriber) Transcribe(ctx context.Context, filename string, audio io.Reader) (string, error) {
+	// Peek at magic bytes to detect the real audio format and fix the
+	// filename extension so Whisper parses the stream correctly.
+	header, audio, err := peekReader(audio, 12)
+	if err != nil {
+		return "", fmt.Errorf("failed to read audio header: %w", err)
+	}
+	filename = fixAudioFilename(filename, header)
+
+	// 3GPP containers are structurally identical to MP4 but Whisper rejects
+	// them. Patch the ftyp major brand from "3gp*" to "isom".
+	if is3GPContainer(header) {
+		audio, err = patch3GPFtyp(header, audio)
+		if err != nil {
+			return "", fmt.Errorf("failed to patch 3GP container: %w", err)
+		}
+	} else {
+		audio = replayReader(header, audio)
+	}
+
 	resp, err := w.client.CreateTranscription(ctx, openai.AudioRequest{
 		Model:    openai.Whisper1,
 		FilePath: filename,
