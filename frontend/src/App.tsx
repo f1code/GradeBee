@@ -92,6 +92,7 @@ function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab }: {
     async function checkSetup() {
       try {
         const token = await getToken()
+        if (!token) return          // session not ready yet; effect will re-run
         const resp = await fetch(`${apiUrl}/setup`, {
           headers: { Authorization: `Bearer ${token}` },
         })

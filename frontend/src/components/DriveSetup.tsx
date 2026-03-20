@@ -28,6 +28,7 @@ export default function DriveSetup({ onComplete }: DriveSetupProps) {
     setError(null)
     try {
       const token = await getToken()
+      if (!token) throw new Error('Not authenticated')
       const resp = await fetch(`${apiUrl}/setup`, {
         method: 'POST',
         headers: {
