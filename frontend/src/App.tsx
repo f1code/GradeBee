@@ -1,12 +1,10 @@
-import { Show, SignInButton, UserButton } from '@clerk/react'
+import { Show, SignInButton, UserButton, useAuth } from '@clerk/react'
 import { useState, useEffect } from 'react'
 import { motion } from 'motion/react'
 import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
 import AudioUpload from './components/AudioUpload'
 import ReportGeneration from './components/ReportGeneration'
-
-const SETUP_DONE_KEY = 'gradebee-setup-done'
 
 function BeeIcon({ size = 28 }: { size?: number }) {
   return (
@@ -41,23 +39,8 @@ function BeeIcon({ size = 28 }: { size?: number }) {
 }
 
 function App() {
-  const [setupDone, setSetupDoneState] = useState<boolean | null>(null)
+  const [setupDone, setSetupDone] = useState<boolean | null>(null)
   const [activeTab, setActiveTab] = useState<'notes' | 'reports'>('notes')
-
-  useEffect(() => {
-    const stored = localStorage.getItem(SETUP_DONE_KEY)
-    setSetupDoneState(stored === 'true')
-  }, [])
-
-  function markSetupDone() {
-    localStorage.setItem(SETUP_DONE_KEY, 'true')
-    setSetupDoneState(true)
-  }
-
-  function resetSetupDone() {
-    localStorage.removeItem(SETUP_DONE_KEY)
-    setSetupDoneState(false)
-  }
 
   return (
     <div className="app">
@@ -88,43 +71,74 @@ function App() {
           </div>
         </Show>
         <Show when="signed-in">
-          {setupDone === null ? (
-            <p className="loading-text">Loading...</p>
-          ) : setupDone ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.3 }}
-            >
-              <nav className="app-nav">
-                <button
-                  className={`toolbar-link ${activeTab === 'notes' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('notes')}
-                >
-                  🎙️ Notes
-                </button>
-                <button
-                  className={`toolbar-link ${activeTab === 'reports' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('reports')}
-                >
-                  📝 Reports
-                </button>
-              </nav>
-              {activeTab === 'notes' ? (
-                <>
-                  <StudentList onSetupRequired={resetSetupDone} />
-                  <AudioUpload />
-                </>
-              ) : (
-                <ReportGeneration />
-              )}
-            </motion.div>
-          ) : (
-            <DriveSetup onComplete={markSetupDone} />
-          )}
+          <SignedInContent setupDone={setupDone} setSetupDone={setSetupDone} activeTab={activeTab} setActiveTab={setActiveTab} />
         </Show>
       </main>
     </div>
+  )
+}
+
+function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab }: {
+  setupDone: boolean | null
+  setSetupDone: (v: boolean) => void
+  activeTab: 'notes' | 'reports'
+  setActiveTab: (v: 'notes' | 'reports') => void
+}) {
+  const { getToken } = useAuth()
+  const apiUrl = import.meta.env.VITE_API_URL
+
+  useEffect(() => {
+    let cancelled = false
+    async function checkSetup() {
+      try {
+        const token = await getToken()
+        const resp = await fetch(`${apiUrl}/setup`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!resp.ok) throw new Error('failed to check setup')
+        const data = await resp.json()
+        if (!cancelled) setSetupDone(data.setupDone === true)
+      } catch {
+        if (!cancelled) setSetupDone(false)
+      }
+    }
+    checkSetup()
+    return () => { cancelled = true }
+  }, [getToken, apiUrl, setSetupDone])
+
+  return setupDone === null ? (
+    <p className="loading-text">Loading...</p>
+  ) : setupDone ? (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+    >
+      <nav className="app-nav">
+        <button
+          className={`toolbar-link ${activeTab === 'notes' ? 'active' : ''}`}
+          onClick={() => setActiveTab('notes')}
+        >
+          🎙️ Notes
+        </button>
+        <button
+          className={`toolbar-link ${activeTab === 'reports' ? 'active' : ''}`}
+          onClick={() => setActiveTab('reports')}
+        >
+          📝 Reports
+        </button>
+      </nav>
+      {activeTab === 'notes' ? (
+        <>
+          <StudentList onSetupRequired={() => setSetupDone(false)} />
+          <AudioUpload />
+        </>
+      ) : (
+        <ReportGeneration />
+      )}
+    </motion.div>
+  ) : (
+    <DriveSetup onComplete={() => setSetupDone(true)} />
   )
 }
 

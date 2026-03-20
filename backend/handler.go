@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	getSetupHandler   = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGetSetup))
 	setupHandler      = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleSetup))
 	studentsHandler   = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGetStudents))
 	uploadHandler     = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleUpload))
@@ -82,6 +83,8 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case (path == "" || path == "health") && r.Method == http.MethodGet:
 		writeJSON(rec, http.StatusOK, map[string]string{"status": "ok"})
+	case path == "setup" && r.Method == http.MethodGet:
+		getSetupHandler.ServeHTTP(rec, r)
 	case path == "setup" && r.Method == http.MethodPost:
 		setupHandler.ServeHTTP(rec, r)
 	case path == "students" && r.Method == http.MethodGet:

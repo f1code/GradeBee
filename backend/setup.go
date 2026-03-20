@@ -12,9 +12,42 @@ import (
 	"fmt"
 	"net/http"
 
+	clerk "github.com/clerk/clerk-sdk-go/v2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/sheets/v4"
 )
+
+type setupStatusResponse struct {
+	SetupDone      bool   `json:"setupDone"`
+	FolderID       string `json:"folderId,omitempty"`
+	SpreadsheetID  string `json:"spreadsheetId,omitempty"`
+}
+
+func handleGetSetup(w http.ResponseWriter, r *http.Request) {
+	log := loggerFromRequest(r)
+	claims, ok := clerk.SessionClaimsFromContext(r.Context())
+	if !ok {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+		return
+	}
+	userID := claims.Subject
+
+	meta, err := getGradeBeeMetadata(r.Context(), userID)
+	if err != nil {
+		log.Warn("get-setup: could not read metadata", "error", err)
+		writeJSON(w, http.StatusOK, setupStatusResponse{SetupDone: false})
+		return
+	}
+	if meta == nil || meta.FolderID == "" {
+		writeJSON(w, http.StatusOK, setupStatusResponse{SetupDone: false})
+		return
+	}
+	writeJSON(w, http.StatusOK, setupStatusResponse{
+		SetupDone:     true,
+		FolderID:      meta.FolderID,
+		SpreadsheetID: meta.SpreadsheetID,
+	})
+}
 
 type setupResponse struct {
 	FolderID       string `json:"folderId"`
