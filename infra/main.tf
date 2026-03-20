@@ -9,9 +9,12 @@ terraform {
 }
 
 provider "scaleway" {
-  project_id = var.project_id
-  region = var.region
-  zone   = "${var.region}-1"
+  # Config from environment
+  # access_key = var.scaleway_access_key
+  # secret_key = var.scaleway_secret_key
+  # project_id = var.project_id
+  # region     = var.region
+  # zone       = "${var.region}-1"
 }
 
 # --- Object Storage for frontend SPA ---
@@ -43,11 +46,12 @@ resource "scaleway_function_namespace" "gradebee" {
   name = "gradebee"
 
   environment_variables = {
-    ALLOWED_ORIGIN = var.frontend_url
+    ALLOWED_ORIGIN = "https://${scaleway_object_bucket_website_configuration.frontend.website_endpoint}"
   }
 
   secret_environment_variables = {
     CLERK_SECRET_KEY = var.clerk_secret_key
+    OPENAI_API_KEY   = var.openai_api_key
   }
 }
 
@@ -59,8 +63,8 @@ resource "scaleway_function" "api" {
   privacy      = "public"
   min_scale    = 0
   max_scale    = 5
-  memory_limit = 256
-  timeout      = 30
+  memory_limit = 512
+  timeout      = 60
   zip_file     = "${path.module}/../dist/functions/backend.zip"
   zip_hash     = filesha256("${path.module}/../dist/functions/backend.zip")
 
