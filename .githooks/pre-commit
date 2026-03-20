@@ -1,8 +1,0 @@
-#!/bin/sh
-# Run make lint when backend files are modified
-set -e
-
-staged=$(git diff --cached --name-only)
-if echo "$staged" | grep -q '^backend/'; then
-  (cd backend && make lint)
-fi

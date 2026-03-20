@@ -29,6 +29,13 @@
   --radius: 12px;
   --radius-sm: 8px;
 
+  /* Breakpoints (for reference — used in @media queries) */
+  --bp-sm: 480px;
+  --bp-md: 640px;
+  --bp-lg: 860px;
+
+  -webkit-text-size-adjust: 100%;
+
   font-family: var(--font-body);
   font-weight: 400;
   line-height: 1.6;
@@ -154,6 +161,7 @@ button, .btn {
   color: var(--ink);
   border: none;
   padding: 0.7rem 1.4rem;
+  min-height: 44px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -639,10 +647,58 @@ button:disabled {
   padding: 2rem;
 }
 
+/* --- Student list collapse toggle (mobile) --- */
+.student-list-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+  box-shadow: var(--shadow-sm);
+  min-height: 44px;
+}
+
+.student-list-collapse-toggle:hover {
+  background: var(--honey-light);
+  border-color: var(--honey);
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+
+/* --- Mobile upload actions --- */
+.mobile-upload-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mobile-upload-btn {
+  width: 100%;
+  justify-content: center;
+  font-size: 1rem;
+  padding: 0.85rem 1.5rem;
+}
+
+.mobile-upload-actions .hint {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
 /* --- Responsive --- */
 @media (max-width: 640px) {
   .app {
     padding: 1.25rem 1rem 3rem;
+    padding-bottom: calc(3rem + env(safe-area-inset-bottom));
   }
 
   .sign-in-card {
@@ -660,6 +716,103 @@ button:disabled {
 
   .class-group {
     padding: 1rem 1.15rem;
+  }
+
+  /* App nav: full-width tabs */
+  .app-nav {
+    width: 100%;
+  }
+
+  .app-nav .toolbar-link {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+    min-height: 44px;
+  }
+
+  /* Touch-friendly student items */
+  .class-group li {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  /* Upload progress tighten */
+  .upload-progress {
+    padding: 1.5rem 1rem;
+  }
+
+  /* Form inputs: prevent iOS zoom */
+  .note-summary-input,
+  .note-meta-field input,
+  .report-instructions textarea,
+  .transcript-text,
+  input[type="date"],
+  input[type="text"],
+  textarea {
+    font-size: 1rem;
+  }
+
+  /* Note actions: sticky save bar */
+  .note-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--chalk);
+    padding: 0.75rem 0;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    margin: 0 -1.15rem -1.5rem;
+    padding-left: 1.15rem;
+    padding-right: 1.15rem;
+    border-top: 1px solid var(--comb);
+    z-index: 10;
+    flex-direction: column;
+  }
+
+  .note-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Note doc links: touch targets */
+  .note-doc-link {
+    min-height: 44px;
+    padding: 0.6rem 0.75rem;
+  }
+
+  /* Note candidate buttons: larger touch targets */
+  .note-candidate-btn {
+    padding: 0.5rem 0.85rem !important;
+    font-size: 0.85rem !important;
+    min-height: 44px;
+  }
+
+  /* Note summary textarea */
+  .note-summary-input {
+    min-height: 5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-logo h1 {
+    font-size: 1.35rem;
+  }
+
+  .student-list .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .student-list .toolbar .toolbar-link,
+  .student-list .toolbar .btn-secondary {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .class-group h3 {
+    font-size: 0.95rem;
+  }
+
+  .class-group li {
+    font-size: 0.88rem;
   }
 }
 
@@ -939,9 +1092,22 @@ button:disabled {
     flex-direction: column;
   }
 
+  .note-meta-field input {
+    width: 100%;
+  }
+
   .note-student-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .note-actions {
+    flex-direction: column;
+  }
+
+  .note-actions button {
+    width: 100%;
+    justify-content: center;
   }
 }
 

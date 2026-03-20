@@ -81,9 +81,10 @@ GradeBee/
 │       ├── 2026-03-13-phased-implementation.md
 │       └── phase-2-student-list.md
 │
-├── .githooks/
-│   └── pre-commit             # Runs make lint on backend changes
+├── .husky/
+│   └── pre-commit             # TypeScript check, lint-staged, Go lint
 │
+├── lint-staged.config.mjs     # ESLint + Prettier on staged frontend files
 ├── AGENTS.md                  # Agent instructions (lint, etc.)
 ├── Makefile                   # build, clean, deploy, dev
 ├── package.json               # Root: runs frontend + backend concurrently
@@ -129,10 +130,10 @@ GradeBee/
    cd frontend && npm install
    ```
 
-3. (Optional) Enable git hooks to run `make lint` when backend files change:
+3. Install git hooks (runs TypeScript check, ESLint, Prettier, and Go lint on commit):
 
    ```sh
-   git config core.hooksPath .githooks
+   npm run prepare
    ```
 
 4. Run the development servers:

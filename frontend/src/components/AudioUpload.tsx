@@ -5,6 +5,7 @@ import { uploadAudio, transcribeAudio, extractFromTranscript, createNotes, getGo
 import type { ExtractResult, NoteResult } from '../api'
 import NoteConfirmation from './NoteConfirmation'
 import { useDrivePicker } from '../hooks/useDrivePicker'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 type UploadStatus = 'idle' | 'uploading' | 'transcribing' | 'extracting' | 'confirming' | 'saving' | 'saved' | 'error'
 
@@ -56,6 +57,7 @@ export default function AudioUpload() {
   const [error, setError] = useState<string>('')
   const [dragOver, setDragOver] = useState(false)
   const { openPicker } = useDrivePicker()
+  const isMobile = useMediaQuery('(max-width: 640px)')
 
   async function processFile(file: File) {
     if (file.size > MAX_SIZE_BYTES) {
@@ -202,37 +204,70 @@ export default function AudioUpload() {
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.25 }}
           >
-            <div
-              className={`drop-zone${dragOver ? ' drag-over' : ''}`}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onClick={() => fileInputRef.current?.click()}
-              data-testid="drop-zone"
-            >
-              <MicIcon />
-              <p>Drag & drop an audio file here, or click to browse</p>
-              <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={ACCEPTED_FORMATS}
-                onChange={handleFileChange}
-                style={{ display: 'none' }}
-                data-testid="file-input"
-              />
-            </div>
-            <div className="drive-import-row">
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={handleDriveImport}
-                data-testid="drive-import-btn"
-              >
-                <DriveIcon />
-                Add from Drive
-              </button>
-            </div>
+            {isMobile ? (
+              <div className="mobile-upload-actions" data-testid="mobile-upload">
+                <button
+                  type="button"
+                  className="mobile-upload-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                  data-testid="mobile-file-btn"
+                >
+                  🎙️ Choose Audio File
+                </button>
+                <button
+                  type="button"
+                  className="mobile-upload-btn btn-secondary"
+                  onClick={handleDriveImport}
+                  data-testid="drive-import-btn"
+                >
+                  <DriveIcon />
+                  Add from Drive
+                </button>
+                <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_FORMATS}
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                  data-testid="file-input"
+                />
+              </div>
+            ) : (
+              <>
+                <div
+                  className={`drop-zone${dragOver ? ' drag-over' : ''}`}
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onClick={() => fileInputRef.current?.click()}
+                  data-testid="drop-zone"
+                >
+                  <MicIcon />
+                  <p>Drag & drop an audio file here, or click to browse</p>
+                  <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept={ACCEPTED_FORMATS}
+                    onChange={handleFileChange}
+                    style={{ display: 'none' }}
+                    data-testid="file-input"
+                  />
+                </div>
+                <div className="drive-import-row">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleDriveImport}
+                    data-testid="drive-import-btn"
+                  >
+                    <DriveIcon />
+                    Add from Drive
+                  </button>
+                </div>
+              </>
+            )}
           </motion.div>
         )}
 
@@ -292,7 +327,6 @@ export default function AudioUpload() {
             <NoteConfirmation
               extractResult={extractResult}
               transcript={transcript}
-              fileId={fileId}
               onSave={handleSaveNotes}
               onCancel={reset}
               saving={status === 'saving'}

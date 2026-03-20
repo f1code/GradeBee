@@ -13,7 +13,6 @@ interface StudentEdit {
 interface Props {
   extractResult: ExtractResult
   transcript: string
-  fileId: string
   onSave: (students: { name: string; class: string; summary: string }[], date: string) => void
   onCancel: () => void
   saving: boolean
@@ -59,7 +58,6 @@ function DocIcon() {
 export default function NoteConfirmation({
   extractResult,
   transcript,
-  fileId,
   onSave,
   onCancel,
   saving,

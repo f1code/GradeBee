@@ -1,6 +1,7 @@
 import { useAuth } from '@clerk/react'
 import { useEffect, useState } from 'react'
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 
 interface Student {
   name: string
@@ -162,6 +163,45 @@ export default function StudentList({ onSetupRequired }: StudentListProps) {
     return null
   }
 
+  const totalStudents = data.classes.reduce((sum, cls) => sum + cls.students.length, 0)
+
+  return (
+    <StudentListContent
+      data={data}
+      totalStudents={totalStudents}
+      onRefresh={fetchStudents}
+    />
+  )
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="16" height="16" viewBox="0 0 16 16" fill="none"
+      style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+    >
+      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function StudentListContent({
+  data,
+  totalStudents,
+  onRefresh,
+}: {
+  data: StudentsResponse
+  totalStudents: number
+  onRefresh: () => void
+}) {
+  const isMobile = useMediaQuery('(max-width: 640px)')
+  const [collapsed, setCollapsed] = useState(isMobile)
+
+  // Sync default collapsed state when breakpoint changes
+  useEffect(() => {
+    setCollapsed(isMobile)
+  }, [isMobile])
+
   return (
     <div className="student-list" data-testid="student-list">
       <div className="toolbar">
@@ -172,38 +212,61 @@ export default function StudentList({ onSetupRequired }: StudentListProps) {
           className="toolbar-link"
           data-testid="edit-students-link"
         >
-          ✏️ Edit students in Sheets
+          ✏️ Edit in Sheets
         </a>
-        <button className="btn-secondary" onClick={fetchStudents} data-testid="student-list-refresh">
+        <button className="btn-secondary" onClick={onRefresh} data-testid="student-list-refresh">
           Refresh
         </button>
       </div>
 
-      <motion.div variants={containerVariants} initial="hidden" animate="visible">
-        {data.classes.map((cls) => (
+      {isMobile && (
+        <button
+          className="student-list-collapse-toggle"
+          onClick={() => setCollapsed(!collapsed)}
+          data-testid="student-list-toggle"
+        >
+          <span>{data.classes.length} {data.classes.length === 1 ? 'class' : 'classes'} · {totalStudents} students</span>
+          <ChevronIcon open={!collapsed} />
+        </button>
+      )}
+
+      <AnimatePresence initial={false}>
+        {(!isMobile || !collapsed) && (
           <motion.div
-            key={cls.name}
-            className="class-group"
-            data-testid={`class-group-${cls.name}`}
-            variants={cardVariants}
+            key="student-classes"
+            variants={containerVariants}
+            initial={isMobile ? { opacity: 0, height: 0 } : 'hidden'}
+            animate={isMobile ? { opacity: 1, height: 'auto' } : 'visible'}
+            exit={isMobile ? { opacity: 0, height: 0 } : undefined}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            style={{ overflow: 'hidden' }}
           >
-            <h3>
-              <HexBullet />
-              {cls.name}
-              <span className="count" data-testid={`class-count-${cls.name}`}>
-                ({cls.students.length})
-              </span>
-            </h3>
-            <ul>
-              {cls.students.map((s) => (
-                <li key={s.name} data-testid={`student-${cls.name}-${s.name}`}>
-                  {s.name}
-                </li>
-              ))}
-            </ul>
+            {data.classes.map((cls) => (
+              <motion.div
+                key={cls.name}
+                className="class-group"
+                data-testid={`class-group-${cls.name}`}
+                variants={cardVariants}
+              >
+                <h3>
+                  <HexBullet />
+                  {cls.name}
+                  <span className="count" data-testid={`class-count-${cls.name}`}>
+                    ({cls.students.length})
+                  </span>
+                </h3>
+                <ul>
+                  {cls.students.map((s) => (
+                    <li key={s.name} data-testid={`student-${cls.name}-${s.name}`}>
+                      {s.name}
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            ))}
           </motion.div>
-        ))}
-      </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

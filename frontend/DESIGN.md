@@ -74,3 +74,21 @@
 - Don't add a dark theme (light-only by design).
 - Don't use flat borders where a card shadow works better.
 - Don't overuse the bee/honeycomb motifs — they should feel like accents, not wallpaper.
+
+## Responsive
+
+### Breakpoints
+- `480px` (sm) — phone portrait. Stack layouts vertically, larger touch targets.
+- `640px` (md) — phone landscape / small tablet. Full-width nav tabs, collapsible student list, mobile upload UX.
+- `860px` (lg) — max content width.
+
+### Touch targets
+- All interactive elements must be at least **44×44px** on mobile (buttons, links, list items).
+- Form inputs must be `font-size: 1rem` (16px) at ≤640px to prevent iOS auto-zoom.
+
+### Strategy
+- **Mobile-first column stacking**: flex layouts wrap/stack at narrow widths.
+- **Student list**: collapses on mobile (≤640px) with a summary toggle; expanded on desktop.
+- **Audio upload**: drop zone replaced with prominent stacked action buttons on mobile.
+- **Note confirmation save bar**: sticky at viewport bottom on mobile with safe-area inset padding.
+- **Safe area insets**: `env(safe-area-inset-bottom)` applied to sticky bars and app padding for iPhone home indicator clearance.
