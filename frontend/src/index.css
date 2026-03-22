@@ -237,7 +237,7 @@ button:disabled {
   border-radius: var(--radius);
   padding: 3rem 2.5rem;
   box-shadow: var(--shadow-lg);
-  max-width: 400px;
+  max-width: 480px;
   width: 100%;
 }
 
@@ -1526,4 +1526,218 @@ button:disabled {
   .report-student-list {
     grid-template-columns: 1fr;
   }
+}
+
+/* ============================================
+   Sign-in Feature List
+   ============================================ */
+
+.sign-in-tagline {
+  color: var(--ink-muted);
+  font-size: 1.02rem;
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.75rem;
+  text-align: left;
+}
+
+.feature-list li {
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+  line-height: 2.2;
+}
+
+/* ============================================
+   Header Actions
+   ============================================ */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.how-it-works-trigger {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border-radius: 50%;
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  color: var(--ink-muted);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: none;
+  transition: all 0.15s ease;
+}
+
+.how-it-works-trigger:hover {
+  background: var(--honey-light);
+  border-color: var(--honey);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+/* ============================================
+   How It Works Modal
+   ============================================ */
+
+.how-it-works-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(44, 24, 16, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.how-it-works-card {
+  position: relative;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 2.5rem 2rem 2rem;
+}
+
+.how-it-works-card h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.how-it-works-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 1.5rem;
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  box-shadow: none;
+}
+
+.how-it-works-close:hover {
+  background: var(--comb);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+.guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+}
+
+.guide-step {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.guide-step-num {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--honey-light);
+  color: var(--honey-dark);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--honey);
+  margin-top: 0.1rem;
+}
+
+.guide-step h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0 0 0.25rem;
+}
+
+.guide-step p {
+  color: var(--ink-muted);
+  font-size: 0.92rem;
+  margin: 0;
+  line-height: 1.55;
+}
+
+.guide-dismiss-btn {
+  width: 100%;
+  font-size: 1rem;
+  justify-content: center;
+}
+
+/* ============================================
+   Hint Banner
+   ============================================ */
+
+.hint-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--honey-light);
+  border-left: 3px solid var(--honey);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.hint-banner p {
+  flex: 1;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.hint-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 1.15rem;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  box-shadow: none;
+  min-height: auto;
+  line-height: 1;
+}
+
+.hint-banner-close:hover {
+  background: rgba(44, 24, 16, 0.06);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
 }

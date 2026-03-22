@@ -5,6 +5,8 @@ import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
 import AudioUpload from './components/AudioUpload'
 import ReportGeneration from './components/ReportGeneration'
+import HowItWorks from './components/HowItWorks'
+import HintBanner from './components/HintBanner'
 
 function BeeIcon({ size = 28 }: { size?: number }) {
   return (
@@ -41,6 +43,7 @@ function BeeIcon({ size = 28 }: { size?: number }) {
 function App() {
   const [setupDone, setSetupDone] = useState<boolean | null>(null)
   const [activeTab, setActiveTab] = useState<'notes' | 'reports'>('notes')
+  const [showGuide, setShowGuide] = useState(false)
 
   return (
     <div className="app">
@@ -49,9 +52,12 @@ function App() {
           <BeeIcon />
           <h1>GradeBee</h1>
         </div>
-        <Show when="signed-in">
-          <UserButton />
-        </Show>
+        <div className="header-actions">
+          <Show when="signed-in">
+            <button className="how-it-works-trigger" onClick={() => setShowGuide(true)} aria-label="How it works">?</button>
+            <UserButton />
+          </Show>
+        </div>
       </header>
       <main>
         <Show when="signed-out">
@@ -63,7 +69,12 @@ function App() {
               transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               <h2>Welcome to GradeBee</h2>
-              <p>Sign in with Google to get started.</p>
+              <p className="sign-in-tagline">Record verbal feedback about your students and GradeBee turns it into polished, structured notes and report cards — saved straight to your Google Drive.</p>
+              <ul className="feature-list">
+                <li>🎤 Record or upload audio of your observations</li>
+                <li>🗂️ Notes are created automatically for each student</li>
+                <li>📄 Generate report cards that match your writing style</li>
+              </ul>
               <SignInButton mode="modal">
                 <button className="sign-in-btn" data-testid="sign-in-button">Sign in with Google</button>
               </SignInButton>
@@ -71,21 +82,31 @@ function App() {
           </div>
         </Show>
         <Show when="signed-in">
-          <SignedInContent setupDone={setupDone} setSetupDone={setSetupDone} activeTab={activeTab} setActiveTab={setActiveTab} />
+          <SignedInContent setupDone={setupDone} setSetupDone={setSetupDone} activeTab={activeTab} setActiveTab={setActiveTab} setShowGuide={setShowGuide} />
         </Show>
       </main>
+      {showGuide && <HowItWorks onClose={() => setShowGuide(false)} />}
     </div>
   )
 }
 
-function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab }: {
+function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab, setShowGuide }: {
   setupDone: boolean | null
   setSetupDone: (v: boolean) => void
   activeTab: 'notes' | 'reports'
   setActiveTab: (v: 'notes' | 'reports') => void
+  setShowGuide: (v: boolean) => void
 }) {
   const { getToken } = useAuth()
   const apiUrl = import.meta.env.VITE_API_URL
+
+  // Auto-show guide on first visit
+  useEffect(() => {
+    if (!localStorage.getItem('gradebee:seenGuide')) {
+      setShowGuide(true)
+      localStorage.setItem('gradebee:seenGuide', '1')
+    }
+  }, [setShowGuide])
 
   useEffect(() => {
     let cancelled = false
@@ -131,11 +152,15 @@ function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab }: {
       </nav>
       {activeTab === 'notes' ? (
         <>
+          <HintBanner storageKey="gradebee:hint:notes">Record or upload audio, then review the notes GradeBee creates for each student.</HintBanner>
           <StudentList onSetupRequired={() => setSetupDone(false)} />
           <AudioUpload />
         </>
       ) : (
-        <ReportGeneration />
+        <>
+          <HintBanner storageKey="gradebee:hint:reports">Select students and a date range to generate report cards from your accumulated notes.</HintBanner>
+          <ReportGeneration />
+        </>
       )}
     </motion.div>
   ) : (
