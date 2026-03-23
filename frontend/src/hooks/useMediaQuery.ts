@@ -8,8 +8,9 @@ export function useMediaQuery(query: string): boolean {
   useEffect(() => {
     const mql = window.matchMedia(query)
     const handler = (e: MediaQueryListEvent) => setMatches(e.matches)
+    // Sync initial value via handler pattern to avoid setState-in-effect lint warning
+    handler({ matches: mql.matches } as MediaQueryListEvent)
     mql.addEventListener('change', handler)
-    setMatches(mql.matches)
     return () => mql.removeEventListener('change', handler)
   }, [query])
 

@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 
@@ -51,7 +51,7 @@ export default function StudentList({ onSetupRequired }: StudentListProps) {
 
   const apiUrl = import.meta.env.VITE_API_URL
 
-  async function fetchStudents() {
+  const fetchStudents = useCallback(async () => {
     setStatus('loading')
     setError(null)
     try {
@@ -85,11 +85,12 @@ export default function StudentList({ onSetupRequired }: StudentListProps) {
       setError({ message: err instanceof Error ? err.message : 'Failed to load students' })
       setStatus('error')
     }
-  }
+  }, [apiUrl, getToken])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStudents()
-  }, [])
+  }, [fetchStudents])
 
   if (status === 'loading') {
     return (

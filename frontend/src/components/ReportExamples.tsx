@@ -22,8 +22,8 @@ export default function ReportExamples() {
     try {
       const { examples } = await listReportExamples(() => getToken())
       setExamples(examples)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to load examples')
     } finally {
       setLoading(false)
     }
@@ -40,8 +40,8 @@ export default function ReportExamples() {
         await uploadReportExample(file, () => getToken())
       }
       await load()
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Upload failed')
     } finally {
       setUploading(false)
     }
@@ -51,8 +51,8 @@ export default function ReportExamples() {
     try {
       await deleteReportExample(id, () => getToken())
       setExamples(prev => prev.filter(e => e.id !== id))
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 

@@ -90,11 +90,11 @@ export function useDrivePicker() {
             // Create a view filtered to audio MIME types
             (() => {
               // The DocsView constructor accepts a ViewId
-              const docsView = new (window.google as any).picker.DocsView(
+              const docsView = new (window.google as unknown as Record<string, Record<string, new (id: unknown) => Record<string, (v: unknown) => void>>>).picker.DocsView(
                 window.google.picker.ViewId.DOCS
               )
               docsView.setMimeTypes(AUDIO_MIME_TYPES)
-              docsView.setMode((window.google as any).picker.DocsViewMode.LIST)
+              docsView.setMode((window.google as unknown as Record<string, Record<string, Record<string, unknown>>>).picker.DocsViewMode.LIST)
               return docsView
             })()
           )

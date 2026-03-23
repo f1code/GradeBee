@@ -105,8 +105,8 @@ export default function ReportGeneration() {
       )
       setResults(resp.reports || [])
       if (resp.error) setError(resp.error)
-    } catch (e: any) {
-      setError(e.message)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Generation failed')
     } finally {
       setGenerating(false)
     }

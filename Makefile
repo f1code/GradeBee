@@ -4,7 +4,7 @@ export
 DIST_DIR := dist/functions
 ZIP_FILE := $(DIST_DIR)/backend.zip
 
-.PHONY: build clean build-frontend deploy-frontend deploy terraform dev
+.PHONY: build clean build-frontend deploy-frontend deploy terraform dev test
 
 build:
 	@mkdir -p $(DIST_DIR)
@@ -43,6 +43,10 @@ deploy: build terraform deploy-frontend
 
 dev:
 	npm run --prefix frontend dev
+
+test:
+	cd backend && $(MAKE) test
+	npm run --prefix frontend test
 
 clean:
 	rm -rf dist
