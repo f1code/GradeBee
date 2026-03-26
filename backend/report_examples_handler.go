@@ -3,8 +3,10 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -42,6 +44,25 @@ func handleListReportExamples(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"examples": examples})
 }
 
+// ensureReportExamplesFolder returns the report-examples folder ID, creating it on demand if needed.
+func ensureReportExamplesFolder(ctx context.Context, svc *googleServices, meta *gradeBeeMetadata) (string, error) {
+	if meta == nil || meta.FolderID == "" {
+		return "", fmt.Errorf("GradeBee workspace not configured, run setup first")
+	}
+	if meta.ReportExamplesID != "" {
+		return meta.ReportExamplesID, nil
+	}
+	id, err := createFolder(svc.Drive, meta.FolderID, "report-examples")
+	if err != nil {
+		return "", fmt.Errorf("creating report-examples folder: %w", err)
+	}
+	meta.ReportExamplesID = id
+	if err := setGradeBeeMetadata(ctx, svc.User.UserID, meta); err != nil {
+		loggerFromContext(ctx).Warn("ensureReportExamplesFolder: could not persist metadata", "error", err)
+	}
+	return id, nil
+}
+
 func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
@@ -59,8 +80,14 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	meta, err := getGradeBeeMetadata(ctx, svc.User.UserID)
-	if err != nil || meta == nil || meta.ReportExamplesID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "report-examples folder not configured, run setup first"})
+	if err != nil {
+		log.Error("upload report example: metadata lookup failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read user metadata"})
+		return
+	}
+	folderID, err := ensureReportExamplesFolder(ctx, svc, meta)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -123,7 +150,7 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 	}
 
 	store := serviceDeps.GetExampleStore(svc)
-	example, err := store.UploadExample(ctx, meta.ReportExamplesID, name, content)
+	example, err := store.UploadExample(ctx, folderID, name, content)
 	if err != nil {
 		log.Error("upload report example failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

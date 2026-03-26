@@ -145,7 +145,6 @@ func handleSetup(w http.ResponseWriter, r *http.Request) {
 		{"uploads", &meta.UploadsID},
 		{"notes", &meta.NotesID},
 		{"reports", &meta.ReportsID},
-		{"report-examples", &meta.ReportExamplesID},
 	}
 	for _, sf := range subfolders {
 		id, err := createFolder(svc.Drive, rootID, sf.name)
@@ -186,7 +185,7 @@ func ensureSubfolders(ctx context.Context, svc *googleServices, meta *gradeBeeMe
 	spreadsheetID = meta.SpreadsheetID
 	spreadsheetURL = fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit", spreadsheetID)
 
-	needsUpdate := meta.UploadsID == "" || meta.NotesID == "" || meta.ReportsID == "" || meta.ReportExamplesID == ""
+	needsUpdate := meta.UploadsID == "" || meta.NotesID == "" || meta.ReportsID == ""
 	if !needsUpdate {
 		return rootID, spreadsheetID, spreadsheetURL, nil
 	}
@@ -198,7 +197,6 @@ func ensureSubfolders(ctx context.Context, svc *googleServices, meta *gradeBeeMe
 		{"uploads", &meta.UploadsID},
 		{"notes", &meta.NotesID},
 		{"reports", &meta.ReportsID},
-		{"report-examples", &meta.ReportExamplesID},
 	}
 	for _, sf := range subfolders {
 		if *sf.key != "" {
