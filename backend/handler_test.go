@@ -76,8 +76,8 @@ func TestHandle_GetStudents_NoAuth(t *testing.T) {
 
 	Handle(rec, req)
 
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("GET /students no auth: got status %d, want 403", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("GET /students no auth: got status %d, want 401", rec.Code)
 	}
 }
 
