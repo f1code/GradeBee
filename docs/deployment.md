@@ -11,13 +11,16 @@ GradeBee runs on a VPS with Docker Compose: Go backend + Caddy (HTTPS + static f
 
 ## VPS Setup (one-time)
 
-1. Provision Scaleway STARDUST1-S instance (Debian/Ubuntu)
-2. Install Docker: https://docs.docker.com/engine/install/
-3. Point DNS A record for your domain to the VPS IP
-4. SSH in and create project directory:
-   ```bash
-   mkdir -p /opt/gradebee
-   ```
+Requires [Scaleway CLI](https://www.scaleway.com/en/cli/) configured (`scw init`).
+
+    make provision
+
+This creates a STARDUST1-S instance with Docker pre-installed via cloud-init.
+The script outputs the IP and next steps (DNS, .env, first deploy).
+
+To tear down:
+
+    make teardown
 
 ## Configuration
 

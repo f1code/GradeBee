@@ -4,7 +4,7 @@ export
 VPS_HOST ?= root@<VPS_IP>
 VPS_DIR  ?= /opt/gradebee
 
-.PHONY: dev build-frontend deploy test clean
+.PHONY: dev build-frontend deploy test clean provision teardown
 
 # --- Local development ---
 
@@ -35,3 +35,11 @@ test:
 
 clean:
 	rm -rf dist frontend/dist
+
+# --- VPS provisioning ---
+
+provision:
+	bash scripts/provision-vps.sh
+
+teardown:
+	bash scripts/teardown-vps.sh

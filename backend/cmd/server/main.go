@@ -15,10 +15,13 @@ import (
 
 func main() {
 	// Load .env if present (local dev). In Docker, env vars come from the container.
-	if err := godotenv.Load("../../.env"); err != nil && !os.IsNotExist(err) {
+	if err := godotenv.Load("../../../.env"); err != nil && !os.IsNotExist(err) {
 		slog.Warn("loading .env", "error", err)
 	}
 
+	if os.Getenv("CLERK_SECRET_KEY") == "" {
+		panic("CLERK_SECRET_KEY is not set")
+	}
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
 	// Start in-memory upload queue with 4 workers.

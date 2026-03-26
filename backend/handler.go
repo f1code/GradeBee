@@ -5,32 +5,126 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/clerk/clerk-sdk-go/v2"
 	clerkhttp "github.com/clerk/clerk-sdk-go/v2/http"
+	"github.com/clerk/clerk-sdk-go/v2/jwt"
 	"github.com/google/uuid"
 )
 
+func init() {
+	// Ensure the Clerk SDK has the secret key for JWT verification.
+	// Also called in cmd/server/main.go, but init() runs first.
+	key := os.Getenv("CLERK_SECRET_KEY")
+	slog.Info("clerk init",
+		"key_set", key != "",
+		"key_len", len(key),
+		"key_prefix", safePrefix(key, 12),
+	)
+	if key != "" {
+		clerk.SetKey(key)
+	}
+}
+
+// safePrefix returns the first n bytes of s, or s if shorter.
+func safePrefix(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
+}
+
+// debugAuthMiddleware wraps a handler with Clerk JWT verification and logs
+// detailed information when authentication fails.
+func debugAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log := loggerFromRequest(r)
+
+		authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		if token == "" || token == authHeader {
+			log.Warn("auth: no Bearer token found")
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		// Try decoding (no verification yet — just parse claims)
+		decoded, err := jwt.Decode(r.Context(), &jwt.DecodeParams{Token: token})
+		if err != nil {
+			log.Warn("auth: jwt decode failed", "error", err)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		var expiry, issuedAt string
+		if decoded.Expiry != nil {
+			expiry = time.Unix(*decoded.Expiry, 0).UTC().Format(time.RFC3339)
+		}
+		if decoded.IssuedAt != nil {
+			issuedAt = time.Unix(*decoded.IssuedAt, 0).UTC().Format(time.RFC3339)
+		}
+		log.Info("auth: jwt decoded",
+			"kid", decoded.KeyID,
+			"issuer", decoded.Issuer,
+			"subject", decoded.Subject,
+			"expires", expiry,
+			"issued_at", issuedAt,
+		)
+
+		// Now delegate to Clerk's full middleware for actual verification
+		verified := false
+		inner := clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			verified = true
+			next.ServeHTTP(w, r)
+		}))
+		inner.ServeHTTP(w, r)
+
+		if !verified {
+			secretKey := os.Getenv("CLERK_SECRET_KEY")
+			log.Warn("auth: clerk verification failed",
+				"kid", decoded.KeyID,
+				"issuer", decoded.Issuer,
+				"clerk_secret_key_set", secretKey != "",
+				"clerk_secret_key_len", len(secretKey),
+				"clerk_secret_key_prefix", truncate(secretKey, 12),
+				"now_utc", time.Now().UTC().Format(time.RFC3339),
+				"token_expired", decoded.Expiry != nil && time.Unix(*decoded.Expiry, 0).Before(time.Now()),
+			)
+			// Try fetching the JWK directly for more diagnostics
+			if decoded.KeyID != "" {
+				_, jwkErr := jwt.GetJSONWebKey(r.Context(), &jwt.GetJSONWebKeyParams{KeyID: decoded.KeyID})
+				if jwkErr != nil {
+					log.Warn("auth: jwk fetch failed", "kid", decoded.KeyID, "error", fmt.Sprintf("%v", jwkErr))
+				} else {
+					log.Info("auth: jwk fetch succeeded", "kid", decoded.KeyID)
+				}
+			}
+		}
+	})
+}
+
 var (
-	getSetupHandler   = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGetSetup))
-	setupHandler      = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleSetup))
-	studentsHandler   = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGetStudents))
-	uploadHandler     = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleUpload))
-	transcribeHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleTranscribe))
-	extractHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleExtract))
-	notesHandler      = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleCreateNotes))
-	reportExamplesListHandler   = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleListReportExamples))
-	reportExamplesUploadHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleUploadReportExample))
-	reportExamplesDeleteHandler = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleDeleteReportExample))
-	reportsHandler              = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGenerateReports))
-	reportsRegenerateHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleRegenerateReport))
-	googleTokenHandler          = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGoogleToken))
-	driveImportHandler          = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleDriveImport))
-	jobListHandler              = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleJobList))
-	jobRetryHandler             = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleJobRetry))
+	getSetupHandler   = debugAuthMiddleware(http.HandlerFunc(handleGetSetup))
+	setupHandler      = debugAuthMiddleware(http.HandlerFunc(handleSetup))
+	studentsHandler   = debugAuthMiddleware(http.HandlerFunc(handleGetStudents))
+	uploadHandler     = debugAuthMiddleware(http.HandlerFunc(handleUpload))
+	transcribeHandler = debugAuthMiddleware(http.HandlerFunc(handleTranscribe))
+	extractHandler    = debugAuthMiddleware(http.HandlerFunc(handleExtract))
+	notesHandler      = debugAuthMiddleware(http.HandlerFunc(handleCreateNotes))
+	reportExamplesListHandler   = debugAuthMiddleware(http.HandlerFunc(handleListReportExamples))
+	reportExamplesUploadHandler = debugAuthMiddleware(http.HandlerFunc(handleUploadReportExample))
+	reportExamplesDeleteHandler = debugAuthMiddleware(http.HandlerFunc(handleDeleteReportExample))
+	reportsHandler              = debugAuthMiddleware(http.HandlerFunc(handleGenerateReports))
+	reportsRegenerateHandler    = debugAuthMiddleware(http.HandlerFunc(handleRegenerateReport))
+	googleTokenHandler          = debugAuthMiddleware(http.HandlerFunc(handleGoogleToken))
+	driveImportHandler          = debugAuthMiddleware(http.HandlerFunc(handleDriveImport))
+	jobListHandler              = debugAuthMiddleware(http.HandlerFunc(handleJobList))
+	jobRetryHandler             = debugAuthMiddleware(http.HandlerFunc(handleJobRetry))
 )
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -53,7 +147,7 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-// Handle is the Scaleway serverless function entrypoint.
+// Handle is the main HTTP entrypoint, used by cmd/server/main.go.
 func Handle(w http.ResponseWriter, r *http.Request) {
 	reqID := uuid.New().String()
 	reqLogger := getLogger().With("request_id", reqID)
@@ -79,6 +173,17 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	rec := &statusRecorder{ResponseWriter: w, status: 0}
 	start := time.Now()
+
+	// Debug auth: log presence/shape of Authorization header for authenticated routes
+	if path != "" && path != "health" {
+		authHeader := r.Header.Get("Authorization")
+		reqLogger.Debug("incoming request",
+			"path", path,
+			"has_auth_header", authHeader != "",
+			"auth_header_len", len(authHeader),
+			"auth_header_prefix", truncate(authHeader, 20),
+		)
+	}
 
 	switch {
 	case (path == "" || path == "health") && r.Method == http.MethodGet:
@@ -120,12 +225,27 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	duration := time.Since(start).Milliseconds()
-	logAttrs := []any{"method", r.Method, "path", "/"+path, "status", rec.status, "duration_ms", duration}
-	if rec.status >= 400 {
+	logAttrs := []any{"method", r.Method, "path", "/" + path, "status", rec.status, "duration_ms", duration}
+	switch {
+	case rec.status == 401 || rec.status == 403:
+		logAttrs = append(logAttrs,
+			"has_auth_header", r.Header.Get("Authorization") != "",
+			"auth_header_prefix", truncate(r.Header.Get("Authorization"), 20),
+		)
+		reqLogger.Warn("request completed (auth failure)", logAttrs...)
+	case rec.status >= 400:
 		reqLogger.Warn("request completed", logAttrs...)
-	} else if path != "" && path != "health" {
+	case path != "" && path != "health":
 		reqLogger.Info("request completed", logAttrs...)
 	}
+}
+
+// truncate returns the first n characters of s, or s if shorter.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
