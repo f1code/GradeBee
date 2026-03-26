@@ -21,9 +21,13 @@ build-frontend:
 
 deploy: build-frontend
 	rsync -avz --delete \
-		--exclude='.git' \
-		--exclude='node_modules' \
-		--exclude='infra' \
+		--include='docker-compose.yml' \
+		--include='Caddyfile' \
+		--include='Dockerfile' \
+		--include='backend/***' \
+		--include='frontend/' \
+		--include='frontend/dist/***' \
+		--exclude='*' \
 		./ $(VPS_HOST):$(VPS_DIR)/
 	ssh $(VPS_HOST) 'cd $(VPS_DIR) && docker compose up -d --build'
 

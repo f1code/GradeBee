@@ -1,5 +1,6 @@
 dist/
 .env
+.env.*
 *.log
 
 # IDE

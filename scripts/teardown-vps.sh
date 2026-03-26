@@ -12,5 +12,5 @@ if [ "$ID" = "null" ] || [ -z "$ID" ]; then
 fi
 
 echo "Terminating instance $INSTANCE_NAME ($ID)..."
-scw instance server terminate "$ID" zone="$ZONE" with-ip=true with-block=local
+scw instance server terminate "$ID" zone="$ZONE" with-ip=true with-block=true
 echo "Done."
