@@ -122,6 +122,7 @@ var (
 	driveImportHandler          = debugAuthMiddleware(http.HandlerFunc(handleDriveImport))
 	jobListHandler              = debugAuthMiddleware(http.HandlerFunc(handleJobList))
 	jobRetryHandler             = debugAuthMiddleware(http.HandlerFunc(handleJobRetry))
+	jobDismissHandler           = debugAuthMiddleware(http.HandlerFunc(handleJobDismiss))
 )
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -211,6 +212,8 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		jobListHandler.ServeHTTP(rec, r)
 	case path == "jobs/retry" && r.Method == http.MethodPost:
 		jobRetryHandler.ServeHTTP(rec, r)
+	case path == "jobs/dismiss" && r.Method == http.MethodPost:
+		jobDismissHandler.ServeHTTP(rec, r)
 	default:
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

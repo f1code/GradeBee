@@ -53,6 +53,8 @@ type UploadQueue interface {
 	UpdateJob(ctx context.Context, job UploadJob) error
 	// ListJobs returns all jobs for the given user.
 	ListJobs(ctx context.Context, userID string) ([]UploadJob, error)
+	// DeleteJob removes a job from the store.
+	DeleteJob(ctx context.Context, userID, fileID string) error
 	// Close tears down the queue and stops workers.
 	Close()
 }

@@ -223,3 +223,22 @@ export async function retryFailedJobs(
     throw new Error(body.error || 'Failed to retry jobs')
   }
 }
+
+export async function dismissJobs(
+  getToken: () => Promise<string | null>,
+  fileIds: string[]
+): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/jobs/dismiss`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileIds }),
+  })
+  if (!resp.ok) {
+    const body = await resp.json()
+    throw new Error(body.error || 'Failed to dismiss jobs')
+  }
+}

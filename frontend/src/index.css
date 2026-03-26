@@ -1588,3 +1588,53 @@ button:disabled {
 .job-section-done {
   margin-top: 0.25rem;
 }
+
+.job-section-done-header {
+  display: flex;
+  justify-content: flex-end;
+  padding-bottom: 0.25rem;
+}
+
+.btn-text.job-clear-all {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.btn-text.job-clear-all:hover {
+  color: var(--ink);
+  background: var(--comb);
+}
+
+.job-dismiss-btn {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.2rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+.job-card-done:hover .job-dismiss-btn {
+  opacity: 0.5;
+}
+.job-dismiss-btn:hover {
+  opacity: 1 !important;
+  background: var(--comb);
+  color: var(--ink);
+}

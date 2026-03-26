@@ -108,6 +108,14 @@ func (q *memQueue) ListJobs(_ context.Context, userID string) ([]UploadJob, erro
 	return jobs, nil
 }
 
+func (q *memQueue) DeleteJob(_ context.Context, userID, fileID string) error {
+	key := kvKey(userID, fileID)
+	q.mu.Lock()
+	delete(q.jobs, key)
+	q.mu.Unlock()
+	return nil
+}
+
 func (q *memQueue) Close() {
 	q.cancel()
 }

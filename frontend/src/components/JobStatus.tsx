@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { fetchJobs, retryFailedJobs } from '../api'
+import { fetchJobs, retryFailedJobs, dismissJobs } from '../api'
 import type { UploadJob, JobListResponse } from '../api'
 
 /** Polling intervals in milliseconds. */
@@ -116,12 +116,33 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
     })
   }
 
+  async function dismissDoneJob(fileId: string) {
+    try {
+      await dismissJobs(getToken, [fileId])
+      if (timerRef.current) clearTimeout(timerRef.current)
+      await poll()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Dismiss failed')
+    }
+  }
+
+  async function dismissAllDone() {
+    const ids = jobs?.done.map(j => j.fileId) ?? []
+    if (ids.length === 0) return
+    try {
+      await dismissJobs(getToken, ids)
+      if (timerRef.current) clearTimeout(timerRef.current)
+      await poll()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Dismiss failed')
+    }
+  }
+
   // Don't render anything if there are no jobs at all.
   if (!jobs) return null
   const hasContent = jobs.active.length > 0 || jobs.failed.length > 0 || jobs.done.length > 0
-  if (!hasContent) return null
-
   const doneSlice = jobs.done.slice(0, MAX_DONE_SHOWN)
+  if (!hasContent) return null
 
   return (
     <motion.div
@@ -190,12 +211,18 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
       {/* Recently completed jobs */}
       {doneSlice.length > 0 && (
         <div className="job-section-done" data-testid="job-done-section">
+          <div className="job-section-done-header">
+            <button className="btn-text job-clear-all" onClick={dismissAllDone} data-testid="job-clear-all">
+              Clear all
+            </button>
+          </div>
           {doneSlice.map(job => (
             <DoneJobCard
               key={job.fileId}
               job={job}
               isNew={newDoneIds.has(job.fileId)}
               onDismissNew={() => dismissNewBadge(job.fileId)}
+              onDismiss={() => dismissDoneJob(job.fileId)}
             />
           ))}
         </div>
@@ -204,7 +231,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   )
 }
 
-function DoneJobCard({ job, isNew, onDismissNew }: { job: UploadJob; isNew: boolean; onDismissNew: () => void }) {
+function DoneJobCard({ job, isNew, onDismissNew, onDismiss }: { job: UploadJob; isNew: boolean; onDismissNew: () => void; onDismiss: () => void }) {
   const noteCount = job.noteLinks?.length ?? 0
 
   return (
@@ -213,6 +240,7 @@ function DoneJobCard({ job, isNew, onDismissNew }: { job: UploadJob; isNew: bool
       data-testid="job-done"
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, overflow: 'hidden' }}
       transition={{ duration: 0.2 }}
     >
       <div className="job-card-row">
@@ -230,6 +258,11 @@ function DoneJobCard({ job, isNew, onDismissNew }: { job: UploadJob; isNew: bool
             {noteCount === 0 ? 'No notes created' : `${noteCount} note${noteCount !== 1 ? 's' : ''} created`}
           </span>
         </div>
+        <button className="job-dismiss-btn" onClick={onDismiss} title="Dismiss" data-testid="job-dismiss">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <line x1="2" y1="2" x2="8" y2="8" /><line x1="8" y1="2" x2="2" y2="8" />
+          </svg>
+        </button>
       </div>
       {job.noteLinks && job.noteLinks.length > 0 && (
         <div className="job-note-links">

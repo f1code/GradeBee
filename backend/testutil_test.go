@@ -242,6 +242,12 @@ func (q *stubUploadQueue) ListJobs(_ context.Context, userID string) ([]UploadJo
 
 func (q *stubUploadQueue) Close() {}
 
+func (q *stubUploadQueue) DeleteJob(_ context.Context, userID, fileID string) error {
+	key := kvKey(userID, fileID)
+	delete(q.jobs, key)
+	return nil
+}
+
 // newTestQueue returns a stub queue for integration tests. The *testing.T
 // parameter is kept for API compatibility with the old NATS-based version.
 func newTestQueue(_ *testing.T) *stubUploadQueue {

@@ -25,6 +25,7 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 | POST   | `/drive-import` | Yes | `handleDriveImport`  | Validate + copy Drive file to uploads + dispatch async job |
 | GET    | `/jobs`     | Yes  | `handleJobList`      | List user's async upload jobs            |
 | POST   | `/jobs/retry` | Yes | `handleJobRetry`    | Retry all failed jobs                    |
+| POST   | `/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs           |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline.
 
@@ -164,6 +165,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `upload_process.go` | `processUploadJob` pipeline (transcribe→extract→notes)            |
 | `jobs_list.go`      | GET /jobs — list user's async upload jobs grouped by status       |
 | `jobs_retry.go`     | POST /jobs/retry — reset failed jobs to queued and republish      |
+| `jobs_dismiss.go`   | POST /jobs/dismiss — remove completed/failed jobs from the queue  |
 
 ## Drive Folder Structure (per user)
 
