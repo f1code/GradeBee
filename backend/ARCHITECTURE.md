@@ -106,8 +106,8 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | Interface     | File             | Prod Implementation     | Purpose                        |
 |--------------|------------------|------------------------|--------------------------------|
 | `deps`       | `deps.go`        | `prodDeps`             | Top-level DI container         |
-| `Roster`     | `deps.go`        | `sheetsRoster`         | Read student data from Sheets  |
-| `Transcriber`| `deps.go`        | `whisperTranscriber`   | Audio→text via OpenAI Whisper  |
+| `Roster`     | `roster.go`      | `sheetsRoster`         | Read student data from Sheets  |
+| `Transcriber`| `transcriber.go` | `whisperTranscriber`   | Audio→text via OpenAI Whisper  |
 | `DriveStore` | `drive_store.go` | `sheetsDriveStore`     | Upload/download/copy files on Drive |
 | `Extractor`  | `extract.go`     | `gptExtractor`         | Transcript→student extraction  |
 | `NoteCreator`| `notes.go`       | `driveNoteCreator`     | Create Google Doc notes        |
@@ -129,7 +129,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 - OAuth token retrieval: `user.ListOAuthAccessTokens` for `oauth_google`.
 - **Private metadata** stores Drive resource IDs (`gradeBeeMetadata` struct: folder, spreadsheet, uploads/notes/reports/report-examples subfolder IDs). This avoids needing `drive.readonly` scope to find resources.
 
-### OpenAI Whisper (`deps.go`)
+### OpenAI Whisper (`transcriber.go`)
 - `whisperTranscriber` uses `go-openai` client.
 - Handles audio format detection and 3GP→MP4 patching (`audio_format.go`).
 
@@ -145,9 +145,10 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `clerk_metadata.go` | Read/write `gradeBeeMetadata` in Clerk user private metadata      |
 | `setup.go`          | POST /setup — create Drive folder tree + ClassSetup spreadsheet   |
 | `students.go`       | GET /students — read & parse roster, `parseStudentRows`           |
-| `roster.go`         | `sheetsRoster` — Roster interface impl backed by Sheets API       |
+| `roster.go`         | `Roster` interface + `sheetsRoster` — Sheets-backed roster reads  |
 | `upload.go`         | POST /upload — multipart audio → Drive uploads folder + dispatch job |
 | `transcribe.go`     | POST /transcribe — Drive download → Whisper API                   |
+| `transcriber.go`    | `Transcriber` interface + `whisperTranscriber` (OpenAI Whisper)   |
 | `drive_store.go`    | `DriveStore` interface + `sheetsDriveStore` (Drive CRUD + Copy)   |
 | `drive_import.go`   | POST /drive-import — validate + copy Drive file to uploads folder + dispatch job |
 | `google_token.go`   | GET /google-token — return user's Google OAuth access token       |

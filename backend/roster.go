@@ -1,6 +1,6 @@
-// roster.go implements the Roster interface backed by Google Sheets. It
-// centralises spreadsheet-ID resolution and data reads so that handlers
-// don't depend on Sheets API details directly.
+// roster.go defines the Roster interface and its production implementation
+// backed by Google Sheets. It centralises spreadsheet-ID resolution and data
+// reads so that handlers don't depend on Sheets API details directly.
 package handler
 
 import (
@@ -8,6 +8,13 @@ import (
 	"fmt"
 	"strings"
 )
+
+// Roster abstracts read access to the user's student roster spreadsheet.
+type Roster interface {
+	ClassNames(ctx context.Context) ([]string, error)
+	Students(ctx context.Context) ([]classGroup, error)
+	SpreadsheetURL() string
+}
 
 // sheetsRoster reads roster data from a Google Sheets spreadsheet.
 type sheetsRoster struct {
