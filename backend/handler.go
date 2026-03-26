@@ -113,9 +113,6 @@ var (
 	setupHandler      = debugAuthMiddleware(http.HandlerFunc(handleSetup))
 	studentsHandler   = debugAuthMiddleware(http.HandlerFunc(handleGetStudents))
 	uploadHandler     = debugAuthMiddleware(http.HandlerFunc(handleUpload))
-	transcribeHandler = debugAuthMiddleware(http.HandlerFunc(handleTranscribe))
-	extractHandler    = debugAuthMiddleware(http.HandlerFunc(handleExtract))
-	notesHandler      = debugAuthMiddleware(http.HandlerFunc(handleCreateNotes))
 	reportExamplesListHandler   = debugAuthMiddleware(http.HandlerFunc(handleListReportExamples))
 	reportExamplesUploadHandler = debugAuthMiddleware(http.HandlerFunc(handleUploadReportExample))
 	reportExamplesDeleteHandler = debugAuthMiddleware(http.HandlerFunc(handleDeleteReportExample))
@@ -196,12 +193,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		studentsHandler.ServeHTTP(rec, r)
 	case path == "upload" && r.Method == http.MethodPost:
 		uploadHandler.ServeHTTP(rec, r)
-	case path == "transcribe" && r.Method == http.MethodPost:
-		transcribeHandler.ServeHTTP(rec, r)
-	case path == "extract" && r.Method == http.MethodPost:
-		extractHandler.ServeHTTP(rec, r)
-	case path == "notes" && r.Method == http.MethodPost:
-		notesHandler.ServeHTTP(rec, r)
 	case path == "report-examples" && r.Method == http.MethodGet:
 		reportExamplesListHandler.ServeHTTP(rec, r)
 	case path == "report-examples" && r.Method == http.MethodPost:

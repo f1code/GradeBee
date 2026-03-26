@@ -15,7 +15,7 @@ test.describe('Signed-out experience', () => {
     await page.goto('/')
     await expect(page.getByTestId('sign-in-container')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Welcome to GradeBee' })).toBeVisible()
-    await expect(page.getByText('Sign in with Google to get started.')).toBeVisible()
+    await expect(page.getByText(/Record verbal feedback about your students/)).toBeVisible()
     await expect(page.getByTestId('sign-in-button')).toBeVisible()
     await expect(page.getByTestId('sign-in-button')).toBeEnabled()
   })

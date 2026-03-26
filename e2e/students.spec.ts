@@ -3,16 +3,23 @@ import { test, expect } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
   await setupClerkTestingToken({ page })
+
+  // Mock GET /setup to indicate setup is already done, so the app skips DriveSetup
+  await page.route('**/setup', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ setupDone: true }),
+      })
+    } else {
+      await route.continue()
+    }
+  })
 })
 
 test.describe('Student list', () => {
   test('student list loads and displays grouped by class', async ({ page }) => {
-    // Mock setup as already done (localStorage) and /students returns success
-    await page.goto('/')
-    await page.evaluate(() => {
-      localStorage.setItem('gradebee-setup-done', 'true')
-    })
-
     await page.route('**/students', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -31,7 +38,7 @@ test.describe('Student list', () => {
       }
     })
 
-    await page.reload()
+    await page.goto('/')
     await expect(page.getByTestId('student-list')).toBeVisible({ timeout: 10000 })
 
     await expect(page.getByTestId('class-group-5A')).toBeVisible()
@@ -45,11 +52,6 @@ test.describe('Student list', () => {
   })
 
   test('empty spreadsheet shows info message and spreadsheet link', async ({ page }) => {
-    await page.goto('/')
-    await page.evaluate(() => {
-      localStorage.setItem('gradebee-setup-done', 'true')
-    })
-
     await page.route('**/students', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -66,7 +68,7 @@ test.describe('Student list', () => {
       }
     })
 
-    await page.reload()
+    await page.goto('/')
     await expect(page.getByTestId('student-list-empty')).toBeVisible({ timeout: 10000 })
     await expect(page.getByRole('heading', { name: 'No Students Found' })).toBeVisible()
     await expect(page.getByTestId('spreadsheet-link')).toBeVisible()
@@ -77,11 +79,6 @@ test.describe('Student list', () => {
   })
 
   test('spreadsheet not found shows error message', async ({ page }) => {
-    await page.goto('/')
-    await page.evaluate(() => {
-      localStorage.setItem('gradebee-setup-done', 'true')
-    })
-
     await page.route('**/students', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -97,18 +94,13 @@ test.describe('Student list', () => {
       }
     })
 
-    await page.reload()
+    await page.goto('/')
     await expect(page.getByTestId('student-list-no-spreadsheet')).toBeVisible({ timeout: 10000 })
     await expect(page.getByText('Setup Required')).toBeVisible()
     await expect(page.getByTestId('run-setup-again-btn')).toBeVisible()
   })
 
   test('refresh button re-fetches data', async ({ page }) => {
-    await page.goto('/')
-    await page.evaluate(() => {
-      localStorage.setItem('gradebee-setup-done', 'true')
-    })
-
     await page.route('**/students', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -125,7 +117,7 @@ test.describe('Student list', () => {
       }
     })
 
-    await page.reload()
+    await page.goto('/')
 
     await expect(page.getByTestId('student-list-empty')).toBeVisible({ timeout: 15000 })
     await expect(page.getByTestId('student-list-refresh')).toBeVisible()

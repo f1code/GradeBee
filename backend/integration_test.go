@@ -77,8 +77,8 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	if got.Status != JobStatusDone {
 		t.Errorf("status = %q, want done", got.Status)
 	}
-	if len(got.NoteIDs) != 2 {
-		t.Errorf("noteIds = %v, want 2 items", got.NoteIDs)
+	if len(got.NoteURLs) != 2 {
+		t.Errorf("noteUrls = %v, want 2 items", got.NoteURLs)
 	}
 	if len(nc.calls) != 2 {
 		t.Errorf("note creator calls = %d, want 2", len(nc.calls))
@@ -218,7 +218,7 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 		t.Fatal(err)
 	}
 	doneJob.Status = JobStatusDone
-	doneJob.NoteIDs = []string{"doc1"}
+	doneJob.NoteURLs = []string{"https://docs.google.com/document/d/doc1/edit"}
 	if err := queue.UpdateJob(ctx, *doneJob); err != nil {
 		t.Fatal(err)
 	}

@@ -17,20 +17,24 @@ test.describe('Drive setup flow', () => {
   })
 
   test('shows loading state then success on setup', async ({ page }) => {
-    // Mock the /setup API to return a success response
+    // Mock POST /setup to return a success response (GET /setup falls through to real backend)
     await page.route('**/setup', async (route) => {
-      // Small delay to allow the loading state to appear
-      await new Promise((r) => setTimeout(r, 200))
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          folderId: 'test-folder-id',
-          folderUrl: 'https://drive.google.com/drive/folders/test-folder-id',
-          spreadsheetId: 'test-spreadsheet-id',
-          spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/test-spreadsheet-id/edit',
-        }),
-      })
+      if (route.request().method() === 'POST') {
+        // Small delay to allow the loading state to appear
+        await new Promise((r) => setTimeout(r, 200))
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            folderId: 'test-folder-id',
+            folderUrl: 'https://drive.google.com/drive/folders/test-folder-id',
+            spreadsheetId: 'test-spreadsheet-id',
+            spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/test-spreadsheet-id/edit',
+          }),
+        })
+      } else {
+        await route.continue()
+      }
     })
 
     await page.goto('/')
@@ -67,6 +71,20 @@ test.describe('Drive setup flow', () => {
     await expect(continueBtn).toBeVisible()
     await expect(continueBtn).toHaveText('Continue')
 
+    // Mock GET /setup to return setupDone: true after continue
+    await page.unrouteAll({ behavior: 'wait' })
+    await page.route('**/setup', async (route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ setupDone: true }),
+        })
+      } else {
+        await route.continue()
+      }
+    })
+
     // Mock /students for when we transition to student list
     await page.route('**/students', async (route) => {
       if (route.request().method() === 'GET') {
@@ -95,29 +113,34 @@ test.describe('Drive setup flow', () => {
   })
 
   test('shows error state on setup failure and allows retry', async ({ page }) => {
-    let callCount = 0
+    let postCallCount = 0
 
+    // Only mock POST /setup; let GET /setup go to real backend
     await page.route('**/setup', async (route) => {
-      callCount++
-      if (callCount === 1) {
-        // First call fails
-        await route.fulfill({
-          status: 500,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'Drive API unavailable' }),
-        })
+      if (route.request().method() === 'POST') {
+        postCallCount++
+        if (postCallCount === 1) {
+          // First POST fails
+          await route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'Drive API unavailable' }),
+          })
+        } else {
+          // Retry succeeds
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              folderId: 'test-folder-id',
+              folderUrl: 'https://drive.google.com/drive/folders/test-folder-id',
+              spreadsheetId: 'test-spreadsheet-id',
+              spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/test-spreadsheet-id/edit',
+            }),
+          })
+        }
       } else {
-        // Retry succeeds
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            folderId: 'test-folder-id',
-            folderUrl: 'https://drive.google.com/drive/folders/test-folder-id',
-            spreadsheetId: 'test-spreadsheet-id',
-            spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/test-spreadsheet-id/edit',
-          }),
-        })
+        await route.continue()
       }
     })
 

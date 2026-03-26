@@ -1,32 +1,5 @@
 const apiUrl = import.meta.env.VITE_API_URL
 
-export interface MatchedStudent {
-  name: string
-  class: string
-  summary: string
-  confidence: number
-  candidates?: { name: string; class: string }[]
-}
-
-export interface ExtractResult {
-  students: MatchedStudent[]
-  date: string
-}
-
-export interface CreateNotesRequest {
-  fileId: string
-  students: { name: string; class: string; summary: string }[]
-  transcript: string
-  date: string
-}
-
-export interface NoteResult {
-  student: string
-  class: string
-  docId: string
-  docUrl: string
-}
-
 export async function uploadAudio(
   file: File,
   getToken: () => Promise<string | null>
@@ -42,61 +15,6 @@ export async function uploadAudio(
   })
   const body = await resp.json()
   if (!resp.ok) throw new Error(body.error || 'Upload failed')
-  return body
-}
-
-export async function transcribeAudio(
-  fileId: string,
-  getToken: () => Promise<string | null>
-): Promise<{ fileId: string; transcript: string }> {
-  const token = await getToken()
-  const resp = await fetch(`${apiUrl}/transcribe`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ fileId }),
-  })
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Transcription failed')
-  return body
-}
-
-export async function extractFromTranscript(
-  transcript: string,
-  fileId: string,
-  getToken: () => Promise<string | null>
-): Promise<ExtractResult> {
-  const token = await getToken()
-  const resp = await fetch(`${apiUrl}/extract`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ transcript, fileId }),
-  })
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Extraction failed')
-  return body
-}
-
-export async function createNotes(
-  req: CreateNotesRequest,
-  getToken: () => Promise<string | null>
-): Promise<{ notes: NoteResult[] }> {
-  const token = await getToken()
-  const resp = await fetch(`${apiUrl}/notes`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(req),
-  })
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Note creation failed')
   return body
 }
 
@@ -261,4 +179,47 @@ export async function importFromDrive(
   const body = await resp.json()
   if (!resp.ok) throw new Error(body.error || 'Drive import failed')
   return body
+}
+
+// --- Async Jobs ---
+
+export interface UploadJob {
+  fileId: string
+  fileName: string
+  status: 'queued' | 'transcribing' | 'extracting' | 'creating_notes' | 'done' | 'failed'
+  error?: string
+  noteUrls?: string[]
+  createdAt: string
+}
+
+export interface JobListResponse {
+  active: UploadJob[]
+  failed: UploadJob[]
+  done: UploadJob[]
+}
+
+export async function fetchJobs(
+  getToken: () => Promise<string | null>
+): Promise<JobListResponse> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/jobs`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to fetch jobs')
+  return body
+}
+
+export async function retryFailedJobs(
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/jobs/retry`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await resp.json()
+    throw new Error(body.error || 'Failed to retry jobs')
+  }
 }

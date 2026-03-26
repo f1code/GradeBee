@@ -16,9 +16,6 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 | POST   | `/setup`    | Yes  | `handleSetup`        | Provision Drive workspace                |
 | GET    | `/students` | Yes  | `handleGetStudents`  | Read roster from Sheets                  |
 | POST   | `/upload`   | Yes  | `handleUpload`       | Upload audio to Drive + dispatch async job |
-| POST   | `/transcribe`| Yes | `handleTranscribe`   | Download from Drive → Whisper → text     |
-| POST   | `/extract`  | Yes  | `handleExtract`      | Analyze transcript → matched students    |
-| POST   | `/notes`    | Yes  | `handleCreateNotes`  | Create Google Doc notes for students     |
 | GET    | `/report-examples` | Yes | `handleListReportExamples` | List example report cards        |
 | POST   | `/report-examples` | Yes | `handleUploadReportExample` | Upload example report card      |
 | DELETE | `/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card      |
@@ -147,15 +144,12 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `students.go`       | GET /students — read & parse roster, `parseStudentRows`           |
 | `roster.go`         | `Roster` interface + `sheetsRoster` — Sheets-backed roster reads  |
 | `upload.go`         | POST /upload — multipart audio → Drive uploads folder + dispatch job |
-| `transcribe.go`     | POST /transcribe — Drive download → Whisper API                   |
 | `transcriber.go`    | `Transcriber` interface + `whisperTranscriber` (OpenAI Whisper)   |
 | `drive_store.go`    | `DriveStore` interface + `sheetsDriveStore` (Drive CRUD + Copy)   |
 | `drive_import.go`   | POST /drive-import — validate + copy Drive file to uploads folder + dispatch job |
 | `google_token.go`   | GET /google-token — return user's Google OAuth access token       |
 | `extract.go`        | `Extractor` interface + GPT implementation for transcript analysis|
-| `extract_handler.go`| POST /extract — transcript analysis → matched students            |
 | `notes.go`          | `NoteCreator` interface + Drive/Docs implementation               |
-| `notes_handler.go`  | POST /notes — create Google Doc notes for confirmed students      |
 | `metadata_index.go` | `MetadataIndex` interface + Drive impl, shared folder utils       |
 | `report_examples.go`| `ExampleStore` interface + Drive impl for example report cards    |
 | `report_examples_handler.go` | GET/POST/DELETE /report-examples handlers            |

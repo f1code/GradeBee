@@ -2,19 +2,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// Mock all API functions
 const mockUploadAudio = vi.fn()
-const mockTranscribeAudio = vi.fn()
-const mockExtractFromTranscript = vi.fn()
-const mockCreateNotes = vi.fn()
 const mockGetGoogleToken = vi.fn()
 const mockImportFromDrive = vi.fn()
 
 vi.mock('../../api', () => ({
   uploadAudio: (...args: unknown[]) => mockUploadAudio(...args),
-  transcribeAudio: (...args: unknown[]) => mockTranscribeAudio(...args),
-  extractFromTranscript: (...args: unknown[]) => mockExtractFromTranscript(...args),
-  createNotes: (...args: unknown[]) => mockCreateNotes(...args),
   getGoogleToken: (...args: unknown[]) => mockGetGoogleToken(...args),
   importFromDrive: (...args: unknown[]) => mockImportFromDrive(...args),
 }))
@@ -36,7 +29,6 @@ describe('AudioUpload', () => {
     vi.clearAllMocks()
   })
 
-  // Tier 3 — smoke
   it('renders drop zone in idle state', async () => {
     const { default: AudioUpload } = await import('../AudioUpload')
     render(<AudioUpload />)
@@ -44,7 +36,6 @@ describe('AudioUpload', () => {
     expect(screen.getByText('Upload Audio')).toBeInTheDocument()
   })
 
-  // Tier 4 — interactions
   it('rejects files over 25MB', async () => {
     const { default: AudioUpload } = await import('../AudioUpload')
     render(<AudioUpload />)
@@ -60,13 +51,8 @@ describe('AudioUpload', () => {
     })
   })
 
-  it('processes file through upload → transcribe → extract flow', async () => {
+  it('shows success toast after upload completes', async () => {
     mockUploadAudio.mockResolvedValue({ fileId: 'f1', fileName: 'test.mp3' })
-    mockTranscribeAudio.mockResolvedValue({ fileId: 'f1', transcript: 'Alice did well' })
-    mockExtractFromTranscript.mockResolvedValue({
-      students: [{ name: 'Alice', class: 'Math', summary: 'Good', confidence: 0.9 }],
-      date: '2026-03-20',
-    })
 
     const { default: AudioUpload } = await import('../AudioUpload')
     render(<AudioUpload />)
@@ -76,11 +62,11 @@ describe('AudioUpload', () => {
     await userEvent.upload(input, file)
 
     await waitFor(() => {
-      expect(screen.getByText('Confirm Student Notes')).toBeInTheDocument()
+      expect(screen.getByTestId('upload-success')).toHaveTextContent(/Processing in background/)
     })
     expect(mockUploadAudio).toHaveBeenCalled()
-    expect(mockTranscribeAudio).toHaveBeenCalledWith('f1', expect.any(Function))
-    expect(mockExtractFromTranscript).toHaveBeenCalled()
+    // Should return to drop zone (idle state) while toast is visible
+    expect(screen.getByTestId('drop-zone')).toBeInTheDocument()
   })
 
   it('shows error state on API failure', async () => {
@@ -96,5 +82,22 @@ describe('AudioUpload', () => {
     await waitFor(() => {
       expect(screen.getByTestId('upload-error')).toHaveTextContent('Network error')
     })
+  })
+
+  it('does not call transcribe or extract after upload', async () => {
+    mockUploadAudio.mockResolvedValue({ fileId: 'f1', fileName: 'test.mp3' })
+
+    const { default: AudioUpload } = await import('../AudioUpload')
+    render(<AudioUpload />)
+
+    const file = new File(['audio'], 'test.mp3', { type: 'audio/mpeg' })
+    const input = screen.getByTestId('file-input') as HTMLInputElement
+    await userEvent.upload(input, file)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('upload-success')).toBeInTheDocument()
+    })
+    // These should not exist as API functions anymore
+    expect(mockUploadAudio).toHaveBeenCalledTimes(1)
   })
 })

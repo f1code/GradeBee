@@ -27,7 +27,7 @@ type UploadJob struct {
 	Source    string     `json:"source"`
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"createdAt"`
-	NoteIDs   []string   `json:"noteIds,omitempty"`
+	NoteURLs  []string   `json:"noteUrls,omitempty"`
 	Error     string     `json:"error,omitempty"`
 	FailedAt  *time.Time `json:"failedAt,omitempty"`
 }

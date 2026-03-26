@@ -14,7 +14,6 @@ dev:
 # --- Build ---
 
 build-frontend:
-	VITE_API_URL=/api \
 	npm run --prefix frontend build
 
 # --- Deploy to VPS ---

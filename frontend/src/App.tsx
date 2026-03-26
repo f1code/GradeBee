@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
 import AudioUpload from './components/AudioUpload'
+import JobStatus from './components/JobStatus'
 import ReportGeneration from './components/ReportGeneration'
 import HowItWorks from './components/HowItWorks'
 import HintBanner from './components/HintBanner'
@@ -152,8 +153,9 @@ function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab, set
       </nav>
       {activeTab === 'notes' ? (
         <>
-          <HintBanner storageKey="gradebee:hint:notes">Record or upload audio, then review the notes GradeBee creates for each student.</HintBanner>
+          <HintBanner storageKey="gradebee:hint:notes">Upload audio — GradeBee processes it in the background and creates notes automatically.</HintBanner>
           <StudentList onSetupRequired={() => setSetupDone(false)} />
+          <JobStatus />
           <AudioUpload />
         </>
       ) : (

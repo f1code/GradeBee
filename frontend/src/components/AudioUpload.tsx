@@ -1,17 +1,18 @@
 import { useAuth } from '@clerk/react'
 import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { uploadAudio, transcribeAudio, extractFromTranscript, createNotes, getGoogleToken, importFromDrive } from '../api'
-import type { ExtractResult, NoteResult } from '../api'
-import NoteConfirmation from './NoteConfirmation'
+import { uploadAudio, getGoogleToken, importFromDrive } from '../api'
 import { useDrivePicker } from '../hooks/useDrivePicker'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 
-type UploadStatus = 'idle' | 'uploading' | 'transcribing' | 'extracting' | 'confirming' | 'saving' | 'saved' | 'error'
+type UploadStatus = 'idle' | 'uploading' | 'error'
 
 const ACCEPTED_FORMATS = '.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm'
 const MAX_SIZE_MB = 25
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
+
+/** How long to show the success toast before resetting to idle. */
+const SUCCESS_TOAST_MS = 3000
 
 function MicIcon() {
   return (
@@ -50,14 +51,26 @@ export default function AudioUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<UploadStatus>('idle')
   const [fileName, setFileName] = useState<string>('')
-  const [transcript, setTranscript] = useState<string>('')
-  const [fileId, setFileId] = useState<string>('')
-  const [extractResult, setExtractResult] = useState<ExtractResult | null>(null)
-  const [savedNotes, setSavedNotes] = useState<NoteResult[] | null>(null)
   const [error, setError] = useState<string>('')
   const [dragOver, setDragOver] = useState(false)
+  const [showSuccess, setShowSuccess] = useState(false)
   const { openPicker } = useDrivePicker()
   const isMobile = useMediaQuery('(max-width: 640px)')
+
+  function reset() {
+    setStatus('idle')
+    setFileName('')
+    setError('')
+    setShowSuccess(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function onUploadComplete() {
+    setStatus('idle')
+    setShowSuccess(true)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setTimeout(() => setShowSuccess(false), SUCCESS_TOAST_MS)
+  }
 
   async function processFile(file: File) {
     if (file.size > MAX_SIZE_BYTES) {
@@ -68,27 +81,12 @@ export default function AudioUpload() {
 
     setFileName(file.name)
     setError('')
-    setTranscript('')
-    setExtractResult(null)
-    setSavedNotes(null)
+    setShowSuccess(false)
 
     try {
       setStatus('uploading')
-      const uploadResult = await uploadAudio(file, getToken)
-      setFileId(uploadResult.fileId)
-
-      setStatus('transcribing')
-      const transcribeResult = await transcribeAudio(uploadResult.fileId, getToken)
-      setTranscript(transcribeResult.transcript)
-
-      setStatus('extracting')
-      const extraction = await extractFromTranscript(
-        transcribeResult.transcript,
-        uploadResult.fileId,
-        getToken
-      )
-      setExtractResult(extraction)
-      setStatus('confirming')
+      await uploadAudio(file, getToken)
+      onUploadComplete()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
       setStatus('error')
@@ -97,58 +95,19 @@ export default function AudioUpload() {
 
   async function handleDriveImport() {
     setError('')
-    setTranscript('')
-    setExtractResult(null)
-    setSavedNotes(null)
+    setShowSuccess(false)
 
     try {
-      // Get Google OAuth token for Picker
       const { accessToken } = await getGoogleToken(getToken)
-
-      // Open Picker — returns null if user cancels
       const picked = await openPicker(accessToken)
       if (!picked) return
 
       setFileName(picked.name)
       setStatus('uploading')
-
-      // Copy the file into GradeBee/uploads/
-      const importResult = await importFromDrive(picked.id, picked.name, getToken)
-      setFileId(importResult.fileId)
-
-      // Continue with the same pipeline as file upload
-      setStatus('transcribing')
-      const transcribeResult = await transcribeAudio(importResult.fileId, getToken)
-      setTranscript(transcribeResult.transcript)
-
-      setStatus('extracting')
-      const extraction = await extractFromTranscript(
-        transcribeResult.transcript,
-        importResult.fileId,
-        getToken
-      )
-      setExtractResult(extraction)
-      setStatus('confirming')
+      await importFromDrive(picked.id, picked.name, getToken)
+      onUploadComplete()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
-      setStatus('error')
-    }
-  }
-
-  async function handleSaveNotes(
-    students: { name: string; class: string; summary: string }[],
-    date: string
-  ) {
-    try {
-      setStatus('saving')
-      const result = await createNotes(
-        { fileId, students, transcript, date },
-        getToken
-      )
-      setSavedNotes(result.notes)
-      setStatus('saved')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create notes')
       setStatus('error')
     }
   }
@@ -172,17 +131,6 @@ export default function AudioUpload() {
 
   function handleDragLeave() {
     setDragOver(false)
-  }
-
-  function reset() {
-    setStatus('idle')
-    setFileName('')
-    setTranscript('')
-    setFileId('')
-    setExtractResult(null)
-    setSavedNotes(null)
-    setError('')
-    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   return (
@@ -285,54 +233,20 @@ export default function AudioUpload() {
             <p>Uploading <strong>{fileName}</strong>...</p>
           </motion.div>
         )}
+      </AnimatePresence>
 
-        {status === 'transcribing' && (
+      <AnimatePresence>
+        {showSuccess && (
           <motion.div
-            key="transcribing"
-            className="upload-progress"
-            data-testid="transcribe-progress"
-            initial={{ opacity: 0, y: 8 }}
+            className="upload-success-toast"
+            data-testid="upload-success"
+            initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25 }}
           >
-            <HoneycombSpinner />
-            <p>Transcribing <strong>{fileName}</strong>... This may take a moment.</p>
-          </motion.div>
-        )}
-
-        {status === 'extracting' && (
-          <motion.div
-            key="extracting"
-            className="upload-progress"
-            data-testid="extract-progress"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.25 }}
-          >
-            <HoneycombSpinner />
-            <p>Analyzing transcript...</p>
-          </motion.div>
-        )}
-
-        {(status === 'confirming' || status === 'saving' || status === 'saved') && extractResult && (
-          <motion.div
-            key="confirming"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            <NoteConfirmation
-              extractResult={extractResult}
-              transcript={transcript}
-              onSave={handleSaveNotes}
-              onCancel={reset}
-              saving={status === 'saving'}
-              savedNotes={savedNotes}
-              onReset={reset}
-            />
+            <span className="upload-success-icon">✓</span>
+            Uploaded! Processing in background.
           </motion.div>
         )}
       </AnimatePresence>
@@ -340,6 +254,9 @@ export default function AudioUpload() {
       {status === 'error' && (
         <div className="upload-error" data-testid="upload-error">
           <p>{error}</p>
+          <button className="btn-secondary" onClick={reset} style={{ marginTop: '0.5rem' }}>
+            Try again
+          </button>
         </div>
       )}
     </motion.div>
