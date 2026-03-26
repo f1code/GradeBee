@@ -1,0 +1,10 @@
+{$DOMAIN:localhost} {
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy backend:8080
+    }
+
+    root * /srv/frontend
+    try_files {path} /index.html
+    file_server
+}

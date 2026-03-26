@@ -1,7 +1,5 @@
 // handler.go is the main HTTP entrypoint for the GradeBee backend. It wires
 // together routing, CORS headers, request-scoped logging, and response timing.
-// The exported Handle function is invoked by the Scaleway serverless runtime
-// (and by the local dev server in cmd/server/main.go).
 package handler
 
 import (
@@ -31,6 +29,8 @@ var (
 	reportsRegenerateHandler    = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleRegenerateReport))
 	googleTokenHandler          = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleGoogleToken))
 	driveImportHandler          = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleDriveImport))
+	jobListHandler              = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleJobList))
+	jobRetryHandler             = clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(handleJobRetry))
 )
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -111,6 +111,10 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		googleTokenHandler.ServeHTTP(rec, r)
 	case path == "drive-import" && r.Method == http.MethodPost:
 		driveImportHandler.ServeHTTP(rec, r)
+	case path == "jobs" && r.Method == http.MethodGet:
+		jobListHandler.ServeHTTP(rec, r)
+	case path == "jobs/retry" && r.Method == http.MethodPost:
+		jobRetryHandler.ServeHTTP(rec, r)
 	default:
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}

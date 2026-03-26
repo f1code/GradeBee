@@ -4,6 +4,8 @@
 package handler
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -104,4 +106,31 @@ func createFolder(srv *drive.Service, parentID, name string) (string, error) {
 		return "", err
 	}
 	return created.Id, nil
+}
+
+// newGoogleServicesForUser returns authenticated Google API clients for a user
+// identified by Clerk user ID. Unlike newGoogleServices, this does not require
+// an *http.Request with session claims — suitable for background processing.
+func newGoogleServicesForUser(ctx context.Context, userID string) (*googleServices, error) {
+	accessToken, err := getGoogleOAuthToken(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("google services for user %s: %w", userID, err)
+	}
+	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
+	driveSrv, err := drive.NewService(ctx, option.WithTokenSource(tokenSource))
+	if err != nil {
+		loggerFromContext(ctx).Error("google services for user failed", "operation", "drive.NewService", "error", err)
+		return nil, fmt.Errorf("google services for user: drive: %w", err)
+	}
+	sheetsSrv, err := sheets.NewService(ctx, option.WithTokenSource(tokenSource))
+	if err != nil {
+		loggerFromContext(ctx).Error("google services for user failed", "operation", "sheets.NewService", "error", err)
+		return nil, fmt.Errorf("google services for user: sheets: %w", err)
+	}
+	docsSrv, err := docs.NewService(ctx, option.WithTokenSource(tokenSource))
+	if err != nil {
+		loggerFromContext(ctx).Error("google services for user failed", "operation", "docs.NewService", "error", err)
+		return nil, fmt.Errorf("google services for user: docs: %w", err)
+	}
+	return &googleServices{Drive: driveSrv, Sheets: sheetsSrv, Docs: docsSrv, User: &clerkUser{UserID: userID}}, nil
 }

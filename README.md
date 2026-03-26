@@ -30,75 +30,17 @@ Teachers interact primarily with Google Drive. The web UI is minimal by design.
 
 ```
 GradeBee/
-├── frontend/                  # React SPA (Vite)
-│   ├── src/
-│   │   ├── main.tsx           # Entry point: ClerkProvider + BrowserRouter
-│   │   ├── App.tsx            # Root component: sign-in or DriveSetup
-│   │   ├── index.css          # Global styles
-│   │   ├── components/
-│   │   │   ├── DriveSetup.tsx # Google Drive folder setup flow
-│   │   │   └── StudentList.tsx
-│   │   └── assets/
-│   │       ├── hero.png
-│   │       └── vite.svg
-│   ├── public/
-│   ├── package.json
-│   ├── vite.config.ts
-│   └── tsconfig*.json
-│
-├── backend/                   # Go API (plain net/http)
-│   ├── cmd/server/main.go     # Local dev server entrypoint
-│   ├── handler.go             # Scaleway function entrypoint + routing
-│   ├── auth.go                # Clerk auth + Google OAuth token retrieval
-│   ├── setup.go               # POST /setup -- creates Drive folder structure
-│   ├── students.go            # GET /students -- reads ClassSetup from Sheets
-│   ├── clerk_metadata.go      # Clerk user metadata (Drive/Sheets IDs)
-│   ├── google.go              # Google Drive API client
-│   ├── deps.go                # Dependency injection
-│   ├── logger.go              # Request-scoped logging
-│   ├── Makefile               # lint, test
-│   ├── go.mod / go.sum
-│   └── vendor/                # vendored dependencies
-│
-├── e2e/                       # Playwright end-to-end tests
-│   ├── api-health.spec.ts
-│   ├── drive-setup.spec.ts
-│   ├── signed-out.spec.ts
-│   ├── students.spec.ts
-│   └── global.setup.ts        # Clerk testing token setup
-│
-├── infra/                     # Terraform (Scaleway)
-│   ├── main.tf
-│   ├── variables.tf
-│   ├── outputs.tf
-│   ├── terraform.tfvars.example
-│   └── .terraform/
-│
-├── docs/                      # Design docs and implementation plans
-│   ├── 2026-03-13-high-level-design.md
-│   ├── e2e-clerk-test-user.md
-│   └── plans/
-│       ├── 2026-03-13-phased-implementation.md
-│       └── phase-2-student-list.md
-│
-├── .husky/
-│   └── pre-commit             # TypeScript check, lint-staged, Go lint
-│
-├── lint-staged.config.mjs     # ESLint + Prettier on staged frontend files
-├── AGENTS.md                  # Agent instructions (lint, etc.)
-├── Makefile                   # build, clean, deploy, dev
-├── package.json               # Root: runs frontend + backend concurrently
-├── playwright.config.ts
-└── .env.example
+├── frontend/              # React SPA (Vite + TypeScript)
+├── backend/               # Go API (plain net/http, vendored deps)
+│   └── cmd/server/        # Local dev server entrypoint
+├── e2e/                   # Playwright end-to-end tests
+├── docs/                  # Design docs and implementation plans
+├── Makefile               # build, clean, deploy, dev
+├── package.json           # Root: runs frontend + backend concurrently
+└── .env.example           # Environment variable template
 ```
 
-## API Endpoints
-
-| Method   | Path            | Description                           |
-| -------- | --------------- | ------------------------------------- |
-| `GET`    | `/` `/health`   | Health check                          |
-| `POST`   | `/setup`        | Create Drive folder structure         |
-| `GET`    | `/students`     | Read ClassSetup spreadsheet (classes + students) |
+See `backend/ARCHITECTURE.md` for backend details and `frontend/DESIGN.md` for the frontend design system.
 
 ## Getting Started
 

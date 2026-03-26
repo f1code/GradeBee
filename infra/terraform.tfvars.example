@@ -1,3 +1,0 @@
-clerk_secret_key      = "sk_live_xxx"
-clerk_publishable_key = "pk_live_xxx"
-openai_api_key        = "sk-proj..."

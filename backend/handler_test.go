@@ -142,3 +142,15 @@ func (mockDepsGoogleFail) GetExampleExtractor() (ExampleExtractor, error) {
 func (mockDepsGoogleFail) GetReportGenerator(_ *googleServices) (ReportGenerator, error) {
 	return nil, fmt.Errorf("not configured")
 }
+
+func (mockDepsGoogleFail) GoogleServicesForUser(_ context.Context, _ string) (*googleServices, error) {
+	return nil, fmt.Errorf("google oauth failed")
+}
+
+func (mockDepsGoogleFail) GetUploadQueue() (UploadQueue, error) {
+	return nil, fmt.Errorf("not configured")
+}
+
+func (mockDepsGoogleFail) GetGradeBeeMetadata(_ context.Context, _ string) (*gradeBeeMetadata, error) {
+	return nil, fmt.Errorf("not configured")
+}

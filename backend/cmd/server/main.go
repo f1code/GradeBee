@@ -1,13 +1,12 @@
-// main is the local development entry point for the GradeBee backend server.
-// It is NOT used in production — the Scaleway serverless runtime invokes the
-// handler package directly. This binary loads .env, initialises the Clerk SDK,
-// and starts a plain HTTP server that forwards all requests to handler.Handle.
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/joho/godotenv"
@@ -15,21 +14,42 @@ import (
 )
 
 func main() {
-	// Load .env from project root when running locally (../.env relative to backend/)
-	if err := godotenv.Load("../.env"); err != nil && !os.IsNotExist(err) {
+	// Load .env if present (local dev). In Docker, env vars come from the container.
+	if err := godotenv.Load("../../.env"); err != nil && !os.IsNotExist(err) {
 		slog.Warn("loading .env", "error", err)
 	}
 
-	// Initialize Clerk SDK for JWT verification and Backend API calls
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
+
+	// Start in-memory upload queue with 4 workers.
+	queue := handler.InitUploadQueue(handler.ServiceDeps(), 4)
+	defer queue.Close()
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
 	}
+
+	srv := &http.Server{
+		Addr:    ":" + port,
+		Handler: http.HandlerFunc(handler.Handle),
+	}
+
+	// Graceful shutdown on SIGINT/SIGTERM.
+	go func() {
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		<-sigCh
+		slog.Info("shutting down...")
+		queue.Close()
+		if err := srv.Shutdown(context.Background()); err != nil {
+			slog.Error("shutdown error", "error", err)
+		}
+	}()
+
 	slog.Info("server starting", "port", port)
-	if err := http.ListenAndServe(":"+port, http.HandlerFunc(handler.Handle)); err != nil {
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		slog.Error("server failed", "error", err)
-		os.Exit(1)
+		queue.Close()
 	}
 }

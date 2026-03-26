@@ -62,8 +62,8 @@ func is3GPContainer(header []byte) bool {
 }
 
 // patch3GPFtyp reads the ftyp box from a 3GPP stream and rewrites the major
-// brand to "isom" so Whisper accepts it as MP4/M4A. Returns the patched header
-// bytes and a reader for the remainder of the stream.
+// brand to "isom" so Whisper accepts it as MP4/M4A. Returns the reader with 
+// the patched header and the remainder of the stream.
 func patch3GPFtyp(header []byte, rest io.Reader) (io.Reader, error) {
 	// ftyp box: [4-byte size][4-byte "ftyp"][4-byte major brand][4-byte minor version][compatible brands...]
 	// We already have the first 12 bytes in header. Read the rest of the ftyp box.

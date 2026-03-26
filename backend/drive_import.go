@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type driveImportRequest struct {
@@ -88,6 +89,24 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("drive-import completed", "user_id", userID, "source_file_id", req.FileID, "copy_file_id", copyID, "file_name", cleanName)
+
+	// Dispatch async processing job.
+	queue, err := serviceDeps.GetUploadQueue()
+	if err != nil {
+		log.Warn("drive-import: queue unavailable, skipping async processing", "error", err)
+	} else {
+		if err := queue.Publish(ctx, UploadJob{
+			UserID:    userID,
+			FileID:    copyID,
+			FileName:  cleanName,
+			MimeType:  mimeType,
+			Source:    "drive-import",
+			CreatedAt: time.Now(),
+		}); err != nil {
+			log.Error("drive-import: failed to dispatch job", "error", err)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, driveImportResponse{
 		FileID:   copyID,
 		FileName: cleanName,

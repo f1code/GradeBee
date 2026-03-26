@@ -2,193 +2,211 @@
 
 ## Goal
 
-Build a minimal React Native (Expo) app that registers as an OS share target on iOS and Android. When a user shares a file from any app, it uploads to the GradeBee backend which saves it to the user's Google Drive. Shared files are processed asynchronously via NATS JetStream, with visibility into pending/failed jobs from the mobile app.
+Build a minimal React Native (Expo) app that registers as an OS share target on iOS and Android. When a user shares an audio file, it uploads to the GradeBee backend and is processed asynchronously via the in-memory upload queue — the same pipeline used by web uploads. Notes are auto-created (no manual confirmation step); users review/edit/delete from the existing notes list on the web.
 
-## High-Level Flow
+## High-Level Flow (unified for web + mobile)
 
-1. User shares a file from any app → OS shows GradeBee in share sheet
-2. App authenticates via Clerk (session persisted after first sign-in)
-3. App POSTs file to backend `/share-upload`
-4. Backend saves file to Drive `shares/` folder, writes job to KV (`queued`), publishes to NATS stream
-5. App gets back `{ fileId, fileName, status: "queued" }` immediately
-6. NATS consumer triggers processing function: updates KV → `processing`, transcribes audio / OCRs images, updates KV → `done`
-7. On failure (after 3 retries) → KV updated to `failed` with error
-8. App can view job status via `GET /shares` (reads KV) and retry failed ones via `POST /shares/retry`
+1. **Upload** — audio file reaches backend (web upload, Drive import, or mobile share)
+2. Backend saves file to Drive `uploads/`, creates an in-memory `UploadJob` (`queued`), dispatches to `memQueue`
+3. Returns `{ fileId, fileName, status: "queued" }` immediately
+4. Worker goroutine picks up job: transcribe (Whisper) → extract (GPT) → auto-create notes (Google Docs) → `done`
+5. On failure → job status set to `failed` with error
+6. Web frontend polls `GET /jobs` for status + shows "new" badges on auto-created notes
+7. User reviews notes in existing notes list, can edit or delete any
 
-## Architecture: NATS JetStream (Stream + KV)
+### What changes for web users
 
-### Why NATS
+The current synchronous wizard (upload → wait for transcribe → wait for extract → confirm → save) is **replaced** by:
 
-- Scaleway offers **managed NATS** (Messaging & Queuing) — no infra to run
-- JetStream gives durable streams, consumer groups, ack/nack, redelivery
-- JetStream **KV** provides a lightweight queryable store for job state — no external DB needed
-- Scaleway serverless functions can be triggered by NATS messages natively
-- Clean separation: upload is fast, processing is async
+- Upload returns instantly, progress shown via status polling
+- No confirmation step — notes are auto-created
+- New notes appear in the notes list with a "new" badge (clears on first view)
+- User can edit or delete any note from the list (undo for bad extractions)
 
-### Design principle: Stream for dispatch, KV for state
+This is a UX improvement: no more waiting through 30-60s of spinners. Teachers can upload multiple recordings quickly and review the results later.
 
-The stream handles work dispatch only — a single subject, no per-user filtering needed. All job state queries (list, filter by user, check status) go through the KV bucket, which supports key prefix listing natively.
+### Endpoints removed
 
-### Stream: dispatch
+| Method | Path | Reason |
+|--------|------|--------|
+| POST | `/transcribe` | Moved into async worker pipeline |
+| POST | `/extract` | Moved into async worker pipeline |
+| POST | `/notes` | Moved into async worker pipeline (auto-create) |
+
+### Frontend changes
+
+- **`AudioUpload.tsx`**: simplify to upload-only + status indicator. Remove transcribe/extract/confirm steps.
+- **Remove `NoteConfirmation.tsx`** (no longer needed)
+- **Notes list**: add "new" badge for notes created since last visit. Add delete button per note.
+
+## Architecture: In-Memory Upload Queue
+
+### Why in-memory queue
+
+- Zero external dependencies — no managed message broker needed
+- Simple Go channels + worker goroutines handle concurrency
+- Job state tracked in a map keyed by `userId/fileId` — no external DB needed
+- Worker pool size configurable at startup (default: 4 goroutines)
+- Graceful shutdown on SIGINT/SIGTERM drains in-flight jobs
+- Good enough for single-instance deployment (current setup)
+
+### Design principle: queue for dispatch, map for state
+
+The buffered channel handles work dispatch. All job state queries (list, filter by user, check status) go through the in-memory job map.
+
+### UploadJob lifecycle
 
 ```
-Stream: SHARES
-  Subject: shares.process    ← jobs to process
-
-Message payload:
-{
-  "userId":    "user_xxx",
-  "fileId":    "drive_file_id"
-}
+POST /upload or /drive-import or /share-upload
+        │  Saves file to Drive, creates UploadJob in map (status: "queued")
+        │  Sends job to buffered channel
+        │
+        ▼
+  memQueue worker goroutine
+        │  Picks job from channel
+        │
+        ▼
+  processUploadJob
+        │
+        ├─ Idempotency check: skip if job status ≠ "queued"
+        │
+        ├─ Step 1: Transcribe (status → "transcribing")
+        │    Download audio from Drive → OpenAI Whisper
+        │    Whisper prompt seeded with class names from roster
+        │
+        ├─ Step 2: Extract (status → "extracting")
+        │    Send transcript + student roster to GPT
+        │    → per-student observations (name, class, summary, confidence)
+        │
+        ├─ Step 3: Create Notes (status → "creating_notes")
+        │    For each student with confidence ≥ 0.5:
+        │      Create a Google Doc in the user's notes folder
+        │
+        └─ Done (status → "done", noteIDs stored on job)
 ```
 
-The stream message is intentionally minimal — just enough to identify the job. Full metadata lives in KV.
+On failure at any step, the job status is set to `"failed"` with the error message.
 
-Stream config:
-- **Max age:** 7 days (auto-cleanup of processed messages)
-- **Duplicate window:** 5 min (deduplication via `Nats-Msg-Id` header = `fileId`)
-
-### KV bucket: `SHARE_JOBS`
-
-Key format: `<userId>/<fileId>`
-
-```json
-{
-  "userId":    "user_xxx",
-  "fileId":    "drive_file_id",
-  "fileName":  "photo.jpg",
-  "mimeType":  "image/jpeg",
-  "status":    "queued|processing|done|failed",
-  "createdAt": "2026-03-22T10:00:00Z",
-  "error":     "",
-  "failedAt":  null
-}
-```
-
-KV config:
-- **TTL:** 30 days (completed/failed jobs auto-expire)
-- **History:** 1 (only latest state needed)
-
-### Consumer: `shares-processor`
-
-- **Pull consumer** on `shares.process` (or push consumer triggering serverless function)
-- Ack timeout: 5 min (generous for Whisper/GPT calls)
-- **Max deliver: 3** with backoff (30s, 2min, 5min) — handles transient failures automatically
-- On receive: update KV status → `processing`
-- On success: update KV status → `done`, ack stream message
-- On final failure (after 3 attempts): update KV status → `failed` with error, ack stream message
-
-### Retry flow
-
-`POST /shares/retry` lists KV keys with prefix `<userId>/`, filters for `status: "failed"`, resets each to `status: "queued"`, and republishes to `shares.process`. Simple and race-free — KV is the source of truth.
-
-## Proposed Changes
-
-### 1. Backend: NATS integration
-
-**`backend/nats.go`** — NATS connection + JetStream + KV setup
-
-- Connect to Scaleway managed NATS (creds via env vars)
-- Ensure stream `SHARES` exists with subject `shares.process`
-- Ensure KV bucket `SHARE_JOBS` exists (TTL 30d, history 1)
-- Expose `ShareQueue` interface for publish, KV read/write, and job listing
-- Add to `deps` interface: `GetShareQueue() ShareQueue`
+### UploadJob struct
 
 ```go
-type ShareJob struct {
+type UploadJob struct {
     UserID    string     `json:"userId"`
     FileID    string     `json:"fileId"`
     FileName  string     `json:"fileName"`
     MimeType  string     `json:"mimeType"`
-    Status    string     `json:"status"` // queued, processing, done, failed
+    Source    string     `json:"source"` // "web" or "mobile"
+    Status    string     `json:"status"`
     CreatedAt time.Time  `json:"createdAt"`
+    NoteIDs   []string   `json:"noteIds,omitempty"`
     Error     string     `json:"error,omitempty"`
     FailedAt  *time.Time `json:"failedAt,omitempty"`
 }
+```
 
-type ShareQueue interface {
-    // Publish dispatches a job to the stream and writes initial KV state
-    Publish(ctx context.Context, job ShareJob) error
-    // UpdateStatus updates the KV entry for a job
+### UploadQueue interface
+
+```go
+type UploadQueue interface {
+    Publish(ctx context.Context, job UploadJob) error
     UpdateStatus(ctx context.Context, userID, fileID, status string, err error) error
-    // ListJobs returns all jobs for a user (prefix scan on KV)
-    ListJobs(ctx context.Context, userID string) ([]ShareJob, error)
-    // GetJob returns a single job by user + file ID
-    GetJob(ctx context.Context, userID, fileID string) (*ShareJob, error)
+    ListJobs(ctx context.Context, userID string) ([]UploadJob, error)
+    GetJob(ctx context.Context, userID, fileID string) (*UploadJob, error)
 }
 ```
+
+### Retry flow
+
+`POST /jobs/retry` lists jobs for the user, filters for `status: "failed"`, resets each to `status: "queued"`, and republishes to the channel.
+
+## Proposed Changes
+
+### 1. Backend: async upload pipeline (ALREADY IMPLEMENTED)
+
+The following are already in place and **do not need changes**:
+
+**`backend/upload_queue.go`** — `UploadQueue` interface + `UploadJob` type + status constants
+
+**`backend/mem_queue.go`** — in-memory `UploadQueue` implementation with worker pool (`memQueue`)
+
+- Buffered channel for job dispatch
+- Map keyed by `userId/fileId` for job state
+- Configurable worker count (default: 4)
+- Graceful shutdown support
+
+**`backend/upload_process.go`** — `processUploadJob` pipeline
+
+- Gets user's Google OAuth token from Clerk via `getGoogleOAuthToken(ctx, job.UserID)`
+- Runs pipeline: transcribe → extract → create notes (uses `Transcriber`, `Extractor`, `NoteCreator`)
+- Updates job status at each stage for progress visibility
+- On success: status → `done` with `noteIDs`
+- On failure: status → `failed` with error
+
+**`backend/upload.go`** — `POST /upload`
+
+- After saving file to Drive `uploads/`, dispatches job to `memQueue`
+- Returns `{ fileId, fileName, status: "queued" }` immediately
+
+**`backend/drive_import.go`** — `POST /drive-import`
+
+- After copying file to `uploads/`, dispatches job to `memQueue`
+- Returns `{ fileId, fileName, status: "queued" }` immediately
+
+**`backend/jobs_list.go`** — `GET /jobs`
+
+- Lists user's jobs from in-memory map
+- Returns jobs grouped by status (active, failed, done)
+
+**`backend/jobs_retry.go`** — `POST /jobs/retry`
+
+- Filters user's jobs for `status: "failed"`, resets to `queued`, republishes to channel
+- Returns `{ retriedCount: N }`
+
+**`backend/cmd/server/main.go`** — calls `InitUploadQueue(ServiceDeps(), 4)` at startup
+
+### 2. Backend: mobile share endpoint
 
 **`backend/share_upload.go`** — `POST /share-upload`
 
-- Accept any file type via multipart/form-data (25MB limit)
-- Save to user's Drive `shares/` folder
-- Create `ShareJob` (status: `queued`) → `ShareQueue.Publish` (writes KV + publishes to stream)
-- Deduplication: uses `fileId` as `Nats-Msg-Id` header — retried uploads don't create duplicate jobs
+- Accept audio files via multipart/form-data (25MB limit)
+- Add ISO date prefix to filename
+- Save to user's Drive `uploads/` folder (same as web)
+- Dispatch to `memQueue` with `source: "mobile"`
 - Return `{ fileId, fileName, status: "queued" }`
-
-**`backend/share_process.go`** — `POST /shares/process` (NATS trigger target)
-
-- Receives NATS message (or HTTP call from Scaleway NATS trigger)
-- Extracts `userId` + `fileId` from message body
-- Reads full job metadata from KV via `ShareQueue.GetJob`
-- Updates KV status → `processing`
-- Gets user's Google OAuth token from Clerk via `getGoogleOAuthToken(ctx, msg.UserID)`
-- Dispatches by MIME type:
-  - `audio/*` → `whisperTranscriber` (existing)
-  - `image/*`, `application/pdf` → `gptExampleExtractor` / GPT Vision (existing)
-  - Other → no-op, mark done
-- On success: save result as companion file in Drive, update KV status → `done`
-- On failure: update KV status → `failed` with error info
-
-**`backend/share_list.go`** — `GET /shares`
-
-- Calls `ShareQueue.ListJobs(ctx, userId)` — KV prefix scan on `<userId>/`
-- Groups results by status and returns:
-```json
-{
-  "active": [
-    { "fileId": "...", "fileName": "photo.jpg", "mimeType": "image/jpeg", "status": "queued", "createdAt": "..." }
-  ],
-  "failed": [
-    { "fileId": "...", "fileName": "recording.m4a", "status": "failed", "error": "Whisper timeout", "failedAt": "..." }
-  ],
-  "done": [
-    { "fileId": "...", "fileName": "notes.pdf", "status": "done", "createdAt": "..." }
-  ]
-}
-```
-
-No per-user subjects needed — KV prefix listing handles user filtering natively.
-
-**`backend/share_retry.go`** — `POST /shares/retry`
-
-- Calls `ShareQueue.ListJobs(ctx, userId)`, filters for `status: "failed"`
-- For each failed job: reset KV status → `queued`, republish to `shares.process`
-- KV is source of truth — no race conditions with concurrent processing
-- Return `{ retriedCount: N }`
-
-**`backend/handler.go`** — add routes
 
 | Method | Path | Auth | Handler | Description |
 |--------|------|------|---------|-------------|
-| POST | `/share-upload` | Yes | `handleShareUpload` | Upload file + enqueue |
-| POST | `/shares/process` | Internal | `handleShareProcess` | NATS trigger target |
-| GET | `/shares` | Yes | `handleShareList` | List active + failed jobs |
-| POST | `/shares/retry` | Yes | `handleShareRetry` | Retry all failed jobs |
+| POST | `/share-upload` | Yes | `handleShareUpload` | Mobile share upload + enqueue |
 
-**`backend/clerk_metadata.go`** — add `SharesID` field to `gradeBeeMetadata`
+### 3. Environment variables
 
-**`backend/setup.go`** — create `shares/` subfolder during setup
+No new environment variables needed — the in-memory queue requires no external services.
 
-### 2. Environment variables (new)
+### 4. Frontend changes
 
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `NATS_URL` | Yes | Scaleway managed NATS endpoint |
-| `NATS_CREDS` | Yes | NATS credentials (or path to creds file) |
-| `PROCESS_SECRET` | Yes | Shared secret for internal `/shares/process` calls |
+**`frontend/src/components/AudioUpload.tsx`** — simplify
 
-### 3. Mobile app: `mobile/`
+- Remove transcribe → extract → confirm flow
+- Upload triggers `POST /upload` or `POST /drive-import`, both return immediately
+- Show inline status: "Queued" → "Transcribing..." → "Extracting..." → "Creating notes..." → "Done ✓"
+- Poll `GET /jobs` for progress updates (or just the relevant job)
+- On done: show link to created notes
+- On failure: show error + retry button
+
+**`frontend/src/components/NoteConfirmation.tsx`** — remove
+
+**`frontend/src/components/JobStatus.tsx`** — new
+
+- Small status indicator component for a single job
+- Shows current pipeline stage with progress animation
+- Used inline in AudioUpload after upload completes
+
+**Notes list** — minor additions
+
+- "New" badge on notes created by auto-processing (since user's last visit)
+- Delete button per note (Google Doc deletion via existing Drive API)
+
+### 5. Mobile app: `mobile/`
 
 **Framework:** Expo (managed workflow)
 
@@ -212,77 +230,77 @@ mobile/
 │   │   └── QueueScreen.tsx   # Shows active + failed jobs, retry button
 │   ├── api/
 │   │   ├── upload.ts         # POST /share-upload
-│   │   ├── shares.ts         # GET /shares
-│   │   └── retry.ts          # POST /shares/retry
+│   │   ├── jobs.ts           # GET /jobs
+│   │   └── retry.ts          # POST /jobs/retry
 │   └── components/
 │       ├── JobList.tsx       # Renders active/failed job lists
-│       └── StatusBadge.tsx   # "queued" / "processing" / "failed" badge
+│       └── StatusBadge.tsx   # "queued" / "transcribing" / "failed" badge
 ```
 
 **QueueScreen.tsx:**
-- Polls `GET /shares` on focus (or pull-to-refresh)
+- Polls `GET /jobs` on focus (or pull-to-refresh)
 - Shows two sections: "Processing" (active jobs) and "Failed" (with error messages)
-- "Retry All" button calls `POST /shares/retry`, then refreshes
+- "Retry All" button calls `POST /jobs/retry`, then refreshes
 - Each failed job shows filename, error, and timestamp
 
 **Share target registration:**
-- **Android:** Expo config plugin adds `<intent-filter>` for `ACTION_SEND` with `*/*` MIME type
-- **iOS:** Expo config plugin adds Share Extension via `expo-share-intent`
+- **Android:** Expo config plugin adds `<intent-filter>` for `ACTION_SEND` with `audio/*` MIME type
+- **iOS:** Expo config plugin adds Share Extension via `expo-share-intent` (filtered to audio)
 
 **Auth flow:**
 - Clerk Expo SDK with `expo-secure-store` as token cache
 - User signs in once; session persists
 - On share intent, if no session → show login, then upload
 
-### 4. Expo build & distribution
+### 6. Expo build & distribution
 
 - EAS Build for iOS/Android binaries
 - TestFlight (iOS) + internal track (Android) for testing
 
-## Drive Folder Structure (updated)
+## Drive Folder Structure (unchanged)
 
 ```
 GradeBee/
-├── uploads/              ← audio files (existing)
-├── shares/               ← NEW: shared files from mobile
-│   ├── photo.jpg
-│   ├── photo.jpg.extracted.txt
-│   ├── recording.m4a
-│   └── recording.m4a.transcript.txt
-├── notes/
+├── uploads/              ← audio files (web + mobile, with ISO date prefix)
+├── notes/                ← auto-created Google Doc notes
 ├── reports/
 ├── report-examples/
 └── ClassSetup
 ```
 
+No separate `shares/` folder — mobile uploads go to the same `uploads/` as web.
+
 ## ✅ Validated: Clerk OAuth token works offline
 
-Confirmed that `getGoogleOAuthToken(ctx, userID)` returns a valid, working Google Drive token when called server-side without an active user session. Clerk auto-refreshes tokens on demand. **No changes needed** — background NATS processing can call `getGoogleOAuthToken` for any user at any time.
+Confirmed that `getGoogleOAuthToken(ctx, userID)` returns a valid, working Google Drive token when called server-side without an active user session. Clerk auto-refreshes tokens on demand. **No changes needed** — background worker processing can call `getGoogleOAuthToken` for any user at any time.
 
 ## Open Questions
 
-1. **What should processing produce?** Just extracted text stored as companion files? Or auto-feed into the notes/extract pipeline?
-2. **What file types to accept?** Start with `*/*` or restrict?
-3. **Should the app support manual file picking** in addition to share intent?
-4. **File naming in Drive?** Keep original name, prefix with ISO date?
-5. **Scaleway NATS trigger format** — need to verify exact payload format for serverless function triggers. May need the process endpoint to accept both HTTP JSON and NATS message formats. **Validate before implementing `share_process.go`.**
-6. **HARD BLOCKER: Clerk OAuth token offline access** — verify `getGoogleOAuthToken(ctx, userID)` works without an active user session before starting any implementation. If it doesn't, async processing needs a fundamentally different approach (store refresh tokens ourselves, or process synchronously during upload).
+1. ~~What should processing produce?~~ → Auto-create notes (no confirmation step). Users edit/delete from notes list.
+2. ~~What file types to accept?~~ → Audio files only. Share intent MIME filter set to `audio/*`.
+3. ~~Should the app support manual file picking?~~ → No, share intent only.
+4. ~~File naming in Drive?~~ → ISO date prefix (e.g. `2026-03-22-recording.m4a`).
+5. ~~Scaleway NATS trigger format~~ → No longer applicable; using in-memory queue with worker goroutines.
+6. ~~HARD BLOCKER: Clerk OAuth token offline access~~ → Verified, works fine.
 
 ## Effort Estimate
 
 | Task | Estimate |
 |------|----------|
 | ~~BLOCKER: verify Clerk OAuth token offline access~~ | ~~1 hour~~ ✅ Done |
-| Backend: NATS connection + stream + KV setup (`nats.go`) | 2-3 hours |
-| Backend: `POST /share-upload` (upload + publish + KV write) | 2-3 hours |
-| Backend: `POST /shares/process` (consumer + processor + KV updates) | 3-4 hours |
-| Backend: `GET /shares` (KV prefix list) | 1-2 hours |
-| Backend: `POST /shares/retry` (KV scan + republish) | 1-2 hours |
-| Backend: setup.go + metadata changes | 1 hour |
+| ~~Backend: async queue + worker pool (`upload_queue.go`, `mem_queue.go`)~~ | ✅ Done |
+| ~~Backend: modify `POST /upload` + `POST /drive-import` to dispatch async jobs~~ | ✅ Done |
+| ~~Backend: `processUploadJob` pipeline (transcribe → extract → notes)~~ | ✅ Done |
+| ~~Backend: `GET /jobs` + `POST /jobs/retry`~~ | ✅ Done |
+| Backend: `POST /share-upload` (mobile endpoint) | 1-2 hours |
+| Backend: remove `/transcribe`, `/extract`, `/notes` endpoints | 1 hour |
+| Frontend: simplify AudioUpload to upload-only + job status polling | 2-3 hours |
+| Frontend: remove NoteConfirmation, add JobStatus component | 1-2 hours |
+| Frontend: "new" badge + delete on notes list | 1-2 hours |
 | Mobile: Expo project setup + Clerk auth | 2-3 hours |
 | Mobile: Share intent handling + upload UI | 3-4 hours |
 | Mobile: iOS Share Extension config | 2-3 hours |
 | Mobile: QueueScreen (active + failed + retry) | 3-4 hours |
 | Testing on devices | 2-3 hours |
 | EAS Build setup + TestFlight/Play Store | 2-3 hours |
-| **Total** | **~4 days** |
+| **Total remaining** | **~3 days** |

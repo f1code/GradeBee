@@ -14,12 +14,7 @@ frontend/dist/
 # Backend
 backend/bin/
 
-# Terraform
-infra/.terraform/
-infra/*.tfstate
-infra/*.tfstate.backup
-infra/.terraform.lock.hcl
-infra/*.tfvars
+
 node_modules
 
 # Playwright

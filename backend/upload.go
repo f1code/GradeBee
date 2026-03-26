@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const maxUploadSize = 25 << 20 // 25 MB (Whisper API limit)
@@ -84,6 +85,25 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("upload completed", "user_id", userID, "file_id", fileID, "file_name", header.Filename)
+
+	// Dispatch async processing job.
+	queue, err := serviceDeps.GetUploadQueue()
+	if err != nil {
+		log.Warn("upload: queue unavailable, skipping async processing", "error", err)
+	} else {
+		if err := queue.Publish(ctx, UploadJob{
+			UserID:    userID,
+			FileID:    fileID,
+			FileName:  header.Filename,
+			MimeType:  contentType,
+			Source:    "upload",
+			CreatedAt: time.Now(),
+		}); err != nil {
+			log.Error("upload: failed to dispatch job", "error", err)
+			// Non-fatal — file is on Drive, user can retry via /jobs/retry
+		}
+	}
+
 	writeJSON(w, http.StatusOK, uploadResponse{
 		FileID:   fileID,
 		FileName: header.Filename,

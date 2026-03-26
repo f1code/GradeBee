@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"testing"
 )
 
 // stubRoster implements Roster for tests.
@@ -74,15 +75,21 @@ func (s *stubTranscriber) Transcribe(_ context.Context, _ string, _ io.Reader, p
 
 // mockDepsAll satisfies deps with configurable returns for all methods.
 type mockDepsAll struct {
-	googleSvcErr error
-	roster       Roster
-	rosterErr    error
-	driveStore   DriveStore
-	transcriber  Transcriber
-	transErr     error
-	extractor    Extractor
-	extractErr   error
-	noteCreator  NoteCreator
+	googleSvcErr        error
+	googleSvcForUser    *googleServices
+	googleSvcForUserErr error
+	roster              Roster
+	rosterErr           error
+	driveStore          DriveStore
+	transcriber         Transcriber
+	transErr            error
+	extractor           Extractor
+	extractErr          error
+	noteCreator         NoteCreator
+	uploadQueue         UploadQueue
+	uploadQueueErr      error
+	metadata            *gradeBeeMetadata
+	metadataErr         error
 }
 
 func (m *mockDepsAll) GoogleServices(_ *http.Request) (*googleServices, error) {
@@ -90,6 +97,16 @@ func (m *mockDepsAll) GoogleServices(_ *http.Request) (*googleServices, error) {
 		return nil, m.googleSvcErr
 	}
 	return &googleServices{User: &clerkUser{UserID: "test-user"}}, nil
+}
+
+func (m *mockDepsAll) GoogleServicesForUser(_ context.Context, userID string) (*googleServices, error) {
+	if m.googleSvcForUserErr != nil {
+		return nil, m.googleSvcForUserErr
+	}
+	if m.googleSvcForUser != nil {
+		return m.googleSvcForUser, nil
+	}
+	return &googleServices{User: &clerkUser{UserID: userID}}, nil
 }
 
 func (m *mockDepsAll) GetTranscriber() (Transcriber, error) {
@@ -137,6 +154,20 @@ func (m *mockDepsAll) GetReportGenerator(_ *googleServices) (ReportGenerator, er
 	return nil, fmt.Errorf("not configured")
 }
 
+func (m *mockDepsAll) GetUploadQueue() (UploadQueue, error) {
+	if m.uploadQueueErr != nil {
+		return nil, m.uploadQueueErr
+	}
+	return m.uploadQueue, nil
+}
+
+func (m *mockDepsAll) GetGradeBeeMetadata(_ context.Context, _ string) (*gradeBeeMetadata, error) {
+	if m.metadataErr != nil {
+		return nil, m.metadataErr
+	}
+	return m.metadata, nil
+}
+
 // stubExtractor implements Extractor for tests.
 type stubExtractor struct {
 	result *ExtractResponse
@@ -166,4 +197,53 @@ func (s *stubNoteCreator) CreateNote(_ context.Context, req CreateNoteRequest) (
 		return r, nil
 	}
 	return &CreateNoteResponse{DocID: "doc-id", DocURL: "https://docs.google.com/document/d/doc-id/edit"}, nil
+}
+
+// stubUploadQueue implements UploadQueue with in-memory storage for tests.
+type stubUploadQueue struct {
+	jobs      map[string]UploadJob // keyed by "userId/fileId"
+	published []UploadJob          // records Publish calls
+}
+
+func newStubUploadQueue() *stubUploadQueue {
+	return &stubUploadQueue{jobs: make(map[string]UploadJob)}
+}
+
+func (q *stubUploadQueue) Publish(_ context.Context, job UploadJob) error {
+	job.Status = JobStatusQueued
+	q.jobs[kvKey(job.UserID, job.FileID)] = job
+	q.published = append(q.published, job)
+	return nil
+}
+
+func (q *stubUploadQueue) GetJob(_ context.Context, userID, fileID string) (*UploadJob, error) {
+	job, ok := q.jobs[kvKey(userID, fileID)]
+	if !ok {
+		return nil, fmt.Errorf("job not found: %s/%s", userID, fileID)
+	}
+	return &job, nil
+}
+
+func (q *stubUploadQueue) UpdateJob(_ context.Context, job UploadJob) error {
+	q.jobs[kvKey(job.UserID, job.FileID)] = job
+	return nil
+}
+
+func (q *stubUploadQueue) ListJobs(_ context.Context, userID string) ([]UploadJob, error) {
+	prefix := userID + "/"
+	var jobs []UploadJob
+	for k, j := range q.jobs {
+		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
+			jobs = append(jobs, j)
+		}
+	}
+	return jobs, nil
+}
+
+func (q *stubUploadQueue) Close() {}
+
+// newTestQueue returns a stub queue for integration tests. The *testing.T
+// parameter is kept for API compatibility with the old NATS-based version.
+func newTestQueue(_ *testing.T) *stubUploadQueue {
+	return newStubUploadQueue()
 }

@@ -1,72 +1,67 @@
 # Deployment
 
-GradeBee deploys to Scaleway: serverless function (Go backend) + Object Storage (frontend SPA).
+GradeBee runs on a VPS with Docker Compose: Go backend + Caddy (HTTPS + static files).
 
 ## Prerequisites
 
-- [Terraform](https://terraform.io) ≥ 1.0
-- [AWS CLI](https://aws.amazon.com/cli/) (for S3-compatible frontend upload)
-- Scaleway account with API keys
-- Go, Node.js
+- VPS with Docker + Docker Compose (tested on Scaleway STARDUST1-S, Paris)
+- Domain pointing to VPS IP (e.g. gradebee.f1code.com)
+- SSH access to VPS
+- Node.js (for frontend build, runs locally)
 
-## AWS CLI Configuration for Scaleway
+## VPS Setup (one-time)
 
-Create a profile for Scaleway S3:
+1. Provision Scaleway STARDUST1-S instance (Debian/Ubuntu)
+2. Install Docker: https://docs.docker.com/engine/install/
+3. Point DNS A record for your domain to the VPS IP
+4. SSH in and create project directory:
+   ```bash
+   mkdir -p /opt/gradebee
+   ```
 
-```bash
-aws configure --profile scaleway
-# Access Key: your Scaleway access key
-# Secret Key: your Scaleway secret key
-# Region: fr-par
-```
+## Configuration
 
-Then either `export AWS_PROFILE=scaleway` or add it to your `.env` file.
+Create `.env` on the VPS at `/opt/gradebee/.env`:
 
-## Setup
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `CLERK_SECRET_KEY` | Yes | Clerk backend API key |
+| `OPENAI_API_KEY` | Yes | OpenAI API key (Whisper + GPT) |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Yes | Clerk publishable key (baked into frontend at build) |
+| `DOMAIN` | Yes | Domain for Caddy HTTPS (e.g. `gradebee.f1code.com`) |
+| `ALLOWED_ORIGIN` | No | CORS origin (default `*`, set to `https://yourdomain` in prod) |
+| `LOG_LEVEL` | No | DEBUG/INFO/WARN/ERROR (default INFO) |
+| `LOG_FORMAT` | No | `json` for JSON logs, else text |
 
-1. Copy and fill in Terraform variables:
+## Deploy
 
-```bash
-cp infra/terraform.tfvars.example infra/terraform.tfvars
-# Edit infra/terraform.tfvars with your values
-```
-
-2. Initialize Terraform:
-
-```bash
-cd infra && terraform init
-```
-
-## Deploy Everything
+From your local machine:
 
 ```bash
 make deploy
 ```
 
-This runs:
-1. `make build` — vendors Go deps, builds & zips backend
-2. `make terraform` — applies Terraform (creates/updates function + bucket)
-3. `make deploy-frontend` — builds frontend with API URL from Terraform outputs, syncs to S3 bucket
+This:
+1. Builds the frontend SPA with `VITE_API_URL=/api`
+2. Rsyncs the project to the VPS
+3. SSHs in and runs `docker compose up -d --build`
 
-## Individual Targets
+Caddy automatically provisions TLS certificates on first request.
 
-| Command | Description |
-|---------|-------------|
-| `make build` | Build backend zip |
-| `make terraform` | Apply Terraform |
-| `make build-frontend` | Build frontend (needs Terraform outputs) |
-| `make deploy-frontend` | Build + upload frontend to S3 |
-| `make dev` | Local frontend dev server |
-| `make clean` | Remove dist/ |
+## Manual deploy / debugging
 
-## Environment Variables
+```bash
+ssh root@<VPS_IP>
+cd /opt/gradebee
+docker compose up -d --build
+docker compose logs -f
+```
 
-Configured via `infra/terraform.tfvars`:
+## Architecture
 
-| Variable | Description |
-|----------|-------------|
-| `project_id` | Scaleway project ID |
-| `region` | Scaleway region (default: `fr-par`) |
-| `clerk_secret_key` | Clerk backend secret key |
-| `clerk_publishable_key` | Clerk frontend publishable key |
-| `openai_api_key` | OpenAI API key (Whisper + GPT) |
+```
+Internet → :443 → Caddy → /api/* → backend:8080 (Go)
+                        → /*     → /srv/frontend (static SPA)
+```
+
+Single `docker-compose.yml` with two services. Caddy handles TLS + static files + reverse proxy.

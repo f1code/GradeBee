@@ -2,7 +2,7 @@
 
 ## Overview
 
-Go HTTP backend for GradeBee, a teacher tool for managing student rosters, processing audio recordings (upload → transcribe), and generating report cards. Deployed as a **Scaleway serverless function** (single handler entrypoint). Local dev via `cmd/server/main.go`.
+Go HTTP backend for GradeBee, a teacher tool for managing student rosters, processing audio recordings (upload → transcribe), and generating report cards. Runs as a standalone HTTP server. Deployed via Docker Compose on a VPS with Caddy for HTTPS and static file serving.
 
 **Package:** `handler` (all source files in `backend/` share this package).
 
@@ -15,7 +15,7 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 | GET    | `/` `/health` | No  | inline               | Health check                             |
 | POST   | `/setup`    | Yes  | `handleSetup`        | Provision Drive workspace                |
 | GET    | `/students` | Yes  | `handleGetStudents`  | Read roster from Sheets                  |
-| POST   | `/upload`   | Yes  | `handleUpload`       | Upload audio to Drive                    |
+| POST   | `/upload`   | Yes  | `handleUpload`       | Upload audio to Drive + dispatch async job |
 | POST   | `/transcribe`| Yes | `handleTranscribe`   | Download from Drive → Whisper → text     |
 | POST   | `/extract`  | Yes  | `handleExtract`      | Analyze transcript → matched students    |
 | POST   | `/notes`    | Yes  | `handleCreateNotes`  | Create Google Doc notes for students     |
@@ -25,9 +25,57 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 | POST   | `/reports`  | Yes  | `handleGenerateReports` | Generate report cards for students    |
 | POST   | `/reports/regenerate` | Yes | `handleRegenerateReport` | Regenerate a report with feedback |
 | GET    | `/google-token` | Yes | `handleGoogleToken`  | Return user's Google OAuth access token  |
-| POST   | `/drive-import` | Yes | `handleDriveImport`  | Validate + copy Drive file to uploads    |
+| POST   | `/drive-import` | Yes | `handleDriveImport`  | Validate + copy Drive file to uploads + dispatch async job |
+| GET    | `/jobs`     | Yes  | `handleJobList`      | List user's async upload jobs            |
+| POST   | `/jobs/retry` | Yes | `handleJobRetry`    | Retry all failed jobs                    |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline.
+
+## Async Upload Processing Pipeline
+
+Audio uploads are processed asynchronously via an in-memory queue (`memQueue`) with a background worker pool. Jobs are dispatched from `POST /upload` and `POST /drive-import` after the file is saved to Drive.
+
+### Flow
+
+```
+User uploads audio
+        │
+        ▼
+  POST /upload (or /drive-import)
+        │  Saves file to Drive, publishes UploadJob
+        │  to memQueue with status "queued"
+        │
+        ▼
+  memQueue worker goroutine
+        │  Picks job from buffered channel
+        │
+        ▼
+  processUploadJob
+        │
+        ├─ Idempotency check: skip if job status ≠ "queued"
+        │
+        ├─ Step 1: Transcribe (status → "transcribing")
+        │    Download audio from Drive → OpenAI Whisper
+        │    Whisper prompt seeded with class names from roster
+        │
+        ├─ Step 2: Extract (status → "extracting")
+        │    Send transcript + student roster to GPT
+        │    → per-student observations (name, class, summary, confidence)
+        │
+        ├─ Step 3: Create Notes (status → "creating_notes")
+        │    For each student with confidence ≥ 0.5:
+        │      Create a Google Doc in the user's notes folder
+        │
+        └─ Done (status → "done", noteIDs stored on job)
+```
+
+On failure at any step, the job status is set to `"failed"` with the error message. Users can retry failed jobs via `POST /jobs/retry`, which resets them to `"queued"` and republishes to the queue.
+
+Job status is tracked in-memory (map keyed by `userId/fileId`). The frontend polls `GET /jobs` to show progress.
+
+### Startup
+
+`cmd/server/main.go` calls `InitUploadQueue(ServiceDeps(), 4)` at startup to create the queue with 4 worker goroutines. The queue is shut down gracefully on SIGINT/SIGTERM.
 
 ## Dependency Injection
 
@@ -36,6 +84,7 @@ Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS 
 ```
 deps interface {
     GoogleServices(r) → *googleServices
+    GoogleServicesForUser(ctx, userID) → *googleServices
     GetTranscriber()  → Transcriber
     GetRoster(ctx, svc) → Roster
     GetDriveStore(svc)  → DriveStore
@@ -45,6 +94,8 @@ deps interface {
     GetExampleStore(svc)  → ExampleStore
     GetExampleExtractor() → ExampleExtractor
     GetReportGenerator(svc) → ReportGenerator
+    GetUploadQueue()        → UploadQueue
+    GetGradeBeeMetadata(ctx, userID) → *gradeBeeMetadata
 }
 ```
 
@@ -64,6 +115,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `ExampleStore` | `report_examples.go` | `driveExampleStore` | CRUD for example report cards  |
 | `ExampleExtractor` | `report_example_extractor.go` | `gptExampleExtractor` | GPT Vision text extraction from PDF/images |
 | `ReportGenerator` | `report_generator.go` | `gptReportGenerator` | GPT-based report card generation |
+| `UploadQueue` | `upload_queue.go` | `memQueue` | In-memory async job queue with worker pool |
 
 ## External Services
 
@@ -85,7 +137,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 
 | File                | Responsibility                                                    |
 |---------------------|------------------------------------------------------------------|
-| `cmd/server/main.go`| Local dev server; loads `.env`, inits Clerk, starts HTTP          |
+| `cmd/server/main.go`| Server entrypoint; loads `.env`, inits Clerk, starts queue + HTTP |
 | `handler.go`        | Routing, CORS, request logging, `Handle` entrypoint              |
 | `deps.go`           | DI interface, prod implementations, `serviceDeps` variable        |
 | `google.go`         | Google API client construction, `apiError` type, `createFolder`   |
@@ -94,10 +146,10 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `setup.go`          | POST /setup — create Drive folder tree + ClassSetup spreadsheet   |
 | `students.go`       | GET /students — read & parse roster, `parseStudentRows`           |
 | `roster.go`         | `sheetsRoster` — Roster interface impl backed by Sheets API       |
-| `upload.go`         | POST /upload — multipart audio → Drive uploads folder             |
+| `upload.go`         | POST /upload — multipart audio → Drive uploads folder + dispatch job |
 | `transcribe.go`     | POST /transcribe — Drive download → Whisper API                   |
 | `drive_store.go`    | `DriveStore` interface + `sheetsDriveStore` (Drive CRUD + Copy)   |
-| `drive_import.go`   | POST /drive-import — validate + copy Drive file to uploads folder |
+| `drive_import.go`   | POST /drive-import — validate + copy Drive file to uploads folder + dispatch job |
 | `google_token.go`   | GET /google-token — return user's Google OAuth access token       |
 | `extract.go`        | `Extractor` interface + GPT implementation for transcript analysis|
 | `extract_handler.go`| POST /extract — transcript analysis → matched students            |
@@ -112,6 +164,11 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `reports_handler.go`| POST /reports + POST /reports/regenerate handlers                 |
 | `audio_format.go`   | Magic-byte detection, 3GP patching, filename extension fixing     |
 | `logger.go`         | slog-based structured logging, request-scoped via context         |
+| `upload_queue.go`   | `UploadQueue` interface, `UploadJob` type, job status constants   |
+| `mem_queue.go`      | In-memory `UploadQueue` implementation with worker pool           |
+| `upload_process.go` | `processUploadJob` pipeline (transcribe→extract→notes)            |
+| `jobs_list.go`      | GET /jobs — list user's async upload jobs grouped by status       |
+| `jobs_retry.go`     | POST /jobs/retry — reset failed jobs to queued and republish      |
 
 ## Drive Folder Structure (per user)
 
@@ -138,7 +195,7 @@ GradeBee/              ← root folder (ID in metadata.FolderID)
 ## Testing
 
 - Tests in `*_test.go` files override `serviceDeps` with stubs.
-- `testutil_test.go` has shared test helpers.
+- `testutil_test.go` has shared test helpers (`stubUploadQueue`, `mockDepsAll`, etc.).
 - Run: `make test` / `make lint`
 
 ## Environment Variables

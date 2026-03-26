@@ -1,0 +1,7 @@
+frontend/
+infra/
+docs/
+.env
+.git/
+*.md
+dist/
