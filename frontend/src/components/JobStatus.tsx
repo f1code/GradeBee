@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { fetchJobs, retryFailedJobs } from '../api'
 import type { UploadJob, JobListResponse } from '../api'
@@ -39,7 +39,7 @@ function DocIcon() {
   )
 }
 
-export default function JobStatus() {
+export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRefObject<(() => void) | null> }) {
   const { getToken } = useAuth()
   const [jobs, setJobs] = useState<JobListResponse | null>(null)
   const [retrying, setRetrying] = useState(false)
@@ -82,6 +82,17 @@ export default function JobStatus() {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
   }, [poll])
+
+  // Expose an imperative "poll now" handle for parent components.
+  useEffect(() => {
+    if (pollNowRef) {
+      pollNowRef.current = () => {
+        if (timerRef.current) clearTimeout(timerRef.current)
+        poll()
+      }
+      return () => { pollNowRef.current = null }
+    }
+  }, [pollNowRef, poll])
 
   async function handleRetry() {
     setRetrying(true)
@@ -194,7 +205,7 @@ export default function JobStatus() {
 }
 
 function DoneJobCard({ job, isNew, onDismissNew }: { job: UploadJob; isNew: boolean; onDismissNew: () => void }) {
-  const noteCount = job.noteUrls?.length ?? 0
+  const noteCount = job.noteLinks?.length ?? 0
 
   return (
     <motion.div
@@ -220,11 +231,11 @@ function DoneJobCard({ job, isNew, onDismissNew }: { job: UploadJob; isNew: bool
           </span>
         </div>
       </div>
-      {job.noteUrls && job.noteUrls.length > 0 && (
+      {job.noteLinks && job.noteLinks.length > 0 && (
         <div className="job-note-links">
-          {job.noteUrls.map((url, i) => (
-            <a key={i} href={url} target="_blank" rel="noopener noreferrer" className="job-note-link">
-              <DocIcon /> Open note
+          {job.noteLinks.map((link, i) => (
+            <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="job-note-link">
+              <DocIcon /> {link.name}
             </a>
           ))}
         </div>

@@ -106,7 +106,7 @@ describe('JobStatus', () => {
         fileId: 'f3',
         fileName: 'complete.m4a',
         status: 'done' as const,
-        noteUrls: ['https://docs.google.com/document/d/doc1/edit', 'https://docs.google.com/document/d/doc2/edit'],
+        noteLinks: [{ name: 'Alice', url: 'https://docs.google.com/document/d/doc1/edit' }, { name: 'Bob', url: 'https://docs.google.com/document/d/doc2/edit' }],
         createdAt: '2026-03-26T08:00:00Z',
       }],
     })
@@ -118,7 +118,7 @@ describe('JobStatus', () => {
     })
     expect(screen.getByText('complete.m4a')).toBeInTheDocument()
     expect(screen.getByText('2 notes created')).toBeInTheDocument()
-    const links = screen.getAllByText('Open note')
+    const links = screen.getAllByText(/Alice|Bob/)
     expect(links).toHaveLength(2)
   })
 
@@ -127,7 +127,7 @@ describe('JobStatus', () => {
     mockFetchJobs
       .mockResolvedValueOnce({ active: [{ fileId: 'f1', fileName: 'a.m4a', status: 'transcribing', createdAt: '2026-03-26T10:00:00Z' }], failed: [], done: [] })
       // Second poll: job is done
-      .mockResolvedValue({ active: [], failed: [], done: [{ fileId: 'f1', fileName: 'a.m4a', status: 'done' as const, noteUrls: ['url'], createdAt: '2026-03-26T10:00:00Z' }] })
+      .mockResolvedValue({ active: [], failed: [], done: [{ fileId: 'f1', fileName: 'a.m4a', status: 'done' as const, noteLinks: [{ name: 'Student', url: 'url' }], createdAt: '2026-03-26T10:00:00Z' }] })
 
     const { default: JobStatus } = await import('../JobStatus')
     render(<JobStatus />)

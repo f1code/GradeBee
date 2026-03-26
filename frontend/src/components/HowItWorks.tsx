@@ -13,8 +13,8 @@ const steps = [
   },
   {
     num: 3,
-    heading: 'Review & edit notes',
-    desc: 'GradeBee transcribes the audio and creates a structured note for each student mentioned. Review, tweak, and save — notes are stored as Google Docs.',
+    heading: 'Notes appear automatically',
+    desc: 'GradeBee processes your audio in the background and creates a structured note for each student mentioned. Check progress in the job status panel and review or remove notes afterward.',
   },
   {
     num: 4,

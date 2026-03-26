@@ -59,8 +59,8 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	if got.Status != JobStatusDone {
 		t.Errorf("status = %q, want %q", got.Status, JobStatusDone)
 	}
-	if len(got.NoteURLs) != 2 {
-		t.Errorf("noteUrls = %d, want 2", len(got.NoteURLs))
+	if len(got.NoteLinks) != 2 {
+		t.Errorf("noteUrls = %d, want 2", len(got.NoteLinks))
 	}
 	if len(nc.calls) != 2 {
 		t.Errorf("note creator calls = %d, want 2", len(nc.calls))

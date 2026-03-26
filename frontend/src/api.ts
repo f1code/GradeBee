@@ -188,7 +188,7 @@ export interface UploadJob {
   fileName: string
   status: 'queued' | 'transcribing' | 'extracting' | 'creating_notes' | 'done' | 'failed'
   error?: string
-  noteUrls?: string[]
+  noteLinks?: { name: string; url: string }[]
   createdAt: string
 }
 

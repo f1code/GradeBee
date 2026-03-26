@@ -18,6 +18,12 @@ const (
 	JobStatusFailed        = "failed"
 )
 
+// NoteLink pairs a student name with the URL of the created note.
+type NoteLink struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
 // UploadJob represents an async upload processing job.
 type UploadJob struct {
 	UserID    string     `json:"userId"`
@@ -27,7 +33,7 @@ type UploadJob struct {
 	Source    string     `json:"source"`
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"createdAt"`
-	NoteURLs  []string   `json:"noteUrls,omitempty"`
+	NoteLinks []NoteLink `json:"noteLinks,omitempty"`
 	Error     string     `json:"error,omitempty"`
 	FailedAt  *time.Time `json:"failedAt,omitempty"`
 }

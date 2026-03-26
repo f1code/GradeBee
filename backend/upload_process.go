@@ -136,7 +136,7 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 
 	noteCreator := d.GetNoteCreator(svc)
 
-	var noteURLs []string
+	var noteLinks []NoteLink
 	for _, student := range extractResult.Students {
 		if student.Confidence < autoCreateConfidenceThreshold {
 			log.Info("process job: skipping low-confidence match",
@@ -155,12 +155,12 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 		if err != nil {
 			return fail("create note for "+student.Name, err)
 		}
-		noteURLs = append(noteURLs, result.DocURL)
+		noteLinks = append(noteLinks, NoteLink{Name: student.Name, URL: result.DocURL})
 	}
 
 	// --- Done ---
 	job.Status = JobStatusDone
-	job.NoteURLs = noteURLs
+	job.NoteLinks = noteLinks
 	job.Error = ""
 	job.FailedAt = nil
 	if err := queue.UpdateJob(ctx, *job); err != nil {
@@ -168,6 +168,6 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 	}
 
 	log.Info("process job completed",
-		"user_id", userID, "file_id", fileID, "note_count", len(noteURLs))
+		"user_id", userID, "file_id", fileID, "note_count", len(noteLinks))
 	return nil
 }

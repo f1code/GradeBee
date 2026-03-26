@@ -46,7 +46,7 @@ function DriveIcon() {
   )
 }
 
-export default function AudioUpload() {
+export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => void }) {
   const { getToken } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [status, setStatus] = useState<UploadStatus>('idle')
@@ -69,6 +69,7 @@ export default function AudioUpload() {
     setStatus('idle')
     setShowSuccess(true)
     if (fileInputRef.current) fileInputRef.current.value = ''
+    onUploadDone?.()
     setTimeout(() => setShowSuccess(false), SUCCESS_TOAST_MS)
   }
 

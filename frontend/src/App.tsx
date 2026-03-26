@@ -1,5 +1,5 @@
 import { Show, SignInButton, UserButton, useAuth } from '@clerk/react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
 import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
@@ -100,6 +100,7 @@ function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab, set
 }) {
   const { getToken } = useAuth()
   const apiUrl = import.meta.env.VITE_API_URL
+  const jobPollNowRef = useRef<(() => void) | null>(null)
 
   // Auto-show guide on first visit
   useEffect(() => {
@@ -155,8 +156,8 @@ function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab, set
         <>
           <HintBanner storageKey="gradebee:hint:notes">Upload audio — GradeBee processes it in the background and creates notes automatically.</HintBanner>
           <StudentList onSetupRequired={() => setSetupDone(false)} />
-          <JobStatus />
-          <AudioUpload />
+          <JobStatus pollNowRef={jobPollNowRef} />
+          <AudioUpload onUploadDone={() => jobPollNowRef.current?.()} />
         </>
       ) : (
         <>
