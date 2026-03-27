@@ -14,23 +14,22 @@ interface ReportHistoryProps {
   studentName: string
 }
 
+const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+
 function relativeTime(dateStr: string): string {
   const date = new Date(dateStr)
   const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffSec = Math.floor(diffMs / 1000)
-  const diffMin = Math.floor(diffSec / 60)
-  const diffHour = Math.floor(diffMin / 60)
-  const diffDay = Math.floor(diffHour / 24)
+  const diffSec = Math.round((date.getTime() - now.getTime()) / 1000)
+  const diffMin = Math.round(diffSec / 60)
+  const diffHour = Math.round(diffMin / 60)
+  const diffDay = Math.round(diffHour / 24)
+  const diffMonth = Math.round(diffDay / 30)
 
-  if (diffDay > 30) {
-    const diffMonth = Math.floor(diffDay / 30)
-    return diffMonth === 1 ? '1 month ago' : `${diffMonth} months ago`
-  }
-  if (diffDay > 0) return diffDay === 1 ? '1 day ago' : `${diffDay} days ago`
-  if (diffHour > 0) return diffHour === 1 ? '1 hour ago' : `${diffHour} hours ago`
-  if (diffMin > 0) return diffMin === 1 ? '1 minute ago' : `${diffMin} minutes ago`
-  return 'just now'
+  if (Math.abs(diffMonth) >= 1) return rtf.format(diffMonth, 'month')
+  if (Math.abs(diffDay) >= 1) return rtf.format(diffDay, 'day')
+  if (Math.abs(diffHour) >= 1) return rtf.format(diffHour, 'hour')
+  if (Math.abs(diffMin) >= 1) return rtf.format(diffMin, 'minute')
+  return rtf.format(diffSec, 'second')
 }
 
 function formatDateRange(startDate: string, endDate: string): string {

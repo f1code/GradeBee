@@ -152,7 +152,7 @@ export default function ReportViewer({
               >
                 {regenerating ? (
                   <span className="btn-loading">
-                    <span className="honeycomb-spinner honeycomb-spinner-sm" />
+                    <span className="honeycomb-spinner honeycomb-spinner-inline"><span className="hex" /><span className="hex" /><span className="hex" /></span>
                     Regenerating...
                   </span>
                 ) : (

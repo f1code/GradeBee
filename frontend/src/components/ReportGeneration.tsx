@@ -198,7 +198,7 @@ export default function ReportGeneration() {
         disabled={generating || selectedCount === 0 || !startDate || !endDate}
       >
         {generating ? (
-          <span className="btn-loading"><span className="honeycomb-spinner honeycomb-spinner-sm" /> Generating...</span>
+          <span className="btn-loading"><span className="honeycomb-spinner honeycomb-spinner-inline"><span className="hex" /><span className="hex" /><span className="hex" /></span> Generating...</span>
         ) : (
           `Generate ${selectedCount} Report${selectedCount !== 1 ? 's' : ''}`
         )}
