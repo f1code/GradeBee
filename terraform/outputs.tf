@@ -25,3 +25,8 @@ output "cockpit_token" {
   value       = scaleway_cockpit_token.alloy.secret_key
   sensitive   = true
 }
+
+output "vps_ip" {
+  description = "Public IP of the GradeBee VPS"
+  value       = scaleway_instance_ip.public.address
+}

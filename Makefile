@@ -4,7 +4,7 @@ export
 VPS_HOST ?= root@<VPS_IP>
 VPS_DIR  ?= /opt/gradebee
 
-.PHONY: dev build-frontend deploy test clean provision teardown setup-infra backup backup-list backup-restore
+.PHONY: dev build-frontend deploy test clean provision teardown backup backup-list backup-restore
 
 # --- Local development ---
 
@@ -26,7 +26,6 @@ deploy: build-frontend
 		--include='backend/***' \
 		--include='frontend/' \
 		--include='frontend/dist/***' \
-		--include='scripts/***' \
 		--exclude='*' \
 		./ $(VPS_HOST):$(VPS_DIR)/
 	ssh $(VPS_HOST) 'mkdir -p $(VPS_DIR)/data/uploads'
@@ -44,21 +43,13 @@ clean:
 # --- VPS provisioning ---
 
 provision:
-	bash scripts/provision-vps.sh
+	cd terraform && terraform apply
+	@echo "\nVPS IP: $$(cd terraform && terraform output -raw vps_ip)"
 
 teardown:
-	bash scripts/teardown-vps.sh
+	cd terraform && terraform destroy
 
-# --- Infrastructure setup (backups + logging) ---
-
-setup-infra:
-	ssh $(VPS_HOST) 'apt-get update && apt-get install -y sqlite3 awscli'
-	scp scripts/backup-db.sh $(VPS_HOST):$(VPS_DIR)/scripts/backup-db.sh
-	ssh $(VPS_HOST) 'chmod +x $(VPS_DIR)/scripts/backup-db.sh'
-	ssh $(VPS_HOST) 'cat > /etc/cron.d/gradebee-backup <<EOF\n0 */6 * * *  root  $(VPS_DIR)/scripts/backup-db.sh >> /var/log/gradebee-backup.log 2>&1\nEOF'
-	ssh $(VPS_HOST) 'aws configure set default.s3.endpoint_url https://s3.fr-par.scw.cloud'
-	ssh $(VPS_HOST) 'aws configure set default.region fr-par'
-	bash scripts/install-alloy.sh
+# --- Backups ---
 
 # Run backup manually on VPS
 backup:

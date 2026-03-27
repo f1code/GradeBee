@@ -1,0 +1,39 @@
+// --- Docker container logs ---
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.source.docker "docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.containers.targets
+  forward_to = [loki.write.cockpit.receiver]
+  labels     = {
+    job = "gradebee-docker",
+  }
+}
+
+// --- Backup cron log ---
+local.file_match "backup_log" {
+  path_targets = [
+    {__path__ = "/var/log/gradebee-backup.log"},
+  ]
+}
+
+loki.source.file "backup" {
+  targets    = local.file_match.backup_log.targets
+  forward_to = [loki.write.cockpit.receiver]
+  labels     = {
+    job = "gradebee-backup",
+  }
+}
+
+// --- Ship to Scaleway Cockpit ---
+loki.write "cockpit" {
+  endpoint {
+    url = "https://logs.cockpit.fr-par.scw.cloud/loki/api/v1/push"
+
+    headers = {
+      "X-Token" = "${cockpit_token}",
+    }
+  }
+}

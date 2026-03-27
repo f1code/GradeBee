@@ -4,6 +4,7 @@ COPY backend/go.mod backend/go.sum ./
 COPY backend/vendor ./vendor
 COPY backend/*.go ./
 COPY backend/cmd ./cmd
+COPY backend/sql ./sql
 RUN CGO_ENABLED=0 go build -o /gradebee ./cmd/server
 
 FROM alpine:latest

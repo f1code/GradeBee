@@ -1,0 +1,55 @@
+#cloud-config
+packages:
+  - ca-certificates
+  - curl
+  - sqlite3
+  - awscli
+  - apt-transport-https
+  - software-properties-common
+
+write_files:
+  - path: /opt/gradebee/scripts/backup-db.sh
+    permissions: "0755"
+    content: |
+      ${indent(6, backup_script)}
+
+  - path: /etc/cron.d/gradebee-backup
+    content: |
+      0 */6 * * *  root  /opt/gradebee/scripts/backup-db.sh >> /var/log/gradebee-backup.log 2>&1
+
+  - path: /etc/alloy/config.alloy
+    content: |
+      ${indent(6, alloy_config)}
+
+  - path: /root/.aws/config
+    content: |
+      [default]
+      s3 =
+        endpoint_url = https://s3.fr-par.scw.cloud
+      region = fr-par
+
+  - path: /root/.aws/credentials
+    permissions: "0600"
+    content: |
+      [default]
+      aws_access_key_id = ${backup_s3_key}
+      aws_secret_access_key = ${backup_s3_secret}
+
+runcmd:
+  # Docker
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
+
+  # Grafana Alloy
+  - curl -fsSL https://apt.grafana.com/gpg.key | gpg --dearmor -o /etc/apt/keyrings/grafana.gpg
+  - echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" > /etc/apt/sources.list.d/grafana.list
+
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin alloy
+  - systemctl enable docker
+  - usermod -aG docker alloy
+  - systemctl enable alloy
+  - systemctl start alloy
+  - mkdir -p /opt/gradebee/data/uploads

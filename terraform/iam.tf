@@ -23,4 +23,9 @@ data "scaleway_account_project" "current" {}
 resource "scaleway_iam_api_key" "backup_key" {
   application_id = scaleway_iam_application.gradebee_backup.id
   description    = "API key for gradebee-backup S3 access"
+  expires_at     = timeadd(timestamp(), "8760h") # 1 year
+
+  lifecycle {
+    ignore_changes = [expires_at]
+  }
 }

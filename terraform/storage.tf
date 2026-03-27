@@ -2,7 +2,6 @@
 resource "scaleway_object_bucket" "gradebee_backups" {
   name   = "gradebee-backups"
   region = "fr-par"
-  acl    = "private"
 
   lifecycle_rule {
     enabled = true
@@ -16,4 +15,10 @@ resource "scaleway_object_bucket" "gradebee_backups" {
     project = "gradebee"
     purpose = "db-backups"
   }
+}
+
+resource "scaleway_object_bucket_acl" "gradebee_backups" {
+  bucket = scaleway_object_bucket.gradebee_backups.name
+  region = "fr-par"
+  acl    = "private"
 }
