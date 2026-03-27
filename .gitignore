@@ -2,6 +2,8 @@ dist/
 .env
 .env.*
 *.log
+# Sqlite
+data/
 
 # IDE
 .idea/
