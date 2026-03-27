@@ -2,6 +2,8 @@
 packages:
   - ca-certificates
   - curl
+  - sqlite3
+  - awscli
 runcmd:
   - install -m 0755 -d /etc/apt/keyrings
   - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
@@ -10,4 +12,5 @@ runcmd:
   - apt-get update
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
   - systemctl enable docker
-  - mkdir -p /opt/gradebee
+  - mkdir -p /opt/gradebee/data/uploads
+  - mkdir -p /opt/gradebee/scripts
