@@ -11,12 +11,13 @@ interface StudentDetailProps {
   studentName: string
   className: string
   onCollapse: () => void
+  modal?: boolean
 }
 
 type Status = 'loading' | 'error' | 'success'
 type Tab = 'notes' | 'reports'
 
-export default function StudentDetail({ studentId, studentName, className, onCollapse }: StudentDetailProps) {
+export default function StudentDetail({ studentId, studentName, className, onCollapse, modal }: StudentDetailProps) {
   const { getToken } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('notes')
   const [notes, setNotes] = useState<Note[]>([])
@@ -85,9 +86,11 @@ export default function StudentDetail({ studentId, studentName, className, onCol
       data-testid={`student-detail-${studentId}`}
     >
       {/* Mobile back bar */}
-      <button className="student-detail-back" onClick={onCollapse}>
-        ← Back to list
-      </button>
+      {!modal && (
+        <button className="student-detail-back" onClick={onCollapse}>
+          ← Back to list
+        </button>
+      )}
 
       {/* Header */}
       <div className="student-detail-header">

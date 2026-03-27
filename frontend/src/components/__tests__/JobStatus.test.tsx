@@ -5,10 +5,12 @@ import type { JobListResponse } from '../../api'
 
 const mockFetchJobs = vi.fn()
 const mockRetryFailedJobs = vi.fn()
+const mockListNotes = vi.fn()
 
 vi.mock('../../api', () => ({
   fetchJobs: (...args: unknown[]) => mockFetchJobs(...args),
   retryFailedJobs: (...args: unknown[]) => mockRetryFailedJobs(...args),
+  listNotes: (...args: unknown[]) => mockListNotes(...args),
 }))
 
 vi.mock('@clerk/react', () => ({
@@ -21,6 +23,7 @@ describe('JobStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListNotes.mockResolvedValue({ notes: [] })
   })
 
   afterEach(() => {
@@ -107,7 +110,10 @@ describe('JobStatus', () => {
         fileId: 'f3',
         fileName: 'complete.m4a',
         status: 'done' as const,
-        noteLinks: [{ name: 'Alice', url: 'https://docs.google.com/document/d/doc1/edit' }, { name: 'Bob', url: 'https://docs.google.com/document/d/doc2/edit' }],
+        noteLinks: [
+          { name: 'Alice', noteId: 10, studentId: 1, className: 'Math' },
+          { name: 'Bob', noteId: 11, studentId: 2, className: 'Math' },
+        ],
         createdAt: '2026-03-26T08:00:00Z',
       }],
     })
@@ -128,7 +134,7 @@ describe('JobStatus', () => {
     mockFetchJobs
       .mockResolvedValueOnce({ active: [{ uploadId: 1, fileId: 'f1', fileName: 'a.m4a', status: 'transcribing', createdAt: '2026-03-26T10:00:00Z' }], failed: [], done: [] })
       // Second poll: job is done
-      .mockResolvedValue({ active: [], failed: [], done: [{ uploadId: 1, fileId: 'f1', fileName: 'a.m4a', status: 'done' as const, noteLinks: [{ name: 'Student', url: 'url' }], createdAt: '2026-03-26T10:00:00Z' }] })
+      .mockResolvedValue({ active: [], failed: [], done: [{ uploadId: 1, fileId: 'f1', fileName: 'a.m4a', status: 'done' as const, noteLinks: [{ name: 'Student', noteId: 5, studentId: 3, className: 'Science' }], createdAt: '2026-03-26T10:00:00Z' }] })
 
     const { default: JobStatus } = await import('../JobStatus')
     render(<JobStatus />)
@@ -144,6 +150,38 @@ describe('JobStatus', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('job-new-badge')).toBeInTheDocument()
+    })
+  })
+
+  it('opens StudentDetail modal when clicking a note link', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+
+    mockFetchJobs.mockResolvedValue({
+      active: [],
+      failed: [],
+      done: [{
+        uploadId: 4,
+        fileId: 'f4',
+        fileName: 'recording.m4a',
+        status: 'done' as const,
+        noteLinks: [{ name: 'Maxence', noteId: 20, studentId: 7, className: 'CE2' }],
+        createdAt: '2026-03-27T10:00:00Z',
+      }],
+    })
+
+    const { default: JobStatus } = await import('../JobStatus')
+    render(<JobStatus />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Maxence')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByText('Maxence'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('student-modal-overlay')).toBeInTheDocument()
+      expect(screen.getByTestId('student-detail-7')).toBeInTheDocument()
     })
   })
 })

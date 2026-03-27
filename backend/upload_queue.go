@@ -21,8 +21,10 @@ const (
 
 // NoteLink pairs a student name with the ID of the created note.
 type NoteLink struct {
-	Name   string `json:"name"`
-	NoteID int64  `json:"noteId"`
+	Name      string `json:"name"`
+	NoteID    int64  `json:"noteId"`
+	StudentID int64  `json:"studentId"`
+	ClassName string `json:"className"`
 }
 
 // UploadJob represents an async upload processing job.

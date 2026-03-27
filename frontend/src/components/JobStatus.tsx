@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { fetchJobs, retryFailedJobs, dismissJobs } from '../api'
 import type { UploadJob, JobListResponse } from '../api'
+import StudentDetail from './StudentDetail'
 
 /** Polling intervals in milliseconds. */
 const POLL_ACTIVE_MS = 3_000
@@ -45,6 +46,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newDoneIds, setNewDoneIds] = useState<Set<number>>(new Set())
+  const [modalStudent, setModalStudent] = useState<{ studentId: number; name: string; className: string } | null>(null)
   const prevDoneIdsRef = useRef<Set<number>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -223,15 +225,48 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
               isNew={newDoneIds.has(job.uploadId)}
               onDismissNew={() => dismissNewBadge(job.uploadId)}
               onDismiss={() => dismissDoneJob(job.uploadId)}
+              onOpenStudent={(s) => setModalStudent(s)}
             />
           ))}
         </div>
       )}
+
+      {/* Student detail modal */}
+      <AnimatePresence>
+        {modalStudent && (
+          <motion.div
+            className="student-modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setModalStudent(null)}
+            data-testid="student-modal-overlay"
+          >
+            <motion.div
+              className="student-modal-card card"
+              initial={{ opacity: 0, y: 30, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button className="student-modal-close" onClick={() => setModalStudent(null)} aria-label="Close">×</button>
+              <StudentDetail
+                studentId={modalStudent.studentId}
+                studentName={modalStudent.name}
+                className={modalStudent.className}
+                onCollapse={() => setModalStudent(null)}
+                modal
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
 
-function DoneJobCard({ job, isNew, onDismissNew, onDismiss }: { job: UploadJob; isNew: boolean; onDismissNew: () => void; onDismiss: () => void }) {
+function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { job: UploadJob; isNew: boolean; onDismissNew: () => void; onDismiss: () => void; onOpenStudent: (link: { studentId: number; name: string; className: string }) => void }) {
   const noteCount = job.noteLinks?.length ?? 0
 
   return (
@@ -267,9 +302,9 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss }: { job: UploadJob; 
       {job.noteLinks && job.noteLinks.length > 0 && (
         <div className="job-note-links">
           {job.noteLinks.map((link, i) => (
-            <a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="job-note-link">
+            <button key={i} className="job-note-link" onClick={() => onOpenStudent({ studentId: link.studentId, name: link.name, className: link.className })}>
               <DocIcon /> {link.name}
-            </a>
+            </button>
           ))}
         </div>
       )}

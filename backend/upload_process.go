@@ -144,7 +144,7 @@ func processUploadJob(ctx context.Context, d deps, userID string, uploadID int64
 		if err != nil {
 			return fail("create note for "+student.Name, err)
 		}
-		noteLinks = append(noteLinks, NoteLink{Name: student.Name, NoteID: result.NoteID})
+		noteLinks = append(noteLinks, NoteLink{Name: student.Name, NoteID: result.NoteID, StudentID: studentID, ClassName: student.Class})
 	}
 
 	// --- Done ---

@@ -71,7 +71,7 @@ func TestMemQueue_UpdateJob(t *testing.T) {
 		Status:    JobStatusFailed,
 		Error:     "something broke",
 		FailedAt:  &now,
-		NoteLinks: []NoteLink{{Name: "Student", NoteID: 1}},
+		NoteLinks: []NoteLink{{Name: "Student", NoteID: 1, StudentID: 10, ClassName: "Math"}},
 	}); err != nil {
 		t.Fatalf("UpdateJob: %v", err)
 	}
@@ -86,8 +86,8 @@ func TestMemQueue_UpdateJob(t *testing.T) {
 	if got.FailedAt == nil {
 		t.Error("failedAt should be set")
 	}
-	if len(got.NoteLinks) != 1 || got.NoteLinks[0].NoteID != 1 {
-		t.Errorf("noteLinks = %v, want [{Student 1}]", got.NoteLinks)
+	if len(got.NoteLinks) != 1 || got.NoteLinks[0].NoteID != 1 || got.NoteLinks[0].StudentID != 10 {
+		t.Errorf("noteLinks = %v, want [{Student 1 10 Math}]", got.NoteLinks)
 	}
 }
 

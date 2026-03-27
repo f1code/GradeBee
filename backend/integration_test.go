@@ -255,7 +255,7 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 		t.Fatal(err)
 	}
 	doneJob.Status = JobStatusDone
-	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1}}
+	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1, StudentID: 5, ClassName: "Math"}}
 	if err := queue.UpdateJob(ctx, *doneJob); err != nil {
 		t.Fatal(err)
 	}
