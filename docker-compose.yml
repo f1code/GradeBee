@@ -6,7 +6,7 @@ services:
     expose:
       - "8080"
     volumes:
-      - gradebee-data:/data
+      - /opt/gradebee/data:/data
 
   caddy:
     image: caddy:2-alpine
@@ -28,4 +28,3 @@ services:
 volumes:
   caddy-data:
   caddy-config:
-  gradebee-data:
