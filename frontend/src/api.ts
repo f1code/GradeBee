@@ -1,5 +1,155 @@
 const apiUrl = import.meta.env.VITE_API_URL
 
+// --- Class & Student Types ---
+
+export interface ClassItem {
+  id: number
+  name: string
+  studentCount: number
+}
+
+export interface StudentItem {
+  id: number
+  name: string
+  classId: number
+}
+
+// --- Class CRUD ---
+
+export async function listClasses(
+  getToken: () => Promise<string | null>
+): Promise<{ classes: ClassItem[] }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/classes`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to list classes')
+  return body
+}
+
+export async function createClass(
+  name: string,
+  getToken: () => Promise<string | null>
+): Promise<ClassItem> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/classes`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to create class')
+  return body
+}
+
+export async function renameClass(
+  id: number,
+  name: string,
+  getToken: () => Promise<string | null>
+): Promise<ClassItem> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/classes/${id}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to rename class')
+  return body
+}
+
+export async function deleteClass(
+  id: number,
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/classes/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to delete class')
+  }
+}
+
+// --- Student CRUD ---
+
+export async function listStudents(
+  classId: number,
+  getToken: () => Promise<string | null>
+): Promise<{ students: StudentItem[] }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/classes/${classId}/students`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to list students')
+  return body
+}
+
+export async function createStudent(
+  classId: number,
+  name: string,
+  getToken: () => Promise<string | null>
+): Promise<StudentItem> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/classes/${classId}/students`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to create student')
+  return body
+}
+
+export async function renameStudent(
+  id: number,
+  name: string,
+  getToken: () => Promise<string | null>
+): Promise<StudentItem> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${id}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to rename student')
+  return body
+}
+
+export async function deleteStudent(
+  id: number,
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to delete student')
+  }
+}
+
+// --- Audio Upload ---
+
 export async function uploadAudio(
   file: File,
   getToken: () => Promise<string | null>

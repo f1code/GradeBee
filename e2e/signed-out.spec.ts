@@ -20,9 +20,9 @@ test.describe('Signed-out experience', () => {
     await expect(page.getByTestId('sign-in-button')).toBeEnabled()
   })
 
-  test('does not show the Drive setup section', async ({ page }) => {
+  test('does not show authenticated UI when signed out', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByTestId('drive-setup')).not.toBeVisible()
-    await expect(page.getByTestId('drive-setup-success')).not.toBeVisible()
+    await expect(page.getByTestId('audio-upload')).not.toBeVisible()
+    await expect(page.getByTestId('student-list')).not.toBeVisible()
   })
 })

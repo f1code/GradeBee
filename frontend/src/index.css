@@ -275,131 +275,63 @@ button:disabled {
   font-weight: 500;
 }
 
-/* --- Setup/DriveSetup --- */
-.setup {
-  background: var(--chalk);
-  border-radius: var(--radius);
-  padding: 2rem;
-  box-shadow: var(--shadow-md);
-}
-
-.setup p {
-  color: var(--ink-muted);
-  margin-bottom: 1rem;
-  line-height: 1.65;
-}
-
-.setup-done {
-  background: var(--chalk);
-  border-radius: var(--radius);
-  padding: 2rem;
-  box-shadow: var(--shadow-md);
-}
-
-.setup-done h2 {
-  color: var(--success-green);
-}
-
-.setup-done-links {
-  display: flex;
-  gap: 1rem;
-  margin: 1.25rem 0;
-  flex-wrap: wrap;
-}
-
-.drive-link-card {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  background: var(--parchment);
-  border: 1.5px solid var(--comb);
-  border-radius: var(--radius-sm);
-  padding: 0.85rem 1.1rem;
-  text-decoration: none;
-  color: var(--ink);
-  flex: 1;
-  min-width: 200px;
-  transition: all 0.15s ease;
-}
-
-.drive-link-card:hover {
-  border-color: var(--honey);
-  background: var(--honey-light);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
-  text-decoration: none;
-}
-
-.drive-link-card .link-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: 1.25rem;
-}
-
-.drive-link-card .link-label {
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.setup-instruction {
-  margin: 1rem 0;
-  color: var(--ink-muted);
-}
-
 /* --- Student list --- */
 .student-list {
   margin-top: 0;
 }
 
-.student-list .toolbar {
+.student-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.75rem;
+  margin-bottom: 1rem;
   gap: 0.75rem;
-  flex-wrap: wrap;
 }
 
-.toolbar-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: var(--chalk);
-  border: 1.5px solid var(--comb);
+.student-list-heading {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
   color: var(--ink);
-  padding: 0.5rem 1rem;
-  border-radius: 100px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition: all 0.15s ease;
-}
-
-.toolbar-link:hover {
-  background: var(--honey-light);
-  border-color: var(--honey);
-  text-decoration: none;
+  margin: 0;
 }
 
 .class-group {
   background: var(--chalk);
   border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
+  padding: 0;
   box-shadow: var(--shadow-md);
   margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.class-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.class-group-header:hover {
+  background: var(--honey-light);
 }
 
 .class-group h3 {
-  margin: 0 0 0.75rem;
+  margin: 0;
   font-size: 1.05rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.class-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Hexagon bullet before class name */
@@ -415,18 +347,26 @@ button:disabled {
   font-size: 0.8rem;
   color: var(--ink-muted);
   font-weight: 400;
+  flex-shrink: 0;
+}
+
+.class-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
 }
 
 .class-group ul {
   list-style: none;
-  padding: 0;
+  padding: 0 1.25rem;
   margin: 0;
 }
 
 .class-group li {
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.5rem;
   border-radius: var(--radius-sm);
-  transition: background 0.12s ease, padding-left 0.12s ease;
+  transition: background 0.12s ease;
   font-size: 0.95rem;
 }
 
@@ -436,7 +376,212 @@ button:disabled {
 
 .class-group li:hover {
   background: var(--honey-light);
-  padding-left: 1rem;
+}
+
+.student-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.student-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.class-group li:hover .student-actions {
+  opacity: 1;
+}
+
+/* --- Icon buttons (pencil / trash) --- */
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  padding: 0.35rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: auto;
+  box-shadow: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.icon-btn:hover {
+  color: var(--ink);
+  background: var(--comb);
+  transform: none;
+  box-shadow: none;
+}
+
+.icon-btn-danger:hover {
+  color: var(--error-red);
+  background: rgba(197, 48, 48, 0.08);
+}
+
+/* Desktop: hide class-level actions until hover */
+@media (min-width: 641px) {
+  .class-actions .icon-btn {
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+  }
+  .class-group-header:hover .class-actions .icon-btn {
+    opacity: 1;
+  }
+}
+
+/* --- Inline edit input --- */
+
+.inline-edit-input {
+  font-family: var(--font-body);
+  font-size: inherit;
+  font-weight: inherit;
+  color: var(--ink);
+  background: var(--chalk);
+  border: 1.5px solid var(--honey);
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+  width: 100%;
+  max-width: 260px;
+}
+
+/* --- Delete confirmation bar --- */
+
+.delete-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: rgba(197, 48, 48, 0.06);
+  border: 1px solid rgba(197, 48, 48, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  overflow: hidden;
+}
+
+.delete-confirm-inline {
+  margin: 0;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.btn-danger {
+  background: var(--error-red);
+  color: var(--chalk);
+}
+
+.btn-danger:hover {
+  background: #a12828;
+  color: var(--chalk);
+}
+
+/* --- Small button variant --- */
+
+.btn-sm {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.85rem;
+  min-height: 36px;
+}
+
+/* --- Add class form --- */
+
+.add-class-form {
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.add-class-form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-class-input {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  transition: border-color 0.15s;
+}
+
+.add-class-input:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+}
+
+/* --- Add student form --- */
+
+.add-student-form {
+  padding: 0.5rem 1.25rem 1rem;
+}
+
+.add-student-form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-student-input {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--parchment);
+  border: 1.5px solid var(--comb);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+  transition: border-color 0.15s;
+}
+
+.add-student-input:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+}
+
+.add-form-error {
+  color: var(--error-red);
+  font-size: 0.85rem;
+  margin: 0.4rem 0 0;
+}
+
+/* --- Students loading state inside class --- */
+
+.class-students-loading {
+  display: flex;
+  justify-content: center;
+  padding: 1.25rem;
 }
 
 /* --- Info / empty states --- */
@@ -710,12 +855,17 @@ button:disabled {
     height: 300px;
   }
 
-  .setup-done-links {
-    flex-direction: column;
+  .class-group-header {
+    padding: 0.85rem 1rem;
   }
 
-  .class-group {
-    padding: 1rem 1.15rem;
+  /* Mobile: always show action icons */
+  .student-actions {
+    opacity: 1;
+  }
+
+  .class-actions .icon-btn {
+    opacity: 1;
   }
 
   /* App nav: full-width tabs */
@@ -756,15 +906,18 @@ button:disabled {
     font-size: 1.35rem;
   }
 
-  .student-list .toolbar {
+  .student-list-header {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .student-list .toolbar .toolbar-link,
-  .student-list .toolbar .btn-secondary {
+  .add-class-form-row {
+    flex-direction: column;
+  }
+
+  .add-class-form-row button {
+    width: 100%;
     justify-content: center;
-    text-align: center;
   }
 
   .class-group h3 {
@@ -774,6 +927,46 @@ button:disabled {
   .class-group li {
     font-size: 0.88rem;
   }
+
+  .delete-confirm {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  /* iOS zoom prevention */
+  .add-class-input,
+  .add-student-input,
+  .inline-edit-input {
+    font-size: 1rem;
+  }
+}
+
+/* --- Flash error --- */
+
+.flash-error {
+  position: sticky;
+  bottom: 0;
+  background: var(--error-red);
+  color: var(--chalk);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  margin-top: 0.75rem;
+}
+
+/* --- Student fetch error inside class --- */
+
+.class-students-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  color: var(--error-red);
+  font-size: 0.9rem;
 }
 
 /* ============================================

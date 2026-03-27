@@ -1,7 +1,6 @@
-import { Show, SignInButton, UserButton, useAuth } from '@clerk/react'
+import { Show, SignInButton, UserButton } from '@clerk/react'
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
-import DriveSetup from './components/DriveSetup'
 import StudentList from './components/StudentList'
 import AudioUpload from './components/AudioUpload'
 import JobStatus from './components/JobStatus'
@@ -42,7 +41,6 @@ function BeeIcon({ size = 28 }: { size?: number }) {
 }
 
 function App() {
-  const [setupDone, setSetupDone] = useState<boolean | null>(null)
   const [activeTab, setActiveTab] = useState<'notes' | 'reports'>('notes')
   const [showGuide, setShowGuide] = useState(false)
 
@@ -83,7 +81,7 @@ function App() {
           </div>
         </Show>
         <Show when="signed-in">
-          <SignedInContent setupDone={setupDone} setSetupDone={setSetupDone} activeTab={activeTab} setActiveTab={setActiveTab} setShowGuide={setShowGuide} />
+          <SignedInContent activeTab={activeTab} setActiveTab={setActiveTab} setShowGuide={setShowGuide} />
         </Show>
       </main>
       {showGuide && <HowItWorks onClose={() => setShowGuide(false)} />}
@@ -91,15 +89,11 @@ function App() {
   )
 }
 
-function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab, setShowGuide }: {
-  setupDone: boolean | null
-  setSetupDone: (v: boolean) => void
+function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
   activeTab: 'notes' | 'reports'
   setActiveTab: (v: 'notes' | 'reports') => void
   setShowGuide: (v: boolean) => void
 }) {
-  const { getToken } = useAuth()
-  const apiUrl = import.meta.env.VITE_API_URL
   const jobPollNowRef = useRef<(() => void) | null>(null)
 
   // Auto-show guide on first visit
@@ -110,29 +104,7 @@ function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab, set
     }
   }, [setShowGuide])
 
-  useEffect(() => {
-    let cancelled = false
-    async function checkSetup() {
-      try {
-        const token = await getToken()
-        if (!token) return          // session not ready yet; effect will re-run
-        const resp = await fetch(`${apiUrl}/setup`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!resp.ok) throw new Error('failed to check setup')
-        const data = await resp.json()
-        if (!cancelled) setSetupDone(data.setupDone === true)
-      } catch {
-        if (!cancelled) setSetupDone(false)
-      }
-    }
-    checkSetup()
-    return () => { cancelled = true }
-  }, [getToken, apiUrl, setSetupDone])
-
-  return setupDone === null ? (
-    <p className="loading-text">Loading...</p>
-  ) : setupDone ? (
+  return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -155,7 +127,7 @@ function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab, set
       {activeTab === 'notes' ? (
         <>
           <HintBanner storageKey="gradebee:hint:notes">Upload audio — GradeBee processes it in the background and creates notes automatically.</HintBanner>
-          <StudentList onSetupRequired={() => setSetupDone(false)} />
+          <StudentList />
           <JobStatus pollNowRef={jobPollNowRef} />
           <AudioUpload onUploadDone={() => jobPollNowRef.current?.()} />
         </>
@@ -166,8 +138,6 @@ function SignedInContent({ setupDone, setSetupDone, activeTab, setActiveTab, set
         </>
       )}
     </motion.div>
-  ) : (
-    <DriveSetup onComplete={() => setSetupDone(true)} />
   )
 }
 

@@ -1,26 +1,14 @@
 import { setupClerkTestingToken } from '@clerk/testing/playwright'
 import { test, expect, Page } from '@playwright/test'
 
-async function mockAuthenticatedApp(page: Page) {
-  await page.route('**/setup', async (route) => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ setupDone: true }),
-      })
-    } else {
-      await route.continue()
-    }
-  })
-  await page.route('**/students', async (route) => {
-    if (route.request().method() === 'GET') {
+async function mockClasses(page: Page) {
+  await page.route('**/classes', async (route) => {
+    if (route.request().method() === 'GET' && !route.request().url().includes('/classes/')) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/abc/edit',
-          classes: [{ name: '5A', students: [{ name: 'Emma' }] }],
+          classes: [{ id: 1, name: '5A', studentCount: 1 }],
         }),
       })
     } else {
@@ -31,7 +19,7 @@ async function mockAuthenticatedApp(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await setupClerkTestingToken({ page })
-  await mockAuthenticatedApp(page)
+  await mockClasses(page)
 })
 
 test.describe('Upload and job processing', () => {
@@ -76,7 +64,7 @@ test.describe('Upload and job processing', () => {
                   fileId: 'f1',
                   fileName: 'recording.mp3',
                   status: 'done',
-                  noteLinks: [{ name: 'Student', url: 'https://docs.google.com/document/d/abc/edit' }],
+                  noteLinks: [{ name: 'Emma', noteId: 1 }],
                 },
               ],
             }),
@@ -97,7 +85,7 @@ test.describe('Upload and job processing', () => {
       buffer: Buffer.from('fake-audio'),
     })
 
-    // Success toast appears (upload-progress may flash too quickly with instant mock)
+    // Success toast appears
     await expect(page.getByTestId('upload-success')).toBeVisible({ timeout: 5000 })
     await expect(page.getByTestId('upload-success')).toContainText('Uploaded! Processing in background.')
 
@@ -108,7 +96,6 @@ test.describe('Upload and job processing', () => {
     // Eventually transitions to done
     await expect(page.getByTestId('job-done')).toBeVisible({ timeout: 15000 })
     await expect(page.getByTestId('job-done')).toContainText('1 note created')
-    await expect(page.getByTestId('job-done').locator('a.job-note-link')).toBeVisible()
   })
 
   test('upload error shows error state and retry', async ({ page }) => {
@@ -201,7 +188,6 @@ test.describe('Upload and job processing', () => {
       if (route.request().method() === 'GET' && !route.request().url().includes('/jobs/')) {
         jobsCallCount++
         if (jobsCallCount <= 2) {
-          // Initial state: one failed job
           await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -219,7 +205,6 @@ test.describe('Upload and job processing', () => {
             }),
           })
         } else {
-          // After retry: job moved to active
           await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -269,7 +254,7 @@ test.describe('Upload and job processing', () => {
     await expect(page.getByTestId('job-active')).toContainText('bad.mp3')
   })
 
-  test('done jobs show note links and new badge', async ({ page }) => {
+  test('done jobs show note count and new badge', async ({ page }) => {
     await page.route('**/jobs', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
@@ -284,8 +269,8 @@ test.describe('Upload and job processing', () => {
                 fileName: 'lesson.mp3',
                 status: 'done',
                 noteLinks: [
-                  { name: 'Alice', url: 'https://docs.google.com/doc1' },
-                  { name: 'Bob', url: 'https://docs.google.com/doc2' },
+                  { name: 'Alice', noteId: 1 },
+                  { name: 'Bob', noteId: 2 },
                 ],
               },
             ],
@@ -301,14 +286,6 @@ test.describe('Upload and job processing', () => {
     const doneCard = page.getByTestId('job-done')
     await expect(doneCard).toBeVisible({ timeout: 10000 })
     await expect(doneCard).toContainText('2 notes created')
-
-    // Two "Open note" links
-    const noteLinks = doneCard.locator('a.job-note-link')
-    await expect(noteLinks).toHaveCount(2)
-    await expect(noteLinks.nth(0)).toHaveAttribute('href', 'https://docs.google.com/doc1')
-    await expect(noteLinks.nth(0)).toHaveAttribute('target', '_blank')
-    await expect(noteLinks.nth(1)).toHaveAttribute('href', 'https://docs.google.com/doc2')
-    await expect(noteLinks.nth(1)).toHaveAttribute('target', '_blank')
 
     // New badge visible
     const badge = page.getByTestId('job-new-badge')
@@ -334,16 +311,14 @@ test.describe('Upload and job processing', () => {
 
     await page.goto('/')
 
-    // Wait for the page to load (student list should be visible)
-    await expect(page.getByTestId('student-list')).toBeVisible({ timeout: 10000 })
+    // Wait for the page to load (audio upload should be visible)
+    await expect(page.getByTestId('audio-upload')).toBeVisible({ timeout: 10000 })
 
     // Job status should not be visible
     await expect(page.getByTestId('job-status')).not.toBeVisible()
   })
 
   test('job polling error shows error message', async ({ page }) => {
-    // First call succeeds with an active job, subsequent calls fail.
-    // This ensures `jobs` is non-null so the error div can render.
     let jobsErrorCallCount = 0
     await page.route('**/jobs', async (route) => {
       if (route.request().method() === 'GET') {

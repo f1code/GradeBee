@@ -22,6 +22,6 @@ setup('authenticate', async ({ page }) => {
     emailAddress: TEST_EMAIL,
   })
 
-  await expect(page.getByTestId('drive-setup')).toBeVisible({ timeout: 15000 })
+  await expect(page.getByTestId('audio-upload')).toBeVisible({ timeout: 15000 })
   await page.context().storageState({ path: authFile })
 })

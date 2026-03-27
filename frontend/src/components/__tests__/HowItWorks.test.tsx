@@ -7,7 +7,7 @@ describe('HowItWorks', () => {
     render(<HowItWorks onClose={vi.fn()} />)
     expect(screen.getByText('Set up your class list')).toBeInTheDocument()
     expect(screen.getByText('Record your observations')).toBeInTheDocument()
-    expect(screen.getByText('Review & edit notes')).toBeInTheDocument()
+    expect(screen.getByText('Notes appear automatically')).toBeInTheDocument()
     expect(screen.getByText('Generate report cards')).toBeInTheDocument()
   })
 
