@@ -40,7 +40,7 @@ describe('JobStatus', () => {
 
   it('renders active jobs with spinner and status label', async () => {
     mockFetchJobs.mockResolvedValue({
-      active: [{ fileId: 'f1', fileName: 'lesson.m4a', status: 'transcribing', createdAt: '2026-03-26T10:00:00Z' }],
+      active: [{ uploadId: 1, fileId: 'f1', fileName: 'lesson.m4a', status: 'transcribing', createdAt: '2026-03-26T10:00:00Z' }],
       failed: [],
       done: [],
     })
@@ -57,7 +57,7 @@ describe('JobStatus', () => {
   it('renders failed jobs with retry button', async () => {
     mockFetchJobs.mockResolvedValue({
       active: [],
-      failed: [{ fileId: 'f2', fileName: 'bad.mp3', status: 'failed', error: 'Whisper down', createdAt: '2026-03-26T09:00:00Z' }],
+      failed: [{ uploadId: 2, fileId: 'f2', fileName: 'bad.mp3', status: 'failed', error: 'Whisper down', createdAt: '2026-03-26T09:00:00Z' }],
       done: [],
     })
     mockRetryFailedJobs.mockResolvedValue(undefined)
@@ -79,7 +79,7 @@ describe('JobStatus', () => {
     // All polls return failed jobs until retry resolves
     mockFetchJobs.mockResolvedValue({
       active: [],
-      failed: [{ fileId: 'f2', fileName: 'bad.mp3', status: 'failed', error: 'err', createdAt: '2026-03-26T09:00:00Z' }],
+      failed: [{ uploadId: 2, fileId: 'f2', fileName: 'bad.mp3', status: 'failed', error: 'err', createdAt: '2026-03-26T09:00:00Z' }],
       done: [],
     })
     mockRetryFailedJobs.mockResolvedValue(undefined)
@@ -103,6 +103,7 @@ describe('JobStatus', () => {
       active: [],
       failed: [],
       done: [{
+        uploadId: 3,
         fileId: 'f3',
         fileName: 'complete.m4a',
         status: 'done' as const,
@@ -125,9 +126,9 @@ describe('JobStatus', () => {
   it('shows "new" badge for newly completed jobs', async () => {
     // First poll: no done jobs
     mockFetchJobs
-      .mockResolvedValueOnce({ active: [{ fileId: 'f1', fileName: 'a.m4a', status: 'transcribing', createdAt: '2026-03-26T10:00:00Z' }], failed: [], done: [] })
+      .mockResolvedValueOnce({ active: [{ uploadId: 1, fileId: 'f1', fileName: 'a.m4a', status: 'transcribing', createdAt: '2026-03-26T10:00:00Z' }], failed: [], done: [] })
       // Second poll: job is done
-      .mockResolvedValue({ active: [], failed: [], done: [{ fileId: 'f1', fileName: 'a.m4a', status: 'done' as const, noteLinks: [{ name: 'Student', url: 'url' }], createdAt: '2026-03-26T10:00:00Z' }] })
+      .mockResolvedValue({ active: [], failed: [], done: [{ uploadId: 1, fileId: 'f1', fileName: 'a.m4a', status: 'done' as const, noteLinks: [{ name: 'Student', url: 'url' }], createdAt: '2026-03-26T10:00:00Z' }] })
 
     const { default: JobStatus } = await import('../JobStatus')
     render(<JobStatus />)

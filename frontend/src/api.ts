@@ -472,6 +472,7 @@ export async function importFromDrive(
 // --- Async Jobs ---
 
 export interface UploadJob {
+  uploadId: number
   fileId: string
   fileName: string
   status: 'queued' | 'transcribing' | 'extracting' | 'creating_notes' | 'done' | 'failed'
@@ -514,7 +515,7 @@ export async function retryFailedJobs(
 
 export async function dismissJobs(
   getToken: () => Promise<string | null>,
-  fileIds: string[]
+  uploadIds: number[]
 ): Promise<void> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/jobs/dismiss`, {
@@ -523,7 +524,7 @@ export async function dismissJobs(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ fileIds }),
+    body: JSON.stringify({ uploadIds }),
   })
   if (!resp.ok) {
     const body = await resp.json()

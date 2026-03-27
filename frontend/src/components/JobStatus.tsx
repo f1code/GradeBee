@@ -44,8 +44,8 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   const [jobs, setJobs] = useState<JobListResponse | null>(null)
   const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [newDoneIds, setNewDoneIds] = useState<Set<string>>(new Set())
-  const prevDoneIdsRef = useRef<Set<string>>(new Set())
+  const [newDoneIds, setNewDoneIds] = useState<Set<number>>(new Set())
+  const prevDoneIdsRef = useRef<Set<number>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const poll = useCallback(async () => {
@@ -55,8 +55,8 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
       setError(null)
 
       // Detect newly completed jobs.
-      const currentDoneIds = new Set(data.done.map(j => j.fileId))
-      const fresh = new Set<string>()
+      const currentDoneIds = new Set(data.done.map(j => j.uploadId))
+      const fresh = new Set<number>()
       for (const id of currentDoneIds) {
         if (!prevDoneIdsRef.current.has(id)) {
           fresh.add(id)
@@ -108,17 +108,17 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
     }
   }
 
-  function dismissNewBadge(fileId: string) {
+  function dismissNewBadge(uploadId: number) {
     setNewDoneIds(prev => {
       const next = new Set(prev)
-      next.delete(fileId)
+      next.delete(uploadId)
       return next
     })
   }
 
-  async function dismissDoneJob(fileId: string) {
+  async function dismissDoneJob(uploadId: number) {
     try {
-      await dismissJobs(getToken, [fileId])
+      await dismissJobs(getToken, [uploadId])
       if (timerRef.current) clearTimeout(timerRef.current)
       await poll()
     } catch (err) {
@@ -127,7 +127,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   }
 
   async function dismissAllDone() {
-    const ids = jobs?.done.map(j => j.fileId) ?? []
+    const ids = jobs?.done.map(j => j.uploadId) ?? []
     if (ids.length === 0) return
     try {
       await dismissJobs(getToken, ids)
@@ -164,7 +164,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
       <AnimatePresence>
         {jobs.active.map(job => (
           <motion.div
-            key={job.fileId}
+            key={job.uploadId}
             className="job-card job-card-active"
             data-testid="job-active"
             initial={{ opacity: 0, height: 0 }}
@@ -187,7 +187,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
       {jobs.failed.length > 0 && (
         <div className="job-section-failed" data-testid="job-failed-section">
           {jobs.failed.map(job => (
-            <div key={job.fileId} className="job-card job-card-failed" data-testid="job-failed">
+            <div key={job.uploadId} className="job-card job-card-failed" data-testid="job-failed">
               <div className="job-card-row">
                 <span className="job-failed-icon">✕</span>
                 <div className="job-card-info">
@@ -218,11 +218,11 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
           </div>
           {doneSlice.map(job => (
             <DoneJobCard
-              key={job.fileId}
+              key={job.uploadId}
               job={job}
-              isNew={newDoneIds.has(job.fileId)}
-              onDismissNew={() => dismissNewBadge(job.fileId)}
-              onDismiss={() => dismissDoneJob(job.fileId)}
+              isNew={newDoneIds.has(job.uploadId)}
+              onDismissNew={() => dismissNewBadge(job.uploadId)}
+              onDismiss={() => dismissDoneJob(job.uploadId)}
             />
           ))}
         </div>
