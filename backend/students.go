@@ -126,7 +126,7 @@ func handleCreateClass(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusCreated, c)
+	writeJSON(w, http.StatusCreated, ClassWithCount{Class: c, StudentCount: 0})
 }
 
 func handleUpdateClass(w http.ResponseWriter, r *http.Request) {

@@ -363,7 +363,6 @@ export default function StudentList() {
                   className="class-group"
                   data-testid={`class-group-${cls.id}`}
                   variants={cardVariants}
-                  layout
                 >
                   {/* Delete confirmation */}
                   <AnimatePresence>
@@ -417,7 +416,13 @@ export default function StudentList() {
                         >
                           <TrashIcon />
                         </button>
-                        <ChevronIcon open={isExpanded} />
+                        <button
+                          className="icon-btn"
+                          onClick={() => toggleExpand(cls.id)}
+                          aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                        >
+                          <ChevronIcon open={isExpanded} />
+                        </button>
                       </div>
                     </div>
                   )}
