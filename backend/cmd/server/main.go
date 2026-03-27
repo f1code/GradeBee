@@ -24,8 +24,26 @@ func main() {
 	}
 	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
+	// Open SQLite database and run migrations.
+	dbPath := os.Getenv("DB_PATH")
+	if dbPath == "" {
+		dbPath = "/data/gradebee.db"
+	}
+	db, err := handler.OpenDB(dbPath)
+	if err != nil {
+		panic("open db: " + err.Error())
+	}
+	defer db.Close()
+
+	if err := handler.RunMigrations(db); err != nil {
+		panic("run migrations: " + err.Error())
+	}
+
+	// Initialize dependencies with DB handle.
+	d := handler.NewProdDeps(db)
+
 	// Start in-memory upload queue with 4 workers.
-	queue := handler.InitUploadQueue(handler.ServiceDeps(), 4)
+	queue := handler.InitUploadQueue(d, 4)
 	defer queue.Close()
 
 	port := os.Getenv("PORT")

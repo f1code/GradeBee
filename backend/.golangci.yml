@@ -17,6 +17,7 @@ linters-settings:
     exclude-functions:
       - (io.Closer).Close        # Common to ignore in defer
       - (*os.File).Close
+      - (*database/sql.Tx).Rollback  # Rollback after failed tx is best-effort
   gocritic:
     enabled-tags:
       - diagnostic

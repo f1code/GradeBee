@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"log/slog"
@@ -154,3 +155,11 @@ func (mockDepsGoogleFail) GetUploadQueue() (UploadQueue, error) {
 func (mockDepsGoogleFail) GetGradeBeeMetadata(_ context.Context, _ string) (*gradeBeeMetadata, error) {
 	return nil, fmt.Errorf("not configured")
 }
+
+func (mockDepsGoogleFail) GetDB() *sql.DB                  { return nil }
+func (mockDepsGoogleFail) GetClassRepo() *ClassRepo         { return nil }
+func (mockDepsGoogleFail) GetStudentRepo() *StudentRepo     { return nil }
+func (mockDepsGoogleFail) GetNoteRepo() *NoteRepo           { return nil }
+func (mockDepsGoogleFail) GetReportRepo() *ReportRepo       { return nil }
+func (mockDepsGoogleFail) GetExampleRepo() *ReportExampleRepo { return nil }
+func (mockDepsGoogleFail) GetUploadRepo() *UploadRepo       { return nil }

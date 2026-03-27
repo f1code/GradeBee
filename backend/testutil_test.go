@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -167,6 +168,14 @@ func (m *mockDepsAll) GetGradeBeeMetadata(_ context.Context, _ string) (*gradeBe
 	}
 	return m.metadata, nil
 }
+
+func (m *mockDepsAll) GetDB() *sql.DB                        { return nil }
+func (m *mockDepsAll) GetClassRepo() *ClassRepo               { return nil }
+func (m *mockDepsAll) GetStudentRepo() *StudentRepo           { return nil }
+func (m *mockDepsAll) GetNoteRepo() *NoteRepo                 { return nil }
+func (m *mockDepsAll) GetReportRepo() *ReportRepo             { return nil }
+func (m *mockDepsAll) GetExampleRepo() *ReportExampleRepo     { return nil }
+func (m *mockDepsAll) GetUploadRepo() *UploadRepo             { return nil }
 
 // stubExtractor implements Extractor for tests.
 type stubExtractor struct {
