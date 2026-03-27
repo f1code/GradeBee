@@ -148,6 +148,98 @@ export async function deleteStudent(
   }
 }
 
+// --- Notes ---
+
+export interface Note {
+  id: number
+  studentId: number
+  date: string        // YYYY-MM-DD
+  summary: string
+  transcript: string | null
+  source: 'auto' | 'manual'
+  createdAt: string
+  updatedAt: string
+}
+
+export async function listNotes(
+  studentId: number,
+  getToken: () => Promise<string | null>
+): Promise<{ notes: Note[] }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${studentId}/notes`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to list notes')
+  return body
+}
+
+export async function getNote(
+  noteId: number,
+  getToken: () => Promise<string | null>
+): Promise<Note> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/notes/${noteId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to get note')
+  return body
+}
+
+export async function createNote(
+  studentId: number,
+  data: { date: string; summary: string },
+  getToken: () => Promise<string | null>
+): Promise<Note> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${studentId}/notes`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to create note')
+  return body
+}
+
+export async function updateNote(
+  noteId: number,
+  data: { summary: string },
+  getToken: () => Promise<string | null>
+): Promise<Note> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/notes/${noteId}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to update note')
+  return body
+}
+
+export async function deleteNote(
+  noteId: number,
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/notes/${noteId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to delete note')
+  }
+}
+
 // --- Audio Upload ---
 
 export async function uploadAudio(

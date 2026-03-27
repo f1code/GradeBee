@@ -14,6 +14,7 @@ import {
 } from '../api'
 import AddClassForm from './AddClassForm'
 import AddStudentForm from './AddStudentForm'
+import StudentDetail from './StudentDetail'
 
 function HexBullet() {
   return (
@@ -81,6 +82,7 @@ export default function StudentList() {
   const [flashError, setFlashError] = useState<string | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [collapsed, setCollapsed] = useState(isMobile)
+  const [expandedStudentId, setExpandedStudentId] = useState<number | null>(null)
 
   useEffect(() => {
     setCollapsed(isMobile)
@@ -478,27 +480,56 @@ export default function StudentList() {
                                           onCancel={() => setEditingStudentId(null)}
                                         />
                                       ) : (
-                                        <div className="student-row">
-                                          <span className="student-name">{s.name}</span>
-                                          <div className="student-actions">
-                                            <button
-                                              className="icon-btn"
-                                              onClick={() => setEditingStudentId(s.id)}
-                                              aria-label={`Rename ${s.name}`}
-                                              data-testid={`rename-student-${s.id}`}
+                                        <>
+                                          <div className="student-row">
+                                            <span
+                                              className={`student-name student-name-clickable${expandedStudentId === s.id ? ' student-name-active' : ''}`}
+                                              onClick={() => setExpandedStudentId(expandedStudentId === s.id ? null : s.id)}
+                                              role="button"
+                                              tabIndex={0}
+                                              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedStudentId(expandedStudentId === s.id ? null : s.id) } }}
                                             >
-                                              <PencilIcon />
-                                            </button>
-                                            <button
-                                              className="icon-btn icon-btn-danger"
-                                              onClick={() => setDeletingId({ type: 'student', id: s.id, name: s.name })}
-                                              aria-label={`Delete ${s.name}`}
-                                              data-testid={`delete-student-${s.id}`}
-                                            >
-                                              <TrashIcon />
-                                            </button>
+                                              {s.name}
+                                              <ChevronIcon open={expandedStudentId === s.id} />
+                                            </span>
+                                            <div className="student-actions">
+                                              <button
+                                                className="icon-btn"
+                                                onClick={e => { e.stopPropagation(); setEditingStudentId(s.id) }}
+                                                aria-label={`Rename ${s.name}`}
+                                                data-testid={`rename-student-${s.id}`}
+                                              >
+                                                <PencilIcon />
+                                              </button>
+                                              <button
+                                                className="icon-btn icon-btn-danger"
+                                                onClick={e => { e.stopPropagation(); setDeletingId({ type: 'student', id: s.id, name: s.name }) }}
+                                                aria-label={`Delete ${s.name}`}
+                                                data-testid={`delete-student-${s.id}`}
+                                              >
+                                                <TrashIcon />
+                                              </button>
+                                            </div>
                                           </div>
-                                        </div>
+                                          <AnimatePresence>
+                                            {expandedStudentId === s.id && (
+                                              <motion.div
+                                                initial={{ opacity: 0, height: 0 }}
+                                                animate={{ opacity: 1, height: 'auto' }}
+                                                exit={{ opacity: 0, height: 0 }}
+                                                transition={{ duration: 0.25 }}
+                                                style={{ overflow: 'hidden' }}
+                                              >
+                                                <StudentDetail
+                                                  studentId={s.id}
+                                                  studentName={s.name}
+                                                  className={cls.name}
+                                                  onCollapse={() => setExpandedStudentId(null)}
+                                                />
+                                              </motion.div>
+                                            )}
+                                          </AnimatePresence>
+                                        </>
                                       )}
                                     </motion.li>
                                   )

@@ -185,7 +185,12 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+	updated, err := serviceDeps.GetNoteRepo().GetByID(r.Context(), noteID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
