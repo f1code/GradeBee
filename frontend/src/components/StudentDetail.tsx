@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { listNotes, createNote, updateNote, deleteNote, type Note } from '../api'
 import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
+import ReportHistory from './ReportHistory'
 
 interface StudentDetailProps {
   studentId: number
@@ -13,9 +14,11 @@ interface StudentDetailProps {
 }
 
 type Status = 'loading' | 'error' | 'success'
+type Tab = 'notes' | 'reports'
 
 export default function StudentDetail({ studentId, studentName, className, onCollapse }: StudentDetailProps) {
   const { getToken } = useAuth()
+  const [activeTab, setActiveTab] = useState<Tab>('notes')
   const [notes, setNotes] = useState<Note[]>([])
   const [status, setStatus] = useState<Status>('loading')
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
@@ -92,13 +95,31 @@ export default function StudentDetail({ studentId, studentName, className, onCol
           <h3 className="student-detail-name">{studentName}</h3>
           <span className="student-detail-class">{className}</span>
         </div>
+        {activeTab === 'notes' && (
+          <button
+            className="btn-sm"
+            onClick={() => { setAddingNote(true); setEditingNoteId(null) }}
+            disabled={addingNote}
+            data-testid="add-note-btn"
+          >
+            + Add Note
+          </button>
+        )}
+      </div>
+
+      {/* Tab toggle */}
+      <div className="student-detail-tabs">
         <button
-          className="btn-sm"
-          onClick={() => { setAddingNote(true); setEditingNoteId(null) }}
-          disabled={addingNote}
-          data-testid="add-note-btn"
+          className={`student-detail-tab${activeTab === 'notes' ? ' student-detail-tab-active' : ''}`}
+          onClick={() => setActiveTab('notes')}
         >
-          + Add Note
+          Notes
+        </button>
+        <button
+          className={`student-detail-tab${activeTab === 'reports' ? ' student-detail-tab-active' : ''}`}
+          onClick={() => setActiveTab('reports')}
+        >
+          Reports
         </button>
       </div>
 
@@ -118,43 +139,49 @@ export default function StudentDetail({ studentId, studentName, className, onCol
         )}
       </AnimatePresence>
 
-      {/* Add note form */}
-      <AnimatePresence>
-        {addingNote && (
-          <NoteEditor
-            mode="create"
-            onSave={handleCreate}
-            onCancel={() => setAddingNote(false)}
-            saving={savingNew}
-          />
-        )}
-      </AnimatePresence>
+      {activeTab === 'notes' ? (
+        <>
+          {/* Add note form */}
+          <AnimatePresence>
+            {addingNote && (
+              <NoteEditor
+                mode="create"
+                onSave={handleCreate}
+                onCancel={() => setAddingNote(false)}
+                saving={savingNew}
+              />
+            )}
+          </AnimatePresence>
 
-      {/* Notes content */}
-      {status === 'loading' && (
-        <div className="student-detail-loading">
-          <div className="honeycomb-spinner">
-            <div className="hex" /><div className="hex" /><div className="hex" />
-          </div>
-        </div>
-      )}
+          {/* Notes content */}
+          {status === 'loading' && (
+            <div className="student-detail-loading">
+              <div className="honeycomb-spinner">
+                <div className="hex" /><div className="hex" /><div className="hex" />
+              </div>
+            </div>
+          )}
 
-      {status === 'error' && !notes.length && (
-        <div className="student-detail-error-state">
-          <p>Failed to load notes.</p>
-          <button className="btn-sm btn-secondary" onClick={fetchNotes}>Retry</button>
-        </div>
-      )}
+          {status === 'error' && !notes.length && (
+            <div className="student-detail-error-state">
+              <p>Failed to load notes.</p>
+              <button className="btn-sm btn-secondary" onClick={fetchNotes}>Retry</button>
+            </div>
+          )}
 
-      {status === 'success' && (
-        <NotesList
-          notes={notes}
-          onEdit={id => { setEditingNoteId(id); setAddingNote(false) }}
-          onDelete={handleDelete}
-          editingNoteId={editingNoteId}
-          onSaveEdit={handleSaveEdit}
-          onCancelEdit={() => setEditingNoteId(null)}
-        />
+          {status === 'success' && (
+            <NotesList
+              notes={notes}
+              onEdit={id => { setEditingNoteId(id); setAddingNote(false) }}
+              onDelete={handleDelete}
+              editingNoteId={editingNoteId}
+              onSaveEdit={handleSaveEdit}
+              onCancelEdit={() => setEditingNoteId(null)}
+            />
+          )}
+        </>
+      ) : (
+        <ReportHistory studentId={studentId} studentName={studentName} />
       )}
     </motion.div>
   )

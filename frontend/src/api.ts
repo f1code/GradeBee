@@ -330,11 +330,22 @@ export async function deleteReportExample(
 // --- Reports ---
 
 export interface ReportResult {
+  id: number
   student: string
   class: string
-  docId: string
-  docUrl: string
-  skipped: boolean
+  studentId: number
+  html: string
+  startDate: string
+  endDate: string
+  instructions?: string
+  createdAt: string
+}
+
+export interface ReportSummary {
+  id: number
+  startDate: string
+  endDate: string
+  createdAt: string
 }
 
 export interface GenerateReportsResponse {
@@ -344,7 +355,7 @@ export interface GenerateReportsResponse {
 
 export async function generateReports(
   req: {
-    students: { name: string; class: string }[]
+    studentIds: number[]
     startDate: string
     endDate: string
     instructions?: string
@@ -366,28 +377,63 @@ export async function generateReports(
 }
 
 export async function regenerateReport(
-  req: {
-    docId: string
-    student: string
-    class: string
-    startDate: string
-    endDate: string
-    instructions?: string
-  },
+  reportId: number,
+  feedback: string,
   getToken: () => Promise<string | null>
 ): Promise<ReportResult> {
   const token = await getToken()
-  const resp = await fetch(`${apiUrl}/reports/regenerate`, {
+  const resp = await fetch(`${apiUrl}/reports/${reportId}/regenerate`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(req),
+    body: JSON.stringify({ feedback }),
   })
   const body = await resp.json()
   if (!resp.ok) throw new Error(body.error || 'Report regeneration failed')
   return body
+}
+
+export async function listStudentReports(
+  studentId: number,
+  getToken: () => Promise<string | null>
+): Promise<{ reports: ReportSummary[] }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${studentId}/reports`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to list reports')
+  return body
+}
+
+export async function getReport(
+  id: number,
+  getToken: () => Promise<string | null>
+): Promise<ReportResult> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/reports/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to get report')
+  return body
+}
+
+export async function deleteReport(
+  id: number,
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/reports/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to delete report')
+  }
 }
 
 // --- Google Token / Drive Import ---

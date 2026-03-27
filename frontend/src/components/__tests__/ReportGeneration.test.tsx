@@ -3,12 +3,18 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
 
 const mockGenerateReports = vi.fn()
+const mockListClasses = vi.fn()
+const mockListStudents = vi.fn()
 
 vi.mock('../../api', () => ({
   generateReports: (...args: unknown[]) => mockGenerateReports(...args),
+  listClasses: (...args: unknown[]) => mockListClasses(...args),
+  listStudents: (...args: unknown[]) => mockListStudents(...args),
   listReportExamples: vi.fn().mockResolvedValue({ examples: [] }),
   uploadReportExample: vi.fn(),
   deleteReportExample: vi.fn(),
+  regenerateReport: vi.fn(),
+  deleteReport: vi.fn(),
 }))
 
 const stableGetToken = vi.fn().mockResolvedValue('tok')
@@ -17,14 +23,15 @@ vi.mock('@clerk/react', () => ({
 }))
 
 async function renderWithStudents() {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-    ok: true,
-    json: () => Promise.resolve({
-      classes: [
-        { name: 'Math 101', students: [{ name: 'Alice' }, { name: 'Bob' }] },
-      ],
-    }),
-  }))
+  mockListClasses.mockResolvedValue({
+    classes: [{ id: 1, name: 'Math 101', studentCount: 2 }],
+  })
+  mockListStudents.mockResolvedValue({
+    students: [
+      { id: 10, name: 'Alice', classId: 1 },
+      { id: 11, name: 'Bob', classId: 1 },
+    ],
+  })
   const { default: ReportGeneration } = await import('../ReportGeneration')
   const user = userEvent.setup()
   render(<ReportGeneration />)
@@ -41,7 +48,6 @@ describe('ReportGeneration', () => {
 
   it('select all toggles entire class', async () => {
     const user = await renderWithStudents()
-    // Click the label text to toggle class
     await user.click(screen.getByText('Math 101'))
     expect(screen.getByText(/Generate 2 Report/)).toBeInTheDocument()
 
@@ -52,8 +58,8 @@ describe('ReportGeneration', () => {
   it('generates reports on submit', async () => {
     mockGenerateReports.mockResolvedValue({
       reports: [
-        { student: 'Alice', class: 'Math 101', docId: 'd1', docUrl: 'https://docs/d1', skipped: false },
-        { student: 'Bob', class: 'Math 101', docId: 'd2', docUrl: 'https://docs/d2', skipped: false },
+        { id: 1, student: 'Alice', class: 'Math 101', studentId: 10, html: '<p>Alice report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
+        { id: 2, student: 'Bob', class: 'Math 101', studentId: 11, html: '<p>Bob report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
       ],
       error: null,
     })
@@ -65,7 +71,9 @@ describe('ReportGeneration', () => {
     await waitFor(() => {
       expect(screen.getByText('Generated Reports')).toBeInTheDocument()
     })
-    expect(screen.getAllByText('Open in Docs →')).toHaveLength(2)
+    // Results show student names in result cards
+    expect(screen.getAllByText('Alice')).toHaveLength(2) // selector + result
+    expect(screen.getAllByText('Bob')).toHaveLength(2)
   })
 
   it('shows error on failed generation', async () => {
