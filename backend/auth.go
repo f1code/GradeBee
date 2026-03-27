@@ -11,11 +11,6 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2/user"
 )
 
-// clerkUser represents the essential info extracted from Clerk.
-type clerkUser struct {
-	UserID string
-}
-
 // getGoogleOAuthToken retrieves the Google OAuth access token for a user from Clerk.
 func getGoogleOAuthToken(ctx context.Context, userID string) (string, error) {
 	log := loggerFromContext(ctx)

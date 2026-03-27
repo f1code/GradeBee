@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/joho/godotenv"
@@ -39,12 +41,35 @@ func main() {
 		panic("run migrations: " + err.Error())
 	}
 
-	// Initialize dependencies with DB handle.
-	d := handler.NewProdDeps(db)
+	// Uploads directory.
+	uploadsDir := os.Getenv("UPLOADS_DIR")
+	if uploadsDir == "" {
+		uploadsDir = "/data/uploads"
+	}
+	if err := os.MkdirAll(uploadsDir, 0o755); err != nil {
+		panic("create uploads dir: " + err.Error())
+	}
+
+	// Initialize dependencies with DB handle and uploads dir.
+	d := handler.NewProdDeps(db, uploadsDir)
 
 	// Start in-memory upload queue with 4 workers.
 	queue := handler.InitUploadQueue(d, 4)
 	defer queue.Close()
+
+	// Graceful shutdown context.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start upload cleanup goroutine.
+	retentionHours := 168 // 7 days default
+	if env := os.Getenv("UPLOAD_RETENTION_HOURS"); env != "" {
+		if h, err := strconv.Atoi(env); err == nil && h > 0 {
+			retentionHours = h
+		}
+	}
+	uploadRepo := d.GetUploadRepo()
+	go handler.StartUploadCleanup(ctx, uploadRepo, uploadsDir, time.Duration(retentionHours)*time.Hour, 1*time.Hour)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -62,6 +87,7 @@ func main() {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
 		slog.Info("shutting down...")
+		cancel()
 		queue.Close()
 		if err := srv.Shutdown(context.Background()); err != nil {
 			slog.Error("shutdown error", "error", err)
@@ -71,6 +97,7 @@ func main() {
 	slog.Info("server starting", "port", port)
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		slog.Error("server failed", "error", err)
+		cancel()
 		queue.Close()
 	}
 }

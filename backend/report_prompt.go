@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func buildReportPrompt(student, class, startDate, endDate string, notes []IndexEntry, examples []ReportExample, instructions, feedback string) string {
+func buildReportPrompt(student, class, startDate, endDate string, notes []Note, examples []ReportExample, instructions, feedback string) string {
 	var sb strings.Builder
 
 	sb.WriteString("You are a report card writer for a school teacher.\n\n")
@@ -47,6 +47,8 @@ func buildReportPrompt(student, class, startDate, endDate string, notes []IndexE
 	}
 
 	sb.WriteString("## Task\nWrite a report card narrative for this student based on the notes above.\n")
+	sb.WriteString("Output the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\n")
+	sb.WriteString("Do not include <html>, <head>, or <body> wrapper tags — just the content HTML.\n")
 	if len(examples) > 0 {
 		sb.WriteString("Follow the style and layout of the examples provided.\n")
 	}

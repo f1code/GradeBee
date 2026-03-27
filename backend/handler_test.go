@@ -1,16 +1,11 @@
 package handler
 
 import (
-	"context"
-	"database/sql"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"github.com/clerk/clerk-sdk-go/v2"
 )
 
 func init() {
@@ -46,16 +41,20 @@ func TestHandle_OptionsCORS(t *testing.T) {
 	if rec.Header().Get("Access-Control-Allow-Headers") == "" {
 		t.Error("OPTIONS: missing Access-Control-Allow-Headers header")
 	}
+	methods := rec.Header().Get("Access-Control-Allow-Methods")
+	if methods == "" {
+		t.Error("OPTIONS: missing Access-Control-Allow-Methods header")
+	}
 }
 
 func TestHandle_Options_NotProtectedByAuth(t *testing.T) {
-	req := httptest.NewRequest(http.MethodOptions, "/setup", http.NoBody)
+	req := httptest.NewRequest(http.MethodOptions, "/classes", http.NoBody)
 	rec := httptest.NewRecorder()
 
 	Handle(rec, req)
 
 	if rec.Code != http.StatusNoContent {
-		t.Errorf("OPTIONS /setup: got status %d, want 204 (middleware must not run for OPTIONS)", rec.Code)
+		t.Errorf("OPTIONS /classes: got status %d, want 204 (middleware must not run for OPTIONS)", rec.Code)
 	}
 }
 
@@ -81,85 +80,3 @@ func TestHandle_GetStudents_NoAuth(t *testing.T) {
 		t.Errorf("GET /students no auth: got status %d, want 401", rec.Code)
 	}
 }
-
-func TestHandle_GetStudents_GoogleTokenFailure(t *testing.T) {
-	origDeps := serviceDeps
-	serviceDeps = &mockDepsGoogleFail{}
-	defer func() { serviceDeps = origDeps }()
-
-	req := httptest.NewRequest(http.MethodGet, "/students", http.NoBody)
-	ctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
-		RegisteredClaims: clerk.RegisteredClaims{Subject: "test-user"},
-	})
-	req = req.WithContext(ctx)
-	rec := httptest.NewRecorder()
-
-	handleGetStudents(rec, req)
-
-	if rec.Code != http.StatusBadGateway {
-		t.Errorf("GET /students token fail: got status %d, want 502", rec.Code)
-	}
-}
-
-// mockDepsGoogleFail returns error from GoogleServices (simulates OAuth token retrieval failure).
-type mockDepsGoogleFail struct{}
-
-func (mockDepsGoogleFail) GoogleServices(r *http.Request) (*googleServices, error) {
-	return nil, &apiError{Status: http.StatusBadGateway, Err: nil, Code: "token_failed", Message: "no Google OAuth token found"}
-}
-
-func (mockDepsGoogleFail) GetTranscriber() (Transcriber, error) {
-	return nil, fmt.Errorf("not configured")
-}
-
-func (mockDepsGoogleFail) GetRoster(_ context.Context, _ *googleServices) (Roster, error) {
-	return nil, fmt.Errorf("not configured")
-}
-
-func (mockDepsGoogleFail) GetDriveStore(_ *googleServices) DriveStore {
-	return nil
-}
-
-func (mockDepsGoogleFail) GetExtractor() (Extractor, error) {
-	return nil, fmt.Errorf("not available")
-}
-
-func (mockDepsGoogleFail) GetNoteCreator(_ *googleServices) NoteCreator {
-	return nil
-}
-
-func (mockDepsGoogleFail) GetMetadataIndex(_ *googleServices) MetadataIndex {
-	return nil
-}
-
-func (mockDepsGoogleFail) GetExampleStore(_ *googleServices) ExampleStore {
-	return nil
-}
-
-func (mockDepsGoogleFail) GetExampleExtractor() (ExampleExtractor, error) {
-	return nil, fmt.Errorf("not configured")
-}
-
-func (mockDepsGoogleFail) GetReportGenerator(_ *googleServices) (ReportGenerator, error) {
-	return nil, fmt.Errorf("not configured")
-}
-
-func (mockDepsGoogleFail) GoogleServicesForUser(_ context.Context, _ string) (*googleServices, error) {
-	return nil, fmt.Errorf("google oauth failed")
-}
-
-func (mockDepsGoogleFail) GetUploadQueue() (UploadQueue, error) {
-	return nil, fmt.Errorf("not configured")
-}
-
-func (mockDepsGoogleFail) GetGradeBeeMetadata(_ context.Context, _ string) (*gradeBeeMetadata, error) {
-	return nil, fmt.Errorf("not configured")
-}
-
-func (mockDepsGoogleFail) GetDB() *sql.DB                  { return nil }
-func (mockDepsGoogleFail) GetClassRepo() *ClassRepo         { return nil }
-func (mockDepsGoogleFail) GetStudentRepo() *StudentRepo     { return nil }
-func (mockDepsGoogleFail) GetNoteRepo() *NoteRepo           { return nil }
-func (mockDepsGoogleFail) GetReportRepo() *ReportRepo       { return nil }
-func (mockDepsGoogleFail) GetExampleRepo() *ReportExampleRepo { return nil }
-func (mockDepsGoogleFail) GetUploadRepo() *UploadRepo       { return nil }

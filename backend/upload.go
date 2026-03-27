@@ -1,14 +1,17 @@
 // upload.go handles the POST /upload endpoint that receives an audio file via
-// multipart/form-data and stores it in the user's GradeBee/uploads/ folder on
-// Google Drive.
+// multipart/form-data and saves it to local disk + the uploads table.
 package handler
 
 import (
-	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const maxUploadSize = 25 << 20 // 25 MB (Whisper API limit)
@@ -20,7 +23,7 @@ var allowedAudioTypes = []string{
 }
 
 type uploadResponse struct {
-	FileID   string `json:"fileId"`
+	UploadID int64  `json:"uploadId"`
 	FileName string `json:"fileName"`
 }
 
@@ -51,40 +54,48 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc, err := serviceDeps.GoogleServices(r)
+	userID, err := userIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		log.Error("upload failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
 		return
 	}
 
 	ctx := r.Context()
-	userID := svc.User.UserID
+	uploadsDir := serviceDeps.GetUploadsDir()
 
-	meta, err := getGradeBeeMetadata(ctx, userID)
-	if err != nil || meta == nil || meta.UploadsID == "" {
-		writeAPIError(w, r, &apiError{
-			Status:  http.StatusNotFound,
-			Code:    "no_uploads_folder",
-			Message: "Uploads folder not found. Try running setup again.",
-		})
-		return
+	// Generate unique filename and write to disk.
+	ext := filepath.Ext(header.Filename)
+	if ext == "" {
+		ext = extensionFromMIME(contentType)
 	}
+	diskName := uuid.New().String() + ext
+	diskPath := filepath.Join(uploadsDir, diskName)
 
-	store := serviceDeps.GetDriveStore(svc)
-	fileID, err := store.Upload(ctx, meta.UploadsID, header.Filename, file)
+	dst, err := os.Create(diskPath)
 	if err != nil {
-		log.Error("upload to Drive failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to upload to Google Drive"})
+		log.Error("upload: create file failed", "error", err, "path", diskPath)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save file"})
+		return
+	}
+	if _, err := io.Copy(dst, file); err != nil {
+		dst.Close()
+		os.Remove(diskPath)
+		log.Error("upload: write file failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save file"})
+		return
+	}
+	dst.Close()
+
+	// Insert uploads row.
+	upload, err := serviceDeps.GetUploadRepo().Create(ctx, userID, header.Filename, diskPath)
+	if err != nil {
+		os.Remove(diskPath)
+		log.Error("upload: insert row failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to record upload"})
 		return
 	}
 
-	log.Info("upload completed", "user_id", userID, "file_id", fileID, "file_name", header.Filename)
+	log.Info("upload completed", "user_id", userID, "upload_id", upload.ID, "file_name", header.Filename)
 
 	// Dispatch async processing job.
 	queue, err := serviceDeps.GetUploadQueue()
@@ -93,19 +104,19 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	} else {
 		if err := queue.Publish(ctx, UploadJob{
 			UserID:    userID,
-			FileID:    fileID,
+			UploadID:  upload.ID,
+			FilePath:  diskPath,
 			FileName:  header.Filename,
 			MimeType:  contentType,
 			Source:    "upload",
 			CreatedAt: time.Now(),
 		}); err != nil {
 			log.Error("upload: failed to dispatch job", "error", err)
-			// Non-fatal — file is on Drive, user can retry via /jobs/retry
 		}
 	}
 
 	writeJSON(w, http.StatusOK, uploadResponse{
-		FileID:   fileID,
+		UploadID: upload.ID,
 		FileName: header.Filename,
 	})
 }
@@ -118,4 +129,22 @@ func isAllowedAudioType(contentType string) bool {
 		}
 	}
 	return false
+}
+
+// extensionFromMIME returns a file extension for common audio MIME types.
+func extensionFromMIME(mime string) string {
+	switch strings.ToLower(mime) {
+	case "audio/mpeg":
+		return ".mp3"
+	case "audio/mp4", "audio/m4a":
+		return ".m4a"
+	case "audio/wav", "audio/x-wav":
+		return ".wav"
+	case "audio/webm", "video/webm":
+		return ".webm"
+	case "audio/ogg":
+		return ".ogg"
+	default:
+		return ".bin"
+	}
 }

@@ -1,103 +1,63 @@
-// roster.go defines the Roster interface and its production implementation
-// backed by Google Sheets. It centralises spreadsheet-ID resolution and data
-// reads so that handlers don't depend on Sheets API details directly.
+// roster.go defines the Roster interface and its DB-backed implementation.
+// The Roster is used by the upload processing pipeline to get class names
+// (for Whisper prompts) and student lists (for extraction matching).
 package handler
 
 import (
 	"context"
-	"fmt"
-	"strings"
 )
 
-// Roster abstracts read access to the user's student roster spreadsheet.
+// Roster abstracts read access to the user's student roster.
 type Roster interface {
 	ClassNames(ctx context.Context) ([]string, error)
 	Students(ctx context.Context) ([]classGroup, error)
-	SpreadsheetURL() string
 }
 
-// sheetsRoster reads roster data from a Google Sheets spreadsheet.
-type sheetsRoster struct {
-	svc           *googleServices
-	spreadsheetID string
+// dbRoster reads roster data from the SQLite database.
+type dbRoster struct {
+	classRepo   *ClassRepo
+	studentRepo *StudentRepo
+	userID      string
 }
 
-// newSheetsRoster resolves the user's spreadsheet ID from Clerk metadata,
-// verifies the spreadsheet still exists via Drive.Files.Get, and returns a
-// ready-to-use sheetsRoster. Returns a descriptive apiError when the
-// spreadsheet is missing.
-func newSheetsRoster(ctx context.Context, svc *googleServices) (*sheetsRoster, error) {
-	meta, err := getGradeBeeMetadata(ctx, svc.User.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("roster: metadata lookup failed: %w", err)
-	}
-	if meta == nil || meta.SpreadsheetID == "" {
-		return nil, &apiError{
-			Status:  404,
-			Code:    "no_spreadsheet",
-			Message: "ClassSetup spreadsheet not found. Try running setup again.",
-		}
-	}
-
-	// Verify the spreadsheet still exists (drive.file scope allows Get on
-	// files the app created).
-	_, err = svc.Drive.Files.Get(meta.SpreadsheetID).Fields("id").Context(ctx).Do()
-	if err != nil {
-		return nil, &apiError{
-			Status:  404,
-			Code:    "no_spreadsheet",
-			Message: "ClassSetup spreadsheet not found. Try running setup again.",
-		}
-	}
-
-	return &sheetsRoster{svc: svc, spreadsheetID: meta.SpreadsheetID}, nil
+func newDBRoster(cr *ClassRepo, sr *StudentRepo, userID string) *dbRoster {
+	return &dbRoster{classRepo: cr, studentRepo: sr, userID: userID}
 }
 
-// ClassNames reads class names from column A of the Students sheet,
-// deduplicates them, and returns the unique list.
-func (r *sheetsRoster) ClassNames(ctx context.Context) ([]string, error) {
-	resp, err := r.svc.Sheets.Spreadsheets.Values.Get(r.spreadsheetID, "Students!A:A").Context(ctx).Do()
+// ClassNames returns unique class names for the user.
+func (r *dbRoster) ClassNames(ctx context.Context) ([]string, error) {
+	classes, err := r.classRepo.List(ctx, r.userID)
 	if err != nil {
-		return nil, fmt.Errorf("roster: read class names: %w", err)
+		return nil, err
 	}
-
-	seen := make(map[string]struct{})
-	var names []string
-	for i, row := range resp.Values {
-		if i == 0 { // skip header
-			continue
-		}
-		if len(row) == 0 {
-			continue
-		}
-		name := strings.TrimSpace(fmt.Sprintf("%v", row[0]))
-		if name == "" {
-			continue
-		}
-		if _, ok := seen[name]; !ok {
-			seen[name] = struct{}{}
-			names = append(names, name)
-		}
+	names := make([]string, len(classes))
+	for i, c := range classes {
+		names[i] = c.Name
 	}
 	return names, nil
 }
 
-// Students reads columns A:B of the Students sheet and returns the roster
-// grouped by class via parseStudentRows.
-func (r *sheetsRoster) Students(ctx context.Context) ([]classGroup, error) {
-	resp, err := r.svc.Sheets.Spreadsheets.Values.Get(r.spreadsheetID, "Students!A:B").Context(ctx).Do()
+// Students returns the full roster grouped by class.
+func (r *dbRoster) Students(ctx context.Context) ([]classGroup, error) {
+	classes, err := r.classRepo.List(ctx, r.userID)
 	if err != nil {
-		return nil, fmt.Errorf("roster: read students: %w", err)
+		return nil, err
+	}
+	if len(classes) == 0 {
+		return nil, nil
 	}
 
-	var rows [][]interface{}
-	if resp.Values != nil {
-		rows = resp.Values
+	var result []classGroup
+	for _, c := range classes {
+		students, err := r.studentRepo.List(ctx, c.ID)
+		if err != nil {
+			return nil, err
+		}
+		cg := classGroup{Name: c.Name, Students: make([]student, len(students))}
+		for j, s := range students {
+			cg.Students[j] = student{Name: s.Name}
+		}
+		result = append(result, cg)
 	}
-	return parseStudentRows(rows)
-}
-
-// SpreadsheetURL returns the web URL for the underlying spreadsheet.
-func (r *sheetsRoster) SpreadsheetURL() string {
-	return fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit", r.spreadsheetID)
+	return result, nil
 }

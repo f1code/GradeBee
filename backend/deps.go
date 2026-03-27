@@ -1,44 +1,36 @@
-// deps.go defines the dependency-injection interface used by HTTP handlers to
-// obtain Google API service clients. The production implementation delegates to
-// Clerk and Google; tests swap in a stub via the serviceDeps variable.
+// deps.go defines the dependency-injection interface used by HTTP handlers.
+// The production implementation uses SQLite repos; tests swap in stubs via the
+// serviceDeps variable.
 package handler
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/http"
+
+	"google.golang.org/api/drive/v3"
 )
 
 // deps abstracts external service calls for testability.
 type deps interface {
-	// GoogleServices returns authenticated Google API clients for the user.
-	GoogleServices(r *http.Request) (*googleServices, error)
-	// GoogleServicesForUser returns Google API clients for a user by ID
-	// (no HTTP request needed — used for background processing).
-	GoogleServicesForUser(ctx context.Context, userID string) (*googleServices, error)
 	// GetTranscriber returns a Transcriber implementation.
 	GetTranscriber() (Transcriber, error)
-	// GetRoster returns a Roster for the authenticated user's spreadsheet.
-	GetRoster(ctx context.Context, svc *googleServices) (Roster, error)
-	// GetDriveStore returns a DriveStore for the authenticated user's Drive.
-	GetDriveStore(svc *googleServices) DriveStore
+	// GetRoster returns a Roster for the given user.
+	GetRoster(ctx context.Context, userID string) Roster
 	// GetExtractor returns an Extractor for transcript analysis.
 	GetExtractor() (Extractor, error)
-	// GetNoteCreator returns a NoteCreator for the authenticated user's Drive.
-	GetNoteCreator(svc *googleServices) NoteCreator
-	// GetMetadataIndex returns a MetadataIndex for the authenticated user's Drive.
-	GetMetadataIndex(svc *googleServices) MetadataIndex
-	// GetExampleStore returns an ExampleStore for the authenticated user's Drive.
-	GetExampleStore(svc *googleServices) ExampleStore
+	// GetNoteCreator returns a NoteCreator backed by the DB.
+	GetNoteCreator() NoteCreator
+	// GetExampleStore returns an ExampleStore backed by the DB.
+	GetExampleStore() ExampleStore
 	// GetExampleExtractor returns an ExampleExtractor for PDF/image text extraction.
 	GetExampleExtractor() (ExampleExtractor, error)
 	// GetReportGenerator returns a ReportGenerator.
-	GetReportGenerator(svc *googleServices) (ReportGenerator, error)
+	GetReportGenerator() (ReportGenerator, error)
 	// GetUploadQueue returns the UploadQueue for async job management.
 	GetUploadQueue() (UploadQueue, error)
-	// GetGradeBeeMetadata retrieves GradeBee IDs from Clerk user metadata.
-	GetGradeBeeMetadata(ctx context.Context, userID string) (*gradeBeeMetadata, error)
+	// GetDriveClient returns a Drive-read-only client for the given user.
+	GetDriveClient(ctx context.Context, userID string) (*drive.Service, error)
 	// GetDB returns the SQLite database handle.
 	GetDB() *sql.DB
 	// Repository accessors.
@@ -48,68 +40,69 @@ type deps interface {
 	GetReportRepo() *ReportRepo
 	GetExampleRepo() *ReportExampleRepo
 	GetUploadRepo() *UploadRepo
+	// GetUploadsDir returns the local directory for audio file storage.
+	GetUploadsDir() string
 }
 
-// prodDeps is the real implementation that calls Clerk + Google APIs.
+// prodDeps is the real implementation backed by SQLite repos.
 type prodDeps struct {
-	db *sql.DB
+	db          *sql.DB
+	classRepo   *ClassRepo
+	studentRepo *StudentRepo
+	noteRepo    *NoteRepo
+	reportRepo  *ReportRepo
+	exampleRepo *ReportExampleRepo
+	uploadRepo  *UploadRepo
+	uploadsDir  string
 }
 
-func (*prodDeps) GoogleServices(r *http.Request) (*googleServices, error) {
-	return newGoogleServices(r)
-}
-
-func (*prodDeps) GoogleServicesForUser(ctx context.Context, userID string) (*googleServices, error) {
-	return newGoogleServicesForUser(ctx, userID)
-}
-
-func (*prodDeps) GetTranscriber() (Transcriber, error) {
+func (p *prodDeps) GetTranscriber() (Transcriber, error) {
 	return newWhisperTranscriber()
 }
 
-func (*prodDeps) GetRoster(ctx context.Context, svc *googleServices) (Roster, error) {
-	return newSheetsRoster(ctx, svc)
+func (p *prodDeps) GetRoster(_ context.Context, userID string) Roster {
+	return newDBRoster(p.classRepo, p.studentRepo, userID)
 }
 
-func (*prodDeps) GetDriveStore(svc *googleServices) DriveStore {
-	return newDriveStore(svc)
-}
-
-func (*prodDeps) GetExtractor() (Extractor, error) {
+func (p *prodDeps) GetExtractor() (Extractor, error) {
 	return newGPTExtractor()
 }
 
-func (*prodDeps) GetNoteCreator(svc *googleServices) NoteCreator {
-	metaIdx := newDriveMetadataIndex(svc.Drive)
-	return newDriveNoteCreator(svc.Drive, svc.Docs, metaIdx)
+func (p *prodDeps) GetNoteCreator() NoteCreator {
+	return newDBNoteCreator(p.noteRepo)
 }
 
-func (*prodDeps) GetMetadataIndex(svc *googleServices) MetadataIndex {
-	return newDriveMetadataIndex(svc.Drive)
+func (p *prodDeps) GetExampleStore() ExampleStore {
+	return newDBExampleStore(p.exampleRepo)
 }
 
-func (*prodDeps) GetExampleStore(svc *googleServices) ExampleStore {
-	return newDriveExampleStore(svc.Drive)
-}
-
-func (*prodDeps) GetExampleExtractor() (ExampleExtractor, error) {
+func (p *prodDeps) GetExampleExtractor() (ExampleExtractor, error) {
 	return newGPTExampleExtractor()
 }
 
-func (*prodDeps) GetReportGenerator(svc *googleServices) (ReportGenerator, error) {
-	return newGPTReportGenerator(svc.Drive, svc.Docs)
+func (p *prodDeps) GetReportGenerator() (ReportGenerator, error) {
+	return newDBReportGenerator(p.noteRepo, p.reportRepo, p.exampleRepo)
 }
 
-func (*prodDeps) GetUploadQueue() (UploadQueue, error) {
+func (p *prodDeps) GetUploadQueue() (UploadQueue, error) {
 	if uploadQueueInstance == nil {
 		return nil, fmt.Errorf("upload queue not initialized — call InitUploadQueue first")
 	}
 	return uploadQueueInstance, nil
 }
 
-func (*prodDeps) GetGradeBeeMetadata(ctx context.Context, userID string) (*gradeBeeMetadata, error) {
-	return getGradeBeeMetadata(ctx, userID)
+func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (*drive.Service, error) {
+	return newDriveReadClient(ctx, userID)
 }
+
+func (p *prodDeps) GetDB() *sql.DB                        { return p.db }
+func (p *prodDeps) GetClassRepo() *ClassRepo               { return p.classRepo }
+func (p *prodDeps) GetStudentRepo() *StudentRepo           { return p.studentRepo }
+func (p *prodDeps) GetNoteRepo() *NoteRepo                 { return p.noteRepo }
+func (p *prodDeps) GetReportRepo() *ReportRepo             { return p.reportRepo }
+func (p *prodDeps) GetExampleRepo() *ReportExampleRepo     { return p.exampleRepo }
+func (p *prodDeps) GetUploadRepo() *UploadRepo             { return p.uploadRepo }
+func (p *prodDeps) GetUploadsDir() string                  { return p.uploadsDir }
 
 // Upload queue singleton, initialised at startup via InitUploadQueue.
 var uploadQueueInstance UploadQueue
@@ -122,21 +115,22 @@ func InitUploadQueue(d deps, workers int) *memQueue {
 	return q
 }
 
-// NewProdDeps creates the production deps with the given database handle.
-// Pass nil if the DB is not yet available (e.g. during early init).
-func NewProdDeps(db *sql.DB) deps {
-	d := &prodDeps{db: db}
+// NewProdDeps creates the production deps with the given database handle
+// and uploads directory.
+func NewProdDeps(db *sql.DB, uploadsDir string) deps {
+	d := &prodDeps{
+		db:          db,
+		classRepo:   &ClassRepo{db: db},
+		studentRepo: &StudentRepo{db: db},
+		noteRepo:    &NoteRepo{db: db},
+		reportRepo:  &ReportRepo{db: db},
+		exampleRepo: &ReportExampleRepo{db: db},
+		uploadRepo:  &UploadRepo{db: db},
+		uploadsDir:  uploadsDir,
+	}
 	serviceDeps = d
 	return d
 }
 
-func (p *prodDeps) GetDB() *sql.DB           { return p.db }
-func (p *prodDeps) GetClassRepo() *ClassRepo  { return &ClassRepo{db: p.db} }
-func (p *prodDeps) GetStudentRepo() *StudentRepo { return &StudentRepo{db: p.db} }
-func (p *prodDeps) GetNoteRepo() *NoteRepo    { return &NoteRepo{db: p.db} }
-func (p *prodDeps) GetReportRepo() *ReportRepo { return &ReportRepo{db: p.db} }
-func (p *prodDeps) GetExampleRepo() *ReportExampleRepo { return &ReportExampleRepo{db: p.db} }
-func (p *prodDeps) GetUploadRepo() *UploadRepo { return &UploadRepo{db: p.db} }
-
 // serviceDeps is the active dependency implementation. Tests override this.
-var serviceDeps deps = &prodDeps{}
+var serviceDeps deps

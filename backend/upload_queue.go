@@ -5,6 +5,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -18,16 +19,17 @@ const (
 	JobStatusFailed        = "failed"
 )
 
-// NoteLink pairs a student name with the URL of the created note.
+// NoteLink pairs a student name with the ID of the created note.
 type NoteLink struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	Name   string `json:"name"`
+	NoteID int64  `json:"noteId"`
 }
 
 // UploadJob represents an async upload processing job.
 type UploadJob struct {
 	UserID    string     `json:"userId"`
-	FileID    string     `json:"fileId"`
+	UploadID  int64      `json:"uploadId"`
+	FilePath  string     `json:"filePath"`
 	FileName  string     `json:"fileName"`
 	MimeType  string     `json:"mimeType"`
 	Source    string     `json:"source"`
@@ -38,9 +40,9 @@ type UploadJob struct {
 	FailedAt  *time.Time `json:"failedAt,omitempty"`
 }
 
-// kvKey returns the KV key for a job: "<userId>/<fileId>".
-func kvKey(userID, fileID string) string {
-	return userID + "/" + fileID
+// kvKey returns the KV key for a job: "<userId>/<uploadId>".
+func kvKey(userID string, uploadID int64) string {
+	return fmt.Sprintf("%s/%d", userID, uploadID)
 }
 
 // UploadQueue abstracts job queue operations for upload processing.
@@ -48,13 +50,13 @@ type UploadQueue interface {
 	// Publish writes the job with status "queued" and dispatches it for processing.
 	Publish(ctx context.Context, job UploadJob) error
 	// GetJob reads a single job.
-	GetJob(ctx context.Context, userID, fileID string) (*UploadJob, error)
+	GetJob(ctx context.Context, userID string, uploadID int64) (*UploadJob, error)
 	// UpdateJob writes the full job state back.
 	UpdateJob(ctx context.Context, job UploadJob) error
 	// ListJobs returns all jobs for the given user.
 	ListJobs(ctx context.Context, userID string) ([]UploadJob, error)
 	// DeleteJob removes a job from the store.
-	DeleteJob(ctx context.Context, userID, fileID string) error
+	DeleteJob(ctx context.Context, userID string, uploadID int64) error
 	// Close tears down the queue and stops workers.
 	Close()
 }

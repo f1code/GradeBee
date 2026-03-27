@@ -4,7 +4,9 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -15,7 +17,7 @@ const autoCreateConfidenceThreshold = 0.5
 // processUploadJob runs the full pipeline: transcribe → extract → create notes.
 // It reads/writes job state via the UploadQueue and uses the deps interface
 // for all external service calls.
-func processUploadJob(ctx context.Context, d deps, userID, fileID string) error {
+func processUploadJob(ctx context.Context, d deps, userID string, uploadID int64) error {
 	log := loggerFromContext(ctx)
 
 	queue, err := d.GetUploadQueue()
@@ -23,20 +25,20 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 		return fmt.Errorf("process job: get queue: %w", err)
 	}
 
-	job, err := queue.GetJob(ctx, userID, fileID)
+	job, err := queue.GetJob(ctx, userID, uploadID)
 	if err != nil {
 		return fmt.Errorf("process job: get job: %w", err)
 	}
 
 	// Idempotency: only process jobs that are queued.
 	if job.Status != JobStatusQueued {
-		log.Info("process job: skipping non-queued job", "user_id", userID, "file_id", fileID, "status", job.Status)
+		log.Info("process job: skipping non-queued job", "user_id", userID, "upload_id", uploadID, "status", job.Status)
 		return nil
 	}
 
 	// Helper to mark job as failed and return the error.
 	fail := func(step string, err error) error {
-		log.Error("process job failed", "step", step, "user_id", userID, "file_id", fileID, "error", err)
+		log.Error("process job failed", "step", step, "user_id", userID, "upload_id", uploadID, "error", err)
 		now := time.Now()
 		job.Status = JobStatusFailed
 		job.Error = fmt.Sprintf("%s: %s", step, err.Error())
@@ -47,43 +49,27 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 		return fmt.Errorf("process job: %s: %w", step, err)
 	}
 
-	// Build Google services for the user (no HTTP request needed).
-	svc, err := d.GoogleServicesForUser(ctx, userID)
-	if err != nil {
-		return fail("google services", err)
-	}
-
 	// --- Step 1: Transcribe ---
 	job.Status = JobStatusTranscribing
 	if err := queue.UpdateJob(ctx, *job); err != nil {
 		return fail("update status to transcribing", err)
 	}
 
-	store := d.GetDriveStore(svc)
-
-	body, err := store.Download(ctx, fileID)
+	// Read audio from local disk.
+	audioFile, err := os.Open(job.FilePath)
 	if err != nil {
-		return fail("download audio", err)
+		return fail("open audio file", err)
 	}
-	defer body.Close()
-
-	fileName, err := store.FileName(ctx, fileID)
-	if err != nil || fileName == "" {
-		fileName = "audio.webm"
-	}
+	defer audioFile.Close()
 
 	// Build Whisper prompt from roster class names (best-effort).
 	var whisperPrompt string
-	roster, err := d.GetRoster(ctx, svc)
+	roster := d.GetRoster(ctx, userID)
+	names, err := roster.ClassNames(ctx)
 	if err != nil {
-		log.Warn("process job: roster unavailable for prompt", "error", err)
-	} else {
-		names, err := roster.ClassNames(ctx)
-		if err != nil {
-			log.Warn("process job: could not read class names", "error", err)
-		} else if len(names) > 0 {
-			whisperPrompt = "Classes: " + strings.Join(names, ", ")
-		}
+		log.Warn("process job: could not read class names", "error", err)
+	} else if len(names) > 0 {
+		whisperPrompt = "Classes: " + strings.Join(names, ", ")
 	}
 
 	transcriber, err := d.GetTranscriber()
@@ -91,7 +77,7 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 		return fail("init transcriber", err)
 	}
 
-	transcript, err := transcriber.Transcribe(ctx, fileName, body, whisperPrompt)
+	transcript, err := transcriber.Transcribe(ctx, job.FileName, audioFile, whisperPrompt)
 	if err != nil {
 		return fail("transcribe", err)
 	}
@@ -102,12 +88,9 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 		return fail("update status to extracting", err)
 	}
 
-	var classes []classGroup
-	if roster != nil {
-		classes, err = roster.Students(ctx)
-		if err != nil {
-			log.Warn("process job: could not read students for extraction", "error", err)
-		}
+	classes, err := roster.Students(ctx)
+	if err != nil {
+		log.Warn("process job: could not read students for extraction", "error", err)
 	}
 
 	extractor, err := d.GetExtractor()
@@ -129,12 +112,8 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 		return fail("update status to creating_notes", err)
 	}
 
-	meta, err := d.GetGradeBeeMetadata(ctx, userID)
-	if err != nil || meta == nil || meta.NotesID == "" {
-		return fail("get metadata", fmt.Errorf("notes folder not configured, run setup first"))
-	}
-
-	noteCreator := d.GetNoteCreator(svc)
+	noteCreator := d.GetNoteCreator()
+	studentRepo := d.GetStudentRepo()
 
 	var noteLinks []NoteLink
 	for _, student := range extractResult.Students {
@@ -144,10 +123,20 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 			continue
 		}
 
+		// Resolve student name → DB ID.
+		studentID, err := studentRepo.FindByNameAndClass(ctx, student.Name, student.Class, userID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				log.Warn("process job: student not found in DB, skipping",
+					"student", student.Name, "class", student.Class)
+				continue
+			}
+			return fail("find student "+student.Name, err)
+		}
+
 		result, err := noteCreator.CreateNote(ctx, CreateNoteRequest{
-			NotesRootID: meta.NotesID,
+			StudentID:   studentID,
 			StudentName: student.Name,
-			ClassName:   student.Class,
 			Summary:     student.Summary,
 			Transcript:  transcript,
 			Date:        extractResult.Date,
@@ -155,10 +144,16 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 		if err != nil {
 			return fail("create note for "+student.Name, err)
 		}
-		noteLinks = append(noteLinks, NoteLink{Name: student.Name, URL: result.DocURL})
+		noteLinks = append(noteLinks, NoteLink{Name: student.Name, NoteID: result.NoteID})
 	}
 
 	// --- Done ---
+	// Mark upload as processed.
+	uploadRepo := d.GetUploadRepo()
+	if err := uploadRepo.MarkProcessed(ctx, uploadID); err != nil {
+		log.Warn("process job: failed to mark upload processed", "error", err)
+	}
+
 	job.Status = JobStatusDone
 	job.NoteLinks = noteLinks
 	job.Error = ""
@@ -168,6 +163,6 @@ func processUploadJob(ctx context.Context, d deps, userID, fileID string) error 
 	}
 
 	log.Info("process job completed",
-		"user_id", userID, "file_id", fileID, "note_count", len(noteLinks))
+		"user_id", userID, "upload_id", uploadID, "note_count", len(noteLinks))
 	return nil
 }

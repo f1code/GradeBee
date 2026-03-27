@@ -1,6 +1,6 @@
-// google.go constructs authenticated Google Drive and Sheets API clients for
-// the signed-in user and exposes shared helpers (Drive folder creation, API
-// error types, JSON response writing) used across the handler package.
+// google.go provides shared HTTP error helpers and a Drive-read-only client
+// constructor for the /drive-import endpoint. The full Google Sheets/Docs
+// clients have been removed — all data is now in SQLite.
 package handler
 
 import (
@@ -8,53 +8,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/clerk/clerk-sdk-go/v2"
 	"golang.org/x/oauth2"
-	"google.golang.org/api/docs/v1"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
-	"google.golang.org/api/sheets/v4"
 )
-
-// googleServices holds authenticated Google API clients.
-type googleServices struct {
-	Drive  *drive.Service
-	Sheets *sheets.Service
-	Docs   *docs.Service
-	User   *clerkUser
-}
-
-// newGoogleServices returns Drive + Sheets services for the authenticated user.
-// Requires SessionClaims in context (set by RequireHeaderAuthorization middleware).
-func newGoogleServices(r *http.Request) (*googleServices, error) {
-	ctx := r.Context()
-	claims, ok := clerk.SessionClaimsFromContext(ctx)
-	if !ok || claims == nil {
-		return nil, &apiError{Status: http.StatusForbidden, Err: nil, Code: "unauthorized", Message: "missing or invalid session"}
-	}
-	userID := claims.Subject
-	accessToken, err := getGoogleOAuthToken(ctx, userID)
-	if err != nil {
-		return nil, &apiError{Status: http.StatusBadGateway, Err: err}
-	}
-	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
-	driveSrv, err := drive.NewService(ctx, option.WithTokenSource(tokenSource))
-	if err != nil {
-		loggerFromContext(ctx).Error("google services failed", "operation", "drive.NewService", "error", err)
-		return nil, &apiError{Status: http.StatusInternalServerError, Err: err}
-	}
-	sheetsSrv, err := sheets.NewService(ctx, option.WithTokenSource(tokenSource))
-	if err != nil {
-		loggerFromContext(ctx).Error("google services failed", "operation", "sheets.NewService", "error", err)
-		return nil, &apiError{Status: http.StatusInternalServerError, Err: err}
-	}
-	docsSrv, err := docs.NewService(ctx, option.WithTokenSource(tokenSource))
-	if err != nil {
-		loggerFromContext(ctx).Error("google services failed", "operation", "docs.NewService", "error", err)
-		return nil, &apiError{Status: http.StatusInternalServerError, Err: err}
-	}
-	return &googleServices{Drive: driveSrv, Sheets: sheetsSrv, Docs: docsSrv, User: &clerkUser{UserID: userID}}, nil
-}
 
 // apiError is an error that carries an HTTP status code.
 type apiError struct {
@@ -94,43 +51,17 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, err *apiError) {
 	writeJSON(w, err.Status, resp)
 }
 
-// createFolder creates a folder in Drive. Uses drive.file scope (no listing).
-func createFolder(srv *drive.Service, parentID, name string) (string, error) {
-	folder := &drive.File{
-		Name:     name,
-		MimeType: "application/vnd.google-apps.folder",
-		Parents:  []string{parentID},
-	}
-	created, err := srv.Files.Create(folder).Fields("id").Do()
-	if err != nil {
-		return "", err
-	}
-	return created.Id, nil
-}
-
-// newGoogleServicesForUser returns authenticated Google API clients for a user
-// identified by Clerk user ID. Unlike newGoogleServices, this does not require
-// an *http.Request with session claims — suitable for background processing.
-func newGoogleServicesForUser(ctx context.Context, userID string) (*googleServices, error) {
+// newDriveReadClient returns a Drive-read-only client for the given user.
+// Used only by /drive-import to download files from Google Drive.
+func newDriveReadClient(ctx context.Context, userID string) (*drive.Service, error) {
 	accessToken, err := getGoogleOAuthToken(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("google services for user %s: %w", userID, err)
+		return nil, fmt.Errorf("drive client for user %s: %w", userID, err)
 	}
 	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
-	driveSrv, err := drive.NewService(ctx, option.WithTokenSource(tokenSource))
+	driveSvc, err := drive.NewService(ctx, option.WithTokenSource(tokenSource))
 	if err != nil {
-		loggerFromContext(ctx).Error("google services for user failed", "operation", "drive.NewService", "error", err)
-		return nil, fmt.Errorf("google services for user: drive: %w", err)
+		return nil, fmt.Errorf("drive client: %w", err)
 	}
-	sheetsSrv, err := sheets.NewService(ctx, option.WithTokenSource(tokenSource))
-	if err != nil {
-		loggerFromContext(ctx).Error("google services for user failed", "operation", "sheets.NewService", "error", err)
-		return nil, fmt.Errorf("google services for user: sheets: %w", err)
-	}
-	docsSrv, err := docs.NewService(ctx, option.WithTokenSource(tokenSource))
-	if err != nil {
-		loggerFromContext(ctx).Error("google services for user failed", "operation", "docs.NewService", "error", err)
-		return nil, fmt.Errorf("google services for user: docs: %w", err)
-	}
-	return &googleServices{Drive: driveSrv, Sheets: sheetsSrv, Docs: docsSrv, User: &clerkUser{UserID: userID}}, nil
+	return driveSvc, nil
 }

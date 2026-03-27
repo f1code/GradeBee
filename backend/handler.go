@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 
 func init() {
 	// Ensure the Clerk SDK has the secret key for JWT verification.
-	// Also called in cmd/server/main.go, but init() runs first.
 	key := os.Getenv("CLERK_SECRET_KEY")
 	slog.Info("clerk init",
 		"key_set", key != "",
@@ -54,7 +54,6 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// Try decoding (no verification yet — just parse claims)
 		decoded, err := jwt.Decode(r.Context(), &jwt.DecodeParams{Token: token})
 		if err != nil {
 			log.Warn("auth: jwt decode failed", "error", err)
@@ -76,7 +75,6 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 			"issued_at", issuedAt,
 		)
 
-		// Now delegate to Clerk's full middleware for actual verification
 		verified := false
 		inner := clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			verified = true
@@ -95,7 +93,6 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 				"now_utc", time.Now().UTC().Format(time.RFC3339),
 				"token_expired", decoded.Expiry != nil && time.Unix(*decoded.Expiry, 0).Before(time.Now()),
 			)
-			// Try fetching the JWK directly for more diagnostics
 			if decoded.KeyID != "" {
 				_, jwkErr := jwt.GetJSONWebKey(r.Context(), &jwt.GetJSONWebKeyParams{KeyID: decoded.KeyID})
 				if jwkErr != nil {
@@ -108,22 +105,10 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-var (
-	getSetupHandler   = debugAuthMiddleware(http.HandlerFunc(handleGetSetup))
-	setupHandler      = debugAuthMiddleware(http.HandlerFunc(handleSetup))
-	studentsHandler   = debugAuthMiddleware(http.HandlerFunc(handleGetStudents))
-	uploadHandler     = debugAuthMiddleware(http.HandlerFunc(handleUpload))
-	reportExamplesListHandler   = debugAuthMiddleware(http.HandlerFunc(handleListReportExamples))
-	reportExamplesUploadHandler = debugAuthMiddleware(http.HandlerFunc(handleUploadReportExample))
-	reportExamplesDeleteHandler = debugAuthMiddleware(http.HandlerFunc(handleDeleteReportExample))
-	reportsHandler              = debugAuthMiddleware(http.HandlerFunc(handleGenerateReports))
-	reportsRegenerateHandler    = debugAuthMiddleware(http.HandlerFunc(handleRegenerateReport))
-	googleTokenHandler          = debugAuthMiddleware(http.HandlerFunc(handleGoogleToken))
-	driveImportHandler          = debugAuthMiddleware(http.HandlerFunc(handleDriveImport))
-	jobListHandler              = debugAuthMiddleware(http.HandlerFunc(handleJobList))
-	jobRetryHandler             = debugAuthMiddleware(http.HandlerFunc(handleJobRetry))
-	jobDismissHandler           = debugAuthMiddleware(http.HandlerFunc(handleJobDismiss))
-)
+// authHandler wraps a handler function with auth middleware.
+func authHandler(fn http.HandlerFunc) http.Handler {
+	return debugAuthMiddleware(http.HandlerFunc(fn))
+}
 
 // statusRecorder wraps ResponseWriter to capture status code.
 type statusRecorder struct {
@@ -145,6 +130,35 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
+// userIDFromRequest extracts the Clerk user ID from JWT session claims.
+func userIDFromRequest(r *http.Request) (string, error) {
+	claims, ok := clerk.SessionClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		return "", &apiError{Status: http.StatusForbidden, Code: "unauthorized", Message: "missing or invalid session"}
+	}
+	return claims.Subject, nil
+}
+
+// pathParam extracts a numeric ID from a URL path segment.
+// e.g. pathParam("classes/42/students", "classes/", "/students") returns 42.
+func pathParam(path, prefix string) (int64, bool) {
+	rest := strings.TrimPrefix(path, prefix)
+	if rest == path {
+		return 0, false
+	}
+	// rest is "42/students" or "42"
+	idx := strings.Index(rest, "/")
+	idStr := rest
+	if idx >= 0 {
+		idStr = rest[:idx]
+	}
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return id, true
+}
+
 // Handle is the main HTTP entrypoint, used by cmd/server/main.go.
 func Handle(w http.ResponseWriter, r *http.Request) {
 	reqID := uuid.New().String()
@@ -161,7 +175,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 
 	if r.Method == http.MethodOptions {
 		w.WriteHeader(http.StatusNoContent)
@@ -172,7 +186,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	rec := &statusRecorder{ResponseWriter: w, status: 0}
 	start := time.Now()
 
-	// Debug auth: log presence/shape of Authorization header for authenticated routes
 	if path != "" && path != "health" {
 		authHeader := r.Header.Get("Authorization")
 		reqLogger.Debug("incoming request",
@@ -183,40 +196,94 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
+	// Route matching
+	matched := true
 	switch {
+	// Health
 	case (path == "" || path == "health") && r.Method == http.MethodGet:
 		writeJSON(rec, http.StatusOK, map[string]string{"status": "ok"})
-	case path == "setup" && r.Method == http.MethodGet:
-		getSetupHandler.ServeHTTP(rec, r)
-	case path == "setup" && r.Method == http.MethodPost:
-		setupHandler.ServeHTTP(rec, r)
+
+	// Classes CRUD
+	case path == "classes" && r.Method == http.MethodGet:
+		authHandler(handleListClasses).ServeHTTP(rec, r)
+	case path == "classes" && r.Method == http.MethodPost:
+		authHandler(handleCreateClass).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "classes/") && !strings.Contains(strings.TrimPrefix(path, "classes/"), "/") && r.Method == http.MethodPut:
+		authHandler(handleUpdateClass).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "classes/") && !strings.Contains(strings.TrimPrefix(path, "classes/"), "/") && r.Method == http.MethodDelete:
+		authHandler(handleDeleteClass).ServeHTTP(rec, r)
+
+	// Students under class
+	case strings.HasPrefix(path, "classes/") && strings.HasSuffix(path, "/students") && r.Method == http.MethodGet:
+		authHandler(handleListStudents).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "classes/") && strings.HasSuffix(path, "/students") && r.Method == http.MethodPost:
+		authHandler(handleCreateStudent).ServeHTTP(rec, r)
+
+	// Students by ID
 	case path == "students" && r.Method == http.MethodGet:
-		studentsHandler.ServeHTTP(rec, r)
-	case path == "upload" && r.Method == http.MethodPost:
-		uploadHandler.ServeHTTP(rec, r)
-	case path == "report-examples" && r.Method == http.MethodGet:
-		reportExamplesListHandler.ServeHTTP(rec, r)
-	case path == "report-examples" && r.Method == http.MethodPost:
-		reportExamplesUploadHandler.ServeHTTP(rec, r)
-	case path == "report-examples" && r.Method == http.MethodDelete:
-		reportExamplesDeleteHandler.ServeHTTP(rec, r)
+		authHandler(handleGetStudents).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "students/") && !strings.Contains(strings.TrimPrefix(path, "students/"), "/") && r.Method == http.MethodPut:
+		authHandler(handleUpdateStudent).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "students/") && !strings.Contains(strings.TrimPrefix(path, "students/"), "/") && r.Method == http.MethodDelete:
+		authHandler(handleDeleteStudent).ServeHTTP(rec, r)
+
+	// Notes under student
+	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/notes") && r.Method == http.MethodGet:
+		authHandler(handleListNotes).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/notes") && r.Method == http.MethodPost:
+		authHandler(handleCreateNote).ServeHTTP(rec, r)
+
+	// Notes by ID
+	case strings.HasPrefix(path, "notes/") && r.Method == http.MethodGet:
+		authHandler(handleGetNote).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "notes/") && r.Method == http.MethodPut:
+		authHandler(handleUpdateNote).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "notes/") && r.Method == http.MethodDelete:
+		authHandler(handleDeleteNote).ServeHTTP(rec, r)
+
+	// Reports
 	case path == "reports" && r.Method == http.MethodPost:
-		reportsHandler.ServeHTTP(rec, r)
-	case path == "reports/regenerate" && r.Method == http.MethodPost:
-		reportsRegenerateHandler.ServeHTTP(rec, r)
-	case path == "google-token" && r.Method == http.MethodGet:
-		googleTokenHandler.ServeHTTP(rec, r)
+		authHandler(handleGenerateReports).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "reports/") && strings.HasSuffix(path, "/regenerate") && r.Method == http.MethodPost:
+		authHandler(handleRegenerateReport).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/reports") && r.Method == http.MethodGet:
+		authHandler(handleListReports).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "reports/") && r.Method == http.MethodGet:
+		authHandler(handleGetReport).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "reports/") && r.Method == http.MethodDelete:
+		authHandler(handleDeleteReport).ServeHTTP(rec, r)
+
+	// Report examples
+	case path == "report-examples" && r.Method == http.MethodGet:
+		authHandler(handleListReportExamples).ServeHTTP(rec, r)
+	case path == "report-examples" && r.Method == http.MethodPost:
+		authHandler(handleUploadReportExample).ServeHTTP(rec, r)
+	case path == "report-examples" && r.Method == http.MethodDelete:
+		authHandler(handleDeleteReportExample).ServeHTTP(rec, r)
+
+	// Upload + Drive import
+	case path == "upload" && r.Method == http.MethodPost:
+		authHandler(handleUpload).ServeHTTP(rec, r)
 	case path == "drive-import" && r.Method == http.MethodPost:
-		driveImportHandler.ServeHTTP(rec, r)
+		authHandler(handleDriveImport).ServeHTTP(rec, r)
+
+	// Google token (for Drive Picker)
+	case path == "google-token" && r.Method == http.MethodGet:
+		authHandler(handleGoogleToken).ServeHTTP(rec, r)
+
+	// Jobs
 	case path == "jobs" && r.Method == http.MethodGet:
-		jobListHandler.ServeHTTP(rec, r)
+		authHandler(handleJobList).ServeHTTP(rec, r)
 	case path == "jobs/retry" && r.Method == http.MethodPost:
-		jobRetryHandler.ServeHTTP(rec, r)
+		authHandler(handleJobRetry).ServeHTTP(rec, r)
 	case path == "jobs/dismiss" && r.Method == http.MethodPost:
-		jobDismissHandler.ServeHTTP(rec, r)
+		authHandler(handleJobDismiss).ServeHTTP(rec, r)
+
 	default:
+		matched = false
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}
+	_ = matched
 
 	duration := time.Since(start).Milliseconds()
 	logAttrs := []any{"method", r.Method, "path", "/" + path, "status", rec.status, "duration_ms", duration}

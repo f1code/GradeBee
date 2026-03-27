@@ -58,12 +58,11 @@ func handleJobList(w http.ResponseWriter, r *http.Request) {
 			resp.Done = append(resp.Done, j)
 		case JobStatusFailed:
 			resp.Failed = append(resp.Failed, j)
-		default: // queued, transcribing, extracting, creating_notes
+		default:
 			resp.Active = append(resp.Active, j)
 		}
 	}
 
-	// Sort each bucket by CreatedAt descending (newest first).
 	sortDesc := func(s []UploadJob) {
 		sort.Slice(s, func(i, j int) bool {
 			return s[i].CreatedAt.After(s[j].CreatedAt)

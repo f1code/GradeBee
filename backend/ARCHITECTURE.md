@@ -6,32 +6,49 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 
 **Package:** `handler` (all source files in `backend/` share this package).
 
+**Storage:** SQLite database (`modernc.org/sqlite`) with WAL mode. Audio files stored on local disk. No Google Sheets/Docs — all data in SQLite.
+
 ## Entrypoint & Routing
 
-**`handler.go`** — exports `Handle(w, r)`, the single HTTP handler.
+**`handler.go`** — exports `Handle(w, r)`, the single HTTP handler. Routes use `strings.HasPrefix` + `pathParam()` for parameterized paths.
 
-| Method | Path         | Auth | Handler              | Description                              |
-|--------|-------------|------|----------------------|------------------------------------------|
-| GET    | `/` `/health` | No  | inline               | Health check                             |
-| POST   | `/setup`    | Yes  | `handleSetup`        | Provision Drive workspace                |
-| GET    | `/students` | Yes  | `handleGetStudents`  | Read roster from Sheets                  |
-| POST   | `/upload`   | Yes  | `handleUpload`       | Upload audio to Drive + dispatch async job |
-| GET    | `/report-examples` | Yes | `handleListReportExamples` | List example report cards        |
-| POST   | `/report-examples` | Yes | `handleUploadReportExample` | Upload example report card      |
-| DELETE | `/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card      |
-| POST   | `/reports`  | Yes  | `handleGenerateReports` | Generate report cards for students    |
-| POST   | `/reports/regenerate` | Yes | `handleRegenerateReport` | Regenerate a report with feedback |
-| GET    | `/google-token` | Yes | `handleGoogleToken`  | Return user's Google OAuth access token  |
-| POST   | `/drive-import` | Yes | `handleDriveImport`  | Validate + copy Drive file to uploads + dispatch async job |
-| GET    | `/jobs`     | Yes  | `handleJobList`      | List user's async upload jobs            |
-| POST   | `/jobs/retry` | Yes | `handleJobRetry`    | Retry all failed jobs                    |
-| POST   | `/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs           |
+| Method | Path | Auth | Handler | Description |
+|--------|------|------|---------|-------------|
+| GET | `/` `/health` | No | inline | Health check |
+| GET | `/classes` | Yes | `handleListClasses` | List user's classes with student counts |
+| POST | `/classes` | Yes | `handleCreateClass` | Create a class |
+| PUT | `/classes/{id}` | Yes | `handleUpdateClass` | Rename a class |
+| DELETE | `/classes/{id}` | Yes | `handleDeleteClass` | Delete class + cascade |
+| GET | `/classes/{id}/students` | Yes | `handleListStudents` | List students in a class |
+| POST | `/classes/{id}/students` | Yes | `handleCreateStudent` | Add a student |
+| GET | `/students` | Yes | `handleGetStudents` | Full roster grouped by class |
+| PUT | `/students/{id}` | Yes | `handleUpdateStudent` | Rename / move student |
+| DELETE | `/students/{id}` | Yes | `handleDeleteStudent` | Delete student + cascade |
+| GET | `/students/{id}/notes` | Yes | `handleListNotes` | List notes for a student |
+| POST | `/students/{id}/notes` | Yes | `handleCreateNote` | Create a manual note |
+| GET | `/notes/{id}` | Yes | `handleGetNote` | Get single note |
+| PUT | `/notes/{id}` | Yes | `handleUpdateNote` | Edit note summary |
+| DELETE | `/notes/{id}` | Yes | `handleDeleteNote` | Delete a note |
+| POST | `/reports` | Yes | `handleGenerateReports` | Generate report cards (returns HTML) |
+| POST | `/reports/{id}/regenerate` | Yes | `handleRegenerateReport` | Regenerate with feedback |
+| GET | `/students/{id}/reports` | Yes | `handleListReports` | List reports for a student |
+| GET | `/reports/{id}` | Yes | `handleGetReport` | Get single report HTML |
+| DELETE | `/reports/{id}` | Yes | `handleDeleteReport` | Delete a report |
+| GET | `/report-examples` | Yes | `handleListReportExamples` | List example report cards |
+| POST | `/report-examples` | Yes | `handleUploadReportExample` | Upload example report card |
+| DELETE | `/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card |
+| POST | `/upload` | Yes | `handleUpload` | Upload audio to disk + dispatch job |
+| POST | `/drive-import` | Yes | `handleDriveImport` | Download from Drive + dispatch job |
+| GET | `/google-token` | Yes | `handleGoogleToken` | Return Google OAuth token for Drive Picker |
+| GET | `/jobs` | Yes | `handleJobList` | List user's async upload jobs |
+| POST | `/jobs/retry` | Yes | `handleJobRetry` | Retry failed jobs |
+| POST | `/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs |
 
-Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline.
+Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline (GET, POST, PUT, DELETE, OPTIONS).
 
 ## Async Upload Processing Pipeline
 
-Audio uploads are processed asynchronously via an in-memory queue (`memQueue`) with a background worker pool. Jobs are dispatched from `POST /upload` and `POST /drive-import` after the file is saved to Drive.
+Audio uploads are processed asynchronously via an in-memory queue (`memQueue`) with a background worker pool. Jobs are dispatched from `POST /upload` and `POST /drive-import` after the file is saved to disk.
 
 ### Flow
 
@@ -40,8 +57,8 @@ User uploads audio
         │
         ▼
   POST /upload (or /drive-import)
-        │  Saves file to Drive, publishes UploadJob
-        │  to memQueue with status "queued"
+        │  Saves file to disk, creates uploads row,
+        │  publishes UploadJob to memQueue
         │
         ▼
   memQueue worker goroutine
@@ -53,8 +70,8 @@ User uploads audio
         ├─ Idempotency check: skip if job status ≠ "queued"
         │
         ├─ Step 1: Transcribe (status → "transcribing")
-        │    Download audio from Drive → OpenAI Whisper
-        │    Whisper prompt seeded with class names from roster
+        │    Read audio from local disk → OpenAI Whisper
+        │    Whisper prompt seeded with class names from DB roster
         │
         ├─ Step 2: Extract (status → "extracting")
         │    Send transcript + student roster to GPT
@@ -62,18 +79,23 @@ User uploads audio
         │
         ├─ Step 3: Create Notes (status → "creating_notes")
         │    For each student with confidence ≥ 0.5:
-        │      Create a Google Doc in the user's notes folder
+        │      Resolve name → student ID via FindByNameAndClass
+        │      Create note in SQLite via dbNoteCreator
         │
-        └─ Done (status → "done", noteIDs stored on job)
+        └─ Done (status → "done", mark upload processed)
 ```
 
-On failure at any step, the job status is set to `"failed"` with the error message. Users can retry failed jobs via `POST /jobs/retry`, which resets them to `"queued"` and republishes to the queue.
+On failure at any step, the job status is set to `"failed"` with the error message. Users can retry failed jobs via `POST /jobs/retry`.
 
-Job status is tracked in-memory (map keyed by `userId/fileId`). The frontend polls `GET /jobs` to show progress.
+Job status is tracked in-memory (map keyed by `userId/<uploadId>`). The frontend polls `GET /jobs` to show progress.
 
 ### Startup
 
 `cmd/server/main.go` calls `InitUploadQueue(ServiceDeps(), 4)` at startup to create the queue with 4 worker goroutines. The queue is shut down gracefully on SIGINT/SIGTERM.
+
+### Upload Cleanup
+
+`upload_cleanup.go` runs a background goroutine that deletes processed audio files from disk and their `uploads` rows after a retention period (default 7 days, configurable via `UPLOAD_RETENTION_HOURS`).
 
 ## Dependency Injection
 
@@ -81,19 +103,23 @@ Job status is tracked in-memory (map keyed by `userId/fileId`). The frontend pol
 
 ```
 deps interface {
-    GoogleServices(r) → *googleServices
-    GoogleServicesForUser(ctx, userID) → *googleServices
-    GetTranscriber()  → Transcriber
-    GetRoster(ctx, svc) → Roster
-    GetDriveStore(svc)  → DriveStore
-    GetExtractor()      → Extractor
-    GetNoteCreator(svc) → NoteCreator
-    GetMetadataIndex(svc) → MetadataIndex
-    GetExampleStore(svc)  → ExampleStore
+    GetTranscriber()      → Transcriber
+    GetRoster(ctx, userID) → Roster
+    GetExtractor()        → Extractor
+    GetNoteCreator()      → NoteCreator
+    GetExampleStore()     → ExampleStore
     GetExampleExtractor() → ExampleExtractor
-    GetReportGenerator(svc) → ReportGenerator
-    GetUploadQueue()        → UploadQueue
-    GetGradeBeeMetadata(ctx, userID) → *gradeBeeMetadata
+    GetReportGenerator()  → ReportGenerator
+    GetUploadQueue()      → UploadQueue
+    GetDriveClient(ctx, userID) → *drive.Service
+    GetDB()               → *sql.DB
+    GetClassRepo()        → *ClassRepo
+    GetStudentRepo()      → *StudentRepo
+    GetNoteRepo()         → *NoteRepo
+    GetReportRepo()       → *ReportRepo
+    GetExampleRepo()      → *ReportExampleRepo
+    GetUploadRepo()       → *UploadRepo
+    GetUploadsDir()       → string
 }
 ```
 
@@ -101,89 +127,103 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 
 ### Key Interfaces
 
-| Interface     | File             | Prod Implementation     | Purpose                        |
-|--------------|------------------|------------------------|--------------------------------|
-| `deps`       | `deps.go`        | `prodDeps`             | Top-level DI container         |
-| `Roster`     | `roster.go`      | `sheetsRoster`         | Read student data from Sheets  |
-| `Transcriber`| `transcriber.go` | `whisperTranscriber`   | Audio→text via OpenAI Whisper  |
-| `DriveStore` | `drive_store.go` | `sheetsDriveStore`     | Upload/download/copy files on Drive |
-| `Extractor`  | `extract.go`     | `gptExtractor`         | Transcript→student extraction  |
-| `NoteCreator`| `notes.go`       | `driveNoteCreator`     | Create Google Doc notes        |
-| `MetadataIndex` | `metadata_index.go` | `driveMetadataIndex` | Per-student note index (index.json) |
-| `ExampleStore` | `report_examples.go` | `driveExampleStore` | CRUD for example report cards  |
+| Interface | File | Prod Implementation | Purpose |
+|-----------|------|---------------------|---------|
+| `deps` | `deps.go` | `prodDeps` | Top-level DI container |
+| `Roster` | `roster.go` | `dbRoster` | Read student data from DB |
+| `Transcriber` | `transcriber.go` | `whisperTranscriber` | Audio→text via OpenAI Whisper |
+| `Extractor` | `extract.go` | `gptExtractor` | Transcript→student extraction |
+| `NoteCreator` | `notes.go` | `dbNoteCreator` | Create notes in SQLite |
+| `ExampleStore` | `report_examples.go` | `dbExampleStore` | CRUD for example report cards |
 | `ExampleExtractor` | `report_example_extractor.go` | `gptExampleExtractor` | GPT Vision text extraction from PDF/images |
-| `ReportGenerator` | `report_generator.go` | `gptReportGenerator` | GPT-based report card generation |
+| `ReportGenerator` | `report_generator.go` | `gptReportGenerator` | GPT-based report card generation (HTML output) |
 | `UploadQueue` | `upload_queue.go` | `memQueue` | In-memory async job queue with worker pool |
 
 ## External Services
 
 ### Google APIs (`google.go`)
-- **Auth flow:** Clerk JWT → extract user ID → `getGoogleOAuthToken` (Clerk Backend API) → OAuth2 token → Drive/Sheets/Docs clients.
-- Scope: `drive.file` only (app can only access files it created).
-- `googleServices` struct holds `*drive.Service`, `*sheets.Service`, `*docs.Service`, `*clerkUser`.
+- **Drive-read-only** — used only by `/drive-import` to download files from Google Drive.
+- Auth: Clerk JWT → extract user ID → `getGoogleOAuthToken` (Clerk Backend API) → OAuth2 token → Drive client.
+- **Removed:** Google Sheets and Docs APIs (all data now in SQLite).
 
-### Clerk (`auth.go`, `clerk_metadata.go`)
+### Clerk (`auth.go`)
 - JWT verification via middleware.
 - OAuth token retrieval: `user.ListOAuthAccessTokens` for `oauth_google`.
-- **Private metadata** stores Drive resource IDs (`gradeBeeMetadata` struct: folder, spreadsheet, uploads/notes/reports/report-examples subfolder IDs). This avoids needing `drive.readonly` scope to find resources.
+- `userIDFromRequest(r)` extracts user ID from Clerk session claims.
 
 ### OpenAI Whisper (`transcriber.go`)
 - `whisperTranscriber` uses `go-openai` client.
 - Handles audio format detection and 3GP→MP4 patching (`audio_format.go`).
 
+## Database
+
+SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`, `sql/001_init.sql`).
+
+### Tables
+
+| Table | Purpose |
+|-------|---------|
+| `classes` | Teacher's classes (user_id + name) |
+| `students` | Students belonging to classes |
+| `notes` | Observation notes per student |
+| `reports` | Generated HTML report cards |
+| `report_examples` | Example report cards for style matching |
+| `uploads` | Audio file tracking (file path, processed_at) |
+
+### Repository Layer
+
+Each table has a `Repo*` type in `repo_*.go` files providing type-safe CRUD.
+
+## Authorization Pattern
+
+All CRUD endpoints verify resource ownership:
+1. Extract `userID` from Clerk JWT claims
+2. For class operations: query class, check `class.UserID == userID`
+3. For student operations: `studentRepo.BelongsToUser(studentID, userID)`
+4. For note/report operations: join through student → class to verify ownership
+
 ## File-by-File Reference
 
-| File                | Responsibility                                                    |
-|---------------------|------------------------------------------------------------------|
-| `cmd/server/main.go`| Server entrypoint; loads `.env`, inits Clerk, starts queue + HTTP |
-| `handler.go`        | Routing, CORS, request logging, `Handle` entrypoint              |
-| `deps.go`           | DI interface, prod implementations, `serviceDeps` variable        |
-| `google.go`         | Google API client construction, `apiError` type, `createFolder`   |
-| `auth.go`           | `getGoogleOAuthToken` — Clerk → Google OAuth token               |
-| `clerk_metadata.go` | Read/write `gradeBeeMetadata` in Clerk user private metadata      |
-| `setup.go`          | POST /setup — create Drive folder tree + ClassSetup spreadsheet   |
-| `students.go`       | GET /students — read & parse roster, `parseStudentRows`           |
-| `roster.go`         | `Roster` interface + `sheetsRoster` — Sheets-backed roster reads  |
-| `upload.go`         | POST /upload — multipart audio → Drive uploads folder + dispatch job |
-| `transcriber.go`    | `Transcriber` interface + `whisperTranscriber` (OpenAI Whisper)   |
-| `drive_store.go`    | `DriveStore` interface + `sheetsDriveStore` (Drive CRUD + Copy)   |
-| `drive_import.go`   | POST /drive-import — validate + copy Drive file to uploads folder + dispatch job |
-| `google_token.go`   | GET /google-token — return user's Google OAuth access token       |
-| `extract.go`        | `Extractor` interface + GPT implementation for transcript analysis|
-| `notes.go`          | `NoteCreator` interface + Drive/Docs implementation               |
-| `metadata_index.go` | `MetadataIndex` interface + Drive impl, shared folder utils       |
-| `report_examples.go`| `ExampleStore` interface + Drive impl for example report cards    |
-| `report_examples_handler.go` | GET/POST/DELETE /report-examples handlers            |
+| File | Responsibility |
+|------|---------------|
+| `cmd/server/main.go` | Server entrypoint; loads `.env`, inits Clerk, opens DB, runs migrations, starts queue + cleanup + HTTP |
+| `handler.go` | Routing, CORS, request logging, `Handle` entrypoint, `userIDFromRequest`, `pathParam` |
+| `deps.go` | DI interface, prod implementations, `serviceDeps` variable |
+| `google.go` | `apiError` type, `writeAPIError`, `newDriveReadClient` (Drive-read-only) |
+| `auth.go` | `getGoogleOAuthToken` — Clerk → Google OAuth token |
+| `db.go` | Open SQLite, set PRAGMAs (WAL, busy_timeout, foreign_keys) |
+| `migrate.go` | Embed + run SQL migrations on startup |
+| `sql/001_init.sql` | Schema: classes, students, notes, reports, report_examples, uploads |
+| `repo_class.go` | `ClassRepo` — CRUD for classes |
+| `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass`, `BelongsToUser` |
+| `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range) |
+| `repo_report.go` | `ReportRepo` — CRUD for reports |
+| `repo_example.go` | `ReportExampleRepo` — CRUD for report examples |
+| `repo_upload.go` | `UploadRepo` — CRUD for uploads, `MarkProcessed`, `ListStale` |
+| `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr` |
+| `students.go` | GET /students, class/student CRUD handlers, `classGroup`/`student` types |
+| `roster.go` | `Roster` interface + `dbRoster` — DB-backed roster reads |
+| `upload.go` | POST /upload — multipart audio → disk + uploads table + dispatch job |
+| `transcriber.go` | `Transcriber` interface + `whisperTranscriber` (OpenAI Whisper) |
+| `drive_import.go` | POST /drive-import — download from Drive → disk + uploads table + dispatch job |
+| `google_token.go` | GET /google-token — return user's Google OAuth access token |
+| `extract.go` | `Extractor` interface + GPT implementation for transcript analysis |
+| `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers |
+| `report_examples.go` | `ExampleStore` interface + `dbExampleStore` |
+| `report_examples_handler.go` | GET/POST/DELETE /report-examples handlers |
 | `report_example_extractor.go` | GPT Vision extraction of text from PDF/image uploads |
-| `report_generator.go` | `ReportGenerator` interface + GPT impl, feedback reader        |
-| `report_prompt.go`  | GPT prompt construction for report generation                     |
-| `reports_handler.go`| POST /reports + POST /reports/regenerate handlers                 |
-| `audio_format.go`   | Magic-byte detection, 3GP patching, filename extension fixing     |
-| `logger.go`         | slog-based structured logging, request-scoped via context         |
-| `upload_queue.go`   | `UploadQueue` interface, `UploadJob` type, job status constants   |
-| `mem_queue.go`      | In-memory `UploadQueue` implementation with worker pool           |
-| `upload_process.go` | `processUploadJob` pipeline (transcribe→extract→notes)            |
-| `jobs_list.go`      | GET /jobs — list user's async upload jobs grouped by status       |
-| `jobs_retry.go`     | POST /jobs/retry — reset failed jobs to queued and republish      |
-| `jobs_dismiss.go`   | POST /jobs/dismiss — remove completed/failed jobs from the queue  |
-
-## Drive Folder Structure (per user)
-
-```
-GradeBee/              ← root folder (ID in metadata.FolderID)
-├── uploads/           ← audio files (metadata.UploadsID)
-├── notes/             ← (metadata.NotesID)
-│   └── {class}/
-│       └── {student}/
-│           ├── index.json       ← note metadata index
-│           └── {student — date} ← Google Doc notes
-├── reports/           ← (metadata.ReportsID)
-│   └── {YYYY-MM}/
-│       └── {student — class}    ← Google Doc report cards
-├── report-examples/   ← (metadata.ReportExamplesID) plain text example report cards
-└── ClassSetup         ← Google Sheet (metadata.SpreadsheetID)
-    └── Sheet "Students": columns A=class, B=student (header row 1)
-```
+| `report_generator.go` | `ReportGenerator` interface + `gptReportGenerator` (HTML output) |
+| `report_prompt.go` | GPT prompt construction for report generation (requests HTML output) |
+| `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers |
+| `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
+| `logger.go` | slog-based structured logging, request-scoped via context |
+| `upload_queue.go` | `UploadQueue` interface, `UploadJob` type (int64 UploadID), job status constants |
+| `mem_queue.go` | In-memory `UploadQueue` implementation with worker pool |
+| `upload_process.go` | `processUploadJob` pipeline (transcribe→extract→notes) |
+| `upload_cleanup.go` | Background goroutine to delete processed audio files after retention |
+| `jobs_list.go` | GET /jobs — list user's async upload jobs grouped by status |
+| `jobs_retry.go` | POST /jobs/retry — reset failed jobs to queued and republish |
+| `jobs_dismiss.go` | POST /jobs/dismiss — remove completed/failed jobs, mark uploads processed |
 
 ## Error Handling
 
@@ -193,15 +233,19 @@ GradeBee/              ← root folder (ID in metadata.FolderID)
 
 - Tests in `*_test.go` files override `serviceDeps` with stubs.
 - `testutil_test.go` has shared test helpers (`stubUploadQueue`, `mockDepsAll`, etc.).
+- `setupTestDB(t)` creates an in-memory SQLite DB with migrations for handler tests.
 - Run: `make test` / `make lint`
 
 ## Environment Variables
 
-| Variable           | Required | Purpose                          |
-|-------------------|----------|----------------------------------|
-| `CLERK_SECRET_KEY`| Yes      | Clerk Backend API key            |
-| `OPENAI_API_KEY`  | Yes      | Whisper transcription            |
-| `ALLOWED_ORIGIN`  | No       | CORS origin (default `*`)       |
-| `PORT`            | No       | Local dev port (default `8080`) |
-| `LOG_LEVEL`       | No       | DEBUG/INFO/WARN/ERROR/off        |
-| `LOG_FORMAT`      | No       | `json` for JSON, else text       |
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `CLERK_SECRET_KEY` | Yes | Clerk Backend API key |
+| `OPENAI_API_KEY` | Yes | Whisper transcription + GPT |
+| `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |
+| `UPLOADS_DIR` | No | Audio upload directory (default `/data/uploads`) |
+| `UPLOAD_RETENTION_HOURS` | No | Hours to keep processed audio (default 168 = 7 days) |
+| `ALLOWED_ORIGIN` | No | CORS origin (default `*`) |
+| `PORT` | No | Local dev port (default `8080`) |
+| `LOG_LEVEL` | No | DEBUG/INFO/WARN/ERROR/off |
+| `LOG_FORMAT` | No | `json` for JSON, else text |

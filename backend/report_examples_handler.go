@@ -3,10 +3,7 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"io"
 	"net/http"
 )
@@ -14,80 +11,32 @@ import (
 func handleListReportExamples(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
-	svc, err := serviceDeps.GoogleServices(r)
+	userID, err := userIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		log.Error("list report examples failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
 		return
 	}
 
-	ctx := r.Context()
-	meta, err := getGradeBeeMetadata(ctx, svc.User.UserID)
-	if err != nil || meta == nil || meta.ReportExamplesID == "" {
-		writeJSON(w, http.StatusOK, map[string]any{"examples": []any{}})
-		return
-	}
-
-	store := serviceDeps.GetExampleStore(svc)
-	examples, err := store.ListExamples(ctx, meta.ReportExamplesID)
+	store := serviceDeps.GetExampleStore()
+	examples, err := store.ListExamples(r.Context(), userID)
 	if err != nil {
 		log.Error("list report examples failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
+	}
+	if examples == nil {
+		examples = []ReportExample{}
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{"examples": examples})
 }
 
-// ensureReportExamplesFolder returns the report-examples folder ID, creating it on demand if needed.
-func ensureReportExamplesFolder(ctx context.Context, svc *googleServices, meta *gradeBeeMetadata) (string, error) {
-	if meta == nil || meta.FolderID == "" {
-		return "", fmt.Errorf("GradeBee workspace not configured, run setup first")
-	}
-	if meta.ReportExamplesID != "" {
-		return meta.ReportExamplesID, nil
-	}
-	id, err := createFolder(svc.Drive, meta.FolderID, "report-examples")
-	if err != nil {
-		return "", fmt.Errorf("creating report-examples folder: %w", err)
-	}
-	meta.ReportExamplesID = id
-	if err := setGradeBeeMetadata(ctx, svc.User.UserID, meta); err != nil {
-		loggerFromContext(ctx).Warn("ensureReportExamplesFolder: could not persist metadata", "error", err)
-	}
-	return id, nil
-}
-
 func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
-	svc, err := serviceDeps.GoogleServices(r)
+	userID, err := userIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		log.Error("upload report example failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	ctx := r.Context()
-	meta, err := getGradeBeeMetadata(ctx, svc.User.UserID)
-	if err != nil {
-		log.Error("upload report example: metadata lookup failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to read user metadata"})
-		return
-	}
-	folderID, err := ensureReportExamplesFolder(ctx, svc, meta)
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
 		return
 	}
 
@@ -120,7 +69,7 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "text extraction unavailable"})
 				return
 			}
-			extracted, err := extractor.ExtractText(ctx, name, data)
+			extracted, err := extractor.ExtractText(r.Context(), name, data)
 			if err != nil {
 				log.Error("failed to extract text from file", "error", err, "filename", name)
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to extract text from file"})
@@ -149,8 +98,8 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	store := serviceDeps.GetExampleStore(svc)
-	example, err := store.UploadExample(ctx, folderID, name, content)
+	store := serviceDeps.GetExampleStore()
+	example, err := store.UploadExample(r.Context(), userID, name, content)
 	if err != nil {
 		log.Error("upload report example failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -163,28 +112,22 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 func handleDeleteReportExample(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
-	svc, err := serviceDeps.GoogleServices(r)
+	userID, err := userIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		log.Error("delete report example failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
 		return
 	}
 
 	var req struct {
-		ID string `json:"id"`
+		ID int64 `json:"id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing id"})
 		return
 	}
 
-	store := serviceDeps.GetExampleStore(svc)
-	if err := store.DeleteExample(r.Context(), req.ID); err != nil {
+	store := serviceDeps.GetExampleStore()
+	if err := store.DeleteExample(r.Context(), userID, req.ID); err != nil {
 		log.Error("delete report example failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

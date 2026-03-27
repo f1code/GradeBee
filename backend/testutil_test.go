@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"net/http"
 	"testing"
+
+	"google.golang.org/api/drive/v3"
 )
 
 // stubRoster implements Roster for tests.
@@ -15,7 +16,6 @@ type stubRoster struct {
 	classErr    error
 	students    []classGroup
 	studentsErr error
-	url         string
 }
 
 func (s *stubRoster) ClassNames(_ context.Context) ([]string, error) {
@@ -24,42 +24,6 @@ func (s *stubRoster) ClassNames(_ context.Context) ([]string, error) {
 
 func (s *stubRoster) Students(_ context.Context) ([]classGroup, error) {
 	return s.students, s.studentsErr
-}
-
-func (s *stubRoster) SpreadsheetURL() string { return s.url }
-
-// stubDriveStore implements DriveStore for tests.
-type stubDriveStore struct {
-	downloadBody io.ReadCloser
-	downloadErr  error
-	fileName     string
-	fileNameErr  error
-	uploadID     string
-	uploadErr    error
-	copyID       string
-	copyErr      error
-	mimeType     string
-	mimeTypeErr  error
-}
-
-func (s *stubDriveStore) Download(_ context.Context, _ string) (io.ReadCloser, error) {
-	return s.downloadBody, s.downloadErr
-}
-
-func (s *stubDriveStore) FileName(_ context.Context, _ string) (string, error) {
-	return s.fileName, s.fileNameErr
-}
-
-func (s *stubDriveStore) Upload(_ context.Context, _, _ string, _ io.Reader) (string, error) {
-	return s.uploadID, s.uploadErr
-}
-
-func (s *stubDriveStore) Copy(_ context.Context, _, _, _ string) (string, error) {
-	return s.copyID, s.copyErr
-}
-
-func (s *stubDriveStore) GetMimeType(_ context.Context, _ string) (string, error) {
-	return s.mimeType, s.mimeTypeErr
 }
 
 // stubTranscriber implements Transcriber for tests.
@@ -76,38 +40,27 @@ func (s *stubTranscriber) Transcribe(_ context.Context, _ string, _ io.Reader, p
 
 // mockDepsAll satisfies deps with configurable returns for all methods.
 type mockDepsAll struct {
-	googleSvcErr        error
-	googleSvcForUser    *googleServices
-	googleSvcForUserErr error
-	roster              Roster
-	rosterErr           error
-	driveStore          DriveStore
-	transcriber         Transcriber
-	transErr            error
-	extractor           Extractor
-	extractErr          error
-	noteCreator         NoteCreator
-	uploadQueue         UploadQueue
-	uploadQueueErr      error
-	metadata            *gradeBeeMetadata
-	metadataErr         error
-}
-
-func (m *mockDepsAll) GoogleServices(_ *http.Request) (*googleServices, error) {
-	if m.googleSvcErr != nil {
-		return nil, m.googleSvcErr
-	}
-	return &googleServices{User: &clerkUser{UserID: "test-user"}}, nil
-}
-
-func (m *mockDepsAll) GoogleServicesForUser(_ context.Context, userID string) (*googleServices, error) {
-	if m.googleSvcForUserErr != nil {
-		return nil, m.googleSvcForUserErr
-	}
-	if m.googleSvcForUser != nil {
-		return m.googleSvcForUser, nil
-	}
-	return &googleServices{User: &clerkUser{UserID: userID}}, nil
+	roster         Roster
+	transcriber    Transcriber
+	transErr       error
+	extractor      Extractor
+	extractErr     error
+	noteCreator    NoteCreator
+	exampleStore   ExampleStore
+	reportGen      ReportGenerator
+	reportGenErr   error
+	uploadQueue    UploadQueue
+	uploadQueueErr error
+	driveClient    *drive.Service
+	driveClientErr error
+	db             *sql.DB
+	classRepo      *ClassRepo
+	studentRepo    *StudentRepo
+	noteRepo       *NoteRepo
+	reportRepo     *ReportRepo
+	exampleRepo    *ReportExampleRepo
+	uploadRepo     *UploadRepo
+	uploadsDir     string
 }
 
 func (m *mockDepsAll) GetTranscriber() (Transcriber, error) {
@@ -117,15 +70,11 @@ func (m *mockDepsAll) GetTranscriber() (Transcriber, error) {
 	return m.transcriber, nil
 }
 
-func (m *mockDepsAll) GetRoster(_ context.Context, _ *googleServices) (Roster, error) {
-	if m.rosterErr != nil {
-		return nil, m.rosterErr
+func (m *mockDepsAll) GetRoster(_ context.Context, _ string) Roster {
+	if m.roster != nil {
+		return m.roster
 	}
-	return m.roster, nil
-}
-
-func (m *mockDepsAll) GetDriveStore(_ *googleServices) DriveStore {
-	return m.driveStore
+	return &stubRoster{}
 }
 
 func (m *mockDepsAll) GetExtractor() (Extractor, error) {
@@ -135,24 +84,23 @@ func (m *mockDepsAll) GetExtractor() (Extractor, error) {
 	return m.extractor, nil
 }
 
-func (m *mockDepsAll) GetNoteCreator(_ *googleServices) NoteCreator {
+func (m *mockDepsAll) GetNoteCreator() NoteCreator {
 	return m.noteCreator
 }
 
-func (m *mockDepsAll) GetMetadataIndex(_ *googleServices) MetadataIndex {
-	return nil
-}
-
-func (m *mockDepsAll) GetExampleStore(_ *googleServices) ExampleStore {
-	return nil
+func (m *mockDepsAll) GetExampleStore() ExampleStore {
+	return m.exampleStore
 }
 
 func (m *mockDepsAll) GetExampleExtractor() (ExampleExtractor, error) {
 	return nil, fmt.Errorf("not configured")
 }
 
-func (m *mockDepsAll) GetReportGenerator(_ *googleServices) (ReportGenerator, error) {
-	return nil, fmt.Errorf("not configured")
+func (m *mockDepsAll) GetReportGenerator() (ReportGenerator, error) {
+	if m.reportGenErr != nil {
+		return nil, m.reportGenErr
+	}
+	return m.reportGen, nil
 }
 
 func (m *mockDepsAll) GetUploadQueue() (UploadQueue, error) {
@@ -162,20 +110,21 @@ func (m *mockDepsAll) GetUploadQueue() (UploadQueue, error) {
 	return m.uploadQueue, nil
 }
 
-func (m *mockDepsAll) GetGradeBeeMetadata(_ context.Context, _ string) (*gradeBeeMetadata, error) {
-	if m.metadataErr != nil {
-		return nil, m.metadataErr
+func (m *mockDepsAll) GetDriveClient(_ context.Context, _ string) (*drive.Service, error) {
+	if m.driveClientErr != nil {
+		return nil, m.driveClientErr
 	}
-	return m.metadata, nil
+	return m.driveClient, nil
 }
 
-func (m *mockDepsAll) GetDB() *sql.DB                        { return nil }
-func (m *mockDepsAll) GetClassRepo() *ClassRepo               { return nil }
-func (m *mockDepsAll) GetStudentRepo() *StudentRepo           { return nil }
-func (m *mockDepsAll) GetNoteRepo() *NoteRepo                 { return nil }
-func (m *mockDepsAll) GetReportRepo() *ReportRepo             { return nil }
-func (m *mockDepsAll) GetExampleRepo() *ReportExampleRepo     { return nil }
-func (m *mockDepsAll) GetUploadRepo() *UploadRepo             { return nil }
+func (m *mockDepsAll) GetDB() *sql.DB                        { return m.db }
+func (m *mockDepsAll) GetClassRepo() *ClassRepo               { return m.classRepo }
+func (m *mockDepsAll) GetStudentRepo() *StudentRepo           { return m.studentRepo }
+func (m *mockDepsAll) GetNoteRepo() *NoteRepo                 { return m.noteRepo }
+func (m *mockDepsAll) GetReportRepo() *ReportRepo             { return m.reportRepo }
+func (m *mockDepsAll) GetExampleRepo() *ReportExampleRepo     { return m.exampleRepo }
+func (m *mockDepsAll) GetUploadRepo() *UploadRepo             { return m.uploadRepo }
+func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploadsDir }
 
 // stubExtractor implements Extractor for tests.
 type stubExtractor struct {
@@ -205,12 +154,12 @@ func (s *stubNoteCreator) CreateNote(_ context.Context, req CreateNoteRequest) (
 		s.idx++
 		return r, nil
 	}
-	return &CreateNoteResponse{DocID: "doc-id", DocURL: "https://docs.google.com/document/d/doc-id/edit"}, nil
+	return &CreateNoteResponse{NoteID: 1}, nil
 }
 
 // stubUploadQueue implements UploadQueue with in-memory storage for tests.
 type stubUploadQueue struct {
-	jobs      map[string]UploadJob // keyed by "userId/fileId"
+	jobs      map[string]UploadJob // keyed by "userId/<uploadId>"
 	published []UploadJob          // records Publish calls
 }
 
@@ -220,21 +169,21 @@ func newStubUploadQueue() *stubUploadQueue {
 
 func (q *stubUploadQueue) Publish(_ context.Context, job UploadJob) error {
 	job.Status = JobStatusQueued
-	q.jobs[kvKey(job.UserID, job.FileID)] = job
+	q.jobs[kvKey(job.UserID, job.UploadID)] = job
 	q.published = append(q.published, job)
 	return nil
 }
 
-func (q *stubUploadQueue) GetJob(_ context.Context, userID, fileID string) (*UploadJob, error) {
-	job, ok := q.jobs[kvKey(userID, fileID)]
+func (q *stubUploadQueue) GetJob(_ context.Context, userID string, uploadID int64) (*UploadJob, error) {
+	job, ok := q.jobs[kvKey(userID, uploadID)]
 	if !ok {
-		return nil, fmt.Errorf("job not found: %s/%s", userID, fileID)
+		return nil, fmt.Errorf("job not found: %s/%d", userID, uploadID)
 	}
 	return &job, nil
 }
 
 func (q *stubUploadQueue) UpdateJob(_ context.Context, job UploadJob) error {
-	q.jobs[kvKey(job.UserID, job.FileID)] = job
+	q.jobs[kvKey(job.UserID, job.UploadID)] = job
 	return nil
 }
 
@@ -251,14 +200,13 @@ func (q *stubUploadQueue) ListJobs(_ context.Context, userID string) ([]UploadJo
 
 func (q *stubUploadQueue) Close() {}
 
-func (q *stubUploadQueue) DeleteJob(_ context.Context, userID, fileID string) error {
-	key := kvKey(userID, fileID)
+func (q *stubUploadQueue) DeleteJob(_ context.Context, userID string, uploadID int64) error {
+	key := kvKey(userID, uploadID)
 	delete(q.jobs, key)
 	return nil
 }
 
-// newTestQueue returns a stub queue for integration tests. The *testing.T
-// parameter is kept for API compatibility with the old NATS-based version.
+// newTestQueue returns a stub queue for integration tests.
 func newTestQueue(_ *testing.T) *stubUploadQueue {
 	return newStubUploadQueue()
 }

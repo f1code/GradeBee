@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 )
@@ -14,11 +13,11 @@ func mustPublish(t *testing.T, q *memQueue, ctx context.Context, job UploadJob) 
 	}
 }
 
-func mustGetJob(t *testing.T, q *memQueue, ctx context.Context, userID, fileID string) *UploadJob {
+func mustGetJob(t *testing.T, q *memQueue, ctx context.Context, userID string, uploadID int64) *UploadJob {
 	t.Helper()
-	got, err := q.GetJob(ctx, userID, fileID)
+	got, err := q.GetJob(ctx, userID, uploadID)
 	if err != nil {
-		t.Fatalf("GetJob(%s, %s): %v", userID, fileID, err)
+		t.Fatalf("GetJob(%s, %d): %v", userID, uploadID, err)
 	}
 	return got
 }
@@ -30,13 +29,13 @@ func TestMemQueue_PublishAndGetJob(t *testing.T) {
 	ctx := context.Background()
 	mustPublish(t, q, ctx, UploadJob{
 		UserID:   "u1",
-		FileID:   "f1",
+		UploadID: 1,
 		FileName: "test.pdf",
 		MimeType: "application/pdf",
 		Source:   "upload",
 	})
 
-	got := mustGetJob(t, q, ctx, "u1", "f1")
+	got := mustGetJob(t, q, ctx, "u1", 1)
 	if got.Status != JobStatusQueued {
 		t.Errorf("status = %q, want %q", got.Status, JobStatusQueued)
 	}
@@ -52,7 +51,7 @@ func TestMemQueue_GetJob_NotFound(t *testing.T) {
 	q := NewMemQueue(nil, 0)
 	defer q.Close()
 
-	_, err := q.GetJob(context.Background(), "u1", "missing")
+	_, err := q.GetJob(context.Background(), "u1", 999)
 	if err == nil {
 		t.Fatal("expected error for missing job")
 	}
@@ -63,21 +62,21 @@ func TestMemQueue_UpdateJob(t *testing.T) {
 	defer q.Close()
 
 	ctx := context.Background()
-	mustPublish(t, q, ctx, UploadJob{UserID: "u1", FileID: "f1"})
+	mustPublish(t, q, ctx, UploadJob{UserID: "u1", UploadID: 1})
 
 	now := time.Now()
 	if err := q.UpdateJob(ctx, UploadJob{
-		UserID:   "u1",
-		FileID:   "f1",
-		Status:   JobStatusFailed,
-		Error:    "something broke",
-		FailedAt: &now,
-		NoteLinks: []NoteLink{{Name: "Student", URL: "n1"}},
+		UserID:    "u1",
+		UploadID:  1,
+		Status:    JobStatusFailed,
+		Error:     "something broke",
+		FailedAt:  &now,
+		NoteLinks: []NoteLink{{Name: "Student", NoteID: 1}},
 	}); err != nil {
 		t.Fatalf("UpdateJob: %v", err)
 	}
 
-	got := mustGetJob(t, q, ctx, "u1", "f1")
+	got := mustGetJob(t, q, ctx, "u1", 1)
 	if got.Status != JobStatusFailed {
 		t.Errorf("status = %q, want %q", got.Status, JobStatusFailed)
 	}
@@ -87,8 +86,8 @@ func TestMemQueue_UpdateJob(t *testing.T) {
 	if got.FailedAt == nil {
 		t.Error("failedAt should be set")
 	}
-	if len(got.NoteLinks) != 1 || got.NoteLinks[0].URL != "n1" {
-		t.Errorf("noteURLs = %v, want [n1]", got.NoteLinks)
+	if len(got.NoteLinks) != 1 || got.NoteLinks[0].NoteID != 1 {
+		t.Errorf("noteLinks = %v, want [{Student 1}]", got.NoteLinks)
 	}
 }
 
@@ -97,9 +96,9 @@ func TestMemQueue_ListJobs(t *testing.T) {
 	defer q.Close()
 
 	ctx := context.Background()
-	mustPublish(t, q, ctx, UploadJob{UserID: "u1", FileID: "f1", FileName: "a.pdf"})
-	mustPublish(t, q, ctx, UploadJob{UserID: "u1", FileID: "f2", FileName: "b.pdf"})
-	mustPublish(t, q, ctx, UploadJob{UserID: "u2", FileID: "f3", FileName: "c.pdf"})
+	mustPublish(t, q, ctx, UploadJob{UserID: "u1", UploadID: 1, FileName: "a.pdf"})
+	mustPublish(t, q, ctx, UploadJob{UserID: "u1", UploadID: 2, FileName: "b.pdf"})
+	mustPublish(t, q, ctx, UploadJob{UserID: "u2", UploadID: 3, FileName: "c.pdf"})
 
 	jobs, err := q.ListJobs(ctx, "u1")
 	if err != nil {
@@ -119,7 +118,7 @@ func TestMemQueue_ListJobs(t *testing.T) {
 
 	for _, j := range jobs {
 		if j.Status != JobStatusQueued {
-			t.Errorf("job %s status = %q, want %q", j.FileID, j.Status, JobStatusQueued)
+			t.Errorf("job %d status = %q, want %q", j.UploadID, j.Status, JobStatusQueued)
 		}
 	}
 }
@@ -138,20 +137,20 @@ func TestMemQueue_ListJobs_Empty(t *testing.T) {
 }
 
 func TestMemQueue_WorkerProcessesJob(t *testing.T) {
-	mock := &mockDepsAll{
-		googleSvcForUserErr: fmt.Errorf("no google services"),
-	}
+	// Worker will fail because no audio file exists, but verifies worker runs.
+	mock := &mockDepsAll{}
+	mock.uploadQueue = nil // will be set below
 
 	q := NewMemQueue(mock, 1)
 	defer q.Close()
 
-	// Wire queue into mock so processUploadJob can read/update jobs.
 	mock.uploadQueue = q
 
 	ctx := context.Background()
 	mustPublish(t, q, ctx, UploadJob{
 		UserID:    "u1",
-		FileID:    "f1",
+		UploadID:  1,
+		FilePath:  "/nonexistent/file.m4a",
 		FileName:  "lecture.mp3",
 		MimeType:  "audio/mpeg",
 		Source:    "upload",
@@ -163,12 +162,12 @@ func TestMemQueue_WorkerProcessesJob(t *testing.T) {
 	for {
 		select {
 		case <-deadline:
-			got := mustGetJob(t, q, ctx, "u1", "f1")
+			got := mustGetJob(t, q, ctx, "u1", 1)
 			t.Fatalf("timed out; job status = %q", got.Status)
 		default:
 		}
 
-		got := mustGetJob(t, q, ctx, "u1", "f1")
+		got := mustGetJob(t, q, ctx, "u1", 1)
 		if got.Status == JobStatusFailed {
 			if got.Error == "" {
 				t.Error("expected error message on failed job")
@@ -188,10 +187,10 @@ func TestMemQueue_ChannelFull(t *testing.T) {
 	defer q.Close()
 
 	ctx := context.Background()
-	if err := q.Publish(ctx, UploadJob{UserID: "u1", FileID: "f1"}); err != nil {
+	if err := q.Publish(ctx, UploadJob{UserID: "u1", UploadID: 1}); err != nil {
 		t.Fatalf("first Publish: %v", err)
 	}
-	err := q.Publish(ctx, UploadJob{UserID: "u1", FileID: "f2"})
+	err := q.Publish(ctx, UploadJob{UserID: "u1", UploadID: 2})
 	if err == nil {
 		t.Fatal("expected error when channel is full")
 	}
@@ -200,10 +199,4 @@ func TestMemQueue_ChannelFull(t *testing.T) {
 func TestMemQueue_Close_StopsWorkers(t *testing.T) {
 	q := NewMemQueue(nil, 2)
 	q.Close()
-
-	// After Close, no panic on publish.
-	if err := q.Publish(context.Background(), UploadJob{UserID: "u1", FileID: "f1"}); err != nil {
-		// Channel send may fail, that's fine.
-		t.Logf("Publish after Close: %v", err)
-	}
 }

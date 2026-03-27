@@ -3,30 +3,48 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/clerk/clerk-sdk-go/v2"
 )
 
-// TestIntegration_PublishToNoteCreation tests the full flow with a real NATS
-// server (embedded) and stubbed external services.
 func TestIntegration_PublishToNoteCreation(t *testing.T) {
+	db := setupTestDB(t)
+	studentRepo := &StudentRepo{db: db}
+	classRepo := &ClassRepo{db: db}
+	uploadRepo := &UploadRepo{db: db}
+
+	cls, err := classRepo.Create(t.Context(), "int-user", "Math")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := studentRepo.Create(t.Context(), cls.ID, "Bob"); err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir := t.TempDir()
+	audioPath := filepath.Join(tmpDir, "recording.m4a")
+	if err := os.WriteFile(audioPath, []byte("fake audio bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	queue := newTestQueue(t)
 	nc := &stubNoteCreator{
 		results: []*CreateNoteResponse{
-			{DocID: "doc1", DocURL: "https://docs.google.com/1"},
-			{DocID: "doc2", DocURL: "https://docs.google.com/2"},
+			{NoteID: 1},
+			{NoteID: 2},
 		},
 	}
 
 	d := &mockDepsAll{
-		driveStore: &stubDriveStore{
-			downloadBody: io.NopCloser(strings.NewReader("fake audio bytes")),
-			fileName:     "2026-03-22-recording.m4a",
-		},
 		transcriber: &stubTranscriber{result: "Alice did great. Bob needs work."},
 		roster: &stubRoster{
 			classNames: []string{"Math"},
@@ -41,14 +59,16 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		}},
 		noteCreator: nc,
 		uploadQueue: queue,
-		metadata:    &gradeBeeMetadata{NotesID: "notes-folder"},
+		studentRepo: studentRepo,
+		uploadRepo:  uploadRepo,
 	}
 
 	ctx := context.Background()
 
 	job := UploadJob{
 		UserID:    "int-user",
-		FileID:    "int-file",
+		UploadID:  1,
+		FilePath:  audioPath,
 		FileName:  "2026-03-22-recording.m4a",
 		MimeType:  "audio/mp4",
 		Source:    "web",
@@ -58,7 +78,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		t.Fatalf("publish: %v", err)
 	}
 
-	got, err := queue.GetJob(ctx, "int-user", "int-file")
+	got, err := queue.GetJob(ctx, "int-user", 1)
 	if err != nil {
 		t.Fatalf("get job after publish: %v", err)
 	}
@@ -66,11 +86,11 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		t.Fatalf("status after publish = %q, want queued", got.Status)
 	}
 
-	if err := processUploadJob(ctx, d, "int-user", "int-file"); err != nil {
+	if err := processUploadJob(ctx, d, "int-user", 1); err != nil {
 		t.Fatalf("process: %v", err)
 	}
 
-	got, err = queue.GetJob(ctx, "int-user", "int-file")
+	got, err = queue.GetJob(ctx, "int-user", 1)
 	if err != nil {
 		t.Fatalf("get job after process: %v", err)
 	}
@@ -78,7 +98,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		t.Errorf("status = %q, want done", got.Status)
 	}
 	if len(got.NoteLinks) != 2 {
-		t.Errorf("noteUrls = %v, want 2 items", got.NoteLinks)
+		t.Errorf("noteLinks = %v, want 2 items", got.NoteLinks)
 	}
 	if len(nc.calls) != 2 {
 		t.Errorf("note creator calls = %d, want 2", len(nc.calls))
@@ -86,32 +106,34 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 }
 
 func TestIntegration_PublishToFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	audioPath := filepath.Join(tmpDir, "test.m4a")
+	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	queue := newTestQueue(t)
 
 	d := &mockDepsAll{
-		driveStore: &stubDriveStore{
-			downloadBody: io.NopCloser(strings.NewReader("audio")),
-			fileName:     "test.m4a",
-		},
-		transcriber: &stubTranscriber{err: io.ErrUnexpectedEOF},
+		transcriber: &stubTranscriber{err: ErrNotFound},
 		roster:      &stubRoster{},
 		uploadQueue: queue,
-		metadata:    &gradeBeeMetadata{NotesID: "notes-id"},
+		uploadRepo:  &UploadRepo{db: nil},
 	}
 
 	ctx := context.Background()
 	if err := queue.Publish(ctx, UploadJob{
-		UserID: "int-user", FileID: "fail-file", CreatedAt: time.Now(),
+		UserID: "int-user", UploadID: 1, FilePath: audioPath, CreatedAt: time.Now(),
 	}); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 
-	err := processUploadJob(ctx, d, "int-user", "fail-file")
+	err := processUploadJob(ctx, d, "int-user", 1)
 	if err == nil {
 		t.Fatal("expected error")
 	}
 
-	got, err := queue.GetJob(ctx, "int-user", "fail-file")
+	got, err := queue.GetJob(ctx, "int-user", 1)
 	if err != nil {
 		t.Fatalf("get job: %v", err)
 	}
@@ -124,15 +146,29 @@ func TestIntegration_PublishToFailure(t *testing.T) {
 }
 
 func TestIntegration_RetryAfterFailure(t *testing.T) {
-	queue := newTestQueue(t)
+	db := setupTestDB(t)
+	studentRepo := &StudentRepo{db: db}
+	classRepo := &ClassRepo{db: db}
+	uploadRepo := &UploadRepo{db: db}
 
-	failingTranscriber := &stubTranscriber{err: io.ErrUnexpectedEOF}
+	cls, err := classRepo.Create(t.Context(), "int-user", "Math")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir := t.TempDir()
+	audioPath := filepath.Join(tmpDir, "test.m4a")
+	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	queue := newTestQueue(t)
+	failingTranscriber := &stubTranscriber{err: ErrNotFound}
 	nc := &stubNoteCreator{}
 	d := &mockDepsAll{
-		driveStore: &stubDriveStore{
-			downloadBody: io.NopCloser(strings.NewReader("audio")),
-			fileName:     "test.m4a",
-		},
 		transcriber: failingTranscriber,
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
@@ -141,7 +177,8 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 		}},
 		noteCreator: nc,
 		uploadQueue: queue,
-		metadata:    &gradeBeeMetadata{NotesID: "notes-id"},
+		studentRepo: studentRepo,
+		uploadRepo:  uploadRepo,
 	}
 
 	old := serviceDeps
@@ -150,16 +187,16 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 
 	ctx := context.Background()
 	if err := queue.Publish(ctx, UploadJob{
-		UserID: "int-user", FileID: "retry-file", CreatedAt: time.Now(),
+		UserID: "int-user", UploadID: 1, FilePath: audioPath, CreatedAt: time.Now(),
 	}); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 
 	// First attempt fails.
-	if err := processUploadJob(ctx, d, "int-user", "retry-file"); err == nil {
+	if err := processUploadJob(ctx, d, "int-user", 1); err == nil {
 		t.Fatal("expected error on first attempt")
 	}
-	got, err := queue.GetJob(ctx, "int-user", "retry-file")
+	got, err := queue.GetJob(ctx, "int-user", 1)
 	if err != nil {
 		t.Fatalf("get job: %v", err)
 	}
@@ -167,16 +204,16 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 		t.Fatalf("expected failed, got %q", got.Status)
 	}
 
-	// Fix the transcriber and reset driveStore body.
+	// Fix the transcriber.
 	failingTranscriber.err = nil
 	failingTranscriber.result = "transcript"
-	d.driveStore = &stubDriveStore{
-		downloadBody: io.NopCloser(strings.NewReader("audio")),
-		fileName:     "test.m4a",
-	}
 
 	// Retry via handler.
-	req := clerkCtx(httptest.NewRequest(http.MethodPost, "/jobs/retry", http.NoBody), "int-user")
+	req := httptest.NewRequest(http.MethodPost, "/jobs/retry", http.NoBody)
+	rctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
+		RegisteredClaims: clerk.RegisteredClaims{Subject: "int-user"},
+	})
+	req = req.WithContext(rctx)
 	rec := httptest.NewRecorder()
 	handleJobRetry(rec, req)
 
@@ -192,11 +229,11 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	}
 
 	// Process the retried job.
-	if err := processUploadJob(ctx, d, "int-user", "retry-file"); err != nil {
+	if err := processUploadJob(ctx, d, "int-user", 1); err != nil {
 		t.Fatalf("second process: %v", err)
 	}
 
-	got, err = queue.GetJob(ctx, "int-user", "retry-file")
+	got, err = queue.GetJob(ctx, "int-user", 1)
 	if err != nil {
 		t.Fatalf("get job after retry: %v", err)
 	}
@@ -210,24 +247,24 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	ctx := context.Background()
 
 	// Job 1: done.
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", FileID: "f-done", CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 1, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
-	doneJob, err := queue.GetJob(ctx, "u1", "f-done")
+	doneJob, err := queue.GetJob(ctx, "u1", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	doneJob.Status = JobStatusDone
-	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", URL: "https://docs.google.com/document/d/doc1/edit"}}
+	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1}}
 	if err := queue.UpdateJob(ctx, *doneJob); err != nil {
 		t.Fatal(err)
 	}
 
 	// Job 2: failed.
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", FileID: "f-failed", CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 2, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
-	failedJob, err := queue.GetJob(ctx, "u1", "f-failed")
+	failedJob, err := queue.GetJob(ctx, "u1", 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -240,7 +277,7 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	}
 
 	// Job 3: still queued.
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", FileID: "f-queued", CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 3, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -248,7 +285,11 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	serviceDeps = &mockDepsAll{uploadQueue: queue}
 	t.Cleanup(func() { serviceDeps = old })
 
-	req := clerkCtx(httptest.NewRequest(http.MethodGet, "/jobs", http.NoBody), "u1")
+	req := httptest.NewRequest(http.MethodGet, "/jobs", http.NoBody)
+	rctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
+		RegisteredClaims: clerk.RegisteredClaims{Subject: "u1"},
+	})
+	req = req.WithContext(rctx)
 	rec := httptest.NewRecorder()
 	handleJobList(rec, req)
 

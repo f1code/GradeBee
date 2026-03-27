@@ -8,13 +8,14 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 )
 
 // memQueue is an in-memory UploadQueue with a background worker pool.
 type memQueue struct {
 	mu     sync.RWMutex
-	jobs   map[string]UploadJob // keyed by "userId/fileId"
+	jobs   map[string]UploadJob // keyed by "userId/<uploadId>"
 	work   chan jobRef          // buffered channel for pending work
 	d      deps                 // deps for processUploadJob calls
 	cancel context.CancelFunc   // cancels worker goroutines
@@ -22,8 +23,8 @@ type memQueue struct {
 
 // jobRef identifies a job for the worker channel.
 type jobRef struct {
-	UserID string
-	FileID string
+	UserID   string
+	UploadID int64
 }
 
 // NewMemQueue creates an in-memory upload queue and starts worker goroutines.
@@ -52,8 +53,8 @@ func (q *memQueue) worker(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
-			if err := processUploadJob(ctx, q.d, ref.UserID, ref.FileID); err != nil {
-				slog.Error("memQueue worker: job failed", "user_id", ref.UserID, "file_id", ref.FileID, "error", err)
+			if err := processUploadJob(ctx, q.d, ref.UserID, ref.UploadID); err != nil {
+				slog.Error("memQueue worker: job failed", "user_id", ref.UserID, "upload_id", ref.UploadID, "error", err)
 			}
 		}
 	}
@@ -62,32 +63,32 @@ func (q *memQueue) worker(ctx context.Context) {
 func (q *memQueue) Publish(_ context.Context, job UploadJob) error {
 	job.Status = JobStatusQueued
 
-	key := kvKey(job.UserID, job.FileID)
+	key := kvKey(job.UserID, job.UploadID)
 	q.mu.Lock()
 	q.jobs[key] = job
 	q.mu.Unlock()
 
 	select {
-	case q.work <- jobRef{UserID: job.UserID, FileID: job.FileID}:
+	case q.work <- jobRef{UserID: job.UserID, UploadID: job.UploadID}:
 	default:
-		return fmt.Errorf("memQueue: work channel full, job %s/%s dropped", job.UserID, job.FileID)
+		return fmt.Errorf("memQueue: work channel full, job %s/%d dropped", job.UserID, job.UploadID)
 	}
 	return nil
 }
 
-func (q *memQueue) GetJob(_ context.Context, userID, fileID string) (*UploadJob, error) {
-	key := kvKey(userID, fileID)
+func (q *memQueue) GetJob(_ context.Context, userID string, uploadID int64) (*UploadJob, error) {
+	key := kvKey(userID, uploadID)
 	q.mu.RLock()
 	job, ok := q.jobs[key]
 	q.mu.RUnlock()
 	if !ok {
-		return nil, fmt.Errorf("job not found: %s/%s", userID, fileID)
+		return nil, fmt.Errorf("job not found: %s/%d", userID, uploadID)
 	}
 	return &job, nil
 }
 
 func (q *memQueue) UpdateJob(_ context.Context, job UploadJob) error {
-	key := kvKey(job.UserID, job.FileID)
+	key := kvKey(job.UserID, job.UploadID)
 	q.mu.Lock()
 	q.jobs[key] = job
 	q.mu.Unlock()
@@ -101,15 +102,15 @@ func (q *memQueue) ListJobs(_ context.Context, userID string) ([]UploadJob, erro
 
 	var jobs []UploadJob
 	for k, j := range q.jobs {
-		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
+		if strings.HasPrefix(k, prefix) {
 			jobs = append(jobs, j)
 		}
 	}
 	return jobs, nil
 }
 
-func (q *memQueue) DeleteJob(_ context.Context, userID, fileID string) error {
-	key := kvKey(userID, fileID)
+func (q *memQueue) DeleteJob(_ context.Context, userID string, uploadID int64) error {
+	key := kvKey(userID, uploadID)
 	q.mu.Lock()
 	delete(q.jobs, key)
 	q.mu.Unlock()

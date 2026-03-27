@@ -49,12 +49,11 @@ func handleJobRetry(w http.ResponseWriter, r *http.Request) {
 		if j.Status != JobStatusFailed {
 			continue
 		}
-		// Reset and republish.
 		j.Error = ""
 		j.FailedAt = nil
 		if err := queue.Publish(ctx, j); err != nil {
-			log.Error("jobs retry: republish failed", "file_id", j.FileID, "error", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to retry job " + j.FileID})
+			log.Error("jobs retry: republish failed", "upload_id", j.UploadID, "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to retry job"})
 			return
 		}
 		retried++

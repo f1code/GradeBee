@@ -1,4 +1,5 @@
-// reports_handler.go handles the POST /reports and POST /reports/regenerate endpoints.
+// reports_handler.go handles report generation, regeneration, listing,
+// fetching, and deletion endpoints.
 package handler
 
 import (
@@ -16,16 +17,16 @@ type generateReportsRequest struct {
 }
 
 type reportStudentInput struct {
-	Name  string `json:"name"`
-	Class string `json:"class"`
+	StudentID int64  `json:"studentId"`
+	Name      string `json:"name"`
+	Class     string `json:"class"`
 }
 
 type reportResult struct {
-	Student string `json:"student"`
-	Class   string `json:"class"`
-	DocID   string `json:"docId"`
-	DocURL  string `json:"docUrl"`
-	Skipped bool   `json:"skipped"`
+	Student  string `json:"student"`
+	Class    string `json:"class"`
+	ReportID int64  `json:"reportId"`
+	HTML     string `json:"html"`
 }
 
 type generateReportsResponse struct {
@@ -46,26 +47,19 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	svc, err := serviceDeps.GoogleServices(r)
+	userID, err := userIDFromRequest(r)
 	if err != nil {
 		var ae *apiError
 		if errors.As(err, &ae) {
 			writeAPIError(w, r, ae)
 			return
 		}
-		log.Error("generate reports failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
 	ctx := r.Context()
-	meta, err := getGradeBeeMetadata(ctx, svc.User.UserID)
-	if err != nil || meta == nil || meta.NotesID == "" || meta.ReportsID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "workspace not configured, run setup first"})
-		return
-	}
-
-	generator, err := serviceDeps.GetReportGenerator(svc)
+	generator, err := serviceDeps.GetReportGenerator()
 	if err != nil {
 		log.Error("generate reports: init failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -74,17 +68,23 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 
 	var reports []reportResult
 
-	// Sequential generation with fail-fast.
 	for _, s := range req.Students {
+		// Verify student ownership
+		owns, err := serviceDeps.GetStudentRepo().BelongsToUser(ctx, s.StudentID, userID)
+		if err != nil || !owns {
+			errMsg := fmt.Sprintf("student %d not found", s.StudentID)
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": errMsg})
+			return
+		}
+
 		resp, err := generator.Generate(ctx, GenerateReportRequest{
-			Student:          s.Name,
-			Class:            s.Class,
-			StartDate:        req.StartDate,
-			EndDate:          req.EndDate,
-			NotesRootID:      meta.NotesID,
-			ReportsID:        meta.ReportsID,
-			ExamplesFolderID: meta.ReportExamplesID,
-			Instructions:     req.Instructions,
+			StudentID:    s.StudentID,
+			Student:      s.Name,
+			Class:        s.Class,
+			StartDate:    req.StartDate,
+			EndDate:      req.EndDate,
+			UserID:       userID,
+			Instructions: req.Instructions,
 		})
 		if err != nil {
 			errMsg := fmt.Sprintf("failed to generate report for %s: %s", s.Name, err.Error())
@@ -96,15 +96,14 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reports = append(reports, reportResult{
-			Student: s.Name,
-			Class:   s.Class,
-			DocID:   resp.DocID,
-			DocURL:  resp.DocURL,
-			Skipped: resp.Skipped,
+			Student:  s.Name,
+			Class:    s.Class,
+			ReportID: resp.ReportID,
+			HTML:     resp.HTML,
 		})
 	}
 
-	log.Info("generate reports completed", "user_id", svc.User.UserID, "report_count", len(reports))
+	log.Info("generate reports completed", "user_id", userID, "report_count", len(reports))
 	writeJSON(w, http.StatusOK, generateReportsResponse{
 		Reports: reports,
 		Error:   nil,
@@ -112,7 +111,9 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 }
 
 type regenerateReportRequest struct {
-	DocID        string `json:"docId"`
+	ReportID     int64  `json:"reportId"`
+	Feedback     string `json:"feedback"`
+	StudentID    int64  `json:"studentId"`
 	Student      string `json:"student"`
 	Class        string `json:"class"`
 	StartDate    string `json:"startDate"`
@@ -128,31 +129,32 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
-	if req.DocID == "" || req.Student == "" || req.Class == "" || req.StartDate == "" || req.EndDate == "" {
+	if req.ReportID == 0 || req.StudentID == 0 || req.Student == "" || req.Class == "" || req.StartDate == "" || req.EndDate == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing required fields"})
 		return
 	}
 
-	svc, err := serviceDeps.GoogleServices(r)
+	userID, err := userIDFromRequest(r)
 	if err != nil {
 		var ae *apiError
 		if errors.As(err, &ae) {
 			writeAPIError(w, r, ae)
 			return
 		}
-		log.Error("regenerate report failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
 
 	ctx := r.Context()
-	meta, err := getGradeBeeMetadata(ctx, svc.User.UserID)
-	if err != nil || meta == nil || meta.NotesID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "workspace not configured, run setup first"})
+
+	// Verify ownership
+	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(ctx, req.StudentID, userID)
+	if err != nil || !owns {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
 		return
 	}
 
-	generator, err := serviceDeps.GetReportGenerator(svc)
+	generator, err := serviceDeps.GetReportGenerator()
 	if err != nil {
 		log.Error("regenerate report: init failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -160,14 +162,15 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp, err := generator.Regenerate(ctx, RegenerateReportRequest{
-		DocID:            req.DocID,
-		Student:          req.Student,
-		Class:            req.Class,
-		StartDate:        req.StartDate,
-		EndDate:          req.EndDate,
-		NotesRootID:      meta.NotesID,
-		ExamplesFolderID: meta.ReportExamplesID,
-		Instructions:     req.Instructions,
+		ReportID:     req.ReportID,
+		Feedback:     req.Feedback,
+		StudentID:    req.StudentID,
+		Student:      req.Student,
+		Class:        req.Class,
+		StartDate:    req.StartDate,
+		EndDate:      req.EndDate,
+		UserID:       userID,
+		Instructions: req.Instructions,
 	})
 	if err != nil {
 		log.Error("regenerate report failed", "student", req.Student, "error", err)
@@ -175,6 +178,95 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("regenerate report completed", "user_id", svc.User.UserID, "doc_id", resp.DocID)
+	log.Info("regenerate report completed", "user_id", userID, "report_id", resp.ReportID)
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// --- Report CRUD handlers ---
+
+func handleListReports(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		return
+	}
+	studentID, ok := pathParam(r.URL.Path, "/students/")
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
+		return
+	}
+	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
+	if err != nil || !owns {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+		return
+	}
+	reports, err := serviceDeps.GetReportRepo().List(r.Context(), studentID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if reports == nil {
+		reports = []Report{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"reports": reports})
+}
+
+func handleGetReport(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		return
+	}
+	reportID, ok := pathParam(r.URL.Path, "/reports/")
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report id"})
+		return
+	}
+	rpt, err := serviceDeps.GetReportRepo().GetByID(r.Context(), reportID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), rpt.StudentID, userID)
+	if err != nil || !owns {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, rpt)
+}
+
+func handleDeleteReport(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		return
+	}
+	reportID, ok := pathParam(r.URL.Path, "/reports/")
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report id"})
+		return
+	}
+	rpt, err := serviceDeps.GetReportRepo().GetByID(r.Context(), reportID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), rpt.StudentID, userID)
+	if err != nil || !owns {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+		return
+	}
+	if err := serviceDeps.GetReportRepo().Delete(r.Context(), reportID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
