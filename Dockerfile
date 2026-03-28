@@ -1,14 +1,5 @@
-FROM golang:1.25-alpine AS build
-WORKDIR /src
-COPY backend/go.mod backend/go.sum ./
-COPY backend/vendor ./vendor
-COPY backend/*.go ./
-COPY backend/cmd ./cmd
-COPY backend/sql ./sql
-RUN CGO_ENABLED=0 go build -o /gradebee ./cmd/server
-
 FROM alpine:latest
 RUN apk add --no-cache ca-certificates
-COPY --from=build /gradebee /gradebee
+COPY backend/dist/gradebee /gradebee
 EXPOSE 8080
 CMD ["/gradebee"]

@@ -7,6 +7,7 @@ GradeBee runs on a VPS with Docker Compose: Go backend + Caddy (HTTPS + static f
 - VPS with Docker + Docker Compose (tested on Scaleway STARDUST1-S, Paris)
 - Domain pointing to VPS IP (e.g. gradebee.f1code.com)
 - SSH access to VPS
+- Go 1.25+ (for cross-compiling the backend locally)
 - Node.js (for frontend build, runs locally)
 
 ## VPS Setup (one-time)
@@ -45,9 +46,12 @@ make deploy
 ```
 
 This:
-1. Builds the frontend SPA with `VITE_API_URL=/api`
-2. Rsyncs the project to the VPS
-3. SSHs in and runs `docker compose up -d --build`
+1. Cross-compiles the Go backend for linux/amd64
+2. Builds the frontend SPA with `VITE_API_URL=/api`
+3. Rsyncs the binary + frontend + config to the VPS
+4. SSHs in and runs `docker compose up -d --build`
+
+The Go binary is built locally because the VPS (Stardust 1GB RAM) cannot handle compilation.
 
 Caddy automatically provisions TLS certificates on first request.
 

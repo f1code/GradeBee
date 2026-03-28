@@ -13,17 +13,22 @@ dev:
 
 # --- Build ---
 
+build-backend:
+	cd backend && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o dist/gradebee ./cmd/server
+
 build-frontend:
 	npm run --prefix frontend build
 
 # --- Deploy to VPS ---
 
-deploy: build-frontend
+deploy: build-backend build-frontend
 	rsync -avz --delete \
 		--include='docker-compose.yml' \
 		--include='Caddyfile' \
 		--include='Dockerfile' \
-		--include='backend/***' \
+		--include='backend/' \
+		--include='backend/dist/' \
+		--include='backend/dist/gradebee' \
 		--include='frontend/' \
 		--include='frontend/dist/***' \
 		--exclude='*' \
@@ -38,7 +43,7 @@ test:
 	npm run --prefix frontend test
 
 clean:
-	rm -rf dist frontend/dist
+	rm -rf dist frontend/dist backend/dist
 
 # --- VPS provisioning ---
 

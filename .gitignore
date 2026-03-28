@@ -16,6 +16,7 @@ frontend/dist/
 
 # Backend
 backend/bin/
+backend/dist/
 
 
 node_modules
