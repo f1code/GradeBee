@@ -7,8 +7,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
-	"google.golang.org/api/drive/v3"
 )
 
 // deps abstracts external service calls for testability.
@@ -30,7 +28,7 @@ type deps interface {
 	// GetUploadQueue returns the UploadQueue for async job management.
 	GetUploadQueue() (UploadQueue, error)
 	// GetDriveClient returns a Drive-read-only client for the given user.
-	GetDriveClient(ctx context.Context, userID string) (*drive.Service, error)
+	GetDriveClient(ctx context.Context, userID string) (DriveClient, error)
 	// GetDB returns the SQLite database handle.
 	GetDB() *sql.DB
 	// Repository accessors.
@@ -91,8 +89,12 @@ func (p *prodDeps) GetUploadQueue() (UploadQueue, error) {
 	return uploadQueueInstance, nil
 }
 
-func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (*drive.Service, error) {
-	return newDriveReadClient(ctx, userID)
+func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (DriveClient, error) {
+	svc, err := newDriveReadClient(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return &googleDriveClient{svc: svc}, nil
 }
 
 func (p *prodDeps) GetDB() *sql.DB                        { return p.db }

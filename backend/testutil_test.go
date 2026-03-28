@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"testing"
-
-	"google.golang.org/api/drive/v3"
 )
 
 // stubRoster implements Roster for tests.
@@ -51,7 +49,7 @@ type mockDepsAll struct {
 	reportGenErr   error
 	uploadQueue    UploadQueue
 	uploadQueueErr error
-	driveClient    *drive.Service
+	driveClient    DriveClient
 	driveClientErr error
 	db             *sql.DB
 	classRepo      *ClassRepo
@@ -110,7 +108,7 @@ func (m *mockDepsAll) GetUploadQueue() (UploadQueue, error) {
 	return m.uploadQueue, nil
 }
 
-func (m *mockDepsAll) GetDriveClient(_ context.Context, _ string) (*drive.Service, error) {
+func (m *mockDepsAll) GetDriveClient(_ context.Context, _ string) (DriveClient, error) {
 	if m.driveClientErr != nil {
 		return nil, m.driveClientErr
 	}
@@ -204,6 +202,25 @@ func (q *stubUploadQueue) DeleteJob(_ context.Context, userID string, uploadID i
 	key := kvKey(userID, uploadID)
 	delete(q.jobs, key)
 	return nil
+}
+
+// stubDriveClient implements DriveClient for tests.
+type stubDriveClient struct {
+	meta    *DriveFile
+	metaErr error
+	data    io.ReadCloser
+	dlErr   error
+}
+
+// Compile-time check that stubDriveClient satisfies DriveClient.
+var _ DriveClient = (*stubDriveClient)(nil)
+
+func (s *stubDriveClient) GetFileMeta(_ context.Context, _ string) (*DriveFile, error) {
+	return s.meta, s.metaErr
+}
+
+func (s *stubDriveClient) DownloadFile(_ context.Context, _ string) (io.ReadCloser, error) {
+	return s.data, s.dlErr
 }
 
 // newTestQueue returns a stub queue for integration tests.

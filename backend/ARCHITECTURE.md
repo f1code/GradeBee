@@ -111,7 +111,7 @@ deps interface {
     GetExampleExtractor() → ExampleExtractor
     GetReportGenerator()  → ReportGenerator
     GetUploadQueue()      → UploadQueue
-    GetDriveClient(ctx, userID) → *drive.Service
+    GetDriveClient(ctx, userID) → DriveClient
     GetDB()               → *sql.DB
     GetClassRepo()        → *ClassRepo
     GetStudentRepo()      → *StudentRepo

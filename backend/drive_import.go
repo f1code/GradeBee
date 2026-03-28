@@ -57,7 +57,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate file is accessible and is an audio file.
-	fileMeta, err := driveSvc.Files.Get(req.FileID).Fields("mimeType").Context(ctx).Do()
+	fileMeta, err := driveSvc.GetFileMeta(ctx, req.FileID)
 	if err != nil {
 		log.Error("drive-import: file not accessible", "file_id", req.FileID, "error", err)
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "file not found or not accessible on Google Drive"})
@@ -72,13 +72,13 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Download file from Drive.
-	resp, err := driveSvc.Files.Get(req.FileID).Context(ctx).Download()
+	rc, err := driveSvc.DownloadFile(ctx, req.FileID)
 	if err != nil {
 		log.Error("drive-import: download failed", "file_id", req.FileID, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to download file from Google Drive"})
 		return
 	}
-	defer resp.Body.Close()
+	defer rc.Close()
 
 	// Write to local disk.
 	uploadsDir := serviceDeps.GetUploadsDir()
@@ -95,7 +95,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save file"})
 		return
 	}
-	if _, err := io.Copy(dst, resp.Body); err != nil {
+	if _, err := io.Copy(dst, rc); err != nil {
 		dst.Close()
 		os.Remove(diskPath)
 		log.Error("drive-import: write file failed", "error", err)
