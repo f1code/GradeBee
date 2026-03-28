@@ -141,10 +141,9 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 
 ## External Services
 
-### Google APIs (`google.go`)
-- **Drive-read-only** — used only by `/drive-import` to download files from Google Drive.
-- Auth: Clerk JWT → extract user ID → `getGoogleOAuthToken` (Clerk Backend API) → OAuth2 token → Drive client.
-- **Removed:** Google Sheets and Docs APIs (all data now in SQLite).
+### Google OAuth (`google.go`)
+- Auth: Clerk JWT → extract user ID → Google OAuth token (used for Drive Picker import).
+- **Note:** Google Drive integration is being removed. Drive import functionality is deprecated.
 
 ### Clerk (`auth.go`)
 - JWT verification via middleware.

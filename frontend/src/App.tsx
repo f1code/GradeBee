@@ -68,7 +68,7 @@ function App() {
               transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               <h2>Welcome to GradeBee</h2>
-              <p className="sign-in-tagline">Record verbal feedback about your students and GradeBee turns it into polished, structured notes and report cards — saved straight to your Google Drive.</p>
+              <p className="sign-in-tagline">Record verbal feedback about your students and GradeBee turns it into polished, structured notes and report cards — ready when you need them.</p>
               <ul className="feature-list">
                 <li>🎤 Record or upload audio of your observations</li>
                 <li>🗂️ Notes are created automatically for each student</li>

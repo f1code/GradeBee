@@ -4,12 +4,12 @@ const steps = [
   {
     num: 1,
     heading: 'Set up your class list',
-    desc: 'Create a Google Sheets spreadsheet with your classes and student names. GradeBee reads it to match recordings to students.',
+    desc: 'Add your classes and student names. GradeBee uses them to match recordings to students.',
   },
   {
     num: 2,
     heading: 'Record your observations',
-    desc: 'Upload or record audio of your verbal feedback. You can also import audio files already in your Drive.',
+    desc: 'Upload or record audio of your verbal feedback.'
   },
   {
     num: 3,

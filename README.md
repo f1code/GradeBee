@@ -4,14 +4,11 @@ GradeBee helps teachers record voice notes about students and automatically gene
 
 ## How It Works
 
-1. Teacher signs in with Google and connects their Google Drive
-2. The system creates a folder structure in Drive (`GradeBee/uploads/`, `notes/`, `reports/`)
-3. Teacher maintains a `ClassSetup` spreadsheet with class and student names
-4. Teacher uploads voice recordings (or drops them into `uploads/`)
-5. The system transcribes audio, extracts student names, and generates structured notes as Google Docs
-6. On demand, the system aggregates notes into report cards per student
-
-Teachers interact primarily with Google Drive. The web UI is minimal by design.
+1. Teacher signs in with Google
+2. Teacher adds classes and student names
+3. Teacher uploads voice recordings
+4. The system transcribes audio, extracts student names, and generates structured notes
+5. On demand, the system aggregates notes into report cards per student
 
 ## Technology Stack
 
@@ -19,9 +16,9 @@ Teachers interact primarily with Google Drive. The web UI is minimal by design.
 | -------------- | ------------------------------------------------------ |
 | Frontend       | React 19, TypeScript, Vite                             |
 | Routing        | react-router-dom v7                                    |
-| Authentication | Clerk (Google OAuth with Drive/Sheets scopes)          |
+| Authentication | Clerk (Google OAuth)                                   |
 | Backend        | Go 1.24, plain `net/http`                              |
-| Storage        | Google Drive (user's own Drive -- no database)          |
+| Storage        | Scaleway Object Storage                                |
 | AI             | OpenAI Whisper (transcription), Claude (summarization) |
 | Infrastructure | Scaleway (Object Storage + Serverless Functions)       |
 | IaC            | Terraform                                              |
@@ -48,8 +45,7 @@ See `backend/ARCHITECTURE.md` for backend details and `frontend/DESIGN.md` for t
 
 - Node.js
 - Go 1.24+
-- A [Clerk](https://clerk.com) account configured with Google OAuth (requesting `drive.file` scope only; no restricted scopes like `drive.metadata.readonly` — IDs are stored in Clerk user metadata)
-- A Google Cloud project with the **Google Drive API**, **Google Sheets API**, and **Google Docs API** enabled ([Drive](https://console.developers.google.com/apis/api/drive.googleapis.com) · [Sheets](https://console.developers.google.com/apis/api/sheets.googleapis.com) · [Docs](https://console.developers.google.com/apis/api/docs.googleapis.com))
+- A [Clerk](https://clerk.com) account configured with Google OAuth
 
 ### Setup
 
@@ -98,18 +94,18 @@ npm run test:e2e
 npm run test:e2e:ui
 ```
 
-The `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` environment variables must be set (from `.env`) for the Clerk testing token integration to work. Backend API calls in the Drive setup tests are mocked via Playwright route interception -- no real Google Drive access is needed.
+The `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` environment variables must be set (from `.env`) for the Clerk testing token integration to work.
 
 ## Implementation Status
 
 The project follows a [phased implementation plan](docs/plans/2026-03-13-phased-implementation.md):
 
-- **Phase 1** -- Auth & Google Drive Connection (done)
-- **Phase 2** -- Student List (read from Google Sheets)
-- **Phase 3** -- Voice Upload & Transcription (Whisper API)
-- **Phase 4** -- Note Generation (Claude API for extraction/summarization)
-- **Phase 5** -- Report Card Generation
-- **Phase 6** -- Drive Watching (auto-detect uploads)
+- **Phase 1** -- Auth (done)
+- **Phase 2** -- Student List (done)
+- **Phase 3** -- Voice Upload & Transcription (done)
+- **Phase 4** -- Note Generation (done)
+- **Phase 5** -- Report Card Generation (done)
+- **Phase 6** -- Polish & deployment
 
 ## License
 
