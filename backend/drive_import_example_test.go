@@ -1,0 +1,374 @@
+package handler
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	clerk "github.com/clerk/clerk-sdk-go/v2"
+)
+
+// newDriveImportExampleReq creates a POST /drive-import-example request with Clerk auth.
+func newDriveImportExampleReq(t *testing.T, userID, fileID, fileName string) *http.Request {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"fileId": fileID, "fileName": fileName})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodPost, "/drive-import-example", bytes.NewReader(body))
+	ctx := clerk.ContextWithSessionClaims(r.Context(), &clerk.SessionClaims{
+		RegisteredClaims: clerk.RegisteredClaims{Subject: userID},
+	})
+	return r.WithContext(ctx)
+}
+
+// noAuthDriveImportExampleReq creates a request without auth.
+func noAuthDriveImportExampleReq(t *testing.T, fileID, fileName string) *http.Request {
+	t.Helper()
+	body, err := json.Marshal(map[string]string{"fileId": fileID, "fileName": fileName})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return httptest.NewRequest(http.MethodPost, "/drive-import-example", bytes.NewReader(body))
+}
+
+// withDeps swaps serviceDeps for the duration of the test and restores it on cleanup.
+func withDeps(t *testing.T, deps deps) {
+	t.Helper()
+	old := serviceDeps
+	t.Cleanup(func() { serviceDeps = old })
+	serviceDeps = deps
+}
+
+func TestDriveImportExample_InvalidJSON(t *testing.T) {
+	rec := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/drive-import-example", strings.NewReader("{invalid"))
+	handleDriveImportExample(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_MissingFileID(t *testing.T) {
+	rec := httptest.NewRecorder()
+	body, err := json.Marshal(map[string]string{"fileName": "report.pdf"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodPost, "/drive-import-example", bytes.NewReader(body))
+	handleDriveImportExample(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_MissingFileName(t *testing.T) {
+	rec := httptest.NewRecorder()
+	body, err := json.Marshal(map[string]string{"fileId": "abc123"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := httptest.NewRequest(http.MethodPost, "/drive-import-example", bytes.NewReader(body))
+	handleDriveImportExample(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_BlankFileName(t *testing.T) {
+	// NOTE: fileName validation occurs after the file is downloaded, so a
+	// drive client returning real data is required even though we expect a 400.
+	dc := &stubDriveClient{
+		meta: &DriveFile{MimeType: "text/plain"},
+		data: io.NopCloser(strings.NewReader("hello")),
+	}
+	withDeps(t, &mockDepsAll{driveClient: dc})
+
+	rec := httptest.NewRecorder()
+	r := newDriveImportExampleReq(t, "u1", "fileXYZ", "   ")
+	handleDriveImportExample(rec, r)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_NoSession(t *testing.T) {
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, noAuthDriveImportExampleReq(t, "abc", "file.txt"))
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_DriveClientError(t *testing.T) {
+	withDeps(t, &mockDepsAll{driveClientErr: fmt.Errorf("oauth expired")})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("want 502, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_FileMetaError(t *testing.T) {
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{metaErr: fmt.Errorf("not found")},
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_DownloadError(t *testing.T) {
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta:  &DriveFile{MimeType: "application/pdf"},
+			dlErr: fmt.Errorf("download failed"),
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_DisallowedMIME(t *testing.T) {
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{meta: &DriveFile{MimeType: "application/zip"}},
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "archive.zip"))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_ExceedsSizeLimit(t *testing.T) {
+	bigData := bytes.Repeat([]byte("x"), maxReportImportBytes)
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "text/plain"},
+			data: io.NopCloser(bytes.NewReader(bigData)),
+		},
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "big.txt"))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_PDFExtractsText(t *testing.T) {
+	ext := &stubExampleExtractor{result: "extracted text"}
+	store := &stubExampleStore{}
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "application/pdf"},
+			data: io.NopCloser(bytes.NewReader([]byte{1, 2, 3})),
+		},
+		exampleExtractor: ext,
+		exampleStore:     store,
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if ext.gotFilename != "report.pdf" {
+		t.Errorf("extractor not called with correct filename, got %q", ext.gotFilename)
+	}
+	if store.uploadedContent != "extracted text" {
+		t.Errorf("unexpected stored content: %q", store.uploadedContent)
+	}
+}
+
+func TestDriveImportExample_ImageExtractsText(t *testing.T) {
+	ext := &stubExampleExtractor{result: "image text"}
+	store := &stubExampleStore{}
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "image/png"},
+			data: io.NopCloser(bytes.NewReader([]byte{0x89, 0x50})),
+		},
+		exampleExtractor: ext,
+		exampleStore:     store,
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "scan.png"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if store.uploadedContent != "image text" {
+		t.Errorf("unexpected stored content: %q", store.uploadedContent)
+	}
+}
+
+func TestDriveImportExample_ExtractorUnavailable(t *testing.T) {
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "application/pdf"},
+			data: io.NopCloser(bytes.NewReader([]byte{1, 2})),
+		},
+		exampleExtractorErr: fmt.Errorf("not configured"),
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_ExtractorFails(t *testing.T) {
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "application/pdf"},
+			data: io.NopCloser(bytes.NewReader([]byte{1, 2})),
+		},
+		exampleExtractor: &stubExampleExtractor{err: fmt.Errorf("extraction failed")},
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_ExtractorReturnsEmpty(t *testing.T) {
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "application/pdf"},
+			data: io.NopCloser(bytes.NewReader([]byte{1, 2})),
+		},
+		exampleExtractor: &stubExampleExtractor{result: ""},
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_PlainTextDirect(t *testing.T) {
+	ext := &stubExampleExtractor{}
+	store := &stubExampleStore{}
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "text/plain"},
+			data: io.NopCloser(strings.NewReader("plain text content")),
+		},
+		exampleExtractor: ext,
+		exampleStore:     store,
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "notes.txt"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if ext.gotFilename != "" {
+		t.Error("extractor should NOT be called for plain text")
+	}
+	if store.uploadedContent != "plain text content" {
+		t.Errorf("unexpected stored content: %q", store.uploadedContent)
+	}
+}
+
+func TestDriveImportExample_MarkdownDirect(t *testing.T) {
+	ext := &stubExampleExtractor{}
+	store := &stubExampleStore{}
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "text/markdown"},
+			data: io.NopCloser(strings.NewReader("# Report")),
+		},
+		exampleExtractor: ext,
+		exampleStore:     store,
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.md"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if ext.gotFilename != "" {
+		t.Error("extractor should NOT be called for markdown")
+	}
+}
+
+func TestDriveImportExample_EmptyTextFile(t *testing.T) {
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "text/plain"},
+			data: io.NopCloser(strings.NewReader("")),
+		},
+		exampleStore: &stubExampleStore{},
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "empty.txt"))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_StoreFailure(t *testing.T) {
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "text/plain"},
+			data: io.NopCloser(strings.NewReader("content")),
+		},
+		exampleStore: &stubExampleStore{uploadErr: fmt.Errorf("db error")},
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "file.txt"))
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d", rec.Code)
+	}
+}
+
+func TestDriveImportExample_Success(t *testing.T) {
+	store := &stubExampleStore{
+		uploadResult: &ReportExample{ID: 42, Name: "My Report"},
+	}
+	withDeps(t, &mockDepsAll{
+		driveClient: &stubDriveClient{
+			meta: &DriveFile{MimeType: "text/plain"},
+			data: io.NopCloser(strings.NewReader("report content")),
+		},
+		exampleStore: store,
+	})
+
+	rec := httptest.NewRecorder()
+	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "My Report"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var result ReportExample
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if result.ID != 42 || result.Name != "My Report" {
+		t.Errorf("unexpected result: %+v", result)
+	}
+	if store.uploadedContent != "report content" {
+		t.Errorf("unexpected stored content: %q", store.uploadedContent)
+	}
+}

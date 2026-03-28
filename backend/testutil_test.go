@@ -44,7 +44,9 @@ type mockDepsAll struct {
 	extractor      Extractor
 	extractErr     error
 	noteCreator    NoteCreator
-	exampleStore   ExampleStore
+	exampleStore        ExampleStore
+	exampleExtractor    ExampleExtractor
+	exampleExtractorErr error
 	reportGen      ReportGenerator
 	reportGenErr   error
 	uploadQueue    UploadQueue
@@ -91,7 +93,10 @@ func (m *mockDepsAll) GetExampleStore() ExampleStore {
 }
 
 func (m *mockDepsAll) GetExampleExtractor() (ExampleExtractor, error) {
-	return nil, fmt.Errorf("not configured")
+	if m.exampleExtractorErr != nil {
+		return nil, m.exampleExtractorErr
+	}
+	return m.exampleExtractor, nil
 }
 
 func (m *mockDepsAll) GetReportGenerator() (ReportGenerator, error) {
@@ -226,4 +231,46 @@ func (s *stubDriveClient) DownloadFile(_ context.Context, _ string) (io.ReadClos
 // newTestQueue returns a stub queue for integration tests.
 func newTestQueue(_ *testing.T) *stubUploadQueue {
 	return newStubUploadQueue()
+}
+
+// stubExampleExtractor implements ExampleExtractor for tests.
+type stubExampleExtractor struct {
+	result      string
+	err         error
+	gotFilename string
+	gotData     []byte
+}
+
+func (s *stubExampleExtractor) ExtractText(_ context.Context, filename string, data []byte) (string, error) {
+	s.gotFilename = filename
+	s.gotData = data
+	return s.result, s.err
+}
+
+// stubExampleStore implements ExampleStore for tests.
+type stubExampleStore struct {
+	uploadedName    string
+	uploadedContent string
+	uploadResult    *ReportExample
+	uploadErr       error
+}
+
+func (s *stubExampleStore) ListExamples(_ context.Context, _ string) ([]ReportExample, error) {
+	return nil, nil
+}
+
+func (s *stubExampleStore) UploadExample(_ context.Context, _, name, content string) (*ReportExample, error) {
+	s.uploadedName = name
+	s.uploadedContent = content
+	if s.uploadErr != nil {
+		return nil, s.uploadErr
+	}
+	if s.uploadResult != nil {
+		return s.uploadResult, nil
+	}
+	return &ReportExample{ID: 1, Name: name}, nil
+}
+
+func (s *stubExampleStore) DeleteExample(_ context.Context, _ string, _ int64) error {
+	return nil
 }
