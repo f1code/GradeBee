@@ -2,7 +2,7 @@ import { useAuth } from '@clerk/react'
 import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { uploadAudio, getGoogleToken, importFromDrive } from '../api'
-import { useDrivePicker } from '../hooks/useDrivePicker'
+import { useDrivePicker, AUDIO_MIME_TYPES } from '../hooks/useDrivePicker'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 
 type UploadStatus = 'idle' | 'uploading' | 'error'
@@ -100,7 +100,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
 
     try {
       const { accessToken } = await getGoogleToken(getToken)
-      const picked = await openPicker(accessToken)
+      const picked = await openPicker(accessToken, { mimeTypes: AUDIO_MIME_TYPES })
       if (!picked) return
 
       setFileName(picked.name)

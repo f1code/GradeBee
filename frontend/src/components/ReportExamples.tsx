@@ -5,18 +5,42 @@ import {
   listReportExamples,
   uploadReportExample,
   deleteReportExample,
+  importExampleFromDrive,
+  getGoogleToken,
   type ReportExampleItem,
 } from '../api'
+import { useDrivePicker } from '../hooks/useDrivePicker'
+
+const REPORT_MIME_TYPES = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'text/plain',
+  'text/markdown',
+].join(',')
+
+function DriveIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M8.01 2.56L1.38 14H7.37L14 2.56H8.01Z" fill="currentColor" opacity="0.8" />
+      <path d="M22.62 14H10.38L7.37 19.44H19.61L22.62 14Z" fill="currentColor" opacity="0.6" />
+      <path d="M14 2.56L22.62 14L19.61 19.44L11 7.56L14 2.56Z" fill="currentColor" opacity="0.4" />
+    </svg>
+  )
+}
 
 export default function ReportExamples() {
   const { getToken } = useAuth()
   const [examples, setExamples] = useState<ReportExampleItem[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [driveImporting, setDriveImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { openPicker } = useDrivePicker()
 
   const load = useCallback(async () => {
     try {
@@ -44,6 +68,25 @@ export default function ReportExamples() {
       setError(e instanceof Error ? e.message : 'Upload failed')
     } finally {
       setUploading(false)
+    }
+  }
+
+  async function handleDriveImport() {
+    setError(null)
+    try {
+      const { accessToken } = await getGoogleToken(getToken)
+      const picked = await openPicker(accessToken, {
+        mimeTypes: REPORT_MIME_TYPES,
+        title: 'Select a report card',
+      })
+      if (!picked) return
+      setDriveImporting(true)
+      await importExampleFromDrive(picked.id, picked.name, getToken)
+      await load()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Drive import failed')
+    } finally {
+      setDriveImporting(false)
     }
   }
 
@@ -99,14 +142,27 @@ export default function ReportExamples() {
                 style={{ display: 'none' }}
                 onChange={(e) => handleFiles(e.target.files)}
               />
-              {uploading ? (
+              {uploading || driveImporting ? (
                 <>
                   <div className="honeycomb-spinner" />
-                  <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.7 }}>Extracting text…</p>
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.7 }}>
+                    {driveImporting ? 'Importing from Drive…' : 'Extracting text…'}
+                  </p>
                 </>
               ) : (
                 <p>Drop files here or click to upload<br/><span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Text, PDF, or image files</span></p>
               )}
+            </div>
+            <div className="drive-import-row" style={{ marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={(e) => { e.stopPropagation(); handleDriveImport() }}
+                disabled={uploading || driveImporting}
+              >
+                <DriveIcon />
+                Import from Drive
+              </button>
             </div>
 
             {error && <p className="example-error">{error}</p>}

@@ -266,6 +266,8 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		authHandler(handleUpload).ServeHTTP(rec, r)
 	case path == "drive-import" && r.Method == http.MethodPost:
 		authHandler(handleDriveImport).ServeHTTP(rec, r)
+	case path == "drive-import-example" && r.Method == http.MethodPost:
+		authHandler(handleDriveImportExample).ServeHTTP(rec, r)
 
 	// Google token (for Drive Picker)
 	case path == "google-token" && r.Method == http.MethodGet:

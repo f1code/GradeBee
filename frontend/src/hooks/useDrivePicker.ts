@@ -44,7 +44,7 @@ interface PickerResult {
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
 
 // Audio MIME types to filter in Google Picker
-const AUDIO_MIME_TYPES = [
+export const AUDIO_MIME_TYPES = [
   'audio/mpeg',
   'audio/mp4',
   'audio/mp3',
@@ -81,26 +81,32 @@ export function useDrivePicker() {
   const pickerRef = useRef<{ setVisible(v: boolean): void } | null>(null)
 
   const openPicker = useCallback(
-    async (accessToken: string): Promise<PickerResult | null> => {
+    async (
+      accessToken: string,
+      options?: { mimeTypes?: string; title?: string }
+    ): Promise<PickerResult | null> => {
       await loadPickerApi()
+
+      const mimeTypes = options?.mimeTypes ?? AUDIO_MIME_TYPES
+      const title = options?.title ?? 'Select an audio file'
 
       return new Promise((resolve) => {
         const view = new window.google.picker.PickerBuilder()
           .addView(
-            // Create a view filtered to audio MIME types
+            // Create a view filtered to the requested MIME types
             (() => {
               // The DocsView constructor accepts a ViewId
               const docsView = new (window.google as unknown as Record<string, Record<string, new (id: unknown) => Record<string, (v: unknown) => void>>>).picker.DocsView(
                 window.google.picker.ViewId.DOCS
               )
-              docsView.setMimeTypes(AUDIO_MIME_TYPES)
+              docsView.setMimeTypes(mimeTypes)
               docsView.setMode((window.google as unknown as Record<string, Record<string, Record<string, unknown>>>).picker.DocsViewMode.LIST)
               return docsView
             })()
           )
           .setOAuthToken(accessToken)
           .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
-          .setTitle('Select an audio file')
+          .setTitle(title)
           .setCallback((data: PickerCallbackData) => {
             if (data.action === window.google.picker.Action.PICKED && data.docs?.[0]) {
               resolve({ id: data.docs[0].id, name: data.docs[0].name })
