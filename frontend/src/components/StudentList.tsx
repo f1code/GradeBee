@@ -17,6 +17,7 @@ import AddStudentForm from './AddStudentForm'
 import StudentDetail from './StudentDetail'
 
 import { HexBullet, ChevronIcon, PencilIcon, TrashIcon } from './Icons'
+import ItemRow from './ItemRow'
 
 const containerVariants = {
   hidden: {},
@@ -421,9 +422,7 @@ export default function StudentList() {
                           <>
                             <ul>
                               <AnimatePresence>
-                                {students.map(s => {
-                                  const isDeletingStudent = deletingId?.type === 'student' && deletingId.id === s.id
-                                  return (
+                                {students.map(s => (
                                     <motion.li
                                       key={s.id}
                                       data-testid={`student-${s.id}`}
@@ -432,75 +431,39 @@ export default function StudentList() {
                                       exit={{ opacity: 0, height: 0, padding: 0, margin: 0 }}
                                       transition={{ duration: 0.2 }}
                                     >
-                                      {isDeletingStudent ? (
-                                        <div className="delete-confirm delete-confirm-inline">
-                                          <span>Delete <strong>{s.name}</strong>?</span>
-                                          <div className="delete-confirm-actions">
-                                            <button className="btn-secondary btn-sm" onClick={() => setDeletingId(null)}>Cancel</button>
-                                            <button className="btn-danger btn-sm" onClick={() => handleDeleteStudent(s.id, cls.id)} data-testid={`confirm-delete-student-${s.id}`}>Delete</button>
-                                          </div>
-                                        </div>
-                                      ) : editingStudentId === s.id ? (
+                                      {editingStudentId === s.id ? (
                                         <InlineEdit
                                           value={s.name}
                                           onSave={newName => handleRenameStudent(s.id, cls.id, newName)}
                                           onCancel={() => setEditingStudentId(null)}
                                         />
                                       ) : (
-                                        <>
-                                          <div className="student-row">
-                                            <span
-                                              className={`student-name student-name-clickable${expandedStudentId === s.id ? ' student-name-active' : ''}`}
-                                              onClick={() => setExpandedStudentId(expandedStudentId === s.id ? null : s.id)}
-                                              role="button"
-                                              tabIndex={0}
-                                              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedStudentId(expandedStudentId === s.id ? null : s.id) } }}
+                                        <ItemRow
+                                          name={s.name}
+                                          expanded={expandedStudentId === s.id}
+                                          onToggle={() => setExpandedStudentId(expandedStudentId === s.id ? null : s.id)}
+                                          onDelete={() => handleDeleteStudent(s.id, cls.id)}
+                                          actions={
+                                            <button
+                                              className="icon-btn"
+                                              onClick={e => { e.stopPropagation(); setEditingStudentId(s.id) }}
+                                              aria-label={`Rename ${s.name}`}
+                                              data-testid={`rename-student-${s.id}`}
                                             >
-                                              {s.name}
-                                              <ChevronIcon open={expandedStudentId === s.id} />
-                                            </span>
-                                            <div className="student-actions">
-                                              <button
-                                                className="icon-btn"
-                                                onClick={e => { e.stopPropagation(); setEditingStudentId(s.id) }}
-                                                aria-label={`Rename ${s.name}`}
-                                                data-testid={`rename-student-${s.id}`}
-                                              >
-                                                <PencilIcon />
-                                              </button>
-                                              <button
-                                                className="icon-btn icon-btn-danger"
-                                                onClick={e => { e.stopPropagation(); setDeletingId({ type: 'student', id: s.id, name: s.name }) }}
-                                                aria-label={`Delete ${s.name}`}
-                                                data-testid={`delete-student-${s.id}`}
-                                              >
-                                                <TrashIcon />
-                                              </button>
-                                            </div>
-                                          </div>
-                                          <AnimatePresence>
-                                            {expandedStudentId === s.id && (
-                                              <motion.div
-                                                initial={{ opacity: 0, height: 0 }}
-                                                animate={{ opacity: 1, height: 'auto' }}
-                                                exit={{ opacity: 0, height: 0 }}
-                                                transition={{ duration: 0.25 }}
-                                                style={{ overflow: 'hidden' }}
-                                              >
-                                                <StudentDetail
-                                                  studentId={s.id}
-                                                  studentName={s.name}
-                                                  className={cls.name}
-                                                  onCollapse={() => setExpandedStudentId(null)}
-                                                />
-                                              </motion.div>
-                                            )}
-                                          </AnimatePresence>
-                                        </>
+                                              <PencilIcon />
+                                            </button>
+                                          }
+                                        >
+                                          <StudentDetail
+                                            studentId={s.id}
+                                            studentName={s.name}
+                                            className={cls.name}
+                                            onCollapse={() => setExpandedStudentId(null)}
+                                          />
+                                        </ItemRow>
                                       )}
                                     </motion.li>
-                                  )
-                                })}
+                                  ))}
                               </AnimatePresence>
                             </ul>
                             <AddStudentForm
