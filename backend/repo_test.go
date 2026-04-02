@@ -393,6 +393,21 @@ func TestReportExampleRepo_CRUD(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatal("should not delete other user's example")
 	}
+
+	// Update
+	updated, err := r.examples.Update(ctx, "user1", e2.ID, "renamed.txt", "new content")
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.Name != "renamed.txt" || updated.Content != "new content" {
+		t.Fatalf("unexpected update result: %+v", updated)
+	}
+
+	// Update wrong user
+	_, err = r.examples.Update(ctx, "user2", e2.ID, "hack", "hack")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("should not update other user's example, got: %v", err)
+	}
 }
 
 func TestUploadRepo_CRUD(t *testing.T) {

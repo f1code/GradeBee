@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -310,5 +312,46 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	}
 	if len(resp.Done) != 1 {
 		t.Errorf("done = %d, want 1", len(resp.Done))
+	}
+}
+
+func TestIntegration_UpdateReportExample(t *testing.T) {
+	db := setupTestDB(t)
+	exampleRepo := &ReportExampleRepo{db: db}
+
+	// Create an example first
+	ex, err := exampleRepo.Create(t.Context(), "user1", "original.txt", "original content")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store := newDBExampleStore(exampleRepo)
+	old := serviceDeps
+	serviceDeps = &mockDepsAll{exampleStore: store}
+	t.Cleanup(func() { serviceDeps = old })
+
+	// Update via full Handle router
+	body, err := json.Marshal(map[string]string{"name": "updated.txt", "content": "updated content"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/report-examples/%d", ex.ID), bytes.NewReader(body))
+	rctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
+		RegisteredClaims: clerk.RegisteredClaims{Subject: "user1"},
+	})
+	req = req.WithContext(rctx)
+	rec := httptest.NewRecorder()
+	handleUpdateReportExample(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var result ReportExample
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Name != "updated.txt" {
+		t.Errorf("name = %q, want updated.txt", result.Name)
 	}
 }

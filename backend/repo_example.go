@@ -56,6 +56,24 @@ func (r *ReportExampleRepo) Create(ctx context.Context, userID, name, content st
 	return e, nil
 }
 
+// Update modifies the name and content of a report example owned by the user.
+func (r *ReportExampleRepo) Update(ctx context.Context, userID string, id int64, name, content string) (DBReportExample, error) {
+	var e DBReportExample
+	err := r.db.QueryRowContext(ctx, `
+		UPDATE report_examples SET name = ?, content = ?
+		WHERE id = ? AND user_id = ?
+		RETURNING id, user_id, name, content, created_at`,
+		name, content, id, userID,
+	).Scan(&e.ID, &e.UserID, &e.Name, &e.Content, &e.CreatedAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return DBReportExample{}, ErrNotFound
+		}
+		return DBReportExample{}, fmt.Errorf("update report example: %w", err)
+	}
+	return e, nil
+}
+
 // Delete removes a report example owned by the user.
 func (r *ReportExampleRepo) Delete(ctx context.Context, userID string, id int64) error {
 	res, err := r.db.ExecContext(ctx,

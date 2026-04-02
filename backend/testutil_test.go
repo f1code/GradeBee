@@ -274,3 +274,7 @@ func (s *stubExampleStore) UploadExample(_ context.Context, _, name, content str
 func (s *stubExampleStore) DeleteExample(_ context.Context, _ string, _ int64) error {
 	return nil
 }
+
+func (s *stubExampleStore) UpdateExample(_ context.Context, _ string, id int64, name, content string) (*ReportExample, error) {
+	return &ReportExample{ID: id, Name: name, Content: content}, nil
+}

@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import ItemRow from './ItemRow'
+import { PencilIcon } from './Icons'
 import {
   listReportExamples,
   uploadReportExample,
+  updateReportExample,
   deleteReportExample,
   importExampleFromDrive,
   getGoogleToken,
@@ -41,6 +43,10 @@ export default function ReportExamples() {
   const [dragOver, setDragOver] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editContent, setEditContent] = useState('')
+  const [saving, setSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { openPicker } = useDrivePicker()
 
@@ -89,6 +95,31 @@ export default function ReportExamples() {
       setError(e instanceof Error ? e.message : 'Drive import failed')
     } finally {
       setDriveImporting(false)
+    }
+  }
+
+  function startEditing(ex: ReportExampleItem) {
+    setEditingId(ex.id)
+    setEditName(ex.name)
+    setEditContent(ex.content)
+  }
+
+  function cancelEditing() {
+    setEditingId(null)
+  }
+
+  async function saveEdit() {
+    if (!editingId) return
+    setSaving(true)
+    setError(null)
+    try {
+      await updateReportExample(editingId, editName, editContent, () => getToken())
+      await load()
+      setEditingId(null)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Update failed')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -187,10 +218,47 @@ export default function ReportExamples() {
                       expanded={expandedId === ex.id}
                       onToggle={() => setExpandedId(expandedId === ex.id ? null : ex.id)}
                       onDelete={() => handleDelete(ex.id)}
+                      actions={
+                        <button
+                          className="icon-btn"
+                          onClick={(e) => { e.stopPropagation(); setExpandedId(ex.id); startEditing(ex) }}
+                          aria-label={`Edit ${ex.name}`}
+                        >
+                          <PencilIcon />
+                        </button>
+                      }
                     >
-                      <div className="example-content-preview">
-                        <pre className="example-content-text">{ex.content}</pre>
-                      </div>
+                      {editingId === ex.id ? (
+                        <div className="example-edit-form">
+                          <label className="example-edit-label">
+                            Name
+                            <input
+                              className="example-edit-name"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                            />
+                          </label>
+                          <label className="example-edit-label">
+                            Content
+                            <textarea
+                              className="example-edit-content"
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              rows={12}
+                            />
+                          </label>
+                          <div className="example-edit-actions">
+                            <button className="btn-secondary btn-sm" onClick={cancelEditing} disabled={saving}>Cancel</button>
+                            <button className="btn btn-sm" onClick={saveEdit} disabled={saving || !editName.trim() || !editContent.trim()}>
+                              {saving ? 'Saving…' : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="example-content-preview">
+                          <pre className="example-content-text">{ex.content}</pre>
+                        </div>
+                      )}
                     </ItemRow>
                   </motion.div>
                 ))}

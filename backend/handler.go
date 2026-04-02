@@ -260,6 +260,8 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		authHandler(handleUploadReportExample).ServeHTTP(rec, r)
 	case path == "report-examples" && r.Method == http.MethodDelete:
 		authHandler(handleDeleteReportExample).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "report-examples/") && r.Method == http.MethodPut:
+		authHandler(handleUpdateReportExample).ServeHTTP(rec, r)
 
 	// Upload + Drive import
 	case path == "upload" && r.Method == http.MethodPost:

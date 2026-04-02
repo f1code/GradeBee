@@ -37,6 +37,7 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 | GET | `/report-examples` | Yes | `handleListReportExamples` | List example report cards |
 | POST | `/report-examples` | Yes | `handleUploadReportExample` | Upload example report card |
 | DELETE | `/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card |
+| PUT | `/report-examples/{id}` | Yes | `handleUpdateReportExample` | Update example report card |
 | POST | `/upload` | Yes | `handleUpload` | Upload audio to disk + dispatch job |
 | POST | `/drive-import` | Yes | `handleDriveImport` | Download from Drive + dispatch job |
 | GET | `/google-token` | Yes | `handleGoogleToken` | Return Google OAuth token for Drive Picker |

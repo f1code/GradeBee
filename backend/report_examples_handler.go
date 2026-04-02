@@ -109,6 +109,41 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, example)
 }
 
+func handleUpdateReportExample(w http.ResponseWriter, r *http.Request) {
+	log := loggerFromRequest(r)
+
+	userID, err := userIDFromRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		return
+	}
+
+	id, ok := pathParam(r.URL.Path, "/report-examples/")
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid id"})
+		return
+	}
+
+	var req struct {
+		Name    string `json:"name"`
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" || req.Content == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name and content are required"})
+		return
+	}
+
+	store := serviceDeps.GetExampleStore()
+	example, err := store.UpdateExample(r.Context(), userID, id, req.Name, req.Content)
+	if err != nil {
+		log.Error("update report example failed", "error", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, example)
+}
+
 func handleDeleteReportExample(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 

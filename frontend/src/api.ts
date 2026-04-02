@@ -328,6 +328,26 @@ export async function deleteReportExample(
   }
 }
 
+export async function updateReportExample(
+  id: string,
+  name: string,
+  content: string,
+  getToken: () => Promise<string | null>
+): Promise<ReportExampleItem> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/report-examples/${id}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name, content }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to update example')
+  return body
+}
+
 // --- Reports ---
 
 export interface ReportResult {

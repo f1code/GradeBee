@@ -1189,6 +1189,66 @@ button:disabled {
   line-height: 1.5;
 }
 
+.example-edit-form {
+  padding: 0.75rem;
+  background: var(--chalk);
+  border-top: 1px solid rgba(44, 24, 16, 0.08);
+  border-radius: 0 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.example-edit-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+}
+
+.example-edit-name {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--comb);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--parchment);
+}
+
+.example-edit-name:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 2px rgba(232, 163, 23, 0.15);
+}
+
+.example-edit-content {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--comb);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: var(--parchment);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.example-edit-content:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 2px rgba(232, 163, 23, 0.15);
+}
+
+.example-edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 /* ============================================
    Report Generation
    ============================================ */

@@ -18,6 +18,7 @@ type ReportExample struct {
 type ExampleStore interface {
 	ListExamples(ctx context.Context, userID string) ([]ReportExample, error)
 	UploadExample(ctx context.Context, userID, name, content string) (*ReportExample, error)
+	UpdateExample(ctx context.Context, userID string, id int64, name, content string) (*ReportExample, error)
 	DeleteExample(ctx context.Context, userID string, id int64) error
 }
 
@@ -48,6 +49,14 @@ func (s *dbExampleStore) UploadExample(ctx context.Context, userID, name, conten
 		return nil, fmt.Errorf("report_examples: upload: %w", err)
 	}
 	return &ReportExample{ID: e.ID, Name: e.Name}, nil
+}
+
+func (s *dbExampleStore) UpdateExample(ctx context.Context, userID string, id int64, name, content string) (*ReportExample, error) {
+	e, err := s.repo.Update(ctx, userID, id, name, content)
+	if err != nil {
+		return nil, fmt.Errorf("report_examples: update: %w", err)
+	}
+	return &ReportExample{ID: e.ID, Name: e.Name, Content: e.Content}, nil
 }
 
 func (s *dbExampleStore) DeleteExample(ctx context.Context, userID string, id int64) error {
