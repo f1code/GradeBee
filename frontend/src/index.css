@@ -463,11 +463,13 @@ button:disabled {
   gap: 0.15rem;
   flex-shrink: 0;
   opacity: 0;
+  pointer-events: none;
   transition: opacity 0.15s;
 }
 
 .item-row:hover .item-row-actions {
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* --- Icon buttons (pencil / trash) --- */
