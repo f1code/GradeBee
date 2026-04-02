@@ -383,32 +383,6 @@ button:disabled {
   background: var(--honey-light);
 }
 
-.student-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
-.student-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.student-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.15rem;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-
-.class-group li:hover .student-actions {
-  opacity: 1;
-}
-
 /* --- Expandable row (shared pattern) --- */
 
 .item-row {
@@ -934,7 +908,7 @@ button:disabled {
   }
 
   /* Mobile: always show action icons */
-  .student-actions {
+  .item-row-actions {
     opacity: 1;
   }
 
@@ -1188,24 +1162,6 @@ button:disabled {
 .example-name {
   font-size: 0.9rem;
   color: var(--ink);
-}
-
-.example-delete-btn {
-  background: none;
-  border: none;
-  color: var(--ink-muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  transition: all 0.15s;
-  min-height: auto;
-  box-shadow: none;
-}
-
-.example-delete-btn:hover {
-  color: var(--error-red);
-  background: rgba(197, 48, 48, 0.08);
 }
 
 .example-item-wrapper {
@@ -2021,32 +1977,6 @@ button:disabled {
 /* ============================================
    Student Detail (inline expansion)
    ============================================ */
-
-.student-name-clickable {
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  text-decoration-color: transparent;
-  transition: color 0.15s, text-decoration-color 0.15s;
-}
-
-.student-name-clickable:hover {
-  color: var(--honey-dark);
-  text-decoration: underline;
-  text-decoration-color: rgba(232, 163, 23, 0.4);
-  text-underline-offset: 2px;
-}
-
-.student-name-clickable:focus-visible {
-  outline: 2px solid var(--honey);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.student-name-active {
-  color: var(--honey-dark);
-}
 
 .student-detail {
   background: var(--chalk);
