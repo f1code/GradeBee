@@ -265,6 +265,7 @@ export async function uploadAudio(
 export interface ReportExampleItem {
   id: string
   name: string
+  content: string
 }
 
 export async function listReportExamples(
