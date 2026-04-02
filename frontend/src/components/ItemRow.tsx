@@ -55,23 +55,25 @@ export default function ItemRow({
 
   return (
     <>
-      <div className="item-row">
+      <div
+        className="item-row"
+        onClick={onToggle}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
+      >
         <span
           className={`item-row-name${expanded ? ' item-row-name-active' : ''}`}
-          onClick={onToggle}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
-              onToggle()
-            }
-          }}
         >
           {name}
           <ChevronIcon open={expanded} />
         </span>
-        <div className="item-row-actions">
+        <div className="item-row-actions" onClick={(e) => e.stopPropagation()}>
           {actions}
           <button
             className="icon-btn icon-btn-danger"
