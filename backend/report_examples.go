@@ -37,7 +37,7 @@ func (s *dbExampleStore) ListExamples(ctx context.Context, userID string) ([]Rep
 	}
 	examples := make([]ReportExample, len(dbExamples))
 	for i, e := range dbExamples {
-		examples[i] = ReportExample{ID: e.ID, Name: e.Name}
+		examples[i] = ReportExample{ID: e.ID, Name: e.Name, Content: e.Content}
 	}
 	return examples, nil
 }
