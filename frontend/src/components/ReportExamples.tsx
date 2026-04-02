@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
+import ItemRow from './ItemRow'
 import {
   listReportExamples,
   uploadReportExample,
@@ -181,36 +182,16 @@ export default function ReportExamples() {
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                   >
-                    <div className="example-item">
-                      <span
-                        className="example-name"
-                        onClick={() => setExpandedId(expandedId === ex.id ? null : ex.id)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        📄 {ex.name}
-                      </span>
-                      <button
-                        className="example-delete-btn"
-                        onClick={() => handleDelete(ex.id)}
-                        title="Remove example"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <AnimatePresence>
-                      {expandedId === ex.id && (
-                        <motion.div
-                          className="example-content-preview"
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.15 }}
-                          style={{ overflow: 'hidden' }}
-                        >
-                          <pre className="example-content-text">{ex.content}</pre>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    <ItemRow
+                      name={ex.name}
+                      expanded={expandedId === ex.id}
+                      onToggle={() => setExpandedId(expandedId === ex.id ? null : ex.id)}
+                      onDelete={() => handleDelete(ex.id)}
+                    >
+                      <div className="example-content-preview">
+                        <pre className="example-content-text">{ex.content}</pre>
+                      </div>
+                    </ItemRow>
                   </motion.div>
                 ))}
               </div>
