@@ -409,6 +409,59 @@ button:disabled {
   opacity: 1;
 }
 
+/* --- Expandable row (shared pattern) --- */
+
+.item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.item-row-name {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  color: var(--ink);
+  text-decoration-color: transparent;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+.item-row-name:hover {
+  color: var(--honey-dark);
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 163, 23, 0.4);
+  text-underline-offset: 2px;
+}
+
+.item-row-name:focus-visible {
+  outline: 2px solid var(--honey);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.item-row-name-active {
+  color: var(--honey-dark);
+}
+
+.item-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.item-row:hover .item-row-actions {
+  opacity: 1;
+}
+
 /* --- Icon buttons (pencil / trash) --- */
 
 .icon-btn {
