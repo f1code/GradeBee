@@ -416,6 +416,13 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.item-row:hover {
+  background: var(--honey-light);
 }
 
 .item-row-name {
