@@ -180,7 +180,6 @@ export default function ReportExamples() {
                     className="example-item-wrapper"
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    layout
                   >
                     <div className="example-item">
                       <span
