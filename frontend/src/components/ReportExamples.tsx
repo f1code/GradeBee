@@ -39,6 +39,7 @@ export default function ReportExamples() {
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { openPicker } = useDrivePicker()
 
@@ -176,19 +177,41 @@ export default function ReportExamples() {
                 {examples.map((ex) => (
                   <motion.div
                     key={ex.id}
-                    className="example-item"
+                    className="example-item-wrapper"
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     layout
                   >
-                    <span className="example-name">📄 {ex.name}</span>
-                    <button
-                      className="example-delete-btn"
-                      onClick={() => handleDelete(ex.id)}
-                      title="Remove example"
-                    >
-                      ✕
-                    </button>
+                    <div className="example-item">
+                      <span
+                        className="example-name"
+                        onClick={() => setExpandedId(expandedId === ex.id ? null : ex.id)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        📄 {ex.name}
+                      </span>
+                      <button
+                        className="example-delete-btn"
+                        onClick={() => handleDelete(ex.id)}
+                        title="Remove example"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <AnimatePresence>
+                      {expandedId === ex.id && (
+                        <motion.div
+                          className="example-content-preview"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                          style={{ overflow: 'hidden' }}
+                        >
+                          <pre className="example-content-text">{ex.content}</pre>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </motion.div>
                 ))}
               </div>

@@ -1144,6 +1144,31 @@ button:disabled {
   background: rgba(197, 48, 48, 0.08);
 }
 
+.example-item-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.example-content-preview {
+  padding: 0.5rem 0.75rem;
+  background: var(--chalk);
+  border-top: 1px solid rgba(44, 24, 16, 0.08);
+  border-radius: 0 0 8px 8px;
+  margin-top: -0.2rem;
+}
+
+.example-content-text {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
 /* ============================================
    Report Generation
    ============================================ */
