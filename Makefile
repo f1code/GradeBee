@@ -40,6 +40,7 @@ deploy: build-backend build-frontend
 
 test:
 	cd backend && $(MAKE) test
+	cd backend && $(MAKE) check-types
 	npm run --prefix frontend test
 
 clean:
