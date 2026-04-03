@@ -224,6 +224,19 @@ All CRUD endpoints verify resource ownership:
 | `jobs_list.go` | GET /jobs — list user's async upload jobs grouped by status |
 | `jobs_retry.go` | POST /jobs/retry — reset failed jobs to queued and republish |
 | `jobs_dismiss.go` | POST /jobs/dismiss — remove completed/failed jobs, mark uploads processed |
+| `tygo.yaml` | tygo config for Go→TypeScript type generation |
+
+## Type Generation (Go → TypeScript)
+
+[tygo](https://github.com/gzuidhof/tygo) generates `frontend/src/api-types.gen.ts` from Go structs with `json` tags. The frontend imports generated types instead of maintaining hand-written interfaces.
+
+- Config: `backend/tygo.yaml`
+- Generate: `cd backend && make generate`
+- Check up-to-date: `cd backend && make check-types` (runs in root `make test`)
+- Embedded struct flattening uses `tstype:",extends"` tags (see `ClassWithCount`, `ReportDetail`)
+- `time.Time` maps to `string` via `type_mappings`
+
+When changing Go structs with `json` tags, regenerate types and commit the updated `.gen.ts` file.
 
 ## Error Handling
 
