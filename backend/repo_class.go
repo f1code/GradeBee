@@ -20,7 +20,7 @@ type Class struct {
 
 // ClassWithCount is a Class with its student count.
 type ClassWithCount struct {
-	Class
+	Class `tstype:",extends"`
 	StudentCount int `json:"studentCount"`
 }
 

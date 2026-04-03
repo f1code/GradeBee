@@ -1,4 +1,4 @@
-.PHONY: lint test dev
+.PHONY: lint test dev generate check-types
 
 lint:
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run
@@ -8,3 +8,10 @@ test:
 
 dev:
 	cd cmd/server && go run .
+
+generate:
+	tygo generate
+
+check-types:
+	tygo generate
+	git diff --exit-code ../frontend/src/api-types.gen.ts || (echo "Generated types are out of date. Run 'make generate' in backend/" && exit 1)

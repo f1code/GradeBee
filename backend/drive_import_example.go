@@ -26,7 +26,7 @@ const maxReportImportBytes = 10 << 20 // 10 MB
 func handleDriveImportExample(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
-	var req driveImportRequest
+	var req DriveImportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.FileID == "" || req.FileName == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing or invalid 'fileId' / 'fileName'"})
 		return

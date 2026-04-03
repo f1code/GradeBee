@@ -14,20 +14,23 @@ type ListReportsResponse struct {
 	Reports []ReportSummary `json:"reports"`
 }
 
-type generateReportsRequest struct {
-	Students     []reportStudentInput `json:"students"`
+// GenerateReportsHTTPRequest is the JSON body for POST /reports.
+type GenerateReportsHTTPRequest struct {
+	Students     []ReportStudentInput `json:"students"`
 	StartDate    string               `json:"startDate"`
 	EndDate      string               `json:"endDate"`
 	Instructions string               `json:"instructions"`
 }
 
-type reportStudentInput struct {
+// ReportStudentInput identifies a student in a generate-reports request.
+type ReportStudentInput struct {
 	StudentID int64  `json:"studentId"`
 	Name      string `json:"name"`
 	Class     string `json:"class"`
 }
 
-type reportResult struct {
+// ReportResult is the per-student result in a generate/regenerate response.
+type ReportResult struct {
 	ID        int64  `json:"id"`
 	StudentID int64  `json:"studentId"`
 	Student   string `json:"student"`
@@ -38,15 +41,16 @@ type reportResult struct {
 	CreatedAt string `json:"createdAt"`
 }
 
-type generateReportsResponse struct {
-	Reports []reportResult `json:"reports"`
+// GenerateReportsHTTPResponse is the JSON response for POST /reports.
+type GenerateReportsHTTPResponse struct {
+	Reports []ReportResult `json:"reports"`
 	Error   *string        `json:"error"`
 }
 
 func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
-	var req generateReportsRequest
+	var req GenerateReportsHTTPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
@@ -75,7 +79,7 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reports := []reportResult{}
+	reports := []ReportResult{}
 
 	for _, s := range req.Students {
 		// Verify student ownership
@@ -98,13 +102,13 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			errMsg := fmt.Sprintf("failed to generate report for %s: %s", s.Name, err.Error())
 			log.Error("generate reports: student failed", "student", s.Name, "error", err)
-			writeJSON(w, http.StatusOK, generateReportsResponse{
+			writeJSON(w, http.StatusOK, GenerateReportsHTTPResponse{
 				Reports: reports,
 				Error:   &errMsg,
 			})
 			return
 		}
-		reports = append(reports, reportResult{
+		reports = append(reports, ReportResult{
 			ID:        resp.ReportID,
 			StudentID: s.StudentID,
 			Student:   s.Name,
@@ -117,13 +121,14 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("generate reports completed", "user_id", userID, "report_count", len(reports))
-	writeJSON(w, http.StatusOK, generateReportsResponse{
+	writeJSON(w, http.StatusOK, GenerateReportsHTTPResponse{
 		Reports: reports,
 		Error:   nil,
 	})
 }
 
-type regenerateReportRequest struct {
+// RegenerateReportHTTPRequest is the JSON body for POST /reports/:id/regenerate.
+type RegenerateReportHTTPRequest struct {
 	Feedback string `json:"feedback"`
 }
 
@@ -137,7 +142,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req regenerateReportRequest
+	var req RegenerateReportHTTPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
@@ -216,7 +221,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("regenerate report completed", "user_id", userID, "report_id", resp.ReportID)
-	writeJSON(w, http.StatusOK, reportResult{
+	writeJSON(w, http.StatusOK, ReportResult{
 		ID:        resp.ReportID,
 		StudentID: rpt.StudentID,
 		Student:   student.Name,
@@ -257,9 +262,9 @@ func handleListReports(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ListReportsResponse{Reports: reports})
 }
 
-// reportDetail is the response for GET /reports/:id — includes student/class names.
-type reportDetail struct {
-	reportResult
+// ReportDetail is the response for GET /reports/:id — includes student/class names.
+type ReportDetail struct {
+	ReportResult `tstype:",extends"`
 	Instructions *string `json:"instructions,omitempty"`
 }
 
@@ -298,8 +303,8 @@ func handleGetReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load class"})
 		return
 	}
-	writeJSON(w, http.StatusOK, reportDetail{
-		reportResult: reportResult{
+	writeJSON(w, http.StatusOK, ReportDetail{
+		ReportResult: ReportResult{
 			ID:        rpt.ID,
 			StudentID: rpt.StudentID,
 			Student:   student.Name,

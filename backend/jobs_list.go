@@ -10,8 +10,8 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2"
 )
 
-// jobListResponse groups jobs by their processing state.
-type jobListResponse struct {
+// JobListResponse groups jobs by their processing state.
+type JobListResponse struct {
 	Active []UploadJob `json:"active"`
 	Failed []UploadJob `json:"failed"`
 	Done   []UploadJob `json:"done"`
@@ -46,7 +46,7 @@ func handleJobList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := jobListResponse{
+	resp := JobListResponse{
 		Active: []UploadJob{},
 		Failed: []UploadJob{},
 		Done:   []UploadJob{},

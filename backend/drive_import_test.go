@@ -158,7 +158,7 @@ func TestHandleDriveImport_HappyPath(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("got %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
-	var resp driveImportResponse
+	var resp DriveImportResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}

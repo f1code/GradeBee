@@ -1,0 +1,5 @@
+packages:
+  - path: "github.com/nicogaller/gradebee/backend"
+    output_path: "../frontend/src/api-types.gen.ts"
+    type_mappings:
+      "time.Time": "string"

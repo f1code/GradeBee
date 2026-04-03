@@ -22,7 +22,8 @@ var allowedAudioTypes = []string{
 	"video/webm",
 }
 
-type uploadResponse struct {
+// UploadResponse is the JSON response for POST /upload.
+type UploadResponse struct {
 	UploadID int64  `json:"uploadId"`
 	FileName string `json:"fileName"`
 }
@@ -115,7 +116,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, uploadResponse{
+	writeJSON(w, http.StatusOK, UploadResponse{
 		UploadID: upload.ID,
 		FileName: header.Filename,
 	})

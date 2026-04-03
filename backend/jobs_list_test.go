@@ -38,7 +38,7 @@ func TestJobList_GroupsByStatus(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
 
-	var resp jobListResponse
+	var resp JobListResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestJobList_EmptyUser(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rec.Code)
 	}
 
-	var resp jobListResponse
+	var resp JobListResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestJobList_SortedDescending(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleJobList(rec, req)
 
-	var resp jobListResponse
+	var resp JobListResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatal(err)
 	}

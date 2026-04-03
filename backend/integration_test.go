@@ -299,7 +299,7 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	var resp jobListResponse
+	var resp JobListResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}

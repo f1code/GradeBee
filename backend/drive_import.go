@@ -16,12 +16,14 @@ import (
 	"github.com/google/uuid"
 )
 
-type driveImportRequest struct {
+// DriveImportRequest is the JSON body for POST /drive-import.
+type DriveImportRequest struct {
 	FileID   string `json:"fileId"`
 	FileName string `json:"fileName"`
 }
 
-type driveImportResponse struct {
+// DriveImportResponse is the JSON response for POST /drive-import.
+type DriveImportResponse struct {
 	UploadID int64  `json:"uploadId"`
 	FileName string `json:"fileName"`
 }
@@ -29,7 +31,7 @@ type driveImportResponse struct {
 func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
-	var req driveImportRequest
+	var req DriveImportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.FileID == "" || req.FileName == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing or invalid 'fileId' / 'fileName'"})
 		return
@@ -138,7 +140,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, driveImportResponse{
+	writeJSON(w, http.StatusOK, DriveImportResponse{
 		UploadID: upload.ID,
 		FileName: cleanName,
 	})

@@ -10,7 +10,8 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2"
 )
 
-type googleTokenResponse struct {
+// GoogleTokenResponse is the JSON response for GET /google-token.
+type GoogleTokenResponse struct {
 	AccessToken string `json:"accessToken"`
 }
 
@@ -41,5 +42,5 @@ func handleGoogleToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("google-token returned", "user_id", userID)
-	writeJSON(w, http.StatusOK, googleTokenResponse{AccessToken: token})
+	writeJSON(w, http.StatusOK, GoogleTokenResponse{AccessToken: token})
 }
