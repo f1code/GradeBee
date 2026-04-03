@@ -211,7 +211,16 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("regenerate report completed", "user_id", userID, "report_id", resp.ReportID)
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, reportResult{
+		ID:        resp.ReportID,
+		StudentID: rpt.StudentID,
+		Student:   student.Name,
+		Class:     class.Name,
+		HTML:      resp.HTML,
+		StartDate: rpt.StartDate,
+		EndDate:   rpt.EndDate,
+		CreatedAt: resp.CreatedAt,
+	})
 }
 
 // --- Report CRUD handlers ---

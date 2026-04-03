@@ -219,3 +219,78 @@ func TestHandleRegenerateReport_ReportNotFound(t *testing.T) {
 		t.Errorf("status = %d, want 404, body = %s", rec.Code, rec.Body.String())
 	}
 }
+
+func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
+	db := setupTestDB(t)
+	classRepo := &ClassRepo{db: db}
+	studentRepo := &StudentRepo{db: db}
+	reportRepo := &ReportRepo{db: db}
+	ctx := context.Background()
+
+	cls, err := classRepo.Create(ctx, "user_abc", "Science")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stu, err := studentRepo.Create(ctx, cls.ID, "Bob")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rpt := &Report{
+		StudentID: stu.ID,
+		StartDate: "2026-02-01",
+		EndDate:   "2026-02-28",
+		HTML:      "<p>old</p>",
+	}
+	if err := reportRepo.Create(ctx, rpt); err != nil {
+		t.Fatal(err)
+	}
+
+	gen := &stubReportGenerator{
+		regenerateResp: &GenerateReportResponse{ReportID: 77, HTML: "<p>new</p>", CreatedAt: "2026-04-03T00:00:00Z"},
+	}
+	serviceDeps = &mockDepsAll{
+		db: db, classRepo: classRepo, studentRepo: studentRepo, reportRepo: reportRepo, reportGen: gen,
+	}
+
+	body, err := json.Marshal(map[string]string{"feedback": "shorter"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req = clerkReq(req, "user_abc")
+
+	rec := httptest.NewRecorder()
+	handleRegenerateReport(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		ID        int64  `json:"id"`
+		StudentID int64  `json:"studentId"`
+		Student   string `json:"student"`
+		Class     string `json:"class"`
+		HTML      string `json:"html"`
+		StartDate string `json:"startDate"`
+		EndDate   string `json:"endDate"`
+		CreatedAt string `json:"createdAt"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.ID != 77 {
+		t.Errorf("id = %d, want 77", resp.ID)
+	}
+	if resp.Student != "Bob" {
+		t.Errorf("student = %q, want Bob", resp.Student)
+	}
+	if resp.Class != "Science" {
+		t.Errorf("class = %q, want Science", resp.Class)
+	}
+	if resp.StartDate != "2026-02-01" {
+		t.Errorf("startDate = %q, want 2026-02-01", resp.StartDate)
+	}
+}
