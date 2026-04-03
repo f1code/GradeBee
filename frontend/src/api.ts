@@ -50,7 +50,7 @@ export async function renameClass(
   id: number,
   name: string,
   getToken: () => Promise<string | null>
-): Promise<ClassItem> {
+): Promise<void> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/classes/${id}`, {
     method: 'PUT',
@@ -60,9 +60,10 @@ export async function renameClass(
     },
     body: JSON.stringify({ name }),
   })
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Failed to rename class')
-  return body
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to rename class')
+  }
 }
 
 export async function deleteClass(
