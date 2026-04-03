@@ -16,7 +16,7 @@ type Note struct {
 	StudentID  int64   `json:"studentId"`
 	Date       string  `json:"date"`
 	Summary    string  `json:"summary"`
-	Transcript *string `json:"transcript,omitempty"`
+	Transcript *string `json:"transcript"`
 	Source     string  `json:"source"`
 	CreatedAt  string  `json:"createdAt"`
 	UpdatedAt  string  `json:"updatedAt"`
