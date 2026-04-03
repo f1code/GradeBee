@@ -515,7 +515,6 @@ export async function importFromDrive(
 
 export interface UploadJob {
   uploadId: number
-  fileId: string
   fileName: string
   status: 'queued' | 'transcribing' | 'extracting' | 'creating_notes' | 'done' | 'failed'
   error?: string

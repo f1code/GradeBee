@@ -30,7 +30,7 @@ test.describe('Upload and job processing', () => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ fileId: 'f1', fileName: 'recording.mp3' }),
+          body: JSON.stringify({ uploadId: 1, fileName: 'recording.mp3' }),
         })
       } else {
         await route.continue()
@@ -47,7 +47,7 @@ test.describe('Upload and job processing', () => {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-              active: [{ fileId: 'f1', fileName: 'recording.mp3', status: 'transcribing' }],
+              active: [{ uploadId: 1, fileName: 'recording.mp3', status: 'transcribing' }],
               failed: [],
               done: [],
             }),
@@ -61,7 +61,7 @@ test.describe('Upload and job processing', () => {
               failed: [],
               done: [
                 {
-                  fileId: 'f1',
+                  uploadId: 1,
                   fileName: 'recording.mp3',
                   status: 'done',
                   noteLinks: [{ name: 'Emma', noteId: 1 }],
@@ -155,10 +155,10 @@ test.describe('Upload and job processing', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             active: [
-              { fileId: 'f1', fileName: 'a.mp3', status: 'queued' },
-              { fileId: 'f2', fileName: 'b.mp3', status: 'transcribing' },
-              { fileId: 'f3', fileName: 'c.mp3', status: 'extracting' },
-              { fileId: 'f4', fileName: 'd.mp3', status: 'creating_notes' },
+              { uploadId: 1, fileName: 'a.mp3', status: 'queued' },
+              { uploadId: 2, fileName: 'b.mp3', status: 'transcribing' },
+              { uploadId: 3, fileName: 'c.mp3', status: 'extracting' },
+              { uploadId: 4, fileName: 'd.mp3', status: 'creating_notes' },
             ],
             failed: [],
             done: [],
@@ -195,7 +195,7 @@ test.describe('Upload and job processing', () => {
               active: [],
               failed: [
                 {
-                  fileId: 'f1',
+                  uploadId: 1,
                   fileName: 'bad.mp3',
                   status: 'failed',
                   error: 'Whisper timeout',
@@ -209,7 +209,7 @@ test.describe('Upload and job processing', () => {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-              active: [{ fileId: 'f1', fileName: 'bad.mp3', status: 'queued' }],
+              active: [{ uploadId: 1, fileName: 'bad.mp3', status: 'queued' }],
               failed: [],
               done: [],
             }),
@@ -265,7 +265,7 @@ test.describe('Upload and job processing', () => {
             failed: [],
             done: [
               {
-                fileId: 'f1',
+                uploadId: 1,
                 fileName: 'lesson.mp3',
                 status: 'done',
                 noteLinks: [
@@ -328,7 +328,7 @@ test.describe('Upload and job processing', () => {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-              active: [{ fileId: 'f1', fileName: 'test.mp3', status: 'transcribing' }],
+              active: [{ uploadId: 1, fileName: 'test.mp3', status: 'transcribing' }],
               failed: [],
               done: [],
             }),
