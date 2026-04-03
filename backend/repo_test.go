@@ -341,7 +341,7 @@ func TestReportRepo_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(list) != 1 || list[0].HTML != "" {
+	if len(list) != 1 || list[0].ID != rpt.ID {
 		t.Fatalf("list unexpected: %+v", list)
 	}
 

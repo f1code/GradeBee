@@ -20,10 +20,19 @@ type Report struct {
 	CreatedAt    string  `json:"createdAt"`
 }
 
+// ReportSummary is the lightweight representation returned by list endpoints
+// (no HTML body, no instructions, no studentId — list is already scoped).
+type ReportSummary struct {
+	ID        int64  `json:"id"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	CreatedAt string `json:"createdAt"`
+}
+
 // List returns reports for a student (without HTML body), newest first.
-func (r *ReportRepo) List(ctx context.Context, studentID int64) ([]Report, error) {
+func (r *ReportRepo) List(ctx context.Context, studentID int64) ([]ReportSummary, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, student_id, start_date, end_date, instructions, created_at
+		SELECT id, start_date, end_date, created_at
 		FROM reports WHERE student_id = ?
 		ORDER BY created_at DESC`, studentID)
 	if err != nil {
@@ -31,10 +40,10 @@ func (r *ReportRepo) List(ctx context.Context, studentID int64) ([]Report, error
 	}
 	defer rows.Close()
 
-	var result []Report
+	var result []ReportSummary
 	for rows.Next() {
-		var rpt Report
-		if err := rows.Scan(&rpt.ID, &rpt.StudentID, &rpt.StartDate, &rpt.EndDate, &rpt.Instructions, &rpt.CreatedAt); err != nil {
+		var rpt ReportSummary
+		if err := rows.Scan(&rpt.ID, &rpt.StartDate, &rpt.EndDate, &rpt.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan report: %w", err)
 		}
 		result = append(result, rpt)

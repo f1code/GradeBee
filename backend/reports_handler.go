@@ -9,6 +9,11 @@ import (
 	"net/http"
 )
 
+// ListReportsResponse is the JSON envelope for handleListReports.
+type ListReportsResponse struct {
+	Reports []ReportSummary `json:"reports"`
+}
+
 type generateReportsRequest struct {
 	Students     []reportStudentInput `json:"students"`
 	StartDate    string               `json:"startDate"`
@@ -247,9 +252,9 @@ func handleListReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if reports == nil {
-		reports = []Report{}
+		reports = []ReportSummary{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"reports": reports})
+	writeJSON(w, http.StatusOK, ListReportsResponse{Reports: reports})
 }
 
 // reportDetail is the response for GET /reports/:id — includes student/class names.

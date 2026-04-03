@@ -55,6 +55,11 @@ func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (
 
 // --- Note CRUD handlers ---
 
+// ListNotesResponse is the JSON envelope for handleListNotes.
+type ListNotesResponse struct {
+	Notes []Note `json:"notes"`
+}
+
 func handleListNotes(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
@@ -80,7 +85,7 @@ func handleListNotes(w http.ResponseWriter, r *http.Request) {
 	if notes == nil {
 		notes = []Note{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"notes": notes})
+	writeJSON(w, http.StatusOK, ListNotesResponse{Notes: notes})
 }
 
 func handleCreateNote(w http.ResponseWriter, r *http.Request) {

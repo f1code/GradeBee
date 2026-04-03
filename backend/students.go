@@ -9,6 +9,16 @@ import (
 	"net/http"
 )
 
+// ListClassesResponse is the JSON envelope for handleListClasses.
+type ListClassesResponse struct {
+	Classes []ClassWithCount `json:"classes"`
+}
+
+// ListStudentsResponse is the JSON envelope for handleListStudents.
+type ListStudentsResponse struct {
+	Students []Student `json:"students"`
+}
+
 // Response types for the students API.
 type studentsResponse struct {
 	Classes []classGroupResponse `json:"classes"`
@@ -101,7 +111,7 @@ func handleListClasses(w http.ResponseWriter, r *http.Request) {
 	if classes == nil {
 		classes = []ClassWithCount{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"classes": classes})
+	writeJSON(w, http.StatusOK, ListClassesResponse{Classes: classes})
 }
 
 func handleCreateClass(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +221,7 @@ func handleListStudents(w http.ResponseWriter, r *http.Request) {
 	if students == nil {
 		students = []Student{}
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"students": students})
+	writeJSON(w, http.StatusOK, ListStudentsResponse{Students: students})
 }
 
 func handleCreateStudent(w http.ResponseWriter, r *http.Request) {

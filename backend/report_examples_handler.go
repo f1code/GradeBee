@@ -8,6 +8,11 @@ import (
 	"net/http"
 )
 
+// ListExamplesResponse is the JSON envelope for handleListReportExamples.
+type ListExamplesResponse struct {
+	Examples []ReportExample `json:"examples"`
+}
+
 func handleListReportExamples(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
@@ -28,7 +33,7 @@ func handleListReportExamples(w http.ResponseWriter, r *http.Request) {
 		examples = []ReportExample{}
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"examples": examples})
+	writeJSON(w, http.StatusOK, ListExamplesResponse{Examples: examples})
 }
 
 func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {

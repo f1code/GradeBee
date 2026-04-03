@@ -11,7 +11,7 @@ import (
 type ReportExample struct {
 	ID      int64  `json:"id"`
 	Name    string `json:"name"`
-	Content string `json:"content,omitempty"`
+	Content string `json:"content"`
 }
 
 // ExampleStore abstracts CRUD operations for example report cards.
