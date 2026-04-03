@@ -23,10 +23,14 @@ type reportStudentInput struct {
 }
 
 type reportResult struct {
-	Student  string `json:"student"`
-	Class    string `json:"class"`
-	ReportID int64  `json:"reportId"`
-	HTML     string `json:"html"`
+	ID        int64  `json:"id"`
+	StudentID int64  `json:"studentId"`
+	Student   string `json:"student"`
+	Class     string `json:"class"`
+	HTML      string `json:"html"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+	CreatedAt string `json:"createdAt"`
 }
 
 type generateReportsResponse struct {
@@ -96,10 +100,14 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		reports = append(reports, reportResult{
-			Student:  s.Name,
-			Class:    s.Class,
-			ReportID: resp.ReportID,
-			HTML:     resp.HTML,
+			ID:        resp.ReportID,
+			StudentID: s.StudentID,
+			Student:   s.Name,
+			Class:     s.Class,
+			HTML:      resp.HTML,
+			StartDate: req.StartDate,
+			EndDate:   req.EndDate,
+			CreatedAt: resp.CreatedAt,
 		})
 	}
 

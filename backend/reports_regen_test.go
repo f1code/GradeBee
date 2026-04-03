@@ -109,6 +109,91 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 	}
 }
 
+func TestHandleGenerateReports_ResponseShape(t *testing.T) {
+	db := setupTestDB(t)
+	classRepo := &ClassRepo{db: db}
+	studentRepo := &StudentRepo{db: db}
+	noteRepo := &NoteRepo{db: db}
+	reportRepo := &ReportRepo{db: db}
+	ctx := context.Background()
+
+	cls, err := classRepo.Create(ctx, "user_abc", "Art")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stu, err := studentRepo.Create(ctx, cls.ID, "Alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gen := &stubReportGenerator{
+		generateResp: &GenerateReportResponse{ReportID: 42, HTML: "<p>hi</p>"},
+	}
+
+	serviceDeps = &mockDepsAll{
+		db:          db,
+		classRepo:   classRepo,
+		studentRepo: studentRepo,
+		noteRepo:    noteRepo,
+		reportRepo:  reportRepo,
+		reportGen:   gen,
+	}
+
+	reqBody, err := json.Marshal(map[string]any{
+		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "class": "Art"}},
+		"startDate": "2026-01-01",
+		"endDate":   "2026-03-31",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	req = clerkReq(req, "user_abc")
+
+	rec := httptest.NewRecorder()
+	handleGenerateReports(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Reports []struct {
+			ID        int64  `json:"id"`
+			StudentID int64  `json:"studentId"`
+			Student   string `json:"student"`
+			Class     string `json:"class"`
+			HTML      string `json:"html"`
+			StartDate string `json:"startDate"`
+			EndDate   string `json:"endDate"`
+			CreatedAt string `json:"createdAt"`
+		} `json:"reports"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Reports) != 1 {
+		t.Fatalf("got %d reports, want 1", len(resp.Reports))
+	}
+	r := resp.Reports[0]
+	if r.ID != 42 {
+		t.Errorf("id = %d, want 42", r.ID)
+	}
+	if r.StudentID != stu.ID {
+		t.Errorf("studentId = %d, want %d", r.StudentID, stu.ID)
+	}
+	if r.Student != "Alice" {
+		t.Errorf("student = %q, want Alice", r.Student)
+	}
+	if r.StartDate != "2026-01-01" {
+		t.Errorf("startDate = %q, want 2026-01-01", r.StartDate)
+	}
+	if r.EndDate != "2026-03-31" {
+		t.Errorf("endDate = %q, want 2026-03-31", r.EndDate)
+	}
+}
+
 func TestHandleRegenerateReport_ReportNotFound(t *testing.T) {
 	db := setupTestDB(t)
 	serviceDeps = &mockDepsAll{

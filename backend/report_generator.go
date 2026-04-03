@@ -23,8 +23,9 @@ type GenerateReportRequest struct {
 
 // GenerateReportResponse contains the created report info.
 type GenerateReportResponse struct {
-	ReportID int64  `json:"reportId"`
-	HTML     string `json:"html"`
+	ReportID  int64  `json:"reportId"`
+	HTML      string `json:"html"`
+	CreatedAt string `json:"createdAt"`
 }
 
 // ReportGenerator creates report card documents.
@@ -102,8 +103,9 @@ func (g *gptReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	}
 
 	return &GenerateReportResponse{
-		ReportID: rpt.ID,
-		HTML:     html,
+		ReportID:  rpt.ID,
+		HTML:      html,
+		CreatedAt: rpt.CreatedAt,
 	}, nil
 }
 
@@ -142,8 +144,9 @@ func (g *gptReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	}
 
 	return &GenerateReportResponse{
-		ReportID: rpt.ID,
-		HTML:     html,
+		ReportID:  rpt.ID,
+		HTML:      html,
+		CreatedAt: rpt.CreatedAt,
 	}, nil
 }
 
