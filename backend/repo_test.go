@@ -106,6 +106,33 @@ func TestClassRepo_CRUD(t *testing.T) {
 	}
 }
 
+func TestClassRepo_GetByID(t *testing.T) {
+	db := setupTestDB(t)
+	repo := &ClassRepo{db: db}
+	ctx := context.Background()
+
+	c, err := repo.Create(ctx, "user1", "Math 101")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := repo.GetByID(ctx, c.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if got.Name != "Math 101" {
+		t.Errorf("Name = %q, want %q", got.Name, "Math 101")
+	}
+	if got.UserID != "user1" {
+		t.Errorf("UserID = %q, want %q", got.UserID, "user1")
+	}
+
+	_, err = repo.GetByID(ctx, 99999)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound, got %v", err)
+	}
+}
+
 func TestStudentRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 

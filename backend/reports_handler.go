@@ -111,26 +111,22 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 }
 
 type regenerateReportRequest struct {
-	ReportID     int64  `json:"reportId"`
-	Feedback     string `json:"feedback"`
-	StudentID    int64  `json:"studentId"`
-	Student      string `json:"student"`
-	Class        string `json:"class"`
-	StartDate    string `json:"startDate"`
-	EndDate      string `json:"endDate"`
-	Instructions string `json:"instructions"`
+	Feedback string `json:"feedback"`
 }
 
 func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
+	// Extract report ID from URL path
+	reportID, ok := pathParam(r.URL.Path, "/reports/")
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report id"})
+		return
+	}
+
 	var req regenerateReportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
-		return
-	}
-	if req.ReportID == 0 || req.StudentID == 0 || req.Student == "" || req.Class == "" || req.StartDate == "" || req.EndDate == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing required fields"})
 		return
 	}
 
@@ -147,10 +143,33 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Load report from DB
+	rpt, err := serviceDeps.GetReportRepo().GetByID(ctx, reportID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
 	// Verify ownership
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(ctx, req.StudentID, userID)
+	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(ctx, rpt.StudentID, userID)
 	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+		return
+	}
+
+	// Load student + class from DB
+	student, err := serviceDeps.GetStudentRepo().GetByID(ctx, rpt.StudentID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load student"})
+		return
+	}
+	class, err := serviceDeps.GetClassRepo().GetByID(ctx, student.ClassID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load class"})
 		return
 	}
 
@@ -161,19 +180,24 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var instructions string
+	if rpt.Instructions != nil {
+		instructions = *rpt.Instructions
+	}
+
 	resp, err := generator.Regenerate(ctx, RegenerateReportRequest{
-		ReportID:     req.ReportID,
+		ReportID:     rpt.ID,
 		Feedback:     req.Feedback,
-		StudentID:    req.StudentID,
-		Student:      req.Student,
-		Class:        req.Class,
-		StartDate:    req.StartDate,
-		EndDate:      req.EndDate,
+		StudentID:    rpt.StudentID,
+		Student:      student.Name,
+		Class:        class.Name,
+		StartDate:    rpt.StartDate,
+		EndDate:      rpt.EndDate,
 		UserID:       userID,
-		Instructions: req.Instructions,
+		Instructions: instructions,
 	})
 	if err != nil {
-		log.Error("regenerate report failed", "student", req.Student, "error", err)
+		log.Error("regenerate report failed", "student", student.Name, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

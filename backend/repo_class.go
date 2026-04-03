@@ -82,6 +82,21 @@ func (r *ClassRepo) Rename(ctx context.Context, userID string, id int64, name st
 	return rowsAffectedOrNotFound(res)
 }
 
+// GetByID returns a single class by ID.
+func (r *ClassRepo) GetByID(ctx context.Context, id int64) (Class, error) {
+	var c Class
+	err := r.db.QueryRowContext(ctx,
+		"SELECT id, user_id, name, position, created_at FROM classes WHERE id = ?", id,
+	).Scan(&c.ID, &c.UserID, &c.Name, &c.Position, &c.CreatedAt)
+	if err == sql.ErrNoRows {
+		return Class{}, ErrNotFound
+	}
+	if err != nil {
+		return Class{}, fmt.Errorf("get class: %w", err)
+	}
+	return c, nil
+}
+
 // Delete removes a class owned by the user. Students and notes cascade.
 func (r *ClassRepo) Delete(ctx context.Context, userID string, id int64) error {
 	res, err := r.db.ExecContext(ctx,
