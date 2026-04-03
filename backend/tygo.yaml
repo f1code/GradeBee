@@ -3,3 +3,30 @@ packages:
     output_path: "../frontend/src/api-types.gen.ts"
     type_mappings:
       "time.Time": "string"
+    include_types:
+      # Core entities
+      - Note
+      - Student
+      - ClassWithCount
+      - Report
+      - ReportExample
+      - ReportSummary
+      # List response wrappers
+      - ListNotesResponse
+      - ListClassesResponse
+      - ListStudentsResponse
+      - ListReportsResponse
+      - ListExamplesResponse
+      # Request/response types
+      - ReportResult
+      - GenerateReportsHTTPRequest
+      - GenerateReportsHTTPResponse
+      - ReportStudentInput
+      - RegenerateReportHTTPRequest
+      - UploadResponse
+      - DriveImportRequest
+      - DriveImportResponse
+      - GoogleTokenResponse
+      - UploadJob
+      - NoteLink
+      - JobListResponse
