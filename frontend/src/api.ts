@@ -119,7 +119,7 @@ export async function renameStudent(
   id: number,
   name: string,
   getToken: () => Promise<string | null>
-): Promise<StudentItem> {
+): Promise<void> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/students/${id}`, {
     method: 'PUT',
@@ -129,9 +129,10 @@ export async function renameStudent(
     },
     body: JSON.stringify({ name }),
   })
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Failed to rename student')
-  return body
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to rename student')
+  }
 }
 
 export async function deleteStudent(
