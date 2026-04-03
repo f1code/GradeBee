@@ -28,7 +28,7 @@ export default defineConfig({
     },
     {
       name: 'authenticated',
-      testMatch: /(drive-setup|students|upload-jobs)\.spec\.ts/,
+      testMatch: /(drive-setup|students|upload-jobs|reports)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.clerk/user.json',
