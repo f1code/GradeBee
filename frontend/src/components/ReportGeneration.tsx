@@ -95,8 +95,14 @@ export default function ReportGeneration() {
     setResults([])
     setExpandedReportId(null)
     try {
+      // Build students array with name+class for the backend
+      const students = classes.flatMap(c =>
+        c.students
+          .filter(s => selected.has(s.id))
+          .map(s => ({ studentId: s.id, name: s.name, class: c.name }))
+      )
       const resp: GenerateReportsResponse = await generateReports(
-        { studentIds: Array.from(selected), startDate, endDate, instructions: instructions || undefined },
+        { students, startDate, endDate, instructions: instructions || undefined },
         () => getToken()
       )
       setResults(resp.reports || [])

@@ -376,7 +376,7 @@ export interface GenerateReportsResponse {
 
 export async function generateReports(
   req: {
-    studentIds: number[]
+    students: { studentId: number; name: string; class: string }[]
     startDate: string
     endDate: string
     instructions?: string
