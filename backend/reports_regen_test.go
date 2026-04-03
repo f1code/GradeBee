@@ -294,3 +294,54 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 		t.Errorf("startDate = %q, want 2026-02-01", resp.StartDate)
 	}
 }
+
+func TestHandleGetReport_IncludesStudentAndClass(t *testing.T) {
+	db := setupTestDB(t)
+	classRepo := &ClassRepo{db: db}
+	studentRepo := &StudentRepo{db: db}
+	reportRepo := &ReportRepo{db: db}
+	ctx := context.Background()
+
+	cls, err := classRepo.Create(ctx, "user_abc", "History")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stu, err := studentRepo.Create(ctx, cls.ID, "Carol")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rpt := &Report{StudentID: stu.ID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>report</p>"}
+	if err := reportRepo.Create(ctx, rpt); err != nil {
+		t.Fatal(err)
+	}
+
+	serviceDeps = &mockDepsAll{
+		db: db, classRepo: classRepo, studentRepo: studentRepo, reportRepo: reportRepo,
+	}
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/reports/%d", rpt.ID), http.NoBody)
+	req = clerkReq(req, "user_abc")
+
+	rec := httptest.NewRecorder()
+	handleGetReport(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		ID      int64  `json:"id"`
+		Student string `json:"student"`
+		Class   string `json:"class"`
+		HTML    string `json:"html"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Student != "Carol" {
+		t.Errorf("student = %q, want Carol", resp.Student)
+	}
+	if resp.Class != "History" {
+		t.Errorf("class = %q, want History", resp.Class)
+	}
+}

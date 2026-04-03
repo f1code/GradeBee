@@ -252,6 +252,19 @@ func handleListReports(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"reports": reports})
 }
 
+// reportDetail is the response for GET /reports/:id — includes student/class names.
+type reportDetail struct {
+	ID           int64   `json:"id"`
+	StudentID    int64   `json:"studentId"`
+	Student      string  `json:"student"`
+	Class        string  `json:"class"`
+	HTML         string  `json:"html"`
+	StartDate    string  `json:"startDate"`
+	EndDate      string  `json:"endDate"`
+	Instructions *string `json:"instructions,omitempty"`
+	CreatedAt    string  `json:"createdAt"`
+}
+
 func handleGetReport(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
@@ -277,7 +290,27 @@ func handleGetReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
 		return
 	}
-	writeJSON(w, http.StatusOK, rpt)
+	student, err := serviceDeps.GetStudentRepo().GetByID(r.Context(), rpt.StudentID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load student"})
+		return
+	}
+	class, err := serviceDeps.GetClassRepo().GetByID(r.Context(), student.ClassID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load class"})
+		return
+	}
+	writeJSON(w, http.StatusOK, reportDetail{
+		ID:           rpt.ID,
+		StudentID:    rpt.StudentID,
+		Student:      student.Name,
+		Class:        class.Name,
+		HTML:         rpt.HTML,
+		StartDate:    rpt.StartDate,
+		EndDate:      rpt.EndDate,
+		Instructions: rpt.Instructions,
+		CreatedAt:    rpt.CreatedAt,
+	})
 }
 
 func handleDeleteReport(w http.ResponseWriter, r *http.Request) {
