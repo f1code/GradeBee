@@ -42,8 +42,8 @@ export default function ReportExamples() {
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
@@ -123,7 +123,7 @@ export default function ReportExamples() {
     }
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: number) {
     try {
       await deleteReportExample(id, () => getToken())
       setExamples(prev => prev.filter(e => e.id !== id))

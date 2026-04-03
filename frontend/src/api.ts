@@ -263,7 +263,7 @@ export async function uploadAudio(
 // --- Report Examples ---
 
 export interface ReportExampleItem {
-  id: string
+  id: number
   name: string
   content: string
 }
@@ -310,7 +310,7 @@ export async function uploadReportExample(
 }
 
 export async function deleteReportExample(
-  id: string,
+  id: number,
   getToken: () => Promise<string | null>
 ): Promise<void> {
   const token = await getToken()
@@ -329,7 +329,7 @@ export async function deleteReportExample(
 }
 
 export async function updateReportExample(
-  id: string,
+  id: number,
   name: string,
   content: string,
   getToken: () => Promise<string | null>
