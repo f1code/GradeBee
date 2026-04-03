@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -80,5 +81,16 @@ func TestUpdateReportExample_NoAuth(t *testing.T) {
 
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("want 403, got %d", rec.Code)
+	}
+}
+
+func TestUploadExample_IncludesContent(t *testing.T) {
+	store := &dbExampleStore{repo: &ReportExampleRepo{db: setupTestDB(t)}}
+	ex, err := store.UploadExample(context.Background(), "user1", "My Report", "Some content here")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ex.Content != "Some content here" {
+		t.Errorf("Content = %q, want 'Some content here'", ex.Content)
 	}
 }

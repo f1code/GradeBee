@@ -48,7 +48,7 @@ func (s *dbExampleStore) UploadExample(ctx context.Context, userID, name, conten
 	if err != nil {
 		return nil, fmt.Errorf("report_examples: upload: %w", err)
 	}
-	return &ReportExample{ID: e.ID, Name: e.Name}, nil
+	return &ReportExample{ID: e.ID, Name: e.Name, Content: e.Content}, nil
 }
 
 func (s *dbExampleStore) UpdateExample(ctx context.Context, userID string, id int64, name, content string) (*ReportExample, error) {
