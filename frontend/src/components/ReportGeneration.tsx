@@ -245,7 +245,7 @@ export default function ReportGeneration() {
                       tabIndex={0}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedReportId(isExpanded ? null : r.id) } }}
                     >
-                      <span className="report-result-name">
+                      <span className="report-result-name" data-testid="report-result-name">
                         {r.student} <span className="report-result-class">({r.class})</span>
                       </span>
                       <svg

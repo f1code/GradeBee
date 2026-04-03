@@ -52,7 +52,7 @@ describe('AudioUpload', () => {
   })
 
   it('shows success toast after upload completes', async () => {
-    mockUploadAudio.mockResolvedValue({ fileId: 'f1', fileName: 'test.mp3' })
+    mockUploadAudio.mockResolvedValue({ uploadId: 1, fileName: 'test.mp3' })
 
     const { default: AudioUpload } = await import('../AudioUpload')
     render(<AudioUpload />)
@@ -85,7 +85,7 @@ describe('AudioUpload', () => {
   })
 
   it('does not call transcribe or extract after upload', async () => {
-    mockUploadAudio.mockResolvedValue({ fileId: 'f1', fileName: 'test.mp3' })
+    mockUploadAudio.mockResolvedValue({ uploadId: 1, fileName: 'test.mp3' })
 
     const { default: AudioUpload } = await import('../AudioUpload')
     render(<AudioUpload />)

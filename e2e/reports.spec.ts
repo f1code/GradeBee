@@ -95,7 +95,7 @@ test.describe('Report generation', () => {
 
     // Report result appears
     await expect(page.getByText('Generated Reports')).toBeVisible({ timeout: 10000 })
-    await expect(page.locator('.report-result-name')).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('.report-result-name')).toContainText('Alice')
+    await expect(page.getByTestId('report-result-name')).toBeVisible({ timeout: 5000 })
+    await expect(page.getByTestId('report-result-name')).toContainText('Alice')
   })
 })

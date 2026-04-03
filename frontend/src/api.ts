@@ -474,7 +474,7 @@ export async function getGoogleToken(
 }
 
 export async function importExampleFromDrive(
-  fileId: string,
+  driveFileId: string,
   fileName: string,
   getToken: () => Promise<string | null>
 ): Promise<ReportExampleItem> {
@@ -485,7 +485,7 @@ export async function importExampleFromDrive(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ fileId, fileName }),
+    body: JSON.stringify({ fileId: driveFileId, fileName }),
   })
   const body = await resp.json()
   if (!resp.ok) throw new Error(body.error || 'Drive import example failed')
@@ -493,7 +493,7 @@ export async function importExampleFromDrive(
 }
 
 export async function importFromDrive(
-  fileId: string,
+  driveFileId: string,
   fileName: string,
   getToken: () => Promise<string | null>
 ): Promise<{ uploadId: number; fileName: string }> {
@@ -504,7 +504,7 @@ export async function importFromDrive(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ fileId, fileName }),
+    body: JSON.stringify({ fileId: driveFileId, fileName }),
   })
   const body = await resp.json()
   if (!resp.ok) throw new Error(body.error || 'Drive import failed')
