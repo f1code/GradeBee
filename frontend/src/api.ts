@@ -245,7 +245,7 @@ export async function deleteNote(
 export async function uploadAudio(
   file: File,
   getToken: () => Promise<string | null>
-): Promise<{ fileId: string; fileName: string }> {
+): Promise<{ uploadId: number; fileName: string }> {
   const token = await getToken()
   const form = new FormData()
   form.append('file', file)
@@ -494,7 +494,7 @@ export async function importFromDrive(
   fileId: string,
   fileName: string,
   getToken: () => Promise<string | null>
-): Promise<{ fileId: string; fileName: string }> {
+): Promise<{ uploadId: number; fileName: string }> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/drive-import`, {
     method: 'POST',
