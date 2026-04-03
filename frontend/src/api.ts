@@ -1,18 +1,28 @@
+import type {
+  ClassWithCount as ClassItem,
+  Student as StudentItem,
+  Note,
+  ReportExample as ReportExampleItem,
+  ReportResult,
+  ReportSummary,
+  GenerateReportsHTTPResponse as GenerateReportsResponse,
+  UploadJob,
+  JobListResponse,
+} from './api-types.gen'
+
+export type {
+  ClassItem,
+  StudentItem,
+  Note,
+  ReportExampleItem,
+  ReportResult,
+  ReportSummary,
+  GenerateReportsResponse,
+  UploadJob,
+  JobListResponse,
+}
+
 const apiUrl = import.meta.env.VITE_API_URL
-
-// --- Class & Student Types ---
-
-export interface ClassItem {
-  id: number
-  name: string
-  studentCount: number
-}
-
-export interface StudentItem {
-  id: number
-  name: string
-  classId: number
-}
 
 // --- Class CRUD ---
 
@@ -152,17 +162,6 @@ export async function deleteStudent(
 
 // --- Notes ---
 
-export interface Note {
-  id: number
-  studentId: number
-  date: string        // YYYY-MM-DD
-  summary: string
-  transcript: string | null
-  source: 'auto' | 'manual'
-  createdAt: string
-  updatedAt: string
-}
-
 export async function listNotes(
   studentId: number,
   getToken: () => Promise<string | null>
@@ -264,12 +263,6 @@ export async function uploadAudio(
 
 // --- Report Examples ---
 
-export interface ReportExampleItem {
-  id: number
-  name: string
-  content: string
-}
-
 export async function listReportExamples(
   getToken: () => Promise<string | null>
 ): Promise<{ examples: ReportExampleItem[] }> {
@@ -351,30 +344,6 @@ export async function updateReportExample(
 }
 
 // --- Reports ---
-
-export interface ReportResult {
-  id: number
-  student: string
-  class: string
-  studentId: number
-  html: string
-  startDate: string
-  endDate: string
-  instructions?: string
-  createdAt: string
-}
-
-export interface ReportSummary {
-  id: number
-  startDate: string
-  endDate: string
-  createdAt: string
-}
-
-export interface GenerateReportsResponse {
-  reports: ReportResult[]
-  error: string | null
-}
 
 export async function generateReports(
   req: {
@@ -512,21 +481,6 @@ export async function importFromDrive(
 }
 
 // --- Async Jobs ---
-
-export interface UploadJob {
-  uploadId: number
-  fileName: string
-  status: 'queued' | 'transcribing' | 'extracting' | 'creating_notes' | 'done' | 'failed'
-  error?: string
-  noteLinks?: { name: string; noteId: number; studentId: number; className: string }[]
-  createdAt: string
-}
-
-export interface JobListResponse {
-  active: UploadJob[]
-  failed: UploadJob[]
-  done: UploadJob[]
-}
 
 export async function fetchJobs(
   getToken: () => Promise<string | null>
