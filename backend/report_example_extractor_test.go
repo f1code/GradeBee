@@ -5,6 +5,25 @@ import (
 	"testing"
 )
 
+func TestIsRefusal(t *testing.T) {
+	cases := []struct {
+		text string
+		want bool
+	}{
+		{"I'm sorry, but I can't assist with that.", true},
+		{"I'm unable to assist with that.", true},
+		{"I'm unable to help with that.", true},
+		{"I cannot assist with this request.", true},
+		{"Student Name: Alice\nGrade: A\nComments: Excellent work.", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := isRefusal(tc.text); got != tc.want {
+			t.Errorf("isRefusal(%q) = %v, want %v", tc.text, got, tc.want)
+		}
+	}
+}
+
 func TestPdfToImages_ValidPDF(t *testing.T) {
 	data, err := os.ReadFile("testdata/sample.pdf")
 	if err != nil {

@@ -97,7 +97,34 @@ func (e *gptExampleExtractor) extractFromImage(ctx context.Context, mediaType st
 		return "", fmt.Errorf("GPT returned no choices")
 	}
 
-	return strings.TrimSpace(resp.Choices[0].Message.Content), nil
+	content := strings.TrimSpace(resp.Choices[0].Message.Content)
+	if isRefusal(content) {
+		return "", fmt.Errorf("GPT refused to extract text (possible content policy issue)")
+	}
+	return content, nil
+}
+
+// refusalPhrases are patterns indicating GPT refused to process the image.
+var refusalPhrases = []string{
+	"i can't assist",
+	"i'm unable to assist",
+	"i cannot assist",
+	"i'm unable to help",
+	"i cannot help",
+	"i'm not able to",
+	"i am unable to",
+	"i am not able to",
+}
+
+// isRefusal checks if GPT's response is a refusal rather than extracted text.
+func isRefusal(text string) bool {
+	lower := strings.ToLower(text)
+	for _, phrase := range refusalPhrases {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	return false
 }
 
 // pdfToImages converts PDF bytes to a slice of PNG images (one per page)
