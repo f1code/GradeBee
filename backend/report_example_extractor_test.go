@@ -1,26 +1,28 @@
 package handler
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 )
 
-func TestIsRefusal(t *testing.T) {
-	cases := []struct {
-		text string
-		want bool
-	}{
-		{"I'm sorry, but I can't assist with that.", true},
-		{"I'm unable to assist with that.", true},
-		{"I'm unable to help with that.", true},
-		{"I cannot assist with this request.", true},
-		{"Student Name: Alice\nGrade: A\nComments: Excellent work.", false},
-		{"", false},
+func TestExtractionResponseSchema_Valid(t *testing.T) {
+	var schema map[string]interface{}
+	if err := json.Unmarshal(extractionResponseSchema(), &schema); err != nil {
+		t.Fatalf("extractionResponseSchema is not valid JSON: %v", err)
 	}
-	for _, tc := range cases {
-		if got := isRefusal(tc.text); got != tc.want {
-			t.Errorf("isRefusal(%q) = %v, want %v", tc.text, got, tc.want)
-		}
+	if schema["type"] != "object" {
+		t.Errorf("expected type=object, got %v", schema["type"])
+	}
+	props, ok := schema["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatal("missing 'properties' in schema")
+	}
+	if _, ok := props["success"]; !ok {
+		t.Error("missing 'success' property")
+	}
+	if _, ok := props["text"]; !ok {
+		t.Error("missing 'text' property")
 	}
 }
 

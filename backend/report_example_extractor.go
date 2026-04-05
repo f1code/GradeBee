@@ -5,6 +5,7 @@ package handler
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -32,7 +33,26 @@ func newGPTExampleExtractor() (*gptExampleExtractor, error) {
 	return &gptExampleExtractor{client: openai.NewClient(key)}, nil
 }
 
-const extractPrompt = "Extract all text from this report card exactly as written. Preserve the structure and formatting using plain text. Do not add commentary or explanation — only output the extracted text."
+const extractPrompt = `Extract all text from this report card image exactly as written. Preserve the structure and formatting using plain text. If the image does not contain a readable report card or document, set success to false and leave text empty.`
+
+// extractionResult is the structured response from GPT Vision extraction.
+type extractionResult struct {
+	Success bool   `json:"success"`
+	Text    string `json:"text"`
+}
+
+// extractionResponseSchema returns the JSON schema for structured extraction output.
+func extractionResponseSchema() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"success": {"type": "boolean"},
+			"text": {"type": "string"}
+		},
+		"required": ["success", "text"],
+		"additionalProperties": false
+	}`)
+}
 
 func (e *gptExampleExtractor) ExtractText(ctx context.Context, filename string, data []byte) (string, error) {
 	ext := strings.ToLower(filepath.Ext(filename))
@@ -88,6 +108,14 @@ func (e *gptExampleExtractor) extractFromImage(ctx context.Context, mediaType st
 			},
 		},
 		MaxTokens: 4096,
+		ResponseFormat: &openai.ChatCompletionResponseFormat{
+			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
+			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
+				Name:   "extraction_result",
+				Strict: true,
+				Schema: extractionResponseSchema(),
+			},
+		},
 	})
 	if err != nil {
 		return "", fmt.Errorf("GPT extraction failed: %w", err)
@@ -97,34 +125,17 @@ func (e *gptExampleExtractor) extractFromImage(ctx context.Context, mediaType st
 		return "", fmt.Errorf("GPT returned no choices")
 	}
 
-	content := strings.TrimSpace(resp.Choices[0].Message.Content)
-	if isRefusal(content) {
-		return "", fmt.Errorf("GPT refused to extract text (possible content policy issue)")
+	var result extractionResult
+	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
+		return "", fmt.Errorf("failed to parse extraction response: %w", err)
 	}
-	return content, nil
-}
-
-// refusalPhrases are patterns indicating GPT refused to process the image.
-var refusalPhrases = []string{
-	"i can't assist",
-	"i'm unable to assist",
-	"i cannot assist",
-	"i'm unable to help",
-	"i cannot help",
-	"i'm not able to",
-	"i am unable to",
-	"i am not able to",
-}
-
-// isRefusal checks if GPT's response is a refusal rather than extracted text.
-func isRefusal(text string) bool {
-	lower := strings.ToLower(text)
-	for _, phrase := range refusalPhrases {
-		if strings.Contains(lower, phrase) {
-			return true
-		}
+	if !result.Success {
+		return "", fmt.Errorf("GPT could not extract text from image (not a readable document)")
 	}
-	return false
+	if strings.TrimSpace(result.Text) == "" {
+		return "", fmt.Errorf("GPT returned empty extraction")
+	}
+	return strings.TrimSpace(result.Text), nil
 }
 
 // pdfToImages converts PDF bytes to a slice of PNG images (one per page)
