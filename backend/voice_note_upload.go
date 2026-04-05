@@ -1,5 +1,4 @@
-// upload.go handles the POST /upload endpoint that receives an audio file via
-// multipart/form-data and saves it to local disk + the uploads table.
+// voice_note_upload.go handles POST /voice-notes/upload — receives an audio file via multipart/form-data and saves it to local disk + the voice_notes table.
 package handler
 
 import (

@@ -1,6 +1,4 @@
-// drive_import.go handles the POST /drive-import endpoint that downloads a
-// Google Drive file to local disk, creates an uploads row, and dispatches
-// an async processing job.
+// voice_note_drive_import.go handles POST /voice-notes/drive-import — downloads a Google Drive file to local disk, creates a voice_notes row, and dispatches an async processing job.
 package handler
 
 import (
