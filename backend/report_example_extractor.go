@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	openai "github.com/sashabaranov/go-openai"
 )
@@ -75,13 +76,30 @@ func (e *gptExampleExtractor) extractFromPDF(ctx context.Context, data []byte) (
 	if len(images) > maxPages {
 		images = images[:maxPages]
 	}
-	var parts []string
+
+	// Extract all pages concurrently.
+	type pageResult struct {
+		text string
+		err  error
+	}
+	results := make([]pageResult, len(images))
+	var wg sync.WaitGroup
 	for i, img := range images {
-		text, err := e.extractFromImage(ctx, pdfToImagesMediaType, img)
-		if err != nil {
-			return "", fmt.Errorf("extraction failed on page %d: %w", i+1, err)
+		wg.Add(1)
+		go func(idx int, imgData []byte) {
+			defer wg.Done()
+			text, err := e.extractFromImage(ctx, pdfToImagesMediaType, imgData)
+			results[idx] = pageResult{text: text, err: err}
+		}(i, img)
+	}
+	wg.Wait()
+
+	var parts []string
+	for i, r := range results {
+		if r.err != nil {
+			return "", fmt.Errorf("extraction failed on page %d: %w", i+1, r.err)
 		}
-		parts = append(parts, text)
+		parts = append(parts, r.text)
 	}
 	return strings.Join(parts, "\n\n---\n\n"), nil
 }
