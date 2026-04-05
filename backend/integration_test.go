@@ -19,7 +19,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
-	uploadRepo := &UploadRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "int-user", "Math")
 	if err != nil {
@@ -62,7 +62,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		noteCreator: nc,
 		uploadQueue: queue,
 		studentRepo: studentRepo,
-		uploadRepo:  uploadRepo,
+		voiceNoteRepo:  voiceNoteRepo,
 	}
 
 	ctx := context.Background()
@@ -120,7 +120,7 @@ func TestIntegration_PublishToFailure(t *testing.T) {
 		transcriber: &stubTranscriber{err: ErrNotFound},
 		roster:      &stubRoster{},
 		uploadQueue: queue,
-		uploadRepo:  &UploadRepo{db: nil},
+		voiceNoteRepo:  &VoiceNoteRepo{db: nil},
 	}
 
 	ctx := context.Background()
@@ -151,7 +151,7 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
-	uploadRepo := &UploadRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "int-user", "Math")
 	if err != nil {
@@ -180,7 +180,7 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 		noteCreator: nc,
 		uploadQueue: queue,
 		studentRepo: studentRepo,
-		uploadRepo:  uploadRepo,
+		voiceNoteRepo:  voiceNoteRepo,
 	}
 
 	old := serviceDeps

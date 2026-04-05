@@ -112,7 +112,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 		cleanName = req.FileName
 	}
 
-	upload, err := serviceDeps.GetUploadRepo().Create(ctx, userID, cleanName, diskPath)
+	upload, err := serviceDeps.GetVoiceNoteRepo().Create(ctx, userID, cleanName, diskPath)
 	if err != nil {
 		os.Remove(diskPath)
 		log.Error("drive-import: insert row failed", "error", err)

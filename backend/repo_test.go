@@ -13,7 +13,7 @@ type repos struct {
 	notes    *NoteRepo
 	reports  *ReportRepo
 	examples *ReportExampleRepo
-	uploads  *UploadRepo
+	uploads  *VoiceNoteRepo
 }
 
 // testDBAndRepos returns an in-memory SQLite with migrations and all repos.
@@ -33,7 +33,7 @@ func testDBAndRepos(t *testing.T) (context.Context, *repos) {
 		notes:    &NoteRepo{db: db},
 		reports:  &ReportRepo{db: db},
 		examples: &ReportExampleRepo{db: db},
-		uploads:  &UploadRepo{db: db},
+		uploads:  &VoiceNoteRepo{db: db},
 	}
 }
 

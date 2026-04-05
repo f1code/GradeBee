@@ -14,7 +14,7 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
-	uploadRepo := &UploadRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	// Seed class + students.
 	cls, err := classRepo.Create(t.Context(), "user1", "Math")
@@ -60,7 +60,7 @@ func TestProcessJob_HappyPath(t *testing.T) {
 		noteCreator: nc,
 		uploadQueue: queue,
 		studentRepo: studentRepo,
-		uploadRepo:  uploadRepo,
+		voiceNoteRepo:  voiceNoteRepo,
 	}
 
 	ctx := context.Background()
@@ -106,7 +106,7 @@ func TestProcessJob_TranscribeFail(t *testing.T) {
 		transcriber: &stubTranscriber{err: io.ErrUnexpectedEOF},
 		roster:      &stubRoster{},
 		uploadQueue: queue,
-		uploadRepo:  &UploadRepo{db: nil}, // won't be called on failure
+		voiceNoteRepo:  &VoiceNoteRepo{db: nil}, // won't be called on failure
 	}
 
 	ctx := context.Background()
@@ -144,7 +144,7 @@ func TestProcessJob_ExtractFail(t *testing.T) {
 		roster:      &stubRoster{},
 		extractor:   &stubExtractor{err: io.ErrUnexpectedEOF},
 		uploadQueue: queue,
-		uploadRepo:  &UploadRepo{db: nil},
+		voiceNoteRepo:  &VoiceNoteRepo{db: nil},
 	}
 
 	ctx := context.Background()
@@ -170,7 +170,7 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
-	uploadRepo := &UploadRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "u1", "Math")
 	if err != nil {
@@ -197,7 +197,7 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 		noteCreator: &stubNoteCreator{err: io.ErrUnexpectedEOF},
 		uploadQueue: queue,
 		studentRepo: studentRepo,
-		uploadRepo:  uploadRepo,
+		voiceNoteRepo:  voiceNoteRepo,
 	}
 
 	ctx := context.Background()
@@ -246,7 +246,7 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
-	uploadRepo := &UploadRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "u1", "Math")
 	if err != nil {
@@ -280,7 +280,7 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 		noteCreator: nc,
 		uploadQueue: queue,
 		studentRepo: studentRepo,
-		uploadRepo:  uploadRepo,
+		voiceNoteRepo:  voiceNoteRepo,
 	}
 
 	ctx := context.Background()

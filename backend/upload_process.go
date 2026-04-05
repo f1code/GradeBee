@@ -149,7 +149,7 @@ func processUploadJob(ctx context.Context, d deps, userID string, uploadID int64
 
 	// --- Done ---
 	// Mark upload as processed.
-	uploadRepo := d.GetUploadRepo()
+	uploadRepo := d.GetVoiceNoteRepo()
 	if err := uploadRepo.MarkProcessed(ctx, uploadID); err != nil {
 		log.Warn("process job: failed to mark upload processed", "error", err)
 	}

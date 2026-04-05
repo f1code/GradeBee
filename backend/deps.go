@@ -37,7 +37,7 @@ type deps interface {
 	GetNoteRepo() *NoteRepo
 	GetReportRepo() *ReportRepo
 	GetExampleRepo() *ReportExampleRepo
-	GetUploadRepo() *UploadRepo
+	GetVoiceNoteRepo() *VoiceNoteRepo
 	// GetUploadsDir returns the local directory for audio file storage.
 	GetUploadsDir() string
 }
@@ -50,7 +50,7 @@ type prodDeps struct {
 	noteRepo    *NoteRepo
 	reportRepo  *ReportRepo
 	exampleRepo *ReportExampleRepo
-	uploadRepo  *UploadRepo
+	voiceNoteRepo *VoiceNoteRepo
 	uploadsDir  string
 }
 
@@ -103,7 +103,7 @@ func (p *prodDeps) GetStudentRepo() *StudentRepo           { return p.studentRep
 func (p *prodDeps) GetNoteRepo() *NoteRepo                 { return p.noteRepo }
 func (p *prodDeps) GetReportRepo() *ReportRepo             { return p.reportRepo }
 func (p *prodDeps) GetExampleRepo() *ReportExampleRepo     { return p.exampleRepo }
-func (p *prodDeps) GetUploadRepo() *UploadRepo             { return p.uploadRepo }
+func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo             { return p.voiceNoteRepo }
 func (p *prodDeps) GetUploadsDir() string                  { return p.uploadsDir }
 
 // Upload queue singleton, initialised at startup via InitUploadQueue.
@@ -127,7 +127,7 @@ func NewProdDeps(db *sql.DB, uploadsDir string) deps {
 		noteRepo:    &NoteRepo{db: db},
 		reportRepo:  &ReportRepo{db: db},
 		exampleRepo: &ReportExampleRepo{db: db},
-		uploadRepo:  &UploadRepo{db: db},
+		voiceNoteRepo: &VoiceNoteRepo{db: db},
 		uploadsDir:  uploadsDir,
 	}
 	serviceDeps = d

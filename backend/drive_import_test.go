@@ -147,7 +147,7 @@ func TestHandleDriveImport_HappyPath(t *testing.T) {
 			meta: &DriveFile{MimeType: "audio/mpeg"},
 			data: io.NopCloser(strings.NewReader("fake audio bytes")),
 		},
-		uploadRepo:  &UploadRepo{db: db},
+		voiceNoteRepo:  &VoiceNoteRepo{db: db},
 		uploadQueue: queue,
 		uploadsDir:  dir,
 	}

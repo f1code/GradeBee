@@ -59,7 +59,7 @@ type mockDepsAll struct {
 	noteRepo       *NoteRepo
 	reportRepo     *ReportRepo
 	exampleRepo    *ReportExampleRepo
-	uploadRepo     *UploadRepo
+	voiceNoteRepo  *VoiceNoteRepo
 	uploadsDir     string
 }
 
@@ -126,7 +126,7 @@ func (m *mockDepsAll) GetStudentRepo() *StudentRepo           { return m.student
 func (m *mockDepsAll) GetNoteRepo() *NoteRepo                 { return m.noteRepo }
 func (m *mockDepsAll) GetReportRepo() *ReportRepo             { return m.reportRepo }
 func (m *mockDepsAll) GetExampleRepo() *ReportExampleRepo     { return m.exampleRepo }
-func (m *mockDepsAll) GetUploadRepo() *UploadRepo             { return m.uploadRepo }
+func (m *mockDepsAll) GetVoiceNoteRepo() *VoiceNoteRepo             { return m.voiceNoteRepo }
 func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploadsDir }
 
 // stubExtractor implements Extractor for tests.

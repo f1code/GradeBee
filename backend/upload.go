@@ -88,7 +88,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	dst.Close()
 
 	// Insert uploads row.
-	upload, err := serviceDeps.GetUploadRepo().Create(ctx, userID, header.Filename, diskPath)
+	upload, err := serviceDeps.GetVoiceNoteRepo().Create(ctx, userID, header.Filename, diskPath)
 	if err != nil {
 		os.Remove(diskPath)
 		log.Error("upload: insert row failed", "error", err)

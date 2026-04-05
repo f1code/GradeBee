@@ -38,7 +38,7 @@ func handleJobDismiss(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uploadRepo := serviceDeps.GetUploadRepo()
+	uploadRepo := serviceDeps.GetVoiceNoteRepo()
 	dismissed := 0
 	for _, uploadID := range req.UploadIDs {
 		job, err := queue.GetJob(r.Context(), userID, uploadID)
