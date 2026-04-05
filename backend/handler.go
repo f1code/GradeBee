@@ -264,9 +264,9 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		authHandler(handleUpdateReportExample).ServeHTTP(rec, r)
 
 	// Upload + Drive import
-	case path == "upload" && r.Method == http.MethodPost:
+	case path == "voice-notes/upload" && r.Method == http.MethodPost:
 		authHandler(handleUpload).ServeHTTP(rec, r)
-	case path == "drive-import" && r.Method == http.MethodPost:
+	case path == "voice-notes/drive-import" && r.Method == http.MethodPost:
 		authHandler(handleDriveImport).ServeHTTP(rec, r)
 	case path == "drive-import-example" && r.Method == http.MethodPost:
 		authHandler(handleDriveImportExample).ServeHTTP(rec, r)
@@ -276,11 +276,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		authHandler(handleGoogleToken).ServeHTTP(rec, r)
 
 	// Jobs
-	case path == "jobs" && r.Method == http.MethodGet:
+	case path == "voice-notes/jobs" && r.Method == http.MethodGet:
 		authHandler(handleJobList).ServeHTTP(rec, r)
-	case path == "jobs/retry" && r.Method == http.MethodPost:
+	case path == "voice-notes/jobs/retry" && r.Method == http.MethodPost:
 		authHandler(handleJobRetry).ServeHTTP(rec, r)
-	case path == "jobs/dismiss" && r.Method == http.MethodPost:
+	case path == "voice-notes/jobs/dismiss" && r.Method == http.MethodPost:
 		authHandler(handleJobDismiss).ServeHTTP(rec, r)
 
 	default:
