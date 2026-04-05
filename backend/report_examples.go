@@ -12,12 +12,15 @@ type ReportExample struct {
 	ID      int64  `json:"id"`
 	Name    string `json:"name"`
 	Content string `json:"content"`
+	Status  string `json:"status"`  // "ready", "processing", "failed"
 }
 
 // ExampleStore abstracts CRUD operations for example report cards.
 type ExampleStore interface {
 	ListExamples(ctx context.Context, userID string) ([]ReportExample, error)
 	UploadExample(ctx context.Context, userID, name, content string) (*ReportExample, error)
+	CreatePendingExample(ctx context.Context, userID, name, filePath string) (*ReportExample, error)
+	UpdateExampleStatus(ctx context.Context, id int64, status, content string) error
 	UpdateExample(ctx context.Context, userID string, id int64, name, content string) (*ReportExample, error)
 	DeleteExample(ctx context.Context, userID string, id int64) error
 }
@@ -38,7 +41,7 @@ func (s *dbExampleStore) ListExamples(ctx context.Context, userID string) ([]Rep
 	}
 	examples := make([]ReportExample, len(dbExamples))
 	for i, e := range dbExamples {
-		examples[i] = ReportExample{ID: e.ID, Name: e.Name, Content: e.Content}
+		examples[i] = ReportExample{ID: e.ID, Name: e.Name, Content: e.Content, Status: e.Status}
 	}
 	return examples, nil
 }
@@ -48,7 +51,19 @@ func (s *dbExampleStore) UploadExample(ctx context.Context, userID, name, conten
 	if err != nil {
 		return nil, fmt.Errorf("report_examples: upload: %w", err)
 	}
-	return &ReportExample{ID: e.ID, Name: e.Name, Content: e.Content}, nil
+	return &ReportExample{ID: e.ID, Name: e.Name, Content: e.Content, Status: e.Status}, nil
+}
+
+func (s *dbExampleStore) CreatePendingExample(ctx context.Context, userID, name, filePath string) (*ReportExample, error) {
+	e, err := s.repo.CreatePending(ctx, userID, name, filePath)
+	if err != nil {
+		return nil, fmt.Errorf("report_examples: create pending: %w", err)
+	}
+	return &ReportExample{ID: e.ID, Name: e.Name, Content: e.Content, Status: e.Status}, nil
+}
+
+func (s *dbExampleStore) UpdateExampleStatus(ctx context.Context, id int64, status, content string) error {
+	return s.repo.UpdateStatus(ctx, id, status, content)
 }
 
 func (s *dbExampleStore) UpdateExample(ctx context.Context, userID string, id int64, name, content string) (*ReportExample, error) {
@@ -56,7 +71,7 @@ func (s *dbExampleStore) UpdateExample(ctx context.Context, userID string, id in
 	if err != nil {
 		return nil, fmt.Errorf("report_examples: update: %w", err)
 	}
-	return &ReportExample{ID: e.ID, Name: e.Name, Content: e.Content}, nil
+	return &ReportExample{ID: e.ID, Name: e.Name, Content: e.Content, Status: e.Status}, nil
 }
 
 func (s *dbExampleStore) DeleteExample(ctx context.Context, userID string, id int64) error {
