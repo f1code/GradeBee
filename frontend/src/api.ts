@@ -256,7 +256,7 @@ export async function uploadAudio(
   const form = new FormData()
   form.append('file', file)
 
-  const resp = await fetch(`${apiUrl}/upload`, {
+  const resp = await fetch(`${apiUrl}/voice-notes/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -472,7 +472,7 @@ export async function importFromDrive(
   getToken: () => Promise<string | null>
 ): Promise<{ uploadId: number; fileName: string }> {
   const token = await getToken()
-  const resp = await fetch(`${apiUrl}/drive-import`, {
+  const resp = await fetch(`${apiUrl}/voice-notes/drive-import`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -491,7 +491,7 @@ export async function fetchJobs(
   getToken: () => Promise<string | null>
 ): Promise<JobListResponse> {
   const token = await getToken()
-  const resp = await fetch(`${apiUrl}/jobs`, {
+  const resp = await fetch(`${apiUrl}/voice-notes/jobs`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const body = await resp.json()
@@ -503,7 +503,7 @@ export async function retryFailedJobs(
   getToken: () => Promise<string | null>
 ): Promise<void> {
   const token = await getToken()
-  const resp = await fetch(`${apiUrl}/jobs/retry`, {
+  const resp = await fetch(`${apiUrl}/voice-notes/jobs/retry`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -518,7 +518,7 @@ export async function dismissJobs(
   uploadIds: number[]
 ): Promise<void> {
   const token = await getToken()
-  const resp = await fetch(`${apiUrl}/jobs/dismiss`, {
+  const resp = await fetch(`${apiUrl}/voice-notes/jobs/dismiss`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
