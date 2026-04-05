@@ -6,7 +6,7 @@ import type {
   ReportResult,
   ReportSummary,
   GenerateReportsHTTPResponse as GenerateReportsResponse,
-  UploadJob,
+  VoiceNoteJob,
   JobListResponse,
 } from './api-types.gen'
 
@@ -18,9 +18,14 @@ export type {
   ReportResult,
   ReportSummary,
   GenerateReportsResponse,
-  UploadJob,
+  VoiceNoteJob,
   JobListResponse,
 }
+
+/**
+ * @deprecated Use VoiceNoteJob instead
+ */
+export type UploadJob = VoiceNoteJob
 
 const apiUrl = import.meta.env.VITE_API_URL
 

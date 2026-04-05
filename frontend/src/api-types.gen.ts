@@ -156,9 +156,9 @@ jobs grouped by status (active, failed, done).
  * JobListResponse groups jobs by their processing state.
  */
 export interface JobListResponse {
-  active: UploadJob[];
-  failed: UploadJob[];
-  done: UploadJob[];
+  active: VoiceNoteJob[];
+  failed: VoiceNoteJob[];
+  done: VoiceNoteJob[];
 }
 
 //////////
@@ -177,16 +177,6 @@ top of the standard library's log/slog. Log level and format (text or JSON)
 are controlled via LOG_LEVEL and LOG_FORMAT environment variables. A
 request-scoped logger can be attached to a context and retrieved via
 loggerFromContext / loggerFromRequest.
-*/
-
-
-//////////
-// source: mem_queue.go
-/*
-mem_queue.go provides an in-memory UploadQueue implementation backed by a
-map and a buffered channel. Worker goroutines pull job references from the
-channel and call processUploadJob. Used in both production (single-binary
-deployment) and tests.
 */
 
 
@@ -342,17 +332,17 @@ export interface Student {
 }
 
 //////////
-// source: repo_upload.go
+// source: repo_voice_note.go
 
 /**
- * UploadRepo provides CRUD operations for the uploads table.
+ * VoiceNoteRepo provides CRUD operations for the voice_notes table.
  */
-export interface UploadRepo {
+export interface VoiceNoteRepo {
 }
 /**
- * Upload represents a row in the uploads table.
+ * VoiceNote represents a row in the voice_notes table.
  */
-export interface Upload {
+export interface VoiceNote {
   id: number /* int64 */;
   userId: string;
   fileName: string;
@@ -603,43 +593,34 @@ export interface UploadResponse {
 }
 
 //////////
-// source: upload_process.go
+// source: voice_note_job.go
 /*
-upload_process.go implements the async upload processing pipeline
-(transcribe → extract → create notes). Called by memQueue worker goroutines.
-*/
-
-
-//////////
-// source: upload_queue.go
-/*
-upload_queue.go defines the UploadQueue interface and the UploadJob type
-used for async upload processing. The in-memory implementation lives in
-mem_queue.go; tests use the stubUploadQueue in testutil_test.go.
+voice_note_job.go defines the VoiceNoteJob type and status constants
+for async voice note processing (transcribe → extract → create notes).
 */
 
 /**
- * Job status constants.
+ * Job status constants for voice note processing.
  */
 export const JobStatusQueued = "queued";
 /**
- * Job status constants.
+ * Job status constants for voice note processing.
  */
 export const JobStatusTranscribing = "transcribing";
 /**
- * Job status constants.
+ * Job status constants for voice note processing.
  */
 export const JobStatusExtracting = "extracting";
 /**
- * Job status constants.
+ * Job status constants for voice note processing.
  */
 export const JobStatusCreatingNotes = "creating_notes";
 /**
- * Job status constants.
+ * Job status constants for voice note processing.
  */
 export const JobStatusDone = "done";
 /**
- * Job status constants.
+ * Job status constants for voice note processing.
  */
 export const JobStatusFailed = "failed";
 /**
@@ -652,9 +633,9 @@ export interface NoteLink {
   className: string;
 }
 /**
- * UploadJob represents an async upload processing job.
+ * VoiceNoteJob represents an async voice note processing job.
  */
-export interface UploadJob {
+export interface VoiceNoteJob {
   userId: string;
   uploadId: number /* int64 */;
   filePath: string;
@@ -667,7 +648,11 @@ export interface UploadJob {
   error?: string;
   failedAt?: string;
 }
-/**
- * UploadQueue abstracts job queue operations for upload processing.
- */
-export type UploadQueue = any;
+
+//////////
+// source: voice_note_process.go
+/*
+voice_note_process.go implements the voice note processing pipeline
+(transcribe → extract → create notes). Called by MemQueue workers.
+*/
+

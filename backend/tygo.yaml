@@ -3,6 +3,9 @@ packages:
     output_path: "../frontend/src/api-types.gen.ts"
     type_mappings:
       "time.Time": "string"
+    exclude_files:
+      - "job_queue.go"
+      - "job_queue_mem.go"
     include_types:
       # Core entities
       - Note
@@ -27,7 +30,7 @@ packages:
       - DriveImportRequest
       - DriveImportResponse
       - GoogleTokenResponse
-      - UploadJob
+      - VoiceNoteJob
       - NoteLink
       - JobListResponse
       # Extraction types

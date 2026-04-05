@@ -49,7 +49,7 @@ Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS 
 
 ## Async Upload Processing Pipeline
 
-Audio uploads are processed asynchronously via an in-memory queue (`memQueue`) with a background worker pool. Jobs are dispatched from `POST /upload` and `POST /drive-import` after the file is saved to disk.
+Audio uploads are processed asynchronously via a generic in-memory queue (`MemQueue[VoiceNoteJob]`) with a background worker pool. Jobs are dispatched from `POST /upload` and `POST /drive-import` after the file is saved to disk.
 
 ### Flow
 
@@ -58,15 +58,15 @@ User uploads audio
         │
         ▼
   POST /upload (or /drive-import)
-        │  Saves file to disk, creates uploads row,
-        │  publishes UploadJob to memQueue
+        │  Saves file to disk, creates voice_notes row,
+        │  publishes VoiceNoteJob to MemQueue
         │
         ▼
-  memQueue worker goroutine
-        │  Picks job from buffered channel
+  MemQueue worker goroutine
+        │  Picks job key from buffered channel
         │
         ▼
-  processUploadJob
+  processVoiceNote(ctx, deps, queue, key)
         │
         ├─ Idempotency check: skip if job status ≠ "queued"
         │
@@ -83,7 +83,7 @@ User uploads audio
         │      Resolve name → student ID via FindByNameAndClass
         │      Create note in SQLite via dbNoteCreator
         │
-        └─ Done (status → "done", mark upload processed)
+        └─ Done (status → "done", mark voice note processed)
 ```
 
 On failure at any step, the job status is set to `"failed"` with the error message. Users can retry failed jobs via `POST /jobs/retry`.
@@ -92,11 +92,22 @@ Job status is tracked in-memory (map keyed by `userId/<uploadId>`). The frontend
 
 ### Startup
 
-`cmd/server/main.go` calls `InitUploadQueue(ServiceDeps(), 4)` at startup to create the queue with 4 worker goroutines. The queue is shut down gracefully on SIGINT/SIGTERM.
+`cmd/server/main.go` calls `InitVoiceNoteQueue(d, 4)` at startup to create the queue with 4 worker goroutines. The queue is shut down gracefully on SIGINT/SIGTERM.
 
-### Upload Cleanup
+### Voice Note Cleanup
 
-`upload_cleanup.go` runs a background goroutine that deletes processed audio files from disk and their `uploads` rows after a retention period (default 7 days, configurable via `UPLOAD_RETENTION_HOURS`).
+`voice_note_cleanup.go` runs a background goroutine that deletes processed audio files from disk and their `voice_notes` rows after a retention period (default 7 days, configurable via `UPLOAD_RETENTION_HOURS`).
+
+### Generic Queue Infrastructure
+
+The queue system uses Go generics for type safety:
+
+- **`Keyed`** — constraint interface requiring `JobKey() string` and `OwnerID() string`
+- **`JobQueue[T Keyed]`** — generic interface for async job operations (Publish, GetJob, UpdateJob, ListJobs, DeleteJob, Close)
+- **`MemQueue[T Keyed]`** — in-memory implementation with buffered channel + worker pool
+- **`ProcessFunc[T Keyed]`** — function type called by workers: `func(ctx, queue, key) error`
+
+Each job type gets its own queue instance. The processor function is injected at construction via closure, keeping the generic queue status-agnostic.
 
 ## Dependency Injection
 
@@ -111,7 +122,7 @@ deps interface {
     GetExampleStore()     → ExampleStore
     GetExampleExtractor() → ExampleExtractor
     GetReportGenerator()  → ReportGenerator
-    GetUploadQueue()      → UploadQueue
+    GetVoiceNoteQueue()   → JobQueue[VoiceNoteJob]
     GetDriveClient(ctx, userID) → DriveClient
     GetDB()               → *sql.DB
     GetClassRepo()        → *ClassRepo
@@ -119,7 +130,7 @@ deps interface {
     GetNoteRepo()         → *NoteRepo
     GetReportRepo()       → *ReportRepo
     GetExampleRepo()      → *ReportExampleRepo
-    GetUploadRepo()       → *UploadRepo
+    GetVoiceNoteRepo()    → *VoiceNoteRepo
     GetUploadsDir()       → string
 }
 ```
@@ -138,7 +149,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `ExampleStore` | `report_examples.go` | `dbExampleStore` | CRUD for example report cards |
 | `ExampleExtractor` | `report_example_extractor.go` | `gptExampleExtractor` | GPT Vision text extraction from PDF/images |
 | `ReportGenerator` | `report_generator.go` | `gptReportGenerator` | GPT-based report card generation (HTML output) |
-| `UploadQueue` | `upload_queue.go` | `memQueue` | In-memory async job queue with worker pool |
+| `JobQueue[VoiceNoteJob]` | `job_queue.go` | `MemQueue[VoiceNoteJob]` | Generic in-memory async job queue with worker pool |
 
 ## External Services
 
@@ -168,7 +179,7 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 | `notes` | Observation notes per student |
 | `reports` | Generated HTML report cards |
 | `report_examples` | Example report cards for style matching |
-| `uploads` | Audio file tracking (file path, processed_at) |
+| `voice_notes` | Audio file tracking (file path, processed_at) |
 
 ### Repository Layer
 
@@ -193,19 +204,20 @@ All CRUD endpoints verify resource ownership:
 | `auth.go` | `getGoogleOAuthToken` — Clerk → Google OAuth token |
 | `db.go` | Open SQLite, set PRAGMAs (WAL, busy_timeout, foreign_keys) |
 | `migrate.go` | Embed + run SQL migrations on startup |
-| `sql/001_init.sql` | Schema: classes, students, notes, reports, report_examples, uploads |
+| `sql/001_init.sql` | Schema: classes, students, notes, reports, report_examples, uploads (renamed to voice_notes via 002) |
+| `sql/002_rename_uploads.sql` | Migration: rename uploads → voice_notes, update indexes |
 | `repo_class.go` | `ClassRepo` — CRUD for classes |
 | `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass`, `BelongsToUser` |
 | `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
 | `repo_example.go` | `ReportExampleRepo` — CRUD for report examples |
-| `repo_upload.go` | `UploadRepo` — CRUD for uploads, `MarkProcessed`, `ListStale` |
+| `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `ListStale` |
 | `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr` |
 | `students.go` | GET /students, class/student CRUD handlers, `classGroup`/`student` types |
 | `roster.go` | `Roster` interface + `dbRoster` — DB-backed roster reads |
-| `upload.go` | POST /upload — multipart audio → disk + uploads table + dispatch job |
+| `upload.go` | POST /upload — multipart audio → disk + voice_notes table + dispatch job |
 | `transcriber.go` | `Transcriber` interface + `whisperTranscriber` (OpenAI Whisper) |
-| `drive_import.go` | POST /drive-import — download from Drive → disk + uploads table + dispatch job |
+| `drive_import.go` | POST /drive-import — download from Drive → disk + voice_notes table + dispatch job |
 | `google_token.go` | GET /google-token — return user's Google OAuth access token |
 | `extract.go` | `Extractor` interface + GPT implementation for transcript analysis |
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers |
@@ -217,10 +229,11 @@ All CRUD endpoints verify resource ownership:
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
 | `logger.go` | slog-based structured logging, request-scoped via context |
-| `upload_queue.go` | `UploadQueue` interface, `UploadJob` type (int64 UploadID), job status constants |
-| `mem_queue.go` | In-memory `UploadQueue` implementation with worker pool |
-| `upload_process.go` | `processUploadJob` pipeline (transcribe→extract→notes) |
-| `upload_cleanup.go` | Background goroutine to delete processed audio files after retention |
+| `job_queue.go` | `Keyed` constraint, `JobQueue[T]` generic interface for async job queues |
+| `job_queue_mem.go` | `MemQueue[T]` — generic in-memory `JobQueue` implementation with worker pool |
+| `voice_note_job.go` | `VoiceNoteJob` type, job status constants, `NoteLink` |
+| `voice_note_process.go` | `processVoiceNote` pipeline (transcribe→extract→notes) |
+| `voice_note_cleanup.go` | Background goroutine to delete processed audio files after retention |
 | `jobs_list.go` | GET /jobs — list user's async upload jobs grouped by status |
 | `jobs_retry.go` | POST /jobs/retry — reset failed jobs to queued and republish |
 | `jobs_dismiss.go` | POST /jobs/dismiss — remove completed/failed jobs, mark uploads processed |
@@ -245,7 +258,7 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 ## Testing
 
 - Tests in `*_test.go` files override `serviceDeps` with stubs.
-- `testutil_test.go` has shared test helpers (`stubUploadQueue`, `mockDepsAll`, etc.).
+- `testutil_test.go` has shared test helpers (`stubVoiceNoteQueue`, `mockDepsAll`, etc.).
 - `setupTestDB(t)` creates an in-memory SQLite DB with migrations for handler tests.
 - Run: `make test` / `make lint`
 
