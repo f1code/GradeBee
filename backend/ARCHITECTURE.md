@@ -109,6 +109,32 @@ The queue system uses Go generics for type safety:
 
 Each job type gets its own queue instance. The processor function is injected at construction via closure, keeping the generic queue status-agnostic.
 
+### Report Example Extraction Pipeline
+
+PDF and image report card uploads are processed asynchronously:
+
+```
+User uploads PDF/image
+        │
+        ▼
+  POST /report-examples (or /drive-import-example)
+        │  Saves file to disk, creates report_examples row
+        │  with status='processing', publishes ExtractionJob
+        │
+        ▼
+  MemQueue[ExtractionJob] worker goroutine
+        │
+        ├─ Read file from disk
+        ├─ For PDFs: convert to JPEG images via pdftoppm (150 DPI)
+        ├─ Send each page to GPT Vision (parallel, structured JSON output)
+        ├─ Update report_examples row: status='ready', content=extracted text
+        └─ Clean up temp file from disk
+```
+
+Text file uploads (plain text, JSON body) are stored synchronously with `status='ready'`.
+
+The frontend polls `GET /report-examples` every 3s while any example has `status='processing'`.
+
 ## Dependency Injection
 
 **`deps.go`** — defines `deps` interface + `prodDeps` implementation + package-level `serviceDeps` variable.
@@ -147,9 +173,10 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `Extractor` | `extract.go` | `gptExtractor` | Transcript→student extraction |
 | `NoteCreator` | `notes.go` | `dbNoteCreator` | Create notes in SQLite |
 | `ExampleStore` | `report_examples.go` | `dbExampleStore` | CRUD for example report cards |
-| `ExampleExtractor` | `report_example_extractor.go` | `gptExampleExtractor` | GPT Vision text extraction from PDF/images |
+| `ExampleExtractor` | `report_example_extractor.go` | `gptExampleExtractor` | GPT Vision text extraction from images; PDF→image via pdftoppm |
 | `ReportGenerator` | `report_generator.go` | `gptReportGenerator` | GPT-based report card generation (HTML output) |
 | `JobQueue[VoiceNoteJob]` | `job_queue.go` | `MemQueue[VoiceNoteJob]` | Generic in-memory async job queue with worker pool |
+| `JobQueue[ExtractionJob]` | `job_queue.go` | `MemQueue[ExtractionJob]` | Async report example extraction queue |
 
 ## External Services
 
@@ -223,7 +250,9 @@ All CRUD endpoints verify resource ownership:
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers |
 | `report_examples.go` | `ExampleStore` interface + `dbExampleStore` |
 | `report_examples_handler.go` | GET/POST/DELETE /report-examples handlers |
-| `report_example_extractor.go` | GPT Vision extraction of text from PDF/image uploads |
+| `report_example_extractor.go` | GPT Vision extraction of text from image uploads; PDF→JPEG conversion via pdftoppm |
+| `report_example_job.go` | `ExtractionJob` type for async report example extraction |
+| `report_example_process.go` | `processExtraction` pipeline (read file→extract→update DB) |
 | `report_generator.go` | `ReportGenerator` interface + `gptReportGenerator` (HTML output) |
 | `report_prompt.go` | GPT prompt construction for report generation (requests HTML output) |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers |
