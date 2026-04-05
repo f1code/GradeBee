@@ -38,18 +38,18 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 | POST | `/report-examples` | Yes | `handleUploadReportExample` | Upload example report card |
 | DELETE | `/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card |
 | PUT | `/report-examples/{id}` | Yes | `handleUpdateReportExample` | Update example report card |
-| POST | `/upload` | Yes | `handleUpload` | Upload audio to disk + dispatch job |
-| POST | `/drive-import` | Yes | `handleDriveImport` | Download from Drive + dispatch job |
+| POST | `/voice-notes/upload` | Yes | `handleUpload` | Upload audio to disk + dispatch job |
+| POST | `/voice-notes/drive-import` | Yes | `handleDriveImport` | Download from Drive + dispatch job |
 | GET | `/google-token` | Yes | `handleGoogleToken` | Return Google OAuth token for Drive Picker |
-| GET | `/jobs` | Yes | `handleJobList` | List user's async upload jobs |
-| POST | `/jobs/retry` | Yes | `handleJobRetry` | Retry failed jobs |
-| POST | `/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs |
+| GET | `/voice-notes/jobs` | Yes | `handleJobList` | List user's async upload jobs |
+| POST | `/voice-notes/jobs/retry` | Yes | `handleJobRetry` | Retry failed jobs |
+| POST | `/voice-notes/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline (GET, POST, PUT, DELETE, OPTIONS).
 
 ## Async Upload Processing Pipeline
 
-Audio uploads are processed asynchronously via a generic in-memory queue (`MemQueue[VoiceNoteJob]`) with a background worker pool. Jobs are dispatched from `POST /upload` and `POST /drive-import` after the file is saved to disk.
+Audio uploads are processed asynchronously via a generic in-memory queue (`MemQueue[VoiceNoteJob]`) with a background worker pool. Jobs are dispatched from `POST /voice-notes/upload` and `POST /voice-notes/drive-import` after the file is saved to disk.
 
 ### Flow
 
@@ -57,7 +57,7 @@ Audio uploads are processed asynchronously via a generic in-memory queue (`MemQu
 User uploads audio
         │
         ▼
-  POST /upload (or /drive-import)
+  POST /voice-notes/upload (or /voice-notes/drive-import)
         │  Saves file to disk, creates voice_notes row,
         │  publishes VoiceNoteJob to MemQueue
         │
@@ -86,9 +86,9 @@ User uploads audio
         └─ Done (status → "done", mark voice note processed)
 ```
 
-On failure at any step, the job status is set to `"failed"` with the error message. Users can retry failed jobs via `POST /jobs/retry`.
+On failure at any step, the job status is set to `"failed"` with the error message. Users can retry failed jobs via `POST /voice-notes/jobs/retry`.
 
-Job status is tracked in-memory (map keyed by `userId/<uploadId>`). The frontend polls `GET /jobs` to show progress.
+Job status is tracked in-memory (map keyed by `userId/<uploadId>`). The frontend polls `GET /voice-notes/jobs` to show progress.
 
 ### Startup
 
@@ -215,9 +215,9 @@ All CRUD endpoints verify resource ownership:
 | `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr` |
 | `students.go` | GET /students, class/student CRUD handlers, `classGroup`/`student` types |
 | `roster.go` | `Roster` interface + `dbRoster` — DB-backed roster reads |
-| `upload.go` | POST /upload — multipart audio → disk + voice_notes table + dispatch job |
+| `voice_note_upload.go` | POST /voice-notes/upload — multipart audio → disk + voice_notes table + dispatch job |
 | `transcriber.go` | `Transcriber` interface + `whisperTranscriber` (OpenAI Whisper) |
-| `drive_import.go` | POST /drive-import — download from Drive → disk + voice_notes table + dispatch job |
+| `voice_note_drive_import.go` | POST /voice-notes/drive-import — download from Drive → disk + voice_notes table + dispatch job |
 | `google_token.go` | GET /google-token — return user's Google OAuth access token |
 | `extract.go` | `Extractor` interface + GPT implementation for transcript analysis |
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers |
@@ -234,9 +234,7 @@ All CRUD endpoints verify resource ownership:
 | `voice_note_job.go` | `VoiceNoteJob` type, job status constants, `NoteLink` |
 | `voice_note_process.go` | `processVoiceNote` pipeline (transcribe→extract→notes) |
 | `voice_note_cleanup.go` | Background goroutine to delete processed audio files after retention |
-| `jobs_list.go` | GET /jobs — list user's async upload jobs grouped by status |
-| `jobs_retry.go` | POST /jobs/retry — reset failed jobs to queued and republish |
-| `jobs_dismiss.go` | POST /jobs/dismiss — remove completed/failed jobs, mark uploads processed |
+| `voice_note_jobs.go` | GET /voice-notes/jobs, POST /voice-notes/jobs/retry, POST /voice-notes/jobs/dismiss — voice note job list, retry, dismiss handlers |
 | `tygo.yaml` | tygo config for Go→TypeScript type generation |
 
 ## Type Generation (Go → TypeScript)
