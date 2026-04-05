@@ -12,7 +12,7 @@ import (
 type stubRoster struct {
 	classNames  []string
 	classErr    error
-	students    []classGroup
+	students    []ClassGroup
 	studentsErr error
 }
 
@@ -20,7 +20,7 @@ func (s *stubRoster) ClassNames(_ context.Context) ([]string, error) {
 	return s.classNames, s.classErr
 }
 
-func (s *stubRoster) Students(_ context.Context) ([]classGroup, error) {
+func (s *stubRoster) Students(_ context.Context) ([]ClassGroup, error) {
 	return s.students, s.studentsErr
 }
 

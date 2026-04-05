@@ -50,7 +50,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		transcriber: &stubTranscriber{result: "Alice did great. Bob needs work."},
 		roster: &stubRoster{
 			classNames: []string{"Math"},
-			students:   []classGroup{{Name: "Math", Students: []student{{Name: "Alice"}, {Name: "Bob"}}}},
+			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-03-22",

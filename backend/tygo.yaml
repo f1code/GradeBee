@@ -30,3 +30,13 @@ packages:
       - UploadJob
       - NoteLink
       - JobListResponse
+      # Extraction types
+      - ExtractRequest
+      - ExtractResponse
+      - MatchedStudent
+      - StudentCandidate
+      - ClassGroup
+      - ClassStudent
+      - StudentResponse
+      - StudentsResponse
+      - ClassGroupResponse

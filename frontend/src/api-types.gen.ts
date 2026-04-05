@@ -77,7 +77,7 @@ export type Extractor = any;
  */
 export interface ExtractRequest {
   Transcript: string;
-  Classes: classGroup[];
+  Classes: ClassGroup[];
 }
 /**
  * ExtractResponse is the structured output from extraction.
@@ -547,6 +547,32 @@ export interface ListClassesResponse {
  */
 export interface ListStudentsResponse {
   students: Student[];
+}
+/**
+ * Response types for the students API.
+ */
+export interface StudentsResponse {
+  classes: ClassGroupResponse[];
+}
+export interface ClassGroupResponse {
+  id: number /* int64 */;
+  name: string;
+  studentCount: number /* int */;
+  students: StudentResponse[];
+}
+export interface StudentResponse {
+  id: number /* int64 */;
+  name: string;
+}
+/**
+ * Internal types used by the extractor and roster (no IDs needed).
+ */
+export interface ClassGroup {
+  name: string;
+  students: ClassStudent[];
+}
+export interface ClassStudent {
+  name: string;
 }
 
 //////////

@@ -20,29 +20,29 @@ type ListStudentsResponse struct {
 }
 
 // Response types for the students API.
-type studentsResponse struct {
-	Classes []classGroupResponse `json:"classes"`
+type StudentsResponse struct {
+	Classes []ClassGroupResponse `json:"classes"`
 }
 
-type classGroupResponse struct {
+type ClassGroupResponse struct {
 	ID           int64             `json:"id"`
 	Name         string            `json:"name"`
 	StudentCount int               `json:"studentCount"`
-	Students     []studentResponse `json:"students"`
+	Students     []StudentResponse `json:"students"`
 }
 
-type studentResponse struct {
+type StudentResponse struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
 }
 
 // Internal types used by the extractor and roster (no IDs needed).
-type classGroup struct {
+type ClassGroup struct {
 	Name     string    `json:"name"`
-	Students []student `json:"students"`
+	Students []ClassStudent `json:"students"`
 }
 
-type student struct {
+type ClassStudent struct {
 	Name string `json:"name"`
 }
 
@@ -71,7 +71,7 @@ func handleGetStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := studentsResponse{Classes: make([]classGroupResponse, 0, len(classes))}
+	resp := StudentsResponse{Classes: make([]ClassGroupResponse, 0, len(classes))}
 	for _, c := range classes {
 		students, err := studentRepo.List(ctx, c.ID)
 		if err != nil {
@@ -79,14 +79,14 @@ func handleGetStudents(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-		cg := classGroupResponse{
+		cg := ClassGroupResponse{
 			ID:           c.ID,
 			Name:         c.Name,
 			StudentCount: c.StudentCount,
-			Students:     make([]studentResponse, len(students)),
+			Students:     make([]StudentResponse, len(students)),
 		}
 		for j, s := range students {
-			cg.Students[j] = studentResponse{ID: s.ID, Name: s.Name}
+			cg.Students[j] = StudentResponse{ID: s.ID, Name: s.Name}
 		}
 		resp.Classes = append(resp.Classes, cg)
 	}

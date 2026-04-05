@@ -54,7 +54,7 @@ func TestHandleGetStudents_HappyPath(t *testing.T) {
 		t.Fatalf("got status %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
-	var resp studentsResponse
+	var resp StudentsResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestHandleGetStudents_Empty(t *testing.T) {
 		t.Fatalf("got status %d, want 200; body: %s", rec.Code, rec.Body.String())
 	}
 
-	var resp studentsResponse
+	var resp StudentsResponse
 	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}

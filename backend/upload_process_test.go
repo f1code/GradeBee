@@ -46,7 +46,7 @@ func TestProcessJob_HappyPath(t *testing.T) {
 		transcriber: &stubTranscriber{result: "Alice did great today. Bob needs improvement."},
 		roster: &stubRoster{
 			classNames: []string{"Math"},
-			students:   []classGroup{{Name: "Math", Students: []student{{Name: "Alice"}, {Name: "Bob"}}}},
+			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{
 			result: &ExtractResponse{

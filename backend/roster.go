@@ -10,7 +10,7 @@ import (
 // Roster abstracts read access to the user's student roster.
 type Roster interface {
 	ClassNames(ctx context.Context) ([]string, error)
-	Students(ctx context.Context) ([]classGroup, error)
+	Students(ctx context.Context) ([]ClassGroup, error)
 }
 
 // dbRoster reads roster data from the SQLite database.
@@ -38,7 +38,7 @@ func (r *dbRoster) ClassNames(ctx context.Context) ([]string, error) {
 }
 
 // Students returns the full roster grouped by class.
-func (r *dbRoster) Students(ctx context.Context) ([]classGroup, error) {
+func (r *dbRoster) Students(ctx context.Context) ([]ClassGroup, error) {
 	classes, err := r.classRepo.List(ctx, r.userID)
 	if err != nil {
 		return nil, err
@@ -47,15 +47,15 @@ func (r *dbRoster) Students(ctx context.Context) ([]classGroup, error) {
 		return nil, nil
 	}
 
-	var result []classGroup
+	var result []ClassGroup
 	for _, c := range classes {
 		students, err := r.studentRepo.List(ctx, c.ID)
 		if err != nil {
 			return nil, err
 		}
-		cg := classGroup{Name: c.Name, Students: make([]student, len(students))}
+		cg := ClassGroup{Name: c.Name, Students: make([]ClassStudent, len(students))}
 		for j, s := range students {
-			cg.Students[j] = student{Name: s.Name}
+			cg.Students[j] = ClassStudent{Name: s.Name}
 		}
 		result = append(result, cg)
 	}

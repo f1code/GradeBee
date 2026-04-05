@@ -22,7 +22,7 @@ type Extractor interface {
 // ExtractRequest is the input to an extraction call.
 type ExtractRequest struct {
 	Transcript string
-	Classes    []classGroup
+	Classes    []ClassGroup
 }
 
 // ExtractResponse is the structured output from extraction.
@@ -98,7 +98,7 @@ func (e *gptExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 	return &result, nil
 }
 
-func buildExtractionPrompt(classes []classGroup) string {
+func buildExtractionPrompt(classes []ClassGroup) string {
 	var sb strings.Builder
 	sb.WriteString(`You are a teaching assistant analyzing a teacher's audio transcript about student observations.
 
