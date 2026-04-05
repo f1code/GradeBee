@@ -29,29 +29,6 @@ export interface DriveFile {
 export type DriveClient = any;
 
 //////////
-// source: drive_import.go
-/*
-drive_import.go handles the POST /drive-import endpoint that downloads a
-Google Drive file to local disk, creates an uploads row, and dispatches
-an async processing job.
-*/
-
-/**
- * DriveImportRequest is the JSON body for POST /drive-import.
- */
-export interface DriveImportRequest {
-  fileId: string;
-  fileName: string;
-}
-/**
- * DriveImportResponse is the JSON response for POST /drive-import.
- */
-export interface DriveImportResponse {
-  uploadId: number /* int64 */;
-  fileName: string;
-}
-
-//////////
 // source: drive_import_example.go
 /*
 drive_import_example.go handles the POST /drive-import-example endpoint that
@@ -133,39 +110,6 @@ export interface GoogleTokenResponse {
 /*
 handler.go is the main HTTP entrypoint for the GradeBee backend. It wires
 together routing, CORS headers, request-scoped logging, and response timing.
-*/
-
-
-//////////
-// source: jobs_dismiss.go
-/*
-jobs_dismiss.go handles POST /jobs/dismiss — dismisses completed/failed jobs
-for the authenticated user. Also marks uploads as processed so files enter
-the cleanup window.
-*/
-
-
-//////////
-// source: jobs_list.go
-/*
-jobs_list.go handles GET /jobs — returns the authenticated user's upload
-jobs grouped by status (active, failed, done).
-*/
-
-/**
- * JobListResponse groups jobs by their processing state.
- */
-export interface JobListResponse {
-  active: VoiceNoteJob[];
-  failed: VoiceNoteJob[];
-  done: VoiceNoteJob[];
-}
-
-//////////
-// source: jobs_retry.go
-/*
-jobs_retry.go handles POST /jobs/retry — resets all failed jobs for the
-authenticated user back to "queued" and republishes them for processing.
 */
 
 
@@ -257,6 +201,7 @@ export interface DBReportExample {
   userId: string;
   name: string;
   content: string;
+  status: string;
   createdAt: string;
 }
 
@@ -364,6 +309,26 @@ using GPT Vision (gpt-4o-mini).
 export type ExampleExtractor = any;
 
 //////////
+// source: report_example_job.go
+/*
+report_example_job.go defines the ExtractionJob type for async report
+example text extraction (PDF/image → GPT Vision → stored text).
+*/
+
+/**
+ * ExtractionJob represents an async report example text extraction job.
+ */
+export interface ExtractionJob {
+  userId: string;
+  exampleId: number /* int64 */;
+  filePath: string;
+  fileName: string;
+  status: string;
+  error?: string;
+  createdAt: string;
+}
+
+//////////
 // source: report_examples.go
 /*
 report_examples.go defines the ExampleStore interface and its DB-backed
@@ -377,6 +342,7 @@ export interface ReportExample {
   id: number /* int64 */;
   name: string;
   content: string;
+  status: string; // "ready", "processing", "failed"
 }
 /**
  * ExampleStore abstracts CRUD operations for example report cards.
@@ -578,16 +544,22 @@ implementation backed by the OpenAI Whisper API.
 export type Transcriber = any;
 
 //////////
-// source: upload.go
+// source: voice_note_drive_import.go
 /*
-upload.go handles the POST /upload endpoint that receives an audio file via
-multipart/form-data and saves it to local disk + the uploads table.
+voice_note_drive_import.go handles POST /voice-notes/drive-import — downloads a Google Drive file to local disk, creates a voice_notes row, and dispatches an async processing job.
 */
 
 /**
- * UploadResponse is the JSON response for POST /upload.
+ * DriveImportRequest is the JSON body for POST /drive-import.
  */
-export interface UploadResponse {
+export interface DriveImportRequest {
+  fileId: string;
+  fileName: string;
+}
+/**
+ * DriveImportResponse is the JSON response for POST /drive-import.
+ */
+export interface DriveImportResponse {
   uploadId: number /* int64 */;
   fileName: string;
 }
@@ -650,9 +622,41 @@ export interface VoiceNoteJob {
 }
 
 //////////
+// source: voice_note_jobs.go
+/*
+voice_note_jobs.go handles the voice note job endpoints:
+  GET  /voice-notes/jobs         — list jobs grouped by status
+  POST /voice-notes/jobs/retry   — retry failed jobs
+  POST /voice-notes/jobs/dismiss — dismiss completed/failed jobs
+*/
+
+/**
+ * JobListResponse groups jobs by their processing state.
+ */
+export interface JobListResponse {
+  active: VoiceNoteJob[];
+  failed: VoiceNoteJob[];
+  done: VoiceNoteJob[];
+}
+
+//////////
 // source: voice_note_process.go
 /*
 voice_note_process.go implements the voice note processing pipeline
 (transcribe → extract → create notes). Called by MemQueue workers.
 */
 
+
+//////////
+// source: voice_note_upload.go
+/*
+voice_note_upload.go handles POST /voice-notes/upload — receives an audio file via multipart/form-data and saves it to local disk + the voice_notes table.
+*/
+
+/**
+ * UploadResponse is the JSON response for POST /upload.
+ */
+export interface UploadResponse {
+  uploadId: number /* int64 */;
+  fileName: string;
+}

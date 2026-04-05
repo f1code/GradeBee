@@ -1249,6 +1249,29 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.example-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-family: var(--font-body);
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  margin-left: 0.5rem;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
+.example-status-badge.processing {
+  background: var(--honey-light);
+  color: var(--honey-dark);
+}
+
+.example-status-badge.failed {
+  background: #FED7D7;
+  color: var(--error-red);
+}
+
 /* ============================================
    Report Generation
    ============================================ */

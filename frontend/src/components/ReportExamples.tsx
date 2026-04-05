@@ -23,6 +23,8 @@ const REPORT_MIME_TYPES = [
   'text/markdown',
 ].join(',')
 
+const POLL_INTERVAL = 3000
+
 function DriveIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
@@ -31,6 +33,19 @@ function DriveIcon() {
       <path d="M14 2.56L22.62 14L19.61 19.44L11 7.56L14 2.56Z" fill="currentColor" opacity="0.4" />
     </svg>
   )
+}
+
+function ProcessingBadge() {
+  return (
+    <span className="example-status-badge processing">
+      <span className="honeycomb-spinner" style={{ width: 14, height: 14 }} />
+      Extracting…
+    </span>
+  )
+}
+
+function FailedBadge() {
+  return <span className="example-status-badge failed">Extraction failed</span>
 }
 
 export default function ReportExamples() {
@@ -62,6 +77,14 @@ export default function ReportExamples() {
   }, [getToken])
 
   useEffect(() => { load() }, [load])
+
+  // Poll while any example is still processing.
+  useEffect(() => {
+    const hasProcessing = examples.some(e => e.status === 'processing')
+    if (!hasProcessing) return
+    const timer = setInterval(() => { load() }, POLL_INTERVAL)
+    return () => clearInterval(timer)
+  }, [examples, load])
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
@@ -218,14 +241,21 @@ export default function ReportExamples() {
                       expanded={expandedId === ex.id}
                       onToggle={() => setExpandedId(expandedId === ex.id ? null : ex.id)}
                       onDelete={() => handleDelete(ex.id)}
+                      badge={
+                        ex.status === 'processing' ? <ProcessingBadge /> :
+                        ex.status === 'failed' ? <FailedBadge /> :
+                        undefined
+                      }
                       actions={
-                        <button
-                          className="icon-btn"
-                          onClick={(e) => { e.stopPropagation(); setExpandedId(ex.id); startEditing(ex) }}
-                          aria-label={`Edit ${ex.name}`}
-                        >
-                          <PencilIcon />
-                        </button>
+                        ex.status === 'ready' ? (
+                          <button
+                            className="icon-btn"
+                            onClick={(e) => { e.stopPropagation(); setExpandedId(ex.id); startEditing(ex) }}
+                            aria-label={`Edit ${ex.name}`}
+                          >
+                            <PencilIcon />
+                          </button>
+                        ) : undefined
                       }
                     >
                       {editingId === ex.id ? (
@@ -253,6 +283,14 @@ export default function ReportExamples() {
                               {saving ? 'Saving…' : 'Save'}
                             </button>
                           </div>
+                        </div>
+                      ) : ex.status === 'processing' ? (
+                        <div className="example-content-preview">
+                          <p style={{ opacity: 0.6, fontStyle: 'italic' }}>Extracting text from document…</p>
+                        </div>
+                      ) : ex.status === 'failed' ? (
+                        <div className="example-content-preview">
+                          <p style={{ color: 'var(--error-red)' }}>Text extraction failed. You can delete this and try again.</p>
                         </div>
                       ) : (
                         <div className="example-content-preview">

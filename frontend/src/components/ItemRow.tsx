@@ -8,6 +8,7 @@ interface ItemRowProps {
   onToggle: () => void
   onDelete: () => void
   actions?: ReactNode
+  badge?: ReactNode
   children: ReactNode
 }
 
@@ -17,6 +18,7 @@ export default function ItemRow({
   onToggle,
   onDelete,
   actions,
+  badge,
   children,
 }: ItemRowProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -71,6 +73,7 @@ export default function ItemRow({
           className={`item-row-name${expanded ? ' item-row-name-active' : ''}`}
         >
           {name}
+          {badge}
           <ChevronIcon open={expanded} />
         </span>
         <div className="item-row-actions" onClick={(e) => e.stopPropagation()}>
