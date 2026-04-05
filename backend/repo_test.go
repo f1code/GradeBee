@@ -13,7 +13,7 @@ type repos struct {
 	notes    *NoteRepo
 	reports  *ReportRepo
 	examples *ReportExampleRepo
-	uploads  *VoiceNoteRepo
+	voiceNotes *VoiceNoteRepo
 }
 
 // testDBAndRepos returns an in-memory SQLite with migrations and all repos.
@@ -33,7 +33,7 @@ func testDBAndRepos(t *testing.T) (context.Context, *repos) {
 		notes:    &NoteRepo{db: db},
 		reports:  &ReportRepo{db: db},
 		examples: &ReportExampleRepo{db: db},
-		uploads:  &VoiceNoteRepo{db: db},
+		voiceNotes: &VoiceNoteRepo{db: db},
 	}
 }
 
@@ -437,10 +437,10 @@ func TestReportExampleRepo_CRUD(t *testing.T) {
 	}
 }
 
-func TestUploadRepo_CRUD(t *testing.T) {
+func TestVoiceNoteRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	u, err := r.uploads.Create(ctx, "user1", "audio.mp3", "/data/uploads/abc.mp3")
+	u, err := r.voiceNotes.Create(ctx, "user1", "audio.mp3", "/data/uploads/abc.mp3")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -449,10 +449,10 @@ func TestUploadRepo_CRUD(t *testing.T) {
 	}
 
 	// MarkProcessed
-	if err := r.uploads.MarkProcessed(ctx, u.ID); err != nil {
+	if err := r.voiceNotes.MarkProcessed(ctx, u.ID); err != nil {
 		t.Fatalf("mark processed: %v", err)
 	}
-	got, err := r.uploads.GetByID(ctx, u.ID)
+	got, err := r.voiceNotes.GetByID(ctx, u.ID)
 	if err != nil {
 		t.Fatalf("get: %v", err)
 	}
@@ -461,7 +461,7 @@ func TestUploadRepo_CRUD(t *testing.T) {
 	}
 
 	// ListStale — use a future cutoff
-	stale, err := r.uploads.ListStale(ctx, "2099-01-01T00:00:00.000Z")
+	stale, err := r.voiceNotes.ListStale(ctx, "2099-01-01T00:00:00.000Z")
 	if err != nil {
 		t.Fatalf("list stale: %v", err)
 	}
@@ -470,7 +470,7 @@ func TestUploadRepo_CRUD(t *testing.T) {
 	}
 
 	// ListStale — past cutoff
-	stale, err = r.uploads.ListStale(ctx, "2000-01-01T00:00:00.000Z")
+	stale, err = r.voiceNotes.ListStale(ctx, "2000-01-01T00:00:00.000Z")
 	if err != nil {
 		t.Fatalf("list stale past: %v", err)
 	}
@@ -479,10 +479,10 @@ func TestUploadRepo_CRUD(t *testing.T) {
 	}
 
 	// Delete
-	if err := r.uploads.Delete(ctx, u.ID); err != nil {
+	if err := r.voiceNotes.Delete(ctx, u.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	_, err = r.uploads.GetByID(ctx, u.ID)
+	_, err = r.voiceNotes.GetByID(ctx, u.ID)
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatal("expected not found")
 	}

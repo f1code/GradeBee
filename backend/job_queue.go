@@ -14,7 +14,9 @@ type Keyed interface {
 // JobQueue abstracts typed job queue operations.
 type JobQueue[T Keyed] interface {
 	// Publish stores the job and dispatches it for async processing.
-	// Caller must set status/state before calling Publish.
+	// Caller must set status/state before calling Publish — the queue
+	// does not modify job fields. If status is not set, the processor's
+	// idempotency check may silently skip the job.
 	Publish(ctx context.Context, job T) error
 	// GetJob reads a single job by key.
 	GetJob(ctx context.Context, key string) (*T, error)

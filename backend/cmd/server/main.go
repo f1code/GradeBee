@@ -68,8 +68,8 @@ func main() {
 			retentionHours = h
 		}
 	}
-	uploadRepo := d.GetVoiceNoteRepo()
-	go handler.StartVoiceNoteCleanup(ctx, uploadRepo, uploadsDir, time.Duration(retentionHours)*time.Hour, 1*time.Hour)
+	voiceNoteRepo := d.GetVoiceNoteRepo()
+	go handler.StartVoiceNoteCleanup(ctx, voiceNoteRepo, time.Duration(retentionHours)*time.Hour, 1*time.Hour)
 
 	port := os.Getenv("PORT")
 	if port == "" {

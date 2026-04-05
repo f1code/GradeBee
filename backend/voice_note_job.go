@@ -41,7 +41,7 @@ type VoiceNoteJob struct {
 }
 
 // JobKey implements Keyed.
-func (j VoiceNoteJob) JobKey() string { return fmt.Sprintf("%s/%d", j.UserID, j.UploadID) }
+func (j VoiceNoteJob) JobKey() string { return voiceNoteKey(j.UserID, j.UploadID) }
 
 // OwnerID implements Keyed.
 func (j VoiceNoteJob) OwnerID() string { return j.UserID }

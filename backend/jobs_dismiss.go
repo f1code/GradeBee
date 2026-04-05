@@ -38,7 +38,7 @@ func handleJobDismiss(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uploadRepo := serviceDeps.GetVoiceNoteRepo()
+	voiceNoteRepo := serviceDeps.GetVoiceNoteRepo()
 	dismissed := 0
 	for _, uploadID := range req.UploadIDs {
 		job, err := queue.GetJob(r.Context(), voiceNoteKey(userID, uploadID))
@@ -59,8 +59,8 @@ func handleJobDismiss(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		// Mark upload as processed so the file enters the cleanup window.
-		if uploadRepo != nil {
-			if err := uploadRepo.MarkProcessed(r.Context(), uploadID); err != nil {
+		if voiceNoteRepo != nil {
+			if err := voiceNoteRepo.MarkProcessed(r.Context(), uploadID); err != nil {
 				log.Warn("jobs dismiss: mark processed", "error", err, "upload_id", uploadID)
 			}
 		}

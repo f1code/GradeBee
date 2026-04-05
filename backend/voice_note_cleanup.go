@@ -13,7 +13,7 @@ import (
 // It deletes the audio file from disk and the row from the voice_notes table once
 // the voice note has been processed for longer than the retention duration.
 // Stops when ctx is cancelled.
-func StartVoiceNoteCleanup(ctx context.Context, repo *VoiceNoteRepo, uploadsDir string, retention, interval time.Duration) {
+func StartVoiceNoteCleanup(ctx context.Context, repo *VoiceNoteRepo, retention, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
