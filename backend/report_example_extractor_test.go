@@ -24,6 +24,28 @@ func TestPdfToImages_ValidPDF(t *testing.T) {
 	}
 }
 
+func TestIsExtractableFile(t *testing.T) {
+	cases := []struct {
+		name string
+		want bool
+	}{
+		{"report.pdf", true},
+		{"report.PDF", true},
+		{"photo.png", true},
+		{"photo.jpg", true},
+		{"photo.jpeg", true},
+		{"photo.webp", true},
+		{"notes.txt", false},
+		{"data.json", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := isExtractableFile(tc.name); got != tc.want {
+			t.Errorf("isExtractableFile(%q) = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestPdfToImages_InvalidData(t *testing.T) {
 	_, err := pdfToImages([]byte("not a pdf"))
 	if err == nil {
