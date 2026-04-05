@@ -1,12 +1,5 @@
 # Frontend: TypeScript check (whole project, catches type errors)
-cd frontend && npx tsc -b --noEmit || exit 1
-cd ..
+(cd frontend && npx tsc -b --noEmit) || exit 1
 
-# Frontend: Lint & format staged files
+# Lint & format staged files (frontend + backend)
 npx lint-staged || exit 1
-
-# Backend: Go lint (only if Go files are staged)
-if git diff --cached --name-only | grep -q '\.go$'; then
-  cd backend && make lint || exit 1
-  cd backend && make check-types || exit 1
-fi
