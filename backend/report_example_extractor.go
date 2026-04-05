@@ -223,3 +223,19 @@ func isExtractableFile(filename string) bool {
 	}
 	return fileExtToMediaType(ext) != ""
 }
+
+// mimeToExt returns a file extension for common MIME types used by report imports.
+func mimeToExt(mime string) string {
+	switch mime {
+	case "application/pdf":
+		return ".pdf"
+	case "image/png":
+		return ".png"
+	case "image/jpeg":
+		return ".jpg"
+	case "image/webp":
+		return ".webp"
+	default:
+		return ""
+	}
+}

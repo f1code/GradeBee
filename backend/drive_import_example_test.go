@@ -171,15 +171,16 @@ func TestDriveImportExample_ExceedsSizeLimit(t *testing.T) {
 }
 
 func TestDriveImportExample_PDFExtractsText(t *testing.T) {
-	ext := &stubExampleExtractor{result: "extracted text"}
 	store := &stubExampleStore{}
+	queue := newStubExtractionQueue()
 	withDeps(t, &mockDepsAll{
 		driveClient: &stubDriveClient{
 			meta: &DriveFile{MimeType: "application/pdf"},
 			data: io.NopCloser(bytes.NewReader([]byte{1, 2, 3})),
 		},
-		exampleExtractor: ext,
-		exampleStore:     store,
+		exampleStore:    store,
+		extractionQueue: queue,
+		uploadsDir:      t.TempDir(),
 	})
 
 	rec := httptest.NewRecorder()
@@ -187,24 +188,32 @@ func TestDriveImportExample_PDFExtractsText(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if ext.gotFilename != "report.pdf" {
-		t.Errorf("extractor not called with correct filename, got %q", ext.gotFilename)
+	var result ReportExample
+	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
+		t.Fatal(err)
 	}
-	if store.uploadedContent != "extracted text" {
-		t.Errorf("unexpected stored content: %q", store.uploadedContent)
+	if result.Status != "processing" {
+		t.Errorf("status = %q, want processing", result.Status)
+	}
+	if len(queue.published) != 1 {
+		t.Fatalf("published jobs = %d, want 1", len(queue.published))
+	}
+	if queue.published[0].FileName != "report.pdf" {
+		t.Errorf("job filename = %q, want report.pdf", queue.published[0].FileName)
 	}
 }
 
 func TestDriveImportExample_ImageExtractsText(t *testing.T) {
-	ext := &stubExampleExtractor{result: "image text"}
 	store := &stubExampleStore{}
+	queue := newStubExtractionQueue()
 	withDeps(t, &mockDepsAll{
 		driveClient: &stubDriveClient{
 			meta: &DriveFile{MimeType: "image/png"},
 			data: io.NopCloser(bytes.NewReader([]byte{0x89, 0x50})),
 		},
-		exampleExtractor: ext,
-		exampleStore:     store,
+		exampleStore:    store,
+		extractionQueue: queue,
+		uploadsDir:      t.TempDir(),
 	})
 
 	rec := httptest.NewRecorder()
@@ -212,18 +221,22 @@ func TestDriveImportExample_ImageExtractsText(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if store.uploadedContent != "image text" {
-		t.Errorf("unexpected stored content: %q", store.uploadedContent)
+	if len(queue.published) != 1 {
+		t.Fatalf("published jobs = %d, want 1", len(queue.published))
 	}
 }
 
 func TestDriveImportExample_ExtractorUnavailable(t *testing.T) {
+	// With async extraction, extractor unavailable is no longer tested at import time.
+	// The queue handles extraction. Test queue unavailable instead.
 	withDeps(t, &mockDepsAll{
 		driveClient: &stubDriveClient{
 			meta: &DriveFile{MimeType: "application/pdf"},
 			data: io.NopCloser(bytes.NewReader([]byte{1, 2})),
 		},
-		exampleExtractorErr: fmt.Errorf("not configured"),
+		exampleStore:       &stubExampleStore{},
+		extractionQueueErr: fmt.Errorf("not initialized"),
+		uploadsDir:         t.TempDir(),
 	})
 
 	rec := httptest.NewRecorder()
@@ -234,34 +247,44 @@ func TestDriveImportExample_ExtractorUnavailable(t *testing.T) {
 }
 
 func TestDriveImportExample_ExtractorFails(t *testing.T) {
+	// With async extraction, extractor failures happen in the worker, not at import time.
+	// This test now verifies the async path dispatches successfully.
+	queue := newStubExtractionQueue()
 	withDeps(t, &mockDepsAll{
 		driveClient: &stubDriveClient{
 			meta: &DriveFile{MimeType: "application/pdf"},
 			data: io.NopCloser(bytes.NewReader([]byte{1, 2})),
 		},
-		exampleExtractor: &stubExampleExtractor{err: fmt.Errorf("extraction failed")},
+		exampleStore:    &stubExampleStore{},
+		extractionQueue: queue,
+		uploadsDir:      t.TempDir(),
 	})
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("want 500, got %d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200 (async), got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
 func TestDriveImportExample_ExtractorReturnsEmpty(t *testing.T) {
+	// With async extraction, empty results are handled in the worker.
+	// This test now verifies the async path dispatches successfully.
+	queue := newStubExtractionQueue()
 	withDeps(t, &mockDepsAll{
 		driveClient: &stubDriveClient{
 			meta: &DriveFile{MimeType: "application/pdf"},
 			data: io.NopCloser(bytes.NewReader([]byte{1, 2})),
 		},
-		exampleExtractor: &stubExampleExtractor{result: ""},
+		exampleStore:    &stubExampleStore{},
+		extractionQueue: queue,
+		uploadsDir:      t.TempDir(),
 	})
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200 (async), got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 

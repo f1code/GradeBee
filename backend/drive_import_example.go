@@ -8,7 +8,12 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // allowedReportMIMETypes lists the MIME types accepted for report card import.
@@ -96,25 +101,59 @@ func handleDriveImportExample(w http.ResponseWriter, r *http.Request) {
 
 	// Extract or decode content based on MIME type (more reliable than extension).
 	isTextMIME := fileMeta.MimeType == "text/plain" || fileMeta.MimeType == "text/markdown"
-	var content string
 	if !isTextMIME {
-		extractor, err := serviceDeps.GetExampleExtractor()
-		if err != nil {
-			log.Error("drive-import-example: get extractor failed", "error", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "text extraction unavailable"})
+		// PDF or image — save to disk and dispatch async extraction.
+		uploadsDir := serviceDeps.GetUploadsDir()
+		ext := filepath.Ext(name)
+		if ext == "" {
+			ext = mimeToExt(fileMeta.MimeType)
+		}
+		diskName := uuid.New().String() + ext
+		diskPath := filepath.Join(uploadsDir, diskName)
+
+		if err := os.WriteFile(diskPath, data, 0o644); err != nil {
+			log.Error("drive-import-example: write file failed", "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to save file"})
 			return
 		}
-		content, err = extractor.ExtractText(ctx, name, data)
+
+		store := serviceDeps.GetExampleStore()
+		example, err := store.CreatePendingExample(ctx, userID, name, diskPath)
 		if err != nil {
-			log.Error("drive-import-example: extraction failed", "error", err, "filename", name)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to extract text from file"})
+			os.Remove(diskPath)
+			log.Error("drive-import-example: create pending failed", "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
-	} else {
-		// Text file — use content directly.
-		content = string(data)
+
+		queue, err := serviceDeps.GetExtractionQueue()
+		if err != nil {
+			os.Remove(diskPath)
+			log.Error("drive-import-example: queue unavailable", "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "extraction queue unavailable"})
+			return
+		}
+		if err := queue.Publish(ctx, ExtractionJob{
+			UserID:    userID,
+			ExampleID: example.ID,
+			FilePath:  diskPath,
+			FileName:  name,
+			Status:    JobStatusQueued,
+			CreatedAt: time.Now(),
+		}); err != nil {
+			os.Remove(diskPath)
+			log.Error("drive-import-example: publish job failed", "error", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to dispatch extraction"})
+			return
+		}
+
+		log.Info("drive-import-example dispatched", "user_id", userID, "source_file_id", req.FileID, "example_id", example.ID)
+		writeJSON(w, http.StatusOK, example)
+		return
 	}
 
+	// Text file — store directly.
+	content := string(data)
 	if content == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "no text content could be extracted from the file"})
 		return
