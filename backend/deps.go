@@ -27,6 +27,8 @@ type deps interface {
 	GetReportGenerator() (ReportGenerator, error)
 	// GetVoiceNoteQueue returns the JobQueue for async voice note processing.
 	GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error)
+	// GetExtractionQueue returns the JobQueue for async report example extraction.
+	GetExtractionQueue() (JobQueue[ExtractionJob], error)
 	// GetDriveClient returns a Drive-read-only client for the given user.
 	GetDriveClient(ctx context.Context, userID string) (DriveClient, error)
 	// GetDB returns the SQLite database handle.
@@ -89,6 +91,13 @@ func (p *prodDeps) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
 	return voiceNoteQueueInstance, nil
 }
 
+func (p *prodDeps) GetExtractionQueue() (JobQueue[ExtractionJob], error) {
+	if extractionQueueInstance == nil {
+		return nil, fmt.Errorf("extraction queue not initialized — call InitExtractionQueue first")
+	}
+	return extractionQueueInstance, nil
+}
+
 func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (DriveClient, error) {
 	svc, err := newDriveReadClient(ctx, userID)
 	if err != nil {
@@ -108,6 +117,9 @@ func (p *prodDeps) GetUploadsDir() string                  { return p.uploadsDir
 
 // Voice note queue singleton, initialised at startup via InitVoiceNoteQueue.
 var voiceNoteQueueInstance JobQueue[VoiceNoteJob]
+
+// Extraction queue singleton, initialised at startup via InitExtractionQueue.
+var extractionQueueInstance JobQueue[ExtractionJob]
 
 // InitVoiceNoteQueue creates the in-memory voice note queue, starts worker
 // goroutines, and stores it as the package-level singleton.
@@ -134,6 +146,16 @@ func NewProdDeps(db *sql.DB, uploadsDir string) deps {
 	}
 	serviceDeps = d
 	return d
+}
+
+// InitExtractionQueue creates the in-memory extraction queue, starts worker
+// goroutines, and stores it as the package-level singleton.
+func InitExtractionQueue(d deps, workers int) *MemQueue[ExtractionJob] {
+	q := NewMemQueue[ExtractionJob](func(ctx context.Context, queue JobQueue[ExtractionJob], key string) error {
+		return processExtraction(ctx, d, queue, key)
+	}, workers)
+	extractionQueueInstance = q
+	return q
 }
 
 // serviceDeps is the active dependency implementation. Tests override this.

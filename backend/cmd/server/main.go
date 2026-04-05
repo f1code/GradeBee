@@ -57,6 +57,10 @@ func main() {
 	queue := handler.InitVoiceNoteQueue(d, 4)
 	defer queue.Close()
 
+	// Start extraction queue with 2 workers.
+	extractionQueue := handler.InitExtractionQueue(d, 2)
+	defer extractionQueue.Close()
+
 	// Graceful shutdown context.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -89,6 +93,7 @@ func main() {
 		slog.Info("shutting down...")
 		cancel()
 		queue.Close()
+		extractionQueue.Close()
 		if err := srv.Shutdown(context.Background()); err != nil {
 			slog.Error("shutdown error", "error", err)
 		}
@@ -99,5 +104,6 @@ func main() {
 		slog.Error("server failed", "error", err)
 		cancel()
 		queue.Close()
+		extractionQueue.Close()
 	}
 }
