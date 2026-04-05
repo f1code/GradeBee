@@ -18,8 +18,9 @@ func TestPdfToImages_ValidPDF(t *testing.T) {
 		t.Fatal("expected at least one image")
 	}
 	for i, img := range images {
-		if len(img) < 8 || string(img[:4]) != "\x89PNG" {
-			t.Errorf("image %d is not a valid PNG", i)
+		// JPEG magic bytes: FF D8 FF
+		if len(img) < 3 || img[0] != 0xFF || img[1] != 0xD8 || img[2] != 0xFF {
+			t.Errorf("image %d is not a valid JPEG", i)
 		}
 	}
 }

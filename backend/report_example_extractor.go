@@ -57,7 +57,7 @@ func (e *gptExampleExtractor) extractFromPDF(ctx context.Context, data []byte) (
 	}
 	var parts []string
 	for i, img := range images {
-		text, err := e.extractFromImage(ctx, "image/png", img)
+		text, err := e.extractFromImage(ctx, pdfToImagesMediaType, img)
 		if err != nil {
 			return "", fmt.Errorf("extraction failed on page %d: %w", i+1, err)
 		}
@@ -81,7 +81,7 @@ func (e *gptExampleExtractor) extractFromImage(ctx context.Context, mediaType st
 						Type: openai.ChatMessagePartTypeImageURL,
 						ImageURL: &openai.ChatMessageImageURL{
 							URL:    dataURL,
-							Detail: openai.ImageURLDetailHigh,
+							Detail: openai.ImageURLDetailLow,
 						},
 					},
 				},
@@ -115,7 +115,7 @@ func pdfToImages(data []byte) ([][]byte, error) {
 	}
 
 	outPrefix := filepath.Join(tmpDir, "page")
-	cmd := exec.CommandContext(context.Background(), "pdftoppm", "-png", "-r", "200", pdfPath, outPrefix)
+	cmd := exec.CommandContext(context.Background(), "pdftoppm", "-jpeg", "-r", "150", pdfPath, outPrefix)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("pdfToImages: pdftoppm failed: %w\nOutput: %s", err, string(output))
 	}
@@ -127,7 +127,7 @@ func pdfToImages(data []byte) ([][]byte, error) {
 
 	var images [][]byte
 	for _, e := range entries {
-		if filepath.Ext(e.Name()) != ".png" {
+		if filepath.Ext(e.Name()) != ".jpg" {
 			continue
 		}
 		img, err := os.ReadFile(filepath.Join(tmpDir, e.Name()))
@@ -141,6 +141,9 @@ func pdfToImages(data []byte) ([][]byte, error) {
 	}
 	return images, nil
 }
+
+// pdfToImagesMediaType is the MIME type of images produced by pdfToImages.
+const pdfToImagesMediaType = "image/jpeg"
 
 // fileExtToMediaType maps file extensions to MIME types for GPT vision.
 func fileExtToMediaType(ext string) string {
