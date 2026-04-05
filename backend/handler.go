@@ -263,7 +263,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "report-examples/") && r.Method == http.MethodPut:
 		authHandler(handleUpdateReportExample).ServeHTTP(rec, r)
 
-	// Upload + Drive import
+	// Voice note upload + Drive import
 	case path == "voice-notes/upload" && r.Method == http.MethodPost:
 		authHandler(handleUpload).ServeHTTP(rec, r)
 	case path == "voice-notes/drive-import" && r.Method == http.MethodPost:
@@ -275,7 +275,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	case path == "google-token" && r.Method == http.MethodGet:
 		authHandler(handleGoogleToken).ServeHTTP(rec, r)
 
-	// Jobs
+	// Voice note jobs
 	case path == "voice-notes/jobs" && r.Method == http.MethodGet:
 		authHandler(handleJobList).ServeHTTP(rec, r)
 	case path == "voice-notes/jobs/retry" && r.Method == http.MethodPost:
