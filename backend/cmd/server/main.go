@@ -54,7 +54,7 @@ func main() {
 	d := handler.NewProdDeps(db, uploadsDir)
 
 	// Start in-memory upload queue with 4 workers.
-	queue := handler.InitUploadQueue(d, 4)
+	queue := handler.InitVoiceNoteQueue(d, 4)
 	defer queue.Close()
 
 	// Graceful shutdown context.

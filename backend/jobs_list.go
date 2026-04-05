@@ -12,9 +12,9 @@ import (
 
 // JobListResponse groups jobs by their processing state.
 type JobListResponse struct {
-	Active []UploadJob `json:"active"`
-	Failed []UploadJob `json:"failed"`
-	Done   []UploadJob `json:"done"`
+	Active []VoiceNoteJob `json:"active"`
+	Failed []VoiceNoteJob `json:"failed"`
+	Done   []VoiceNoteJob `json:"done"`
 }
 
 func handleJobList(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +27,7 @@ func handleJobList(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := claims.Subject
 
-	queue, err := serviceDeps.GetUploadQueue()
+	queue, err := serviceDeps.GetVoiceNoteQueue()
 	if err != nil {
 		log.Error("jobs list: get queue", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "queue unavailable"})
@@ -47,9 +47,9 @@ func handleJobList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := JobListResponse{
-		Active: []UploadJob{},
-		Failed: []UploadJob{},
-		Done:   []UploadJob{},
+		Active: []VoiceNoteJob{},
+		Failed: []VoiceNoteJob{},
+		Done:   []VoiceNoteJob{},
 	}
 
 	for _, j := range jobs {
@@ -63,7 +63,7 @@ func handleJobList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	sortDesc := func(s []UploadJob) {
+	sortDesc := func(s []VoiceNoteJob) {
 		sort.Slice(s, func(i, j int) bool {
 			return s[i].CreatedAt.After(s[j].CreatedAt)
 		})

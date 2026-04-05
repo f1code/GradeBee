@@ -10,17 +10,17 @@ import (
 )
 
 func TestJobRetry_RetriesFailedOnly(t *testing.T) {
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 	now := time.Now()
 	failedAt := now.Add(-5 * time.Minute)
 
-	queue.jobs[kvKey("u1", 1)] = UploadJob{UserID: "u1", UploadID: 1, Status: JobStatusDone, CreatedAt: now}
-	queue.jobs[kvKey("u1", 2)] = UploadJob{UserID: "u1", UploadID: 2, Status: JobStatusFailed, Error: "err1", FailedAt: &failedAt, CreatedAt: now}
-	queue.jobs[kvKey("u1", 3)] = UploadJob{UserID: "u1", UploadID: 3, Status: JobStatusFailed, Error: "err2", FailedAt: &failedAt, CreatedAt: now}
-	queue.jobs[kvKey("u1", 4)] = UploadJob{UserID: "u1", UploadID: 4, Status: JobStatusQueued, CreatedAt: now}
+	queue.jobs[voiceNoteKey("u1", 1)] = VoiceNoteJob{UserID: "u1", UploadID: 1, Status: JobStatusDone, CreatedAt: now}
+	queue.jobs[voiceNoteKey("u1", 2)] = VoiceNoteJob{UserID: "u1", UploadID: 2, Status: JobStatusFailed, Error: "err1", FailedAt: &failedAt, CreatedAt: now}
+	queue.jobs[voiceNoteKey("u1", 3)] = VoiceNoteJob{UserID: "u1", UploadID: 3, Status: JobStatusFailed, Error: "err2", FailedAt: &failedAt, CreatedAt: now}
+	queue.jobs[voiceNoteKey("u1", 4)] = VoiceNoteJob{UserID: "u1", UploadID: 4, Status: JobStatusQueued, CreatedAt: now}
 
 	old := serviceDeps
-	serviceDeps = &mockDepsAll{uploadQueue: queue}
+	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
 	t.Cleanup(func() { serviceDeps = old })
 
 	req := clerkCtx(httptest.NewRequest(http.MethodPost, "/jobs/retry", http.NoBody), "u1")
@@ -40,7 +40,7 @@ func TestJobRetry_RetriesFailedOnly(t *testing.T) {
 	}
 
 	// Failed jobs should now be queued.
-	f1, err := queue.GetJob(context.TODO(), "u1", 2)
+	f1, err := queue.GetJob(context.TODO(), voiceNoteKey("u1", 2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestJobRetry_RetriesFailedOnly(t *testing.T) {
 	}
 
 	// Done job should be unchanged.
-	dj, err := queue.GetJob(context.TODO(), "u1", 1)
+	dj, err := queue.GetJob(context.TODO(), voiceNoteKey("u1", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,11 +62,11 @@ func TestJobRetry_RetriesFailedOnly(t *testing.T) {
 }
 
 func TestJobRetry_NoFailedJobs(t *testing.T) {
-	queue := newStubUploadQueue()
-	queue.jobs[kvKey("u1", 1)] = UploadJob{UserID: "u1", UploadID: 1, Status: JobStatusDone}
+	queue := newStubVoiceNoteQueue()
+	queue.jobs[voiceNoteKey("u1", 1)] = VoiceNoteJob{UserID: "u1", UploadID: 1, Status: JobStatusDone}
 
 	old := serviceDeps
-	serviceDeps = &mockDepsAll{uploadQueue: queue}
+	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
 	t.Cleanup(func() { serviceDeps = old })
 
 	req := clerkCtx(httptest.NewRequest(http.MethodPost, "/jobs/retry", http.NoBody), "u1")

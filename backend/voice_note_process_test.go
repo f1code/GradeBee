@@ -35,7 +35,7 @@ func TestProcessJob_HappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 	nc := &stubNoteCreator{
 		results: []*CreateNoteResponse{
 			{NoteID: 1},
@@ -57,29 +57,29 @@ func TestProcessJob_HappyPath(t *testing.T) {
 				},
 			},
 		},
-		noteCreator: nc,
-		uploadQueue: queue,
-		studentRepo: studentRepo,
-		voiceNoteRepo:  voiceNoteRepo,
+		noteCreator:   nc,
+		studentRepo:   studentRepo,
+		voiceNoteRepo: voiceNoteRepo,
 	}
 
 	ctx := context.Background()
-	job := UploadJob{
+	job := VoiceNoteJob{
 		UserID:    "user1",
 		UploadID:  1,
 		FilePath:  audioPath,
 		FileName:  "recording.m4a",
+		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	}
 	if err := queue.Publish(ctx, job); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := processUploadJob(ctx, d, "user1", 1); err != nil {
-		t.Fatalf("processUploadJob: %v", err)
+	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("user1", 1)); err != nil {
+		t.Fatalf("processVoiceNote: %v", err)
 	}
 
-	got, err := queue.GetJob(ctx, "user1", 1)
+	got, err := queue.GetJob(ctx, voiceNoteKey("user1", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,25 +101,24 @@ func TestProcessJob_TranscribeFail(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 	d := &mockDepsAll{
-		transcriber: &stubTranscriber{err: io.ErrUnexpectedEOF},
-		roster:      &stubRoster{},
-		uploadQueue: queue,
-		voiceNoteRepo:  &VoiceNoteRepo{db: nil}, // won't be called on failure
+		transcriber:   &stubTranscriber{err: io.ErrUnexpectedEOF},
+		roster:        &stubRoster{},
+		voiceNoteRepo: &VoiceNoteRepo{db: nil}, // won't be called on failure
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 1, FilePath: audioPath, CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := processUploadJob(ctx, d, "u1", 1)
+	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
 	if err == nil {
 		t.Fatal("expected error")
 	}
 
-	got, err := queue.GetJob(ctx, "u1", 1)
+	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,26 +137,25 @@ func TestProcessJob_ExtractFail(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 	d := &mockDepsAll{
-		transcriber: &stubTranscriber{result: "some transcript"},
-		roster:      &stubRoster{},
-		extractor:   &stubExtractor{err: io.ErrUnexpectedEOF},
-		uploadQueue: queue,
-		voiceNoteRepo:  &VoiceNoteRepo{db: nil},
+		transcriber:   &stubTranscriber{result: "some transcript"},
+		roster:        &stubRoster{},
+		extractor:     &stubExtractor{err: io.ErrUnexpectedEOF},
+		voiceNoteRepo: &VoiceNoteRepo{db: nil},
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 1, FilePath: audioPath, CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 
-	err := processUploadJob(ctx, d, "u1", 1)
+	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
 	if err == nil {
 		t.Fatal("expected error")
 	}
 
-	got, err := queue.GetJob(ctx, "u1", 1)
+	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +184,7 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
@@ -194,23 +192,22 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 			Date:     "2026-01-01",
 			Students: []MatchedStudent{{Name: "Alice", Class: "Math", Summary: "ok", Confidence: 0.9}},
 		}},
-		noteCreator: &stubNoteCreator{err: io.ErrUnexpectedEOF},
-		uploadQueue: queue,
-		studentRepo: studentRepo,
-		voiceNoteRepo:  voiceNoteRepo,
+		noteCreator:   &stubNoteCreator{err: io.ErrUnexpectedEOF},
+		studentRepo:   studentRepo,
+		voiceNoteRepo: voiceNoteRepo,
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 1, FilePath: audioPath, CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 
-	err = processUploadJob(ctx, d, "u1", 1)
+	err = processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
 	if err == nil {
 		t.Fatal("expected error")
 	}
 
-	got, gErr := queue.GetJob(ctx, "u1", 1)
+	got, gErr := queue.GetJob(ctx, voiceNoteKey("u1", 1))
 	if gErr != nil {
 		t.Fatal(gErr)
 	}
@@ -220,20 +217,20 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 }
 
 func TestProcessJob_AlreadyProcessed(t *testing.T) {
-	queue := newStubUploadQueue()
-	d := &mockDepsAll{uploadQueue: queue}
+	queue := newStubVoiceNoteQueue()
+	d := &mockDepsAll{}
 
 	ctx := context.Background()
-	queue.jobs[kvKey("u1", 1)] = UploadJob{
+	queue.jobs[voiceNoteKey("u1", 1)] = VoiceNoteJob{
 		UserID: "u1", UploadID: 1, Status: JobStatusDone,
 	}
 
-	err := processUploadJob(ctx, d, "u1", 1)
+	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
 	if err != nil {
 		t.Fatalf("expected no error for already-processed job, got: %v", err)
 	}
 
-	got, err := queue.GetJob(ctx, "u1", 1)
+	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +262,7 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 	nc := &stubNoteCreator{}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "transcript"},
@@ -277,18 +274,17 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 				{Name: "Maybe", Class: "Math", Summary: "unsure", Confidence: 0.3},
 			},
 		}},
-		noteCreator: nc,
-		uploadQueue: queue,
-		studentRepo: studentRepo,
-		voiceNoteRepo:  voiceNoteRepo,
+		noteCreator:   nc,
+		studentRepo:   studentRepo,
+		voiceNoteRepo: voiceNoteRepo,
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 1, FilePath: audioPath, CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := processUploadJob(ctx, d, "u1", 1); err != nil {
+	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)); err != nil {
 		t.Fatal(err)
 	}
 

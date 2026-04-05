@@ -18,16 +18,16 @@ func clerkCtx(r *http.Request, userID string) *http.Request {
 }
 
 func TestJobList_GroupsByStatus(t *testing.T) {
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 	now := time.Now()
 
-	queue.jobs[kvKey("u1", 1)] = UploadJob{UserID: "u1", UploadID: 1, Status: JobStatusQueued, CreatedAt: now}
-	queue.jobs[kvKey("u1", 2)] = UploadJob{UserID: "u1", UploadID: 2, Status: JobStatusTranscribing, CreatedAt: now.Add(-1 * time.Minute)}
-	queue.jobs[kvKey("u1", 3)] = UploadJob{UserID: "u1", UploadID: 3, Status: JobStatusDone, CreatedAt: now.Add(-2 * time.Minute)}
-	queue.jobs[kvKey("u1", 4)] = UploadJob{UserID: "u1", UploadID: 4, Status: JobStatusFailed, Error: "boom", CreatedAt: now.Add(-3 * time.Minute)}
+	queue.jobs[voiceNoteKey("u1", 1)] = VoiceNoteJob{UserID: "u1", UploadID: 1, Status: JobStatusQueued, CreatedAt: now}
+	queue.jobs[voiceNoteKey("u1", 2)] = VoiceNoteJob{UserID: "u1", UploadID: 2, Status: JobStatusTranscribing, CreatedAt: now.Add(-1 * time.Minute)}
+	queue.jobs[voiceNoteKey("u1", 3)] = VoiceNoteJob{UserID: "u1", UploadID: 3, Status: JobStatusDone, CreatedAt: now.Add(-2 * time.Minute)}
+	queue.jobs[voiceNoteKey("u1", 4)] = VoiceNoteJob{UserID: "u1", UploadID: 4, Status: JobStatusFailed, Error: "boom", CreatedAt: now.Add(-3 * time.Minute)}
 
 	old := serviceDeps
-	serviceDeps = &mockDepsAll{uploadQueue: queue}
+	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
 	t.Cleanup(func() { serviceDeps = old })
 
 	req := clerkCtx(httptest.NewRequest(http.MethodGet, "/jobs", http.NoBody), "u1")
@@ -54,10 +54,10 @@ func TestJobList_GroupsByStatus(t *testing.T) {
 }
 
 func TestJobList_EmptyUser(t *testing.T) {
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 
 	old := serviceDeps
-	serviceDeps = &mockDepsAll{uploadQueue: queue}
+	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
 	t.Cleanup(func() { serviceDeps = old })
 
 	req := clerkCtx(httptest.NewRequest(http.MethodGet, "/jobs", http.NoBody), "nobody")
@@ -79,14 +79,14 @@ func TestJobList_EmptyUser(t *testing.T) {
 }
 
 func TestJobList_SortedDescending(t *testing.T) {
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 	now := time.Now()
 
-	queue.jobs[kvKey("u1", 1)] = UploadJob{UserID: "u1", UploadID: 1, Status: JobStatusQueued, CreatedAt: now.Add(-10 * time.Minute)}
-	queue.jobs[kvKey("u1", 2)] = UploadJob{UserID: "u1", UploadID: 2, Status: JobStatusQueued, CreatedAt: now}
+	queue.jobs[voiceNoteKey("u1", 1)] = VoiceNoteJob{UserID: "u1", UploadID: 1, Status: JobStatusQueued, CreatedAt: now.Add(-10 * time.Minute)}
+	queue.jobs[voiceNoteKey("u1", 2)] = VoiceNoteJob{UserID: "u1", UploadID: 2, Status: JobStatusQueued, CreatedAt: now}
 
 	old := serviceDeps
-	serviceDeps = &mockDepsAll{uploadQueue: queue}
+	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
 	t.Cleanup(func() { serviceDeps = old })
 
 	req := clerkCtx(httptest.NewRequest(http.MethodGet, "/jobs", http.NoBody), "u1")

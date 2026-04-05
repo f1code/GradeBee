@@ -25,8 +25,8 @@ type deps interface {
 	GetExampleExtractor() (ExampleExtractor, error)
 	// GetReportGenerator returns a ReportGenerator.
 	GetReportGenerator() (ReportGenerator, error)
-	// GetUploadQueue returns the UploadQueue for async job management.
-	GetUploadQueue() (UploadQueue, error)
+	// GetVoiceNoteQueue returns the JobQueue for async voice note processing.
+	GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error)
 	// GetDriveClient returns a Drive-read-only client for the given user.
 	GetDriveClient(ctx context.Context, userID string) (DriveClient, error)
 	// GetDB returns the SQLite database handle.
@@ -82,11 +82,11 @@ func (p *prodDeps) GetReportGenerator() (ReportGenerator, error) {
 	return newDBReportGenerator(p.noteRepo, p.reportRepo, p.exampleRepo)
 }
 
-func (p *prodDeps) GetUploadQueue() (UploadQueue, error) {
-	if uploadQueueInstance == nil {
-		return nil, fmt.Errorf("upload queue not initialized — call InitUploadQueue first")
+func (p *prodDeps) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
+	if voiceNoteQueueInstance == nil {
+		return nil, fmt.Errorf("voice note queue not initialized — call InitVoiceNoteQueue first")
 	}
-	return uploadQueueInstance, nil
+	return voiceNoteQueueInstance, nil
 }
 
 func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (DriveClient, error) {
@@ -106,14 +106,16 @@ func (p *prodDeps) GetExampleRepo() *ReportExampleRepo     { return p.exampleRep
 func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo             { return p.voiceNoteRepo }
 func (p *prodDeps) GetUploadsDir() string                  { return p.uploadsDir }
 
-// Upload queue singleton, initialised at startup via InitUploadQueue.
-var uploadQueueInstance UploadQueue
+// Voice note queue singleton, initialised at startup via InitVoiceNoteQueue.
+var voiceNoteQueueInstance JobQueue[VoiceNoteJob]
 
-// InitUploadQueue creates the in-memory queue, starts worker goroutines, and
-// stores it as the package-level singleton. Must be called once at startup.
-func InitUploadQueue(d deps, workers int) *memQueue {
-	q := NewOldMemQueue(d, workers)
-	uploadQueueInstance = q
+// InitVoiceNoteQueue creates the in-memory voice note queue, starts worker
+// goroutines, and stores it as the package-level singleton.
+func InitVoiceNoteQueue(d deps, workers int) *MemQueue[VoiceNoteJob] {
+	q := NewMemQueue[VoiceNoteJob](func(ctx context.Context, queue JobQueue[VoiceNoteJob], key string) error {
+		return processVoiceNote(ctx, d, queue, key)
+	}, workers)
+	voiceNoteQueueInstance = q
 	return q
 }
 

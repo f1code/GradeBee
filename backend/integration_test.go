@@ -59,28 +59,28 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 				{Name: "Bob", Class: "Math", Summary: "Needs work", Confidence: 0.8},
 			},
 		}},
-		noteCreator: nc,
-		uploadQueue: queue,
-		studentRepo: studentRepo,
-		voiceNoteRepo:  voiceNoteRepo,
+		noteCreator:   nc,
+		studentRepo:   studentRepo,
+		voiceNoteRepo: voiceNoteRepo,
 	}
 
 	ctx := context.Background()
 
-	job := UploadJob{
+	job := VoiceNoteJob{
 		UserID:    "int-user",
 		UploadID:  1,
 		FilePath:  audioPath,
 		FileName:  "2026-03-22-recording.m4a",
 		MimeType:  "audio/mp4",
 		Source:    "web",
+		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	}
 	if err := queue.Publish(ctx, job); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 
-	got, err := queue.GetJob(ctx, "int-user", 1)
+	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", 1))
 	if err != nil {
 		t.Fatalf("get job after publish: %v", err)
 	}
@@ -88,11 +88,11 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		t.Fatalf("status after publish = %q, want queued", got.Status)
 	}
 
-	if err := processUploadJob(ctx, d, "int-user", 1); err != nil {
+	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)); err != nil {
 		t.Fatalf("process: %v", err)
 	}
 
-	got, err = queue.GetJob(ctx, "int-user", 1)
+	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", 1))
 	if err != nil {
 		t.Fatalf("get job after process: %v", err)
 	}
@@ -117,25 +117,24 @@ func TestIntegration_PublishToFailure(t *testing.T) {
 	queue := newTestQueue(t)
 
 	d := &mockDepsAll{
-		transcriber: &stubTranscriber{err: ErrNotFound},
-		roster:      &stubRoster{},
-		uploadQueue: queue,
-		voiceNoteRepo:  &VoiceNoteRepo{db: nil},
+		transcriber:   &stubTranscriber{err: ErrNotFound},
+		roster:        &stubRoster{},
+		voiceNoteRepo: &VoiceNoteRepo{db: nil},
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, UploadJob{
-		UserID: "int-user", UploadID: 1, FilePath: audioPath, CreatedAt: time.Now(),
+	if err := queue.Publish(ctx, VoiceNoteJob{
+		UserID: "int-user", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now(),
 	}); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 
-	err := processUploadJob(ctx, d, "int-user", 1)
+	err := processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1))
 	if err == nil {
 		t.Fatal("expected error")
 	}
 
-	got, err := queue.GetJob(ctx, "int-user", 1)
+	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", 1))
 	if err != nil {
 		t.Fatalf("get job: %v", err)
 	}
@@ -177,9 +176,9 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 			Date:     "2026-01-01",
 			Students: []MatchedStudent{{Name: "Alice", Class: "Math", Summary: "ok", Confidence: 0.9}},
 		}},
-		noteCreator: nc,
-		uploadQueue: queue,
-		studentRepo: studentRepo,
+		noteCreator:    nc,
+		voiceNoteQueue: queue,
+		studentRepo:    studentRepo,
 		voiceNoteRepo:  voiceNoteRepo,
 	}
 
@@ -188,17 +187,17 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	t.Cleanup(func() { serviceDeps = old })
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, UploadJob{
-		UserID: "int-user", UploadID: 1, FilePath: audioPath, CreatedAt: time.Now(),
+	if err := queue.Publish(ctx, VoiceNoteJob{
+		UserID: "int-user", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now(),
 	}); err != nil {
 		t.Fatalf("publish: %v", err)
 	}
 
 	// First attempt fails.
-	if err := processUploadJob(ctx, d, "int-user", 1); err == nil {
+	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)); err == nil {
 		t.Fatal("expected error on first attempt")
 	}
-	got, err := queue.GetJob(ctx, "int-user", 1)
+	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", 1))
 	if err != nil {
 		t.Fatalf("get job: %v", err)
 	}
@@ -231,11 +230,11 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	}
 
 	// Process the retried job.
-	if err := processUploadJob(ctx, d, "int-user", 1); err != nil {
+	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)); err != nil {
 		t.Fatalf("second process: %v", err)
 	}
 
-	got, err = queue.GetJob(ctx, "int-user", 1)
+	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", 1))
 	if err != nil {
 		t.Fatalf("get job after retry: %v", err)
 	}
@@ -249,10 +248,10 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	ctx := context.Background()
 
 	// Job 1: done.
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 1, CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
-	doneJob, err := queue.GetJob(ctx, "u1", 1)
+	doneJob, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,10 +262,10 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	}
 
 	// Job 2: failed.
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 2, CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 2, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
-	failedJob, err := queue.GetJob(ctx, "u1", 2)
+	failedJob, err := queue.GetJob(ctx, voiceNoteKey("u1", 2))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,12 +278,12 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	}
 
 	// Job 3: still queued.
-	if err := queue.Publish(ctx, UploadJob{UserID: "u1", UploadID: 3, CreatedAt: time.Now()}); err != nil {
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 3, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 
 	old := serviceDeps
-	serviceDeps = &mockDepsAll{uploadQueue: queue}
+	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
 	t.Cleanup(func() { serviceDeps = old })
 
 	req := httptest.NewRequest(http.MethodGet, "/jobs", http.NoBody)

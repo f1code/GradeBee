@@ -23,7 +23,7 @@ func handleJobRetry(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := claims.Subject
 
-	queue, err := serviceDeps.GetUploadQueue()
+	queue, err := serviceDeps.GetVoiceNoteQueue()
 	if err != nil {
 		log.Error("jobs retry: get queue", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "queue unavailable"})
@@ -51,6 +51,7 @@ func handleJobRetry(w http.ResponseWriter, r *http.Request) {
 		}
 		j.Error = ""
 		j.FailedAt = nil
+		j.Status = JobStatusQueued
 		if err := queue.Publish(ctx, j); err != nil {
 			log.Error("jobs retry: republish failed", "upload_id", j.UploadID, "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to retry job"})

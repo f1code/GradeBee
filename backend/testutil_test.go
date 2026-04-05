@@ -49,8 +49,8 @@ type mockDepsAll struct {
 	exampleExtractorErr error
 	reportGen      ReportGenerator
 	reportGenErr   error
-	uploadQueue    UploadQueue
-	uploadQueueErr error
+	voiceNoteQueue    JobQueue[VoiceNoteJob]
+	voiceNoteQueueErr error
 	driveClient    DriveClient
 	driveClientErr error
 	db             *sql.DB
@@ -106,11 +106,11 @@ func (m *mockDepsAll) GetReportGenerator() (ReportGenerator, error) {
 	return m.reportGen, nil
 }
 
-func (m *mockDepsAll) GetUploadQueue() (UploadQueue, error) {
-	if m.uploadQueueErr != nil {
-		return nil, m.uploadQueueErr
+func (m *mockDepsAll) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
+	if m.voiceNoteQueueErr != nil {
+		return nil, m.voiceNoteQueueErr
 	}
-	return m.uploadQueue, nil
+	return m.voiceNoteQueue, nil
 }
 
 func (m *mockDepsAll) GetDriveClient(_ context.Context, _ string) (DriveClient, error) {
@@ -160,39 +160,38 @@ func (s *stubNoteCreator) CreateNote(_ context.Context, req CreateNoteRequest) (
 	return &CreateNoteResponse{NoteID: 1}, nil
 }
 
-// stubUploadQueue implements UploadQueue with in-memory storage for tests.
-type stubUploadQueue struct {
-	jobs      map[string]UploadJob // keyed by "userId/<uploadId>"
-	published []UploadJob          // records Publish calls
+// stubVoiceNoteQueue implements JobQueue[VoiceNoteJob] for tests.
+type stubVoiceNoteQueue struct {
+	jobs      map[string]VoiceNoteJob
+	published []VoiceNoteJob
 }
 
-func newStubUploadQueue() *stubUploadQueue {
-	return &stubUploadQueue{jobs: make(map[string]UploadJob)}
+func newStubVoiceNoteQueue() *stubVoiceNoteQueue {
+	return &stubVoiceNoteQueue{jobs: make(map[string]VoiceNoteJob)}
 }
 
-func (q *stubUploadQueue) Publish(_ context.Context, job UploadJob) error {
-	job.Status = JobStatusQueued
-	q.jobs[kvKey(job.UserID, job.UploadID)] = job
+func (q *stubVoiceNoteQueue) Publish(_ context.Context, job VoiceNoteJob) error {
+	q.jobs[job.JobKey()] = job
 	q.published = append(q.published, job)
 	return nil
 }
 
-func (q *stubUploadQueue) GetJob(_ context.Context, userID string, uploadID int64) (*UploadJob, error) {
-	job, ok := q.jobs[kvKey(userID, uploadID)]
+func (q *stubVoiceNoteQueue) GetJob(_ context.Context, key string) (*VoiceNoteJob, error) {
+	job, ok := q.jobs[key]
 	if !ok {
-		return nil, fmt.Errorf("job not found: %s/%d", userID, uploadID)
+		return nil, fmt.Errorf("job not found: %s", key)
 	}
 	return &job, nil
 }
 
-func (q *stubUploadQueue) UpdateJob(_ context.Context, job UploadJob) error {
-	q.jobs[kvKey(job.UserID, job.UploadID)] = job
+func (q *stubVoiceNoteQueue) UpdateJob(_ context.Context, job VoiceNoteJob) error {
+	q.jobs[job.JobKey()] = job
 	return nil
 }
 
-func (q *stubUploadQueue) ListJobs(_ context.Context, userID string) ([]UploadJob, error) {
-	prefix := userID + "/"
-	var jobs []UploadJob
+func (q *stubVoiceNoteQueue) ListJobs(_ context.Context, ownerID string) ([]VoiceNoteJob, error) {
+	prefix := ownerID + "/"
+	var jobs []VoiceNoteJob
 	for k, j := range q.jobs {
 		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
 			jobs = append(jobs, j)
@@ -201,13 +200,12 @@ func (q *stubUploadQueue) ListJobs(_ context.Context, userID string) ([]UploadJo
 	return jobs, nil
 }
 
-func (q *stubUploadQueue) Close() {}
-
-func (q *stubUploadQueue) DeleteJob(_ context.Context, userID string, uploadID int64) error {
-	key := kvKey(userID, uploadID)
+func (q *stubVoiceNoteQueue) DeleteJob(_ context.Context, key string) error {
 	delete(q.jobs, key)
 	return nil
 }
+
+func (q *stubVoiceNoteQueue) Close() {}
 
 // stubDriveClient implements DriveClient for tests.
 type stubDriveClient struct {
@@ -229,8 +227,8 @@ func (s *stubDriveClient) DownloadFile(_ context.Context, _ string) (io.ReadClos
 }
 
 // newTestQueue returns a stub queue for integration tests.
-func newTestQueue(_ *testing.T) *stubUploadQueue {
-	return newStubUploadQueue()
+func newTestQueue(_ *testing.T) *stubVoiceNoteQueue {
+	return newStubVoiceNoteQueue()
 }
 
 // stubExampleExtractor implements ExampleExtractor for tests.

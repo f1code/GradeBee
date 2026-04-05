@@ -31,7 +31,7 @@ func handleJobDismiss(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	queue, err := serviceDeps.GetUploadQueue()
+	queue, err := serviceDeps.GetVoiceNoteQueue()
 	if err != nil {
 		log.Error("jobs dismiss: get queue", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "queue unavailable"})
@@ -41,7 +41,7 @@ func handleJobDismiss(w http.ResponseWriter, r *http.Request) {
 	uploadRepo := serviceDeps.GetVoiceNoteRepo()
 	dismissed := 0
 	for _, uploadID := range req.UploadIDs {
-		job, err := queue.GetJob(r.Context(), userID, uploadID)
+		job, err := queue.GetJob(r.Context(), voiceNoteKey(userID, uploadID))
 		if err != nil {
 			continue // not found, skip
 		}
@@ -49,7 +49,7 @@ func handleJobDismiss(w http.ResponseWriter, r *http.Request) {
 		if job.Status != JobStatusDone && job.Status != JobStatusFailed {
 			continue
 		}
-		if err := queue.DeleteJob(r.Context(), userID, uploadID); err != nil {
+		if err := queue.DeleteJob(r.Context(), voiceNoteKey(userID, uploadID)); err != nil {
 			var ae *apiError
 			if errors.As(err, &ae) {
 				writeAPIError(w, r, ae)

@@ -140,7 +140,7 @@ func TestHandleDriveImport_HappyPath(t *testing.T) {
 
 	dir := t.TempDir()
 	db := setupTestDB(t)
-	queue := newStubUploadQueue()
+	queue := newStubVoiceNoteQueue()
 
 	serviceDeps = &mockDepsAll{
 		driveClient: &stubDriveClient{
@@ -148,7 +148,7 @@ func TestHandleDriveImport_HappyPath(t *testing.T) {
 			data: io.NopCloser(strings.NewReader("fake audio bytes")),
 		},
 		voiceNoteRepo:  &VoiceNoteRepo{db: db},
-		uploadQueue: queue,
+		voiceNoteQueue: queue,
 		uploadsDir:  dir,
 	}
 

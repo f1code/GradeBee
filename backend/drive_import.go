@@ -123,17 +123,18 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 	log.Info("drive-import completed", "user_id", userID, "source_file_id", req.FileID, "upload_id", upload.ID, "file_name", cleanName)
 
 	// Dispatch async processing job.
-	queue, err := serviceDeps.GetUploadQueue()
+	queue, err := serviceDeps.GetVoiceNoteQueue()
 	if err != nil {
 		log.Warn("drive-import: queue unavailable, skipping async processing", "error", err)
 	} else {
-		if err := queue.Publish(ctx, UploadJob{
+		if err := queue.Publish(ctx, VoiceNoteJob{
 			UserID:    userID,
 			UploadID:  upload.ID,
 			FilePath:  diskPath,
 			FileName:  cleanName,
 			MimeType:  fileMeta.MimeType,
-			Source:    "drive-import",
+			Source:    "drive_import",
+			Status:    JobStatusQueued,
 			CreatedAt: time.Now(),
 		}); err != nil {
 			log.Error("drive-import: failed to dispatch job", "error", err)

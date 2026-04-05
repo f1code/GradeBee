@@ -99,17 +99,18 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	log.Info("upload completed", "user_id", userID, "upload_id", upload.ID, "file_name", header.Filename)
 
 	// Dispatch async processing job.
-	queue, err := serviceDeps.GetUploadQueue()
+	queue, err := serviceDeps.GetVoiceNoteQueue()
 	if err != nil {
 		log.Warn("upload: queue unavailable, skipping async processing", "error", err)
 	} else {
-		if err := queue.Publish(ctx, UploadJob{
+		if err := queue.Publish(ctx, VoiceNoteJob{
 			UserID:    userID,
 			UploadID:  upload.ID,
 			FilePath:  diskPath,
 			FileName:  header.Filename,
 			MimeType:  contentType,
 			Source:    "upload",
+			Status:    JobStatusQueued,
 			CreatedAt: time.Now(),
 		}); err != nil {
 			log.Error("upload: failed to dispatch job", "error", err)
