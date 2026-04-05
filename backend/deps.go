@@ -112,7 +112,7 @@ var uploadQueueInstance UploadQueue
 // InitUploadQueue creates the in-memory queue, starts worker goroutines, and
 // stores it as the package-level singleton. Must be called once at startup.
 func InitUploadQueue(d deps, workers int) *memQueue {
-	q := NewMemQueue(d, workers)
+	q := NewOldMemQueue(d, workers)
 	uploadQueueInstance = q
 	return q
 }

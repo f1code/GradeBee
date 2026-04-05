@@ -23,7 +23,7 @@ func mustGetJob(t *testing.T, q *memQueue, ctx context.Context, userID string, u
 }
 
 func TestMemQueue_PublishAndGetJob(t *testing.T) {
-	q := NewMemQueue(nil, 0)
+	q := NewOldMemQueue(nil, 0)
 	defer q.Close()
 
 	ctx := context.Background()
@@ -48,7 +48,7 @@ func TestMemQueue_PublishAndGetJob(t *testing.T) {
 }
 
 func TestMemQueue_GetJob_NotFound(t *testing.T) {
-	q := NewMemQueue(nil, 0)
+	q := NewOldMemQueue(nil, 0)
 	defer q.Close()
 
 	_, err := q.GetJob(context.Background(), "u1", 999)
@@ -58,7 +58,7 @@ func TestMemQueue_GetJob_NotFound(t *testing.T) {
 }
 
 func TestMemQueue_UpdateJob(t *testing.T) {
-	q := NewMemQueue(nil, 0)
+	q := NewOldMemQueue(nil, 0)
 	defer q.Close()
 
 	ctx := context.Background()
@@ -92,7 +92,7 @@ func TestMemQueue_UpdateJob(t *testing.T) {
 }
 
 func TestMemQueue_ListJobs(t *testing.T) {
-	q := NewMemQueue(nil, 0)
+	q := NewOldMemQueue(nil, 0)
 	defer q.Close()
 
 	ctx := context.Background()
@@ -124,7 +124,7 @@ func TestMemQueue_ListJobs(t *testing.T) {
 }
 
 func TestMemQueue_ListJobs_Empty(t *testing.T) {
-	q := NewMemQueue(nil, 0)
+	q := NewOldMemQueue(nil, 0)
 	defer q.Close()
 
 	jobs, err := q.ListJobs(context.Background(), "nobody")
@@ -141,7 +141,7 @@ func TestMemQueue_WorkerProcessesJob(t *testing.T) {
 	mock := &mockDepsAll{}
 	mock.uploadQueue = nil // will be set below
 
-	q := NewMemQueue(mock, 1)
+	q := NewOldMemQueue(mock, 1)
 	defer q.Close()
 
 	mock.uploadQueue = q
@@ -197,6 +197,6 @@ func TestMemQueue_ChannelFull(t *testing.T) {
 }
 
 func TestMemQueue_Close_StopsWorkers(t *testing.T) {
-	q := NewMemQueue(nil, 2)
+	q := NewOldMemQueue(nil, 2)
 	q.Close()
 }

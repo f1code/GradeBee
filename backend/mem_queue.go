@@ -27,10 +27,10 @@ type jobRef struct {
 	UploadID int64
 }
 
-// NewMemQueue creates an in-memory upload queue and starts worker goroutines.
+// NewOldMemQueue creates an in-memory upload queue and starts worker goroutines.
 // The workers call processUploadJob using the provided deps. Pass a non-zero
 // workers count (e.g. 4).
-func NewMemQueue(d deps, workers int) *memQueue {
+func NewOldMemQueue(d deps, workers int) *memQueue {
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &memQueue{
 		jobs:   make(map[string]UploadJob),
