@@ -159,5 +159,8 @@ func fileExtToMediaType(ext string) string {
 // isExtractableFile returns true if the file needs GPT extraction (PDF/image).
 func isExtractableFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
+	if ext == ".pdf" {
+		return true
+	}
 	return fileExtToMediaType(ext) != ""
 }
