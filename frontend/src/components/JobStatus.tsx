@@ -7,7 +7,10 @@ import StudentDetail from './StudentDetail'
 
 /** Polling intervals in milliseconds. */
 const POLL_ACTIVE_MS = 3_000
-const POLL_IDLE_MS = 15_000
+const POLL_IDLE_MS = 60_000
+
+/** Stop polling entirely when there's nothing to show. */
+const POLL_EMPTY_MS = 0 // 0 = don't schedule, wait for pollNow
 
 /** Max recently-completed jobs to display. */
 const MAX_DONE_SHOWN = 5
@@ -69,19 +72,39 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
       }
       prevDoneIdsRef.current = currentDoneIds
 
-      // Schedule next poll.
-      const interval = data.active.length > 0 ? POLL_ACTIVE_MS : POLL_IDLE_MS
-      timerRef.current = setTimeout(poll, interval)
+      // Schedule next poll – stop entirely when there's nothing to show.
+      const hasAny = data.active.length > 0 || data.failed.length > 0 || data.done.length > 0
+      const interval = data.active.length > 0
+        ? POLL_ACTIVE_MS
+        : hasAny
+          ? POLL_IDLE_MS
+          : POLL_EMPTY_MS
+      if (interval > 0) {
+        timerRef.current = setTimeout(poll, interval)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load jobs')
       timerRef.current = setTimeout(poll, POLL_IDLE_MS)
     }
   }, [getToken])
 
+  // Pause polling when tab is hidden.
   useEffect(() => {
     poll()
+
+    function handleVisibility() {
+      if (document.hidden) {
+        if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+      } else {
+        // Resume immediately when tab becomes visible.
+        if (!timerRef.current) poll()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [poll])
 
