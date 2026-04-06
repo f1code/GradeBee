@@ -101,6 +101,43 @@ func (r *ReportExampleRepo) Update(ctx context.Context, userID string, id int64,
 	return e, nil
 }
 
+// GetFilePath returns the file_path for a report example (empty if none).
+func (r *ReportExampleRepo) GetFilePath(ctx context.Context, userID string, id int64) (string, error) {
+	var fp string
+	err := r.db.QueryRowContext(ctx,
+		"SELECT file_path FROM report_examples WHERE id = ? AND user_id = ?",
+		id, userID).Scan(&fp)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("get file path: %w", err)
+	}
+	return fp, nil
+}
+
+// ListReady returns only 'ready' report examples for a user (for report generation).
+func (r *ReportExampleRepo) ListReady(ctx context.Context, userID string) ([]DBReportExample, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, user_id, name, content, status, file_path, created_at
+		FROM report_examples WHERE user_id = ? AND status = 'ready'
+		ORDER BY created_at DESC`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list ready report examples: %w", err)
+	}
+	defer rows.Close()
+
+	var result []DBReportExample
+	for rows.Next() {
+		var e DBReportExample
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Name, &e.Content, &e.Status, &e.FilePath, &e.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan report example: %w", err)
+		}
+		result = append(result, e)
+	}
+	return result, rows.Err()
+}
+
 // Delete removes a report example owned by the user.
 func (r *ReportExampleRepo) Delete(ctx context.Context, userID string, id int64) error {
 	res, err := r.db.ExecContext(ctx,

@@ -154,13 +154,13 @@ func (g *gptReportGenerator) loadExamples(ctx context.Context, userID string) ([
 	if userID == "" {
 		return nil, nil
 	}
-	dbExamples, err := g.exampleRepo.List(ctx, userID)
+	dbExamples, err := g.exampleRepo.ListReady(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("report: list examples: %w", err)
 	}
 	examples := make([]ReportExample, len(dbExamples))
 	for i, e := range dbExamples {
-		examples[i] = ReportExample{ID: e.ID, Name: e.Name, Content: e.Content}
+		examples[i] = ReportExample{ID: e.ID, Name: e.Name, Content: e.Content, Status: e.Status}
 	}
 	return examples, nil
 }
