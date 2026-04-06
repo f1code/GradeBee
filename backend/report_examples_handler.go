@@ -142,6 +142,7 @@ func dispatchExtraction(r *http.Request, userID, name string, data []byte) (*Rep
 	if err != nil {
 		// Queue unavailable — clean up and return error.
 		os.Remove(diskPath)
+		_ = store.DeleteExample(r.Context(), userID, example.ID) //nolint:errcheck // best-effort cleanup
 		return nil, err
 	}
 	if err := queue.Publish(r.Context(), ExtractionJob{
@@ -153,6 +154,7 @@ func dispatchExtraction(r *http.Request, userID, name string, data []byte) (*Rep
 		CreatedAt: time.Now(),
 	}); err != nil {
 		os.Remove(diskPath)
+		_ = store.DeleteExample(r.Context(), userID, example.ID) //nolint:errcheck // best-effort cleanup
 		return nil, err
 	}
 
@@ -209,6 +211,12 @@ func handleDeleteReportExample(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == 0 {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing id"})
 		return
+	}
+
+	// Clean up file on disk if present.
+	exampleRepo := serviceDeps.GetExampleRepo()
+	if fp, err := exampleRepo.GetFilePath(r.Context(), userID, req.ID); err == nil && fp != "" {
+		os.Remove(fp)
 	}
 
 	store := serviceDeps.GetExampleStore()

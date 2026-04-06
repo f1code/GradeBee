@@ -129,6 +129,7 @@ func handleDriveImportExample(w http.ResponseWriter, r *http.Request) {
 		queue, err := serviceDeps.GetExtractionQueue()
 		if err != nil {
 			os.Remove(diskPath)
+			_ = store.DeleteExample(ctx, userID, example.ID) //nolint:errcheck // best-effort cleanup
 			log.Error("drive-import-example: queue unavailable", "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "extraction queue unavailable"})
 			return
@@ -142,6 +143,7 @@ func handleDriveImportExample(w http.ResponseWriter, r *http.Request) {
 			CreatedAt: time.Now(),
 		}); err != nil {
 			os.Remove(diskPath)
+			_ = store.DeleteExample(ctx, userID, example.ID) //nolint:errcheck // best-effort cleanup
 			log.Error("drive-import-example: publish job failed", "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to dispatch extraction"})
 			return
