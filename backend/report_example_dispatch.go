@@ -1,5 +1,5 @@
-// extraction_dispatch.go contains the shared logic for saving a file to disk,
-// creating a pending DB row, and publishing an extraction job to the queue.
+// report_example_dispatch.go contains the dispatch logic for saving a file
+// to disk, creating a pending DB row, and publishing an extraction job.
 package handler
 
 import (
@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // dispatchExtraction saves a file to disk, creates a pending DB row, and
@@ -16,15 +14,13 @@ import (
 // extOverride, if non-empty, is used instead of the file extension from name
 // (useful when the MIME type is more reliable than the filename).
 func dispatchExtraction(ctx context.Context, userID, name string, data []byte, extOverride string) (*ReportExample, error) {
-	uploadsDir := serviceDeps.GetUploadsDir()
 	ext := filepath.Ext(name)
 	if extOverride != "" {
 		ext = extOverride
 	}
-	diskName := uuid.New().String() + ext
-	diskPath := filepath.Join(uploadsDir, diskName)
 
-	if err := os.WriteFile(diskPath, data, 0o644); err != nil {
+	diskPath, err := saveToUploadsDir(data, ext)
+	if err != nil {
 		return nil, err
 	}
 
@@ -35,25 +31,26 @@ func dispatchExtraction(ctx context.Context, userID, name string, data []byte, e
 		return nil, err
 	}
 
-	// publishOrCleanup attempts to publish the job and cleans up on failure.
-	publishErr := func() error {
-		queue, err := serviceDeps.GetExtractionQueue()
-		if err != nil {
-			return err
-		}
-		return queue.Publish(ctx, ExtractionJob{
-			UserID:    userID,
-			ExampleID: example.ID,
-			FilePath:  diskPath,
-			FileName:  name,
-			Status:    JobStatusQueued,
-			CreatedAt: time.Now(),
-		})
-	}()
-	if publishErr != nil {
+	queue, err := serviceDeps.GetExtractionQueue()
+	if err != nil {
 		os.Remove(diskPath)
 		_ = store.DeleteExample(ctx, userID, example.ID) //nolint:errcheck // best-effort cleanup
-		return nil, publishErr
+		return nil, err
+	}
+
+	err = publishOrCleanup(ctx, queue, ExtractionJob{
+		UserID:    userID,
+		ExampleID: example.ID,
+		FilePath:  diskPath,
+		FileName:  name,
+		Status:    JobStatusQueued,
+		CreatedAt: time.Now(),
+	},
+		func() { os.Remove(diskPath) },
+		func() { _ = store.DeleteExample(ctx, userID, example.ID) }, //nolint:errcheck // best-effort
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	return example, nil
