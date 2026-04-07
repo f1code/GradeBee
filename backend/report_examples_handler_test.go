@@ -113,7 +113,9 @@ func TestUploadExample_PDFDispatchesAsync(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	part.Write([]byte("fake pdf data"))
+	if _, err := part.Write([]byte("fake pdf data")); err != nil {
+		t.Fatal(err)
+	}
 	writer.Close()
 
 	r := httptest.NewRequest(http.MethodPost, "/report-examples", &buf)
@@ -155,7 +157,9 @@ func TestUploadExample_TextFileStoresDirect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	part.Write([]byte("Some report card text"))
+	if _, err := part.Write([]byte("Some report card text")); err != nil {
+		t.Fatal(err)
+	}
 	writer.Close()
 
 	r := httptest.NewRequest(http.MethodPost, "/report-examples", &buf)

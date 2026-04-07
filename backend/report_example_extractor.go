@@ -68,7 +68,7 @@ func (e *gptExampleExtractor) ExtractText(ctx context.Context, filename string, 
 }
 
 func (e *gptExampleExtractor) extractFromPDF(ctx context.Context, data []byte) (string, error) {
-	images, err := pdfToImages(data)
+	images, err := pdfToImages(ctx, data)
 	if err != nil {
 		return "", fmt.Errorf("PDF conversion failed: %w", err)
 	}
@@ -156,9 +156,9 @@ func (e *gptExampleExtractor) extractFromImage(ctx context.Context, mediaType st
 	return strings.TrimSpace(result.Text), nil
 }
 
-// pdfToImages converts PDF bytes to a slice of PNG images (one per page)
+// pdfToImages converts PDF bytes to a slice of JPEG images (one per page)
 // by shelling out to pdftoppm. Requires poppler-utils.
-func pdfToImages(data []byte) ([][]byte, error) {
+func pdfToImages(ctx context.Context, data []byte) ([][]byte, error) {
 	tmpDir, err := os.MkdirTemp("", "pdf-extract-*")
 	if err != nil {
 		return nil, fmt.Errorf("pdfToImages: create temp dir: %w", err)
@@ -171,7 +171,7 @@ func pdfToImages(data []byte) ([][]byte, error) {
 	}
 
 	outPrefix := filepath.Join(tmpDir, "page")
-	cmd := exec.CommandContext(context.Background(), "pdftoppm", "-jpeg", "-r", "150", pdfPath, outPrefix)
+	cmd := exec.CommandContext(ctx, "pdftoppm", "-jpeg", "-r", "150", pdfPath, outPrefix)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("pdfToImages: pdftoppm failed: %w\nOutput: %s", err, string(output))
 	}

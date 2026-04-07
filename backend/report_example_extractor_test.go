@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -31,7 +32,7 @@ func TestPdfToImages_ValidPDF(t *testing.T) {
 	if err != nil {
 		t.Skip("testdata/sample.pdf not found, skipping")
 	}
-	images, err := pdfToImages(data)
+	images, err := pdfToImages(context.Background(), data)
 	if err != nil {
 		t.Fatalf("pdfToImages failed: %v", err)
 	}
@@ -69,7 +70,7 @@ func TestIsExtractableFile(t *testing.T) {
 }
 
 func TestPdfToImages_InvalidData(t *testing.T) {
-	_, err := pdfToImages([]byte("not a pdf"))
+	_, err := pdfToImages(context.Background(), []byte("not a pdf"))
 	if err == nil {
 		t.Fatal("expected error for invalid PDF data")
 	}
