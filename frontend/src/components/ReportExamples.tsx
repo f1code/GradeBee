@@ -202,7 +202,7 @@ export default function ReportExamples() {
                 <>
                   <div className="honeycomb-spinner" />
                   <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.7 }}>
-                    {driveImporting ? 'Importing from Drive…' : 'Extracting text…'}
+                    {driveImporting ? 'Importing from Drive…' : 'Uploading…'}
                   </p>
                 </>
               ) : (
