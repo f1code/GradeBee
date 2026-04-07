@@ -3,6 +3,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -71,7 +72,7 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 		name := header.Filename
 		if isExtractableFile(name) {
 			// PDF or image — save to disk and dispatch async extraction.
-			example, err := dispatchExtraction(r, userID, name, data)
+			example, err := dispatchExtraction(r.Context(), userID, name, data, "")
 			if err != nil {
 				log.Error("failed to dispatch extraction", "error", err, "filename", name)
 				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -121,9 +122,14 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 
 // dispatchExtraction saves a file to disk, creates a pending DB row, and
 // publishes an ExtractionJob. Returns the pending example for the API response.
-func dispatchExtraction(r *http.Request, userID, name string, data []byte) (*ReportExample, error) {
+// extOverride, if non-empty, is used instead of the file extension from name
+// (useful when the MIME type is more reliable than the filename).
+func dispatchExtraction(ctx context.Context, userID, name string, data []byte, extOverride string) (*ReportExample, error) {
 	uploadsDir := serviceDeps.GetUploadsDir()
 	ext := filepath.Ext(name)
+	if extOverride != "" {
+		ext = extOverride
+	}
 	diskName := uuid.New().String() + ext
 	diskPath := filepath.Join(uploadsDir, diskName)
 
@@ -132,30 +138,31 @@ func dispatchExtraction(r *http.Request, userID, name string, data []byte) (*Rep
 	}
 
 	store := serviceDeps.GetExampleStore()
-	example, err := store.CreatePendingExample(r.Context(), userID, name, diskPath)
+	example, err := store.CreatePendingExample(ctx, userID, name, diskPath)
 	if err != nil {
 		os.Remove(diskPath)
 		return nil, err
 	}
 
-	queue, err := serviceDeps.GetExtractionQueue()
-	if err != nil {
-		// Queue unavailable — clean up and return error.
+	// publishOrCleanup attempts to publish the job and cleans up on failure.
+	publishErr := func() error {
+		queue, err := serviceDeps.GetExtractionQueue()
+		if err != nil {
+			return err
+		}
+		return queue.Publish(ctx, ExtractionJob{
+			UserID:    userID,
+			ExampleID: example.ID,
+			FilePath:  diskPath,
+			FileName:  name,
+			Status:    JobStatusQueued,
+			CreatedAt: time.Now(),
+		})
+	}()
+	if publishErr != nil {
 		os.Remove(diskPath)
-		_ = store.DeleteExample(r.Context(), userID, example.ID) //nolint:errcheck // best-effort cleanup
-		return nil, err
-	}
-	if err := queue.Publish(r.Context(), ExtractionJob{
-		UserID:    userID,
-		ExampleID: example.ID,
-		FilePath:  diskPath,
-		FileName:  name,
-		Status:    JobStatusQueued,
-		CreatedAt: time.Now(),
-	}); err != nil {
-		os.Remove(diskPath)
-		_ = store.DeleteExample(r.Context(), userID, example.ID) //nolint:errcheck // best-effort cleanup
-		return nil, err
+		_ = store.DeleteExample(ctx, userID, example.ID) //nolint:errcheck // best-effort cleanup
+		return nil, publishErr
 	}
 
 	return example, nil
