@@ -1,4 +1,4 @@
-// drive_import_example.go handles the POST /drive-import-example endpoint that
+// report_example_drive_import.go handles the POST /drive-import-example endpoint that
 // downloads a Google Drive file, extracts text if needed, and stores it as a
 // report example.
 package handler
