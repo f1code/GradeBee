@@ -2,14 +2,7 @@
 // processing. The in-memory implementation lives in job_queue_mem.go.
 package handler
 
-import (
-	"context"
-	"fmt"
-	"os"
-	"path/filepath"
-
-	"github.com/google/uuid"
-)
+import "context"
 
 // Keyed is the constraint for job types stored in a JobQueue.
 // Each job must provide a unique key and an owner identifier for listing.
@@ -35,19 +28,6 @@ type JobQueue[T Keyed] interface {
 	DeleteJob(ctx context.Context, key string) error
 	// Close tears down the queue and stops workers.
 	Close()
-}
-
-// saveToUploadsDir writes data to the uploads directory with a unique filename
-// built from a UUID and the given extension (e.g. ".pdf"). Returns the full
-// disk path. Callers are responsible for cleanup on downstream failures.
-func saveToUploadsDir(data []byte, ext string) (string, error) {
-	uploadsDir := serviceDeps.GetUploadsDir()
-	diskName := uuid.New().String() + ext
-	diskPath := filepath.Join(uploadsDir, diskName)
-	if err := os.WriteFile(diskPath, data, 0o644); err != nil {
-		return "", fmt.Errorf("save to uploads dir: %w", err)
-	}
-	return diskPath, nil
 }
 
 // publishOrCleanup publishes a job to the queue. If publishing fails (including
