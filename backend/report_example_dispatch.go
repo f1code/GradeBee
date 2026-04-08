@@ -24,17 +24,16 @@ func dispatchExtraction(ctx context.Context, userID, name string, data []byte, e
 		return nil, err
 	}
 
-	store := serviceDeps.GetExampleStore()
-	example, err := store.CreatePendingExample(ctx, userID, name, diskPath)
+	queue, err := serviceDeps.GetExtractionQueue()
 	if err != nil {
 		os.Remove(diskPath)
 		return nil, err
 	}
 
-	queue, err := serviceDeps.GetExtractionQueue()
+	store := serviceDeps.GetExampleStore()
+	example, err := store.CreatePendingExample(ctx, userID, name, diskPath)
 	if err != nil {
 		os.Remove(diskPath)
-		_ = store.DeleteExample(ctx, userID, example.ID) //nolint:errcheck // best-effort cleanup
 		return nil, err
 	}
 

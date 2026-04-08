@@ -16,16 +16,16 @@ func dispatchVoiceNote(ctx context.Context, userID, fileName, ext, mimeType, sou
 		return nil, err
 	}
 
-	upload, err := serviceDeps.GetVoiceNoteRepo().Create(ctx, userID, fileName, diskPath)
+	queue, err := serviceDeps.GetVoiceNoteQueue()
 	if err != nil {
 		os.Remove(diskPath)
 		return nil, err
 	}
 
-	queue, err := serviceDeps.GetVoiceNoteQueue()
+	repo := serviceDeps.GetVoiceNoteRepo()
+	upload, err := repo.Create(ctx, userID, fileName, diskPath)
 	if err != nil {
 		os.Remove(diskPath)
-		// TODO: consider deleting the voice_notes row here too
 		return nil, err
 	}
 
@@ -40,6 +40,7 @@ func dispatchVoiceNote(ctx context.Context, userID, fileName, ext, mimeType, sou
 		CreatedAt: time.Now(),
 	},
 		func() { os.Remove(diskPath) },
+		func() { _ = repo.Delete(ctx, upload.ID) }, //nolint:errcheck // best-effort cleanup
 	)
 	if err != nil {
 		return nil, err
