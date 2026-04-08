@@ -1,3 +1,4 @@
+// voice_note_drive_import.go handles POST /voice-notes/drive-import — downloads a Google Drive file, saves it to local disk, and dispatches an async processing job.
 package handler
 
 import (
@@ -9,11 +10,13 @@ import (
 	"strings"
 )
 
+// DriveImportRequest is the JSON request body for POST /voice-notes/drive-import.
 type DriveImportRequest struct {
 	FileID   string `json:"fileId"`
 	FileName string `json:"fileName"`
 }
 
+// DriveImportResponse is the JSON response for POST /voice-notes/drive-import.
 type DriveImportResponse struct {
 	UploadID int64  `json:"uploadId"`
 	FileName string `json:"fileName"`
@@ -41,6 +44,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Get Drive read client.
 	driveSvc, err := serviceDeps.GetDriveClient(ctx, userID)
 	if err != nil {
 		log.Error("drive-import: get drive client failed", "error", err)
@@ -48,6 +52,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate file is accessible and is an audio file.
 	fileMeta, err := driveSvc.GetFileMeta(ctx, req.FileID)
 	if err != nil {
 		log.Error("drive-import: file not accessible", "file_id", req.FileID, "error", err)
@@ -62,6 +67,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Download file from Drive.
 	rc, err := driveSvc.DownloadFile(ctx, req.FileID)
 	if err != nil {
 		log.Error("drive-import: download failed", "file_id", req.FileID, "error", err)

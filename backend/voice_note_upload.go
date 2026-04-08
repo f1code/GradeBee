@@ -1,3 +1,4 @@
+// voice_note_upload.go handles POST /voice-notes/upload — receives an audio file via multipart/form-data, saves it to local disk, and dispatches an async processing job.
 package handler
 
 import (
@@ -8,13 +9,15 @@ import (
 	"strings"
 )
 
-const maxUploadSize = 25 << 20
+const maxUploadSize = 25 << 20 // 25 MB (Whisper API limit)
 
+// allowedAudioTypes lists MIME type prefixes accepted for upload.
 var allowedAudioTypes = []string{
 	"audio/",
 	"video/webm",
 }
 
+// UploadResponse is the JSON response for POST /upload.
 type UploadResponse struct {
 	UploadID int64  `json:"uploadId"`
 	FileName string `json:"fileName"`
@@ -22,6 +25,7 @@ type UploadResponse struct {
 
 func handleUpload(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
+	// Enforce size limit before parsing.
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
@@ -37,6 +41,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	contentType := header.Header.Get("Content-Type")
+	// Validate MIME type.
 	if !isAllowedAudioType(contentType) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{
 			"error": fmt.Sprintf("unsupported file type: %s. Accepted: mp3, mp4, mpeg, mpga, m4a, wav, webm", contentType),
@@ -88,6 +93,7 @@ func isAllowedAudioType(contentType string) bool {
 	return false
 }
 
+// extensionFromMIME returns a file extension for common audio MIME types.
 func extensionFromMIME(mime string) string {
 	switch strings.ToLower(mime) {
 	case "audio/mpeg":
