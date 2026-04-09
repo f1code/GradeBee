@@ -29,15 +29,6 @@ export interface DriveFile {
 export type DriveClient = any;
 
 //////////
-// source: drive_import_example.go
-/*
-drive_import_example.go handles the POST /drive-import-example endpoint that
-downloads a Google Drive file, extracts text if needed, and stores it as a
-report example.
-*/
-
-
-//////////
 // source: extract.go
 /*
 extract.go defines the Extractor interface and its OpenAI GPT implementation.
@@ -297,6 +288,15 @@ export interface VoiceNote {
 }
 
 //////////
+// source: report_example_drive_import.go
+/*
+report_example_drive_import.go handles the POST /drive-import-example endpoint that
+downloads a Google Drive file, extracts text if needed, and stores it as a
+report example.
+*/
+
+
+//////////
 // source: report_example_extractor.go
 /*
 report_example_extractor.go extracts text from PDF/image report card examples
@@ -546,18 +546,18 @@ export type Transcriber = any;
 //////////
 // source: voice_note_drive_import.go
 /*
-voice_note_drive_import.go handles POST /voice-notes/drive-import — downloads a Google Drive file to local disk, creates a voice_notes row, and dispatches an async processing job.
+voice_note_drive_import.go handles POST /voice-notes/drive-import — downloads a Google Drive file, saves it to local disk, and dispatches an async processing job.
 */
 
 /**
- * DriveImportRequest is the JSON body for POST /drive-import.
+ * DriveImportRequest is the JSON request body for POST /voice-notes/drive-import.
  */
 export interface DriveImportRequest {
   fileId: string;
   fileName: string;
 }
 /**
- * DriveImportResponse is the JSON response for POST /drive-import.
+ * DriveImportResponse is the JSON response for POST /voice-notes/drive-import.
  */
 export interface DriveImportResponse {
   uploadId: number /* int64 */;
@@ -650,7 +650,7 @@ voice_note_process.go implements the voice note processing pipeline
 //////////
 // source: voice_note_upload.go
 /*
-voice_note_upload.go handles POST /voice-notes/upload — receives an audio file via multipart/form-data and saves it to local disk + the voice_notes table.
+voice_note_upload.go handles POST /voice-notes/upload — receives an audio file via multipart/form-data, saves it to local disk, and dispatches an async processing job.
 */
 
 /**
