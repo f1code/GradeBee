@@ -140,7 +140,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		result, err := noteCreator.CreateNote(ctx, CreateNoteRequest{
 			StudentID:   studentID,
 			StudentName: student.Name,
-			Summary:     student.Summary,
+			QuotedText:  student.QuotedText,  // Changed from Summary
 			Transcript:  transcript,
 			Date:        extractResult.Date,
 		})

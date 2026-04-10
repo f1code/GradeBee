@@ -16,11 +16,11 @@ type NoteCreator interface {
 
 // CreateNoteRequest is the input for creating a single student note.
 type CreateNoteRequest struct {
-	StudentID  int64
+	StudentID   int64
 	StudentName string
-	Summary    string
-	Transcript string
-	Date       string // YYYY-MM-DD
+	QuotedText  string  // Extracted passages from transcript
+	Transcript  string
+	Date        string // YYYY-MM-DD
 }
 
 // CreateNoteResponse contains the created note info.
@@ -41,7 +41,7 @@ func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (
 	n := &Note{
 		StudentID: req.StudentID,
 		Date:      req.Date,
-		Summary:   req.Summary,
+		Summary:   req.QuotedText,  // Store extracted passages as the note summary
 		Source:    "auto",
 	}
 	if req.Transcript != "" {
