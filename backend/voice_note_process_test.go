@@ -239,6 +239,64 @@ func TestProcessJob_AlreadyProcessed(t *testing.T) {
 	}
 }
 
+func TestProcessJob_WrongClassSkipped(t *testing.T) {
+	db := setupTestDB(t)
+	studentRepo := &StudentRepo{db: db}
+	classRepo := &ClassRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
+
+	cls, err := classRepo.Create(t.Context(), "u1", "Math")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir := t.TempDir()
+	audioPath := filepath.Join(tmpDir, "test.m4a")
+	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	queue := newStubVoiceNoteQueue()
+	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
+	d := &mockDepsAll{
+		transcriber: &stubTranscriber{result: "transcript"},
+		roster:      &stubRoster{},
+		extractor: &stubExtractor{result: &ExtractResponse{
+			Date: "2026-01-01",
+			Students: []MatchedStudent{
+				{Name: "Alice", Class: "Math", Summary: "ok", Confidence: 0.9},
+				{Name: "Alice", Class: "WrongClass", Summary: "hallucinated", Confidence: 0.9},
+			},
+		}},
+		noteCreator:   nc,
+		studentRepo:   studentRepo,
+		voiceNoteRepo: voiceNoteRepo,
+	}
+
+	ctx := context.Background()
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)); err != nil {
+		t.Fatalf("processVoiceNote should succeed despite wrong class: %v", err)
+	}
+
+	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != JobStatusDone {
+		t.Errorf("status = %q, want %q", got.Status, JobStatusDone)
+	}
+	if len(nc.calls) != 1 {
+		t.Errorf("note creator calls = %d, want 1 (wrong class skipped)", len(nc.calls))
+	}
+}
+
 func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
