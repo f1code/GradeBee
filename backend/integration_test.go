@@ -55,8 +55,8 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-03-22",
 			Students: []MatchedStudent{
-				{Name: "Alice", Class: "Math", Summary: "Did great", Confidence: 0.9},
-				{Name: "Bob", Class: "Math", Summary: "Needs work", Confidence: 0.8},
+				{Name: "Alice", Class: "Math", QuotedText: "Did great", Confidence: 0.9},
+				{Name: "Bob", Class: "Math", QuotedText: "Needs work", Confidence: 0.8},
 			},
 		}},
 		noteCreator:   nc,
@@ -174,7 +174,7 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date:     "2026-01-01",
-			Students: []MatchedStudent{{Name: "Alice", Class: "Math", Summary: "ok", Confidence: 0.9}},
+			Students: []MatchedStudent{{Name: "Alice", Class: "Math", QuotedText: "ok", Confidence: 0.9}},
 		}},
 		noteCreator:    nc,
 		voiceNoteQueue: queue,
