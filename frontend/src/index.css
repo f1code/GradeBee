@@ -2044,6 +2044,79 @@ button:disabled {
   text-decoration-color: var(--honey);
 }
 
+/* Transcript review panel */
+.transcript-review {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--parchment);
+  border-radius: 8px;
+  border: 1px solid var(--comb);
+}
+
+.transcript-review-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .transcript-review-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.transcript-review-heading {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin: 0 0 8px 0;
+}
+
+.transcript-review-body {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.transcript-review-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transcript-review-student {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--chalk);
+  border-radius: 6px;
+  border: 1px solid var(--comb);
+}
+
+.transcript-review-student-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.transcript-review-student-class {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.job-transcript-toggle {
+  font-size: 0.8rem;
+  color: var(--honey-dark);
+  margin-top: 6px;
+}
+
 .job-error {
   background: rgba(197, 48, 48, 0.06);
   border: 1px solid rgba(197, 48, 48, 0.2);
