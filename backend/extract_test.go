@@ -108,5 +108,5 @@ Specific note: Tommy helped me organize the materials, which was great.`
 
 // Helper
 func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0
+	return s != "" && substr != ""
 }
