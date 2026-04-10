@@ -354,3 +354,38 @@ func TestIntegration_UpdateReportExample(t *testing.T) {
 		t.Errorf("name = %q, want updated.txt", result.Name)
 	}
 }
+
+func TestIntegration_ExtractionClassMatchesRoster(t *testing.T) {
+	if os.Getenv("OPENAI_API_KEY") == "" {
+		t.Skip("OPENAI_API_KEY not set, skipping LLM integration test")
+	}
+
+	extractor, err := newGPTExtractor()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	classes := []ClassGroup{
+		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
+		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}}},
+	}
+
+	result, err := extractor.Extract(t.Context(), ExtractRequest{
+		Transcript: "Alice Johnson did really well on her math test today. She showed great improvement.",
+		Classes:    classes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	validClasses := map[string]bool{"Math 101": true, "Science 202": true}
+	for _, s := range result.Students {
+		if !validClasses[s.Class] {
+			t.Errorf("student %q has class %q which is not in the roster", s.Name, s.Class)
+		}
+	}
+
+	if len(result.Students) == 0 {
+		t.Error("expected at least one student extracted")
+	}
+}
