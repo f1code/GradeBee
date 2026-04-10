@@ -395,13 +395,14 @@ func TestLLM_SingleStudentCorrectClass(t *testing.T) {
 
 func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
 	ext := llmExtractor(t)
+	// Bob appears in both rosters — the LLM must use transcript context to pick the right class.
 	classes := []ClassGroup{
 		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
-		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}, {Name: "Diana Lee"}}},
+		{Name: "Science 202", Students: []ClassStudent{{Name: "Bob Smith"}, {Name: "Diana Lee"}}},
 	}
 
 	result, err := ext.Extract(t.Context(), ExtractRequest{
-		Transcript: "Today I observed two students. Bob Smith was very engaged during the fractions lesson and volunteered to solve problems on the board. In science class, Diana Lee conducted her chemistry experiment carefully and wrote detailed lab notes.",
+		Transcript: "Today I observed two students. In Math 101, Bob Smith was very engaged during the fractions lesson and volunteered to solve problems on the board. In Science 202, Diana Lee conducted her chemistry experiment carefully and wrote detailed lab notes.",
 		Classes:    classes,
 	})
 	if err != nil {
