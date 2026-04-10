@@ -77,4 +77,22 @@ describe('AddStudentForm', () => {
     })
     expect(onCreated).not.toHaveBeenCalled()
   })
+
+  it('clears input and re-focuses after successful submission', async () => {
+    const student = { id: 10, name: 'Alice', classId: 5 }
+    mockCreateStudent.mockResolvedValueOnce(student)
+
+    render(<AddStudentForm classId={classId} onCreated={onCreated} />)
+
+    const input = screen.getByTestId('add-student-input') as HTMLInputElement
+    await userEvent.type(input, 'Alice')
+    await userEvent.click(screen.getByTestId('add-student-submit'))
+
+    await waitFor(() => {
+      expect(input.value).toBe('')
+    })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(input)
+    })
+  })
 })

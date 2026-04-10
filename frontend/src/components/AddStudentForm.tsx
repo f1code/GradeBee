@@ -31,7 +31,7 @@ export default function AddStudentForm({ classId, onCreated }: AddStudentFormPro
       setError(null)
       onCreated(student)
       // Keep focus for rapid entry
-      inputRef.current?.focus()
+      requestAnimationFrame(() => inputRef.current?.focus())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add student')
     } finally {
