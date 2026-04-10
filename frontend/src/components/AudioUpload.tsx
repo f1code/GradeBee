@@ -1,5 +1,5 @@
 import { useAuth } from '@clerk/react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { uploadAudio, getGoogleToken, importFromDrive, submitTextNotes } from '../api'
 import { useDrivePicker, AUDIO_MIME_TYPES } from '../hooks/useDrivePicker'
@@ -68,8 +68,18 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   const [showSuccess, setShowSuccess] = useState(false)
   const [showPaste, setShowPaste] = useState(false)
   const [pasteText, setPasteText] = useState('')
+  const pasteRef = useRef<HTMLTextAreaElement>(null)
   const { openPicker } = useDrivePicker()
   const isMobile = useMediaQuery('(max-width: 640px)')
+
+  useEffect(() => {
+    if (showPaste) {
+      requestAnimationFrame(() => {
+        pasteRef.current?.focus()
+        pasteRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      })
+    }
+  }, [showPaste])
 
   function reset() {
     setStatus('idle')
@@ -280,6 +290,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                   data-testid="paste-area"
                 >
                   <textarea
+                    ref={pasteRef}
                     className="paste-textarea"
                     placeholder="Paste your notes here... Include student names and dates — we'll sort them out."
                     value={pasteText}

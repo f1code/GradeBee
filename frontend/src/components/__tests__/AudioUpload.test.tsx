@@ -29,6 +29,8 @@ vi.mock('../../hooks/useMediaQuery', () => ({
 describe('AudioUpload', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // jsdom doesn't implement scrollIntoView
+    Element.prototype.scrollIntoView = vi.fn()
   })
 
   it('renders drop zone in idle state', async () => {
@@ -150,6 +152,20 @@ describe('AudioUpload', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('upload-error')).toHaveTextContent('Extraction failed')
+    })
+  })
+
+  it('focuses paste textarea when Paste Text is clicked', async () => {
+    const { default: AudioUpload } = await import('../AudioUpload')
+    render(<AudioUpload />)
+
+    await userEvent.click(screen.getByTestId('paste-text-btn'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('paste-textarea')).toBeInTheDocument()
+    })
+    await waitFor(() => {
+      expect(document.activeElement).toBe(screen.getByTestId('paste-textarea'))
     })
   })
 })
