@@ -27,18 +27,18 @@ type NoteLink struct {
 
 // VoiceNoteJob represents an async voice note processing job.
 type VoiceNoteJob struct {
-	UserID    string     `json:"userId"`
-	UploadID  int64      `json:"uploadId"`
-	FilePath  string     `json:"filePath"`
-	FileName  string     `json:"fileName"`
-	MimeType  string     `json:"mimeType"`
+	UserID     string     `json:"userId"`
+	UploadID   int64      `json:"uploadId"`
+	FilePath   string     `json:"filePath"`
+	FileName   string     `json:"fileName"`
+	MimeType   string     `json:"mimeType"`
 	Source     string     `json:"source"`
 	Transcript string     `json:"transcript,omitempty"`
-	Status    string     `json:"status"`
-	CreatedAt time.Time  `json:"createdAt"`
-	NoteLinks []NoteLink `json:"noteLinks,omitempty"`
-	Error     string     `json:"error,omitempty"`
-	FailedAt  *time.Time `json:"failedAt,omitempty"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	NoteLinks  []NoteLink `json:"noteLinks,omitempty"`
+	Error      string     `json:"error,omitempty"`
+	FailedAt   *time.Time `json:"failedAt,omitempty"`
 }
 
 // JobKey implements Keyed.

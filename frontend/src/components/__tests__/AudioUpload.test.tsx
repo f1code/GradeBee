@@ -1,15 +1,17 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockUploadAudio = vi.fn()
 const mockGetGoogleToken = vi.fn()
 const mockImportFromDrive = vi.fn()
+const mockSubmitTextNotes = vi.fn()
 
 vi.mock('../../api', () => ({
   uploadAudio: (...args: unknown[]) => mockUploadAudio(...args),
   getGoogleToken: (...args: unknown[]) => mockGetGoogleToken(...args),
   importFromDrive: (...args: unknown[]) => mockImportFromDrive(...args),
+  submitTextNotes: (...args: unknown[]) => mockSubmitTextNotes(...args),
 }))
 
 vi.mock('@clerk/react', () => ({
@@ -99,5 +101,55 @@ describe('AudioUpload', () => {
     })
     // These should not exist as API functions anymore
     expect(mockUploadAudio).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows paste textarea when Paste Text is clicked', async () => {
+    const { default: AudioUpload } = await import('../AudioUpload')
+    render(<AudioUpload />)
+
+    // Paste area should not be visible initially
+    expect(screen.queryByTestId('paste-area')).not.toBeInTheDocument()
+
+    // Click Paste Text button
+    await userEvent.click(screen.getByTestId('paste-text-btn'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('paste-textarea')).toBeInTheDocument()
+    })
+    expect(screen.getByTestId('paste-submit-btn')).toBeDisabled()
+  })
+
+  it('submits pasted text and shows success', async () => {
+    mockSubmitTextNotes.mockResolvedValue({ uploadId: 1, fileName: 'pasted-text' })
+
+    const { default: AudioUpload } = await import('../AudioUpload')
+    render(<AudioUpload />)
+
+    await userEvent.click(screen.getByTestId('paste-text-btn'))
+    fireEvent.change(screen.getByTestId('paste-textarea'), { target: { value: 'Alice did great today' } })
+
+    expect(screen.getByTestId('paste-submit-btn')).not.toBeDisabled()
+    await userEvent.click(screen.getByTestId('paste-submit-btn'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('upload-success')).toHaveTextContent(/Processing in background/)
+    })
+    expect(mockSubmitTextNotes).toHaveBeenCalledTimes(1)
+    expect(mockSubmitTextNotes.mock.calls[0][0]).toBe('Alice did great today')
+  })
+
+  it('shows error when paste submission fails', async () => {
+    mockSubmitTextNotes.mockRejectedValue(new Error('Extraction failed'))
+
+    const { default: AudioUpload } = await import('../AudioUpload')
+    render(<AudioUpload />)
+
+    await userEvent.click(screen.getByTestId('paste-text-btn'))
+    fireEvent.change(screen.getByTestId('paste-textarea'), { target: { value: 'Some notes' } })
+    await userEvent.click(screen.getByTestId('paste-submit-btn'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('upload-error')).toHaveTextContent('Extraction failed')
+    })
   })
 })

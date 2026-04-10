@@ -36,9 +36,11 @@ func cleanProcessedVoiceNotes(ctx context.Context, repo *VoiceNoteRepo, retentio
 	}
 
 	for _, v := range stale {
-		if err := os.Remove(v.FilePath); err != nil && !os.IsNotExist(err) {
-			slog.Error("voice note cleanup: remove file", "path", v.FilePath, "error", err)
-			continue
+		if v.FilePath != "" {
+			if err := os.Remove(v.FilePath); err != nil && !os.IsNotExist(err) {
+				slog.Error("voice note cleanup: remove file", "path", v.FilePath, "error", err)
+				continue
+			}
 		}
 		if err := repo.Delete(ctx, v.ID); err != nil {
 			slog.Error("voice note cleanup: delete row", "id", v.ID, "error", err)

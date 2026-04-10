@@ -332,7 +332,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
             transition={{ duration: 0.25 }}
           >
             <span className="upload-success-icon">✓</span>
-            Submitted! Processing in background.
+            {fileName === 'pasted-text' ? 'Submitted' : 'Uploaded'}! Processing in background.
           </motion.div>
         )}
       </AnimatePresence>

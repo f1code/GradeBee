@@ -209,7 +209,7 @@ export default function ReportExamples() {
                 <p>Drop files here or click to upload<br/><span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Text, PDF, or image files</span></p>
               )}
             </div>
-            <div className="drive-import-row" style={{ marginTop: '0.5rem' }}>
+            <div className="secondary-actions" style={{ marginTop: '0.5rem' }}>
               <button
                 type="button"
                 className="btn-secondary"
