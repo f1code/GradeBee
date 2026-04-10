@@ -127,6 +127,7 @@ Rules:
 - Each summary should be from the teacher's perspective, about that specific student
 - If a mentioned student cannot be matched to any roster entry, do not include them in the output
 - If no students are clearly mentioned, return an empty students array
+- The "class" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.
 `)
 	return sb.String()
 }
