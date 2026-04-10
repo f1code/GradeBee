@@ -9,7 +9,7 @@ vi.mock('@clerk/react', () => ({
 vi.mock('../../api', () => ({
   listReportExamples: vi.fn().mockResolvedValue({
     examples: [
-      { id: '1', name: 'Report.jpg', content: 'Student showed great improvement in math.' },
+      { id: '1', name: 'Report.jpg', content: 'Student showed great improvement in math.', status: 'ready' },
     ],
   }),
   uploadReportExample: vi.fn(),
