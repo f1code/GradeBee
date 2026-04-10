@@ -83,6 +83,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		if err != nil {
 			return fail("transcribe", err)
 		}
+		job.Transcript = transcript
 	}
 
 	// --- Step 2: Extract ---
