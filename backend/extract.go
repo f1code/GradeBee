@@ -63,7 +63,7 @@ func (e *gptExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 	systemPrompt := buildExtractionPrompt(req.Classes)
 
 	resp, err := e.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-5.4-mini",
+		Model: "gpt-4o-mini",
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
 			{Role: openai.ChatMessageRoleUser, Content: req.Transcript},
