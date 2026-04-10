@@ -532,6 +532,15 @@ export interface ClassStudent {
 }
 
 //////////
+// source: text_notes.go
+/*
+text_notes.go handles POST /text-notes/upload — accepts pasted text,
+creates a voice_notes row (with no audio file), and dispatches a job
+that skips transcription and goes straight to extraction.
+*/
+
+
+//////////
 // source: transcriber.go
 /*
 transcriber.go defines the Transcriber interface and its production
@@ -614,6 +623,7 @@ export interface VoiceNoteJob {
   fileName: string;
   mimeType: string;
   source: string;
+  transcript?: string;
   status: string;
   createdAt: string;
   noteLinks?: NoteLink[];
