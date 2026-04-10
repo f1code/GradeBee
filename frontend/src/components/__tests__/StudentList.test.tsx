@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listClasses } from '../../api'
+import { listClasses, createClass } from '../../api'
 
 const stableGetToken = vi.fn().mockResolvedValue('tok')
 
@@ -24,6 +25,7 @@ vi.mock('../../api', () => ({
 }))
 
 const mockListClasses = listClasses as ReturnType<typeof vi.fn>
+const mockCreateClass = createClass as ReturnType<typeof vi.fn>
 
 import StudentList from '../StudentList'
 
@@ -76,5 +78,31 @@ describe('StudentList', () => {
       expect(screen.getByTestId('student-list-error')).toBeInTheDocument()
     })
     expect(screen.getByText('Network error')).toBeInTheDocument()
+  })
+
+  it('expands newly created class and shows add-student form', async () => {
+    const user = userEvent.setup()
+    mockListClasses.mockResolvedValueOnce({
+      classes: [{ id: 1, name: 'Math 101', studentCount: 2 }],
+    })
+    mockCreateClass.mockResolvedValueOnce({ id: 5, name: 'Science', studentCount: 0 })
+
+    render(<StudentList />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('student-list')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByTestId('add-class-btn'))
+    const input = screen.getByTestId('add-class-input')
+    await user.type(input, 'Science')
+    await user.click(screen.getByTestId('add-class-submit'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('class-group-5')).toBeInTheDocument()
+    })
+
+    // The new class should be expanded with add-student input visible
+    expect(screen.getByTestId('add-student-input')).toBeInTheDocument()
   })
 })

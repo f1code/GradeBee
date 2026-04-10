@@ -110,6 +110,9 @@ export default function StudentList() {
   function handleClassCreated(cls: ClassItem) {
     setClasses(prev => [...prev, cls].sort((a, b) => a.name.localeCompare(b.name)))
     setShowAddClass(false)
+    // Auto-expand the new class and initialize empty student list
+    setExpandedClassIds(prev => new Set(prev).add(cls.id))
+    setExpandedStudents(prev => new Map(prev).set(cls.id, []))
   }
 
   function handleStudentCreated(classId: number, student: StudentItem) {
@@ -266,6 +269,8 @@ export default function StudentList() {
         <p>Add your first class to get started.</p>
         <AddClassForm onCreated={cls => {
           setClasses([cls])
+          setExpandedClassIds(new Set([cls.id]))
+          setExpandedStudents(new Map([[cls.id, []]]))
         }} />
       </motion.div>
     )
