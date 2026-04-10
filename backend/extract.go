@@ -35,7 +35,7 @@ type ExtractResponse struct {
 type MatchedStudent struct {
 	Name       string             `json:"name"`
 	Class      string             `json:"class"`
-	Summary    string             `json:"summary"`
+	QuotedText string             `json:"quoted_text"` // Extracted passages from transcript, unchanged
 	Confidence float64            `json:"confidence"`
 	Candidates []StudentCandidate `json:"candidates,omitempty"`
 }
@@ -144,7 +144,7 @@ func extractResponseSchema() json.RawMessage {
 					"properties": {
 						"name": {"type": "string"},
 						"class": {"type": "string"},
-						"summary": {"type": "string"},
+						"quoted_text": {"type": "string"},
 						"confidence": {"type": "number"},
 						"candidates": {
 							"type": "array",
@@ -159,7 +159,7 @@ func extractResponseSchema() json.RawMessage {
 							}
 						}
 					},
-					"required": ["name", "class", "summary", "confidence", "candidates"],
+					"required": ["name", "class", "quoted_text", "confidence", "candidates"],
 					"additionalProperties": false
 				}
 			},
