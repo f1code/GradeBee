@@ -106,7 +106,11 @@ Your task:
 1. Identify which students are mentioned in the transcript
 2. Match each mentioned name to the student roster below (handle phonetic/partial matches)
 3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty
-4. Write a brief 1-3 sentence summary per student suitable for a report card
+4. Extract relevant passages from the transcript that mention or describe this student
+   - Include direct quotes where the teacher discusses this student
+   - Preserve the teacher's exact wording and tone
+   - Include 1-3 key passages per student, separated by " | " if multiple
+   - Do NOT rewrite, summarize, or paraphrase - use the teacher's original language
 
 Student Roster:
 `)
@@ -121,13 +125,14 @@ Rules:
 - Match mentioned names against the roster even if pronunciation differs slightly
 - Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.
 - If confidence < 0.7, include up to 3 closest roster matches in "candidates"
-- If the transcript contains observations about "everyone", "all students", "the class", or similar group references, apply those observations to EVERY student on the roster and produce a summary for each
-- Combine any group-level observations with student-specific observations in each student's summary
-- For multi-student transcripts, produce a separate summary per student
-- Each summary should be from the teacher's perspective, about that specific student
+- Extract quoted_text directly from the transcript - preserve the teacher's exact words and emotion
+- If the transcript contains observations about "everyone", "all students", "the class", or similar group references, extract those statements and apply them to EVERY student on the roster
+- For group-level observations, quote the exact passage and include it for each student
+- For multi-student transcripts, produce a separate entry per student with relevant passages
 - If a mentioned student cannot be matched to any roster entry, do not include them in the output
 - If no students are clearly mentioned, return an empty students array
 - The "class" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.
+- IMPORTANT: Never modify, clean up, or formally rewrite the teacher's text. Always preserve their original voice.
 `)
 	return sb.String()
 }
