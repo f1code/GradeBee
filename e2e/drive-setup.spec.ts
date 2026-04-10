@@ -11,7 +11,7 @@ test.describe('Authenticated app loads correctly', () => {
 
     // Storage state from global setup should make us appear signed in.
     await expect(page.getByTestId('audio-upload')).toBeVisible({ timeout: 15000 })
-    await expect(page.getByRole('heading', { name: 'Upload Audio' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Add Notes' })).toBeVisible()
   })
 
   test('shows class management UI', async ({ page }) => {

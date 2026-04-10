@@ -32,7 +32,8 @@ type VoiceNoteJob struct {
 	FilePath  string     `json:"filePath"`
 	FileName  string     `json:"fileName"`
 	MimeType  string     `json:"mimeType"`
-	Source    string     `json:"source"`
+	Source     string     `json:"source"`
+	Transcript string     `json:"transcript,omitempty"`
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"createdAt"`
 	NoteLinks []NoteLink `json:"noteLinks,omitempty"`

@@ -33,7 +33,7 @@ describe('AudioUpload', () => {
     const { default: AudioUpload } = await import('../AudioUpload')
     render(<AudioUpload />)
     expect(screen.getByTestId('drop-zone')).toBeInTheDocument()
-    expect(screen.getByText('Upload Audio')).toBeInTheDocument()
+    expect(screen.getByText('Add Notes')).toBeInTheDocument()
   })
 
   it('rejects files over 25MB', async () => {

@@ -47,35 +47,42 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		return fmt.Errorf("process voice note: %s: %w", step, err)
 	}
 
-	// --- Step 1: Transcribe ---
-	job.Status = JobStatusTranscribing
-	if err := q.UpdateJob(ctx, *job); err != nil {
-		return fail("update status to transcribing", err)
-	}
-
-	audioFile, err := os.Open(job.FilePath)
-	if err != nil {
-		return fail("open audio file", err)
-	}
-	defer audioFile.Close()
-
-	var whisperPrompt string
+	// --- Step 1: Transcribe (skip if text was pasted) ---
 	roster := d.GetRoster(ctx, userID)
-	names, err := roster.ClassNames(ctx)
-	if err != nil {
-		log.Warn("process voice note: could not read class names", "error", err)
-	} else if len(names) > 0 {
-		whisperPrompt = "Classes: " + strings.Join(names, ", ")
-	}
+	var transcript string
+	if job.Transcript != "" {
+		// Text input — skip transcription entirely.
+		transcript = job.Transcript
+		log.Info("process voice note: skipping transcription (text input)", "key", key)
+	} else {
+		job.Status = JobStatusTranscribing
+		if err := q.UpdateJob(ctx, *job); err != nil {
+			return fail("update status to transcribing", err)
+		}
 
-	transcriber, err := d.GetTranscriber()
-	if err != nil {
-		return fail("init transcriber", err)
-	}
+		audioFile, err := os.Open(job.FilePath)
+		if err != nil {
+			return fail("open audio file", err)
+		}
+		defer audioFile.Close()
 
-	transcript, err := transcriber.Transcribe(ctx, job.FileName, audioFile, whisperPrompt)
-	if err != nil {
-		return fail("transcribe", err)
+		var whisperPrompt string
+		names, err := roster.ClassNames(ctx)
+		if err != nil {
+			log.Warn("process voice note: could not read class names", "error", err)
+		} else if len(names) > 0 {
+			whisperPrompt = "Classes: " + strings.Join(names, ", ")
+		}
+
+		transcriber, err := d.GetTranscriber()
+		if err != nil {
+			return fail("init transcriber", err)
+		}
+
+		transcript, err = transcriber.Transcribe(ctx, job.FileName, audioFile, whisperPrompt)
+		if err != nil {
+			return fail("transcribe", err)
+		}
 	}
 
 	// --- Step 2: Extract ---

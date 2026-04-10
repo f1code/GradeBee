@@ -266,6 +266,24 @@ export async function uploadAudio(
   return body
 }
 
+export async function submitTextNotes(
+  text: string,
+  getToken: () => Promise<string | null>
+): Promise<{ uploadId: number; fileName: string }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/text-notes/upload`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ text }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to submit text notes')
+  return body
+}
+
 // --- Report Examples ---
 
 export async function listReportExamples(

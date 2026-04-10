@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/react'
 import { useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { uploadAudio, getGoogleToken, importFromDrive } from '../api'
+import { uploadAudio, getGoogleToken, importFromDrive, submitTextNotes } from '../api'
 import { useDrivePicker, AUDIO_MIME_TYPES } from '../hooks/useDrivePicker'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 
@@ -46,6 +46,18 @@ function DriveIcon() {
   )
 }
 
+function PasteIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <rect x="5" y="3" width="14" height="18" rx="2" stroke="#E8A317" strokeWidth="1.5" fill="none" />
+      <path d="M9 3V2a1 1 0 011-1h4a1 1 0 011 1v1" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="9" y1="9" x2="15" y2="9" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="9" y1="13" x2="15" y2="13" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="9" y1="17" x2="12" y2="17" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => void }) {
   const { getToken } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -54,6 +66,8 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   const [error, setError] = useState<string>('')
   const [dragOver, setDragOver] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showPaste, setShowPaste] = useState(false)
+  const [pasteText, setPasteText] = useState('')
   const { openPicker } = useDrivePicker()
   const isMobile = useMediaQuery('(max-width: 640px)')
 
@@ -68,6 +82,8 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   function onUploadComplete() {
     setStatus('idle')
     setShowSuccess(true)
+    setPasteText('')
+    setShowPaste(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
     onUploadDone?.()
     setTimeout(() => setShowSuccess(false), SUCCESS_TOAST_MS)
@@ -113,6 +129,22 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     }
   }
 
+  async function handlePasteSubmit() {
+    if (!pasteText.trim()) return
+    setError('')
+    setShowSuccess(false)
+    setFileName('pasted-text')
+
+    try {
+      setStatus('uploading')
+      await submitTextNotes(pasteText, getToken)
+      onUploadComplete()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setStatus('error')
+    }
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file) processFile(file)
@@ -142,7 +174,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: 0.15 }}
     >
-      <h2>Upload Audio</h2>
+      <h2>Add Notes</h2>
 
       <AnimatePresence mode="wait">
         {(status === 'idle' || status === 'error') && (
@@ -172,7 +204,16 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                   <DriveIcon />
                   Add from Drive
                 </button>
-                <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
+                <button
+                  type="button"
+                  className="mobile-upload-btn btn-secondary"
+                  onClick={() => setShowPaste(!showPaste)}
+                  data-testid="paste-text-btn"
+                >
+                  <PasteIcon />
+                  Paste Text
+                </button>
+                <p className="hint">Accepted audio: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -204,7 +245,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                     data-testid="file-input"
                   />
                 </div>
-                <div className="drive-import-row">
+                <div className="secondary-actions">
                   <button
                     type="button"
                     className="btn-secondary"
@@ -214,9 +255,53 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                     <DriveIcon />
                     Add from Drive
                   </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => setShowPaste(!showPaste)}
+                    data-testid="paste-text-btn"
+                  >
+                    <PasteIcon />
+                    Paste Text
+                  </button>
                 </div>
               </>
             )}
+
+            {/* Paste text area */}
+            <AnimatePresence>
+              {showPaste && (
+                <motion.div
+                  className="paste-area"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25 }}
+                  data-testid="paste-area"
+                >
+                  <textarea
+                    className="paste-textarea"
+                    placeholder="Paste your notes here... Include student names and dates — we'll sort them out."
+                    value={pasteText}
+                    onChange={e => setPasteText(e.target.value)}
+                    rows={6}
+                    data-testid="paste-textarea"
+                  />
+                  <div className="paste-actions">
+                    <p className="hint">Include student names and dates — we'll match them to your roster.</p>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handlePasteSubmit}
+                      disabled={!pasteText.trim()}
+                      data-testid="paste-submit-btn"
+                    >
+                      Process Notes
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
 
@@ -231,7 +316,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
             transition={{ duration: 0.25 }}
           >
             <HoneycombSpinner />
-            <p>Uploading <strong>{fileName}</strong>...</p>
+            <p>{fileName === 'pasted-text' ? 'Processing notes...' : <>Uploading <strong>{fileName}</strong>...</>}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -247,7 +332,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
             transition={{ duration: 0.25 }}
           >
             <span className="upload-success-icon">✓</span>
-            Uploaded! Processing in background.
+            Submitted! Processing in background.
           </motion.div>
         )}
       </AnimatePresence>

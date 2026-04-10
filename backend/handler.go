@@ -266,6 +266,8 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	// Voice note upload + Drive import
 	case path == "voice-notes/upload" && r.Method == http.MethodPost:
 		authHandler(handleUpload).ServeHTTP(rec, r)
+	case path == "text-notes/upload" && r.Method == http.MethodPost:
+		authHandler(handleTextNotesUpload).ServeHTTP(rec, r)
 	case path == "voice-notes/drive-import" && r.Method == http.MethodPost:
 		authHandler(handleDriveImport).ServeHTTP(rec, r)
 	case path == "drive-import-example" && r.Method == http.MethodPost:
