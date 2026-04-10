@@ -355,37 +355,120 @@ func TestIntegration_UpdateReportExample(t *testing.T) {
 	}
 }
 
-func TestIntegration_ExtractionClassMatchesRoster(t *testing.T) {
+// llmExtractor creates a gptExtractor, skipping if OPENAI_API_KEY is not set.
+func llmExtractor(t *testing.T) Extractor {
+	t.Helper()
 	if os.Getenv("OPENAI_API_KEY") == "" {
 		t.Skip("OPENAI_API_KEY not set, skipping LLM integration test")
 	}
-
-	extractor, err := newGPTExtractor()
+	e, err := newGPTExtractor()
 	if err != nil {
 		t.Fatal(err)
 	}
+	return e
+}
 
+func TestLLM_SingleStudentCorrectClass(t *testing.T) {
+	ext := llmExtractor(t)
+	classes := []ClassGroup{
+		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
+		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}, {Name: "Diana Lee"}}},
+	}
+
+	result, err := ext.Extract(t.Context(), ExtractRequest{
+		Transcript: "Alice Johnson demonstrated excellent problem-solving skills on today's algebra quiz. She scored 95% and helped her classmates understand the quadratic formula.",
+		Classes:    classes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Students) != 1 {
+		t.Fatalf("expected 1 student, got %d: %+v", len(result.Students), result.Students)
+	}
+	if result.Students[0].Name != "Alice Johnson" {
+		t.Errorf("name = %q, want Alice Johnson", result.Students[0].Name)
+	}
+	if result.Students[0].Class != "Math 101" {
+		t.Errorf("class = %q, want Math 101", result.Students[0].Class)
+	}
+}
+
+func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
+	ext := llmExtractor(t)
+	classes := []ClassGroup{
+		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
+		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}, {Name: "Diana Lee"}}},
+	}
+
+	result, err := ext.Extract(t.Context(), ExtractRequest{
+		Transcript: "Today I observed two students. Bob Smith was very engaged during the fractions lesson and volunteered to solve problems on the board. In science class, Diana Lee conducted her chemistry experiment carefully and wrote detailed lab notes.",
+		Classes:    classes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Students) < 2 {
+		t.Fatalf("expected at least 2 students, got %d: %+v", len(result.Students), result.Students)
+	}
+
+	found := map[string]string{}
+	for _, s := range result.Students {
+		found[s.Name] = s.Class
+	}
+	if found["Bob Smith"] != "Math 101" {
+		t.Errorf("Bob Smith class = %q, want Math 101", found["Bob Smith"])
+	}
+	if found["Diana Lee"] != "Science 202" {
+		t.Errorf("Diana Lee class = %q, want Science 202", found["Diana Lee"])
+	}
+}
+
+func TestLLM_UnknownClassSkipped(t *testing.T) {
+	ext := llmExtractor(t)
 	classes := []ClassGroup{
 		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
 		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}}},
 	}
 
-	result, err := extractor.Extract(t.Context(), ExtractRequest{
-		Transcript: "Alice Johnson did really well on her math test today. She showed great improvement.",
+	result, err := ext.Extract(t.Context(), ExtractRequest{
+		Transcript: "Report card for Tommy Wilson, Art 303. Tommy shows great creativity in his paintings and participates actively in class discussions about art history.",
 		Classes:    classes,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// Tommy Wilson is not in any roster class. The extractor should return no students
+	// (or possibly empty results). It must NOT invent a class name.
 	validClasses := map[string]bool{"Math 101": true, "Science 202": true}
 	for _, s := range result.Students {
 		if !validClasses[s.Class] {
-			t.Errorf("student %q has class %q which is not in the roster", s.Name, s.Class)
+			t.Errorf("student %q assigned to invalid class %q", s.Name, s.Class)
 		}
 	}
+}
 
-	if len(result.Students) == 0 {
-		t.Error("expected at least one student extracted")
+func TestLLM_PartialNameMatch(t *testing.T) {
+	ext := llmExtractor(t)
+	classes := []ClassGroup{
+		{Name: "English 101", Students: []ClassStudent{{Name: "Alexander Hamilton"}, {Name: "Elizabeth Bennet"}}},
+		{Name: "History 201", Students: []ClassStudent{{Name: "Theodore Roosevelt"}}},
+	}
+
+	result, err := ext.Extract(t.Context(), ExtractRequest{
+		Transcript: "Alex Hamilton wrote an outstanding essay on democracy today. His arguments were well-structured and his writing has improved significantly this semester.",
+		Classes:    classes,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Students) != 1 {
+		t.Fatalf("expected 1 student, got %d: %+v", len(result.Students), result.Students)
+	}
+	if result.Students[0].Name != "Alexander Hamilton" {
+		t.Errorf("name = %q, want Alexander Hamilton", result.Students[0].Name)
+	}
+	if result.Students[0].Class != "English 101" {
+		t.Errorf("class = %q, want English 101", result.Students[0].Class)
 	}
 }
