@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { fetchJobs, retryFailedJobs, dismissJobs } from '../api'
 import type { UploadJob, JobListResponse } from '../api'
 import StudentDetail from './StudentDetail'
+import TranscriptReview from './TranscriptReview'
 
 /** Polling intervals in milliseconds. */
 const POLL_ACTIVE_MS = 3_000
@@ -291,6 +292,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
 
 function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { job: UploadJob; isNew: boolean; onDismissNew: () => void; onDismiss: () => void; onOpenStudent: (link: { studentId: number; name: string; className: string }) => void }) {
   const noteCount = job.noteLinks?.length ?? 0
+  const [showTranscript, setShowTranscript] = useState(false)
 
   return (
     <motion.div
@@ -330,6 +332,31 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
             </button>
           ))}
         </div>
+      )}
+      {job.transcript && (
+        <>
+          <button
+            className="btn-text job-transcript-toggle"
+            onClick={() => setShowTranscript(v => !v)}
+          >
+            {showTranscript ? 'Hide transcript' : 'View transcript'}
+          </button>
+          <AnimatePresence>
+            {showTranscript && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <TranscriptReview
+                  transcript={job.transcript}
+                  noteLinks={job.noteLinks ?? []}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
       )}
     </motion.div>
   )

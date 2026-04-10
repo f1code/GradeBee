@@ -5,11 +5,13 @@ import type { JobListResponse } from '../../api'
 
 const mockFetchJobs = vi.fn()
 const mockRetryFailedJobs = vi.fn()
+const mockDismissJobs = vi.fn()
 const mockListNotes = vi.fn()
 
 vi.mock('../../api', () => ({
   fetchJobs: (...args: unknown[]) => mockFetchJobs(...args),
   retryFailedJobs: (...args: unknown[]) => mockRetryFailedJobs(...args),
+  dismissJobs: (...args: unknown[]) => mockDismissJobs(...args),
   listNotes: (...args: unknown[]) => mockListNotes(...args),
 }))
 
@@ -151,6 +153,63 @@ describe('JobStatus', () => {
     await waitFor(() => {
       expect(screen.getByTestId('job-new-badge')).toBeInTheDocument()
     })
+  })
+
+  it('shows View transcript button when job has transcript', async () => {
+    vi.useRealTimers()
+    const user = userEvent.setup()
+
+    mockFetchJobs.mockResolvedValue({
+      active: [],
+      failed: [],
+      done: [{
+        uploadId: 5,
+        fileName: 'with-transcript.m4a',
+        status: 'done' as const,
+        transcript: 'Emma did great on math. Jacob struggled with reading.',
+        noteLinks: [
+          { name: 'Emma', noteId: 30, studentId: 10, className: 'Class A' },
+        ],
+        createdAt: '2026-03-27T10:00:00Z',
+      }],
+    })
+
+    const { default: JobStatus } = await import('../JobStatus')
+    render(<JobStatus />)
+
+    await waitFor(() => {
+      expect(screen.getByText('View transcript')).toBeInTheDocument()
+    })
+
+    // Click to expand
+    await user.click(screen.getByText('View transcript'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/Emma did great on math/)).toBeInTheDocument()
+      expect(screen.getByText('Hide transcript')).toBeInTheDocument()
+    })
+  })
+
+  it('does not show View transcript button when transcript is empty', async () => {
+    mockFetchJobs.mockResolvedValue({
+      active: [],
+      failed: [],
+      done: [{
+        uploadId: 6,
+        fileName: 'no-transcript.m4a',
+        status: 'done' as const,
+        noteLinks: [],
+        createdAt: '2026-03-27T10:00:00Z',
+      }],
+    })
+
+    const { default: JobStatus } = await import('../JobStatus')
+    render(<JobStatus />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('job-done')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('View transcript')).not.toBeInTheDocument()
   })
 
   it('opens StudentDetail modal when clicking a note link', async () => {
