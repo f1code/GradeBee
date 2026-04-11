@@ -100,7 +100,7 @@ export default function StudentDetail({ studentId, studentName, className, onCol
         </div>
         {activeTab === 'notes' && (
           <button
-            className="btn-sm"
+            className="btn-primary btn-sm"
             onClick={() => { setAddingNote(true); setEditingNoteId(null) }}
             disabled={addingNote}
             data-testid="add-note-btn"

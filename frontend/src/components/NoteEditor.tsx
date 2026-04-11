@@ -117,7 +117,7 @@ export default function NoteEditor({
       ) : (
         <div className="note-editor-actions">
           <button
-            className={`btn-sm${saving ? ' btn-loading' : ''}`}
+            className={`btn-primary btn-sm${saving ? ' btn-loading' : ''}`}
             onClick={handleSave}
             disabled={!canSave}
             data-testid="note-editor-save"

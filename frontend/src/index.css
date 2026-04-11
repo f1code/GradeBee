@@ -157,11 +157,11 @@ header::after {
 }
 
 /* --- Buttons --- */
-button, .btn {
+button {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.95rem;
-  background: var(--honey);
+  background: none;
   color: var(--ink);
   border: none;
   padding: 0.5rem 1.4rem;
@@ -170,21 +170,9 @@ button, .btn {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: var(--shadow-sm);
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-}
-
-button:hover, .btn:hover {
-  background: var(--honey-dark);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lift);
-}
-
-button:active, .btn:active {
-  transform: translateY(0);
-  box-shadow: var(--shadow-sm);
 }
 
 button:disabled {
@@ -192,6 +180,21 @@ button:disabled {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+/* Shared 3D hover/active for button variants */
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
+}
+
+.btn-primary:active,
+.btn-secondary:active,
+.btn-danger:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary {
@@ -530,6 +533,7 @@ button:disabled {
 .btn-danger {
   background: var(--error-red);
   color: var(--chalk);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-danger:hover {
@@ -2111,10 +2115,23 @@ button:disabled {
   color: var(--ink-muted);
 }
 
-.job-transcript-toggle {
+.text-link {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-family: var(--font-body);
   font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration-color: transparent;
+  transition: color 0.15s;
+}
+
+.text-link:hover {
   color: var(--honey-dark);
-  margin-top: 6px;
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 163, 23, 0.4);
+  text-underline-offset: 2px;
 }
 
 .job-error {
@@ -2152,21 +2169,6 @@ button:disabled {
   letter-spacing: 0.04em;
 }
 
-.btn-text.job-clear-all {
-  background: none;
-  border: none;
-  color: var(--ink-muted);
-  font-family: var(--font-body);
-  font-size: 0.78rem;
-  cursor: pointer;
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
-}
-.btn-text.job-clear-all:hover {
-  color: var(--ink);
-  background: var(--comb);
-}
 
 .job-dismiss-btn {
   background: none;
@@ -2407,25 +2409,6 @@ button:disabled {
   margin-top: 0.35rem;
 }
 
-.note-transcript-toggle {
-  background: none;
-  border: none;
-  color: var(--honey-dark);
-  font-family: var(--font-body);
-  font-size: 0.82rem;
-  font-weight: 500;
-  padding: 0.15rem 0;
-  cursor: pointer;
-  min-height: auto;
-  box-shadow: none;
-}
-
-.note-transcript-toggle:hover {
-  color: var(--honey);
-  text-decoration: underline;
-  transform: none;
-  box-shadow: none;
-}
 
 .note-transcript-block {
   overflow: hidden;
@@ -2614,8 +2597,7 @@ button:disabled {
     min-height: 44px;
   }
 
-  .note-show-toggle,
-  .note-transcript-toggle {
+  .note-show-toggle {
     min-height: 44px;
     display: inline-flex;
     align-items: center;
@@ -2729,6 +2711,11 @@ button:disabled {
 .btn-primary {
   background: var(--honey);
   color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+  background: var(--honey-dark);
 }
 
 .report-copy-btn-success {

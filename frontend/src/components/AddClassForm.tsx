@@ -62,7 +62,7 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
           className="add-class-input"
           data-testid="add-class-input"
         />
-        <button type="submit" disabled={submitting || !name.trim()} data-testid="add-class-submit">
+        <button type="submit" disabled={submitting || !name.trim()} className="btn-primary" data-testid="add-class-submit">
           {submitting ? 'Adding…' : 'Add'}
         </button>
         {onCancel && (

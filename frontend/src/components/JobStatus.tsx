@@ -238,7 +238,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
       {doneSlice.length > 0 && (
         <div className="job-section-done" data-testid="job-done-section">
           <div className="job-section-done-header">
-            <button className="btn-text job-clear-all" onClick={dismissAllDone} data-testid="job-clear-all">
+            <button className="text-link" onClick={dismissAllDone} data-testid="job-clear-all">
               Clear all
             </button>
           </div>
@@ -336,7 +336,7 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
       {job.transcript && (
         <>
           <button
-            className="btn-text job-transcript-toggle"
+            className="text-link"
             onClick={() => setShowTranscript(v => !v)}
           >
             {showTranscript ? 'Hide transcript' : 'View transcript'}

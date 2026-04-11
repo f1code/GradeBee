@@ -148,7 +148,7 @@ function NoteCard({
       {/* Transcript toggle (auto notes only) */}
       {note.source === 'auto' && note.transcript && (
         <div className="note-transcript-section">
-          <button className="note-transcript-toggle" onClick={() => setExpanded(!expanded)}>
+          <button className="text-link" onClick={() => setExpanded(!expanded)}>
             {expanded ? 'Hide transcript' : 'Show transcript'}
           </button>
           <AnimatePresence>
