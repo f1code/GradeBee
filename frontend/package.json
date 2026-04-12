@@ -14,33 +14,32 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@clerk/react": "6.1.0",
+    "@clerk/react": "6.2.1",
     "dompurify": "^3.3.3",
     "motion": "^12.38.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.1"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.14.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@types/dompurify": "^3.0.5",
-    "@types/node": "^24.12.0",
+    "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.4.0",
-    "jsdom": "^29.0.1",
-    "prettier": "^3.8.1",
+    "globals": "^17.5.0",
+    "jsdom": "^29.0.2",
+    "prettier": "^3.8.2",
     "puppeteer": "^24.40.0",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.56.1",
-    "vite": "^8.0.0",
-    "vitest": "^4.1.0"
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.58.1",
+    "vite": "^8.0.8",
+    "vitest": "^4.1.4"
   }
 }
