@@ -161,7 +161,7 @@ button {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.95rem;
-  background: none;
+  background: var(--honey);
   color: var(--ink);
   border: none;
   padding: 0.5rem 1.4rem;
@@ -170,6 +170,7 @@ button {
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -182,19 +183,41 @@ button:disabled {
   box-shadow: none;
 }
 
+button:hover {
+  background: var(--honey-dark);
+}
+
 /* Shared 3D hover/active for button variants */
-.btn-primary:hover,
+button:hover,
 .btn-secondary:hover,
 .btn-danger:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow-lift);
 }
 
-.btn-primary:active,
+button:active,
 .btn-secondary:active,
 .btn-danger:active {
   transform: translateY(0);
   box-shadow: var(--shadow-sm);
+}
+
+/* Flat buttons: disable 3D hover/active effects */
+.text-link:hover, .text-link:active,
+.icon-btn:hover, .icon-btn:active,
+.toolbar-link:hover, .toolbar-link:active,
+.student-detail-tab:hover, .student-detail-tab:active,
+.student-list-collapse-toggle:hover, .student-list-collapse-toggle:active,
+.report-examples-toggle:hover, .report-examples-toggle:active,
+.how-it-works-trigger:hover, .how-it-works-trigger:active,
+.how-it-works-close:hover, .how-it-works-close:active,
+.student-modal-close:hover, .student-modal-close:active,
+.hint-banner-close:hover, .hint-banner-close:active,
+.job-note-link:hover, .job-note-link:active,
+.job-dismiss-btn:hover, .job-dismiss-btn:active,
+.note-show-toggle:hover, .note-show-toggle:active,
+.student-detail-back:hover, .student-detail-back:active {
+  transform: none;
 }
 
 .btn-secondary {
@@ -801,7 +824,7 @@ button:disabled {
   margin: 0;
 }
 
-.paste-actions .btn-primary {
+.paste-actions button {
   white-space: nowrap;
 }
 
@@ -1108,18 +1131,20 @@ button:disabled {
   padding: 0.5rem 1.25rem;
   border: none;
   border-radius: 8px;
-  background: transparent;
+  background: none;
   color: var(--ink-muted);
   cursor: pointer;
   transition: all 0.15s;
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  box-shadow: none;
 }
 
 .toolbar-link:hover {
   color: var(--ink);
   background: var(--honey-light);
+  box-shadow: none;
 }
 
 .toolbar-link.active {
@@ -2045,6 +2070,8 @@ button:disabled {
 
 .job-note-link:hover {
   color: var(--honey);
+  background: none;
+  box-shadow: none;
   text-decoration-color: var(--honey);
 }
 
@@ -2125,10 +2152,13 @@ button:disabled {
   padding: 0;
   text-decoration-color: transparent;
   transition: color 0.15s;
+  box-shadow: none;
 }
 
 .text-link:hover {
   color: var(--honey-dark);
+  background: none;
+  box-shadow: none;
   text-decoration: underline;
   text-decoration-color: rgba(232, 163, 23, 0.4);
   text-underline-offset: 2px;
@@ -2188,6 +2218,7 @@ button:disabled {
   line-height: 1;
   opacity: 0;
   transition: opacity 0.15s, background 0.15s, color 0.15s;
+  box-shadow: none;
 }
 .job-card-done:hover .job-dismiss-btn {
   opacity: 0.5;
@@ -2195,6 +2226,7 @@ button:disabled {
 .job-dismiss-btn:hover {
   opacity: 1 !important;
   background: var(--comb);
+  box-shadow: none;
   color: var(--ink);
 }
 
@@ -2400,6 +2432,7 @@ button:disabled {
 
 .note-show-toggle:hover {
   color: var(--honey);
+  background: none;
   text-decoration: underline;
   transform: none;
   box-shadow: none;
@@ -2706,16 +2739,6 @@ button:disabled {
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-bottom: 0.75rem;
-}
-
-.btn-primary {
-  background: var(--honey);
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-primary:hover {
-  background: var(--honey-dark);
 }
 
 .report-copy-btn-success {

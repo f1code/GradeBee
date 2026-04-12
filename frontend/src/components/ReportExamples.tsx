@@ -279,7 +279,7 @@ export default function ReportExamples() {
                           </label>
                           <div className="example-edit-actions">
                             <button className="btn-secondary btn-sm" onClick={cancelEditing} disabled={saving}>Cancel</button>
-                            <button className="btn btn-sm" onClick={saveEdit} disabled={saving || !editName.trim() || !editContent.trim()}>
+                            <button className="btn-sm" onClick={saveEdit} disabled={saving || !editName.trim() || !editContent.trim()}>
                               {saving ? 'Saving…' : 'Save'}
                             </button>
                           </div>

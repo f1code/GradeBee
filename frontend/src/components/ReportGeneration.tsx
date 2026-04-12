@@ -199,7 +199,7 @@ export default function ReportGeneration() {
 
       {/* Generate button */}
       <button
-        className="btn-primary report-generate-btn"
+        className="report-generate-btn"
         onClick={handleGenerate}
         disabled={generating || selectedCount === 0 || !startDate || !endDate}
       >

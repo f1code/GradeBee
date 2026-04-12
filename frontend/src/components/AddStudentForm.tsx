@@ -52,7 +52,7 @@ export default function AddStudentForm({ classId, onCreated }: AddStudentFormPro
           className="add-student-input"
           data-testid="add-student-input"
         />
-        <button type="submit" disabled={submitting || !name.trim()} className="btn-primary btn-sm" data-testid="add-student-submit">
+        <button type="submit" disabled={submitting || !name.trim()} className="btn-sm" data-testid="add-student-submit">
           {submitting ? '…' : 'Add'}
         </button>
       </form>

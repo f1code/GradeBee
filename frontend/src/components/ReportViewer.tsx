@@ -83,7 +83,7 @@ export default function ReportViewer({
       {/* Action bar */}
       <div className="report-viewer-actions">
         <button
-          className={`btn-primary btn-sm report-copy-btn${copied ? ' report-copy-btn-success' : ''}`}
+          className={`btn-sm report-copy-btn${copied ? ' report-copy-btn-success' : ''}`}
           onClick={handleCopy}
         >
           {copied ? '✓ Copied!' : 'Copy to Clipboard'}
@@ -146,7 +146,7 @@ export default function ReportViewer({
             />
             <div className="report-regenerate-actions">
               <button
-                className="btn-primary btn-sm"
+                className="btn-sm"
                 onClick={handleRegenerate}
                 disabled={regenerating || !feedback.trim()}
               >

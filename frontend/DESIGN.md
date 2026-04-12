@@ -30,8 +30,12 @@
 - Used for: class groups, setup panels, upload states, sign-in card.
 
 ### Buttons
-- Primary: `background: var(--honey)`, `color: var(--ink)`. Dark-on-gold.
+- Base `<button>` is primary-styled by default: `background: var(--honey)`, `color: var(--ink)`, shadow, 3D hover lift. No class needed.
 - Secondary (`.btn-secondary`): white bg with `--comb` border.
+- Danger (`.btn-danger`): red bg, white text.
+- Small (`.btn-sm`): reduced padding/font.
+- Flat variants (`.text-link`, `.icon-btn`, tabs, toggles) explicitly reset background/shadow/transform.
+- Do NOT use `.btn-primary` — it doesn't exist. A bare `<button>` is already primary.
 - Hover: darken + subtle lift (`translateY(-1px)` + shadow increase).
 - `border-radius: 8px`.
 

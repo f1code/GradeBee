@@ -282,7 +282,7 @@ export default function StudentList() {
       <div className="student-list-header">
         <h2 className="student-list-heading">Your Classes</h2>
         <button
-          className="btn-primary btn-sm"
+          className="btn-sm"
           onClick={() => setShowAddClass(true)}
           disabled={showAddClass}
           data-testid="add-class-btn"

@@ -302,7 +302,6 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                     <p className="hint">Include student names and dates — we'll match them to your roster.</p>
                     <button
                       type="button"
-                      className="btn-primary"
                       onClick={handlePasteSubmit}
                       disabled={!pasteText.trim()}
                       data-testid="paste-submit-btn"
