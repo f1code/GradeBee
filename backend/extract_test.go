@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -108,5 +109,5 @@ Specific note: Tommy helped me organize the materials, which was great.`
 
 // Helper
 func contains(s, substr string) bool {
-	return s != "" && substr != ""
+	return strings.Contains(s, substr)
 }
