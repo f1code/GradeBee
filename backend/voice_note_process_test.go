@@ -52,8 +52,8 @@ func TestProcessJob_HappyPath(t *testing.T) {
 			result: &ExtractResponse{
 				Date: "2026-03-22",
 				Students: []MatchedStudent{
-					{Name: "Alice", Class: "Math", Summary: "Did great", Confidence: 0.9},
-					{Name: "Bob", Class: "Math", Summary: "Needs improvement", Confidence: 0.8},
+					{Name: "Alice", Class: "Math", QuotedText: "Did great", Confidence: 0.9},
+					{Name: "Bob", Class: "Math", QuotedText: "Needs improvement", Confidence: 0.8},
 				},
 			},
 		},
@@ -190,7 +190,7 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date:     "2026-01-01",
-			Students: []MatchedStudent{{Name: "Alice", Class: "Math", Summary: "ok", Confidence: 0.9}},
+			Students: []MatchedStudent{{Name: "Alice", Class: "Math", QuotedText: "ok", Confidence: 0.9}},
 		}},
 		noteCreator:   &stubNoteCreator{err: io.ErrUnexpectedEOF},
 		studentRepo:   studentRepo,
@@ -267,8 +267,8 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-01-01",
 			Students: []MatchedStudent{
-				{Name: "Alice", Class: "Math", Summary: "ok", Confidence: 0.9},
-				{Name: "Alice", Class: "WrongClass", Summary: "hallucinated", Confidence: 0.9},
+				{Name: "Alice", Class: "Math", QuotedText: "ok", Confidence: 0.9},
+				{Name: "Alice", Class: "WrongClass", QuotedText: "hallucinated", Confidence: 0.9},
 			},
 		}},
 		noteCreator:   nc,
@@ -328,8 +328,8 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-01-01",
 			Students: []MatchedStudent{
-				{Name: "Alice", Class: "Math", Summary: "ok", Confidence: 0.9},
-				{Name: "Maybe", Class: "Math", Summary: "unsure", Confidence: 0.3},
+				{Name: "Alice", Class: "Math", QuotedText: "ok", Confidence: 0.9},
+				{Name: "Maybe", Class: "Math", QuotedText: "unsure", Confidence: 0.3},
 			},
 		}},
 		noteCreator:   nc,
@@ -348,5 +348,66 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 
 	if len(nc.calls) != 1 {
 		t.Errorf("note creator calls = %d, want 1 (low confidence skipped)", len(nc.calls))
+	}
+}
+
+// TestProcessJob_QuotedTextPassedToNoteCreator verifies that QuotedText from
+// extraction flows through to CreateNoteRequest without modification.
+func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
+	db := setupTestDB(t)
+	studentRepo := &StudentRepo{db: db}
+	classRepo := &ClassRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
+
+	cls, err := classRepo.Create(t.Context(), "u1", "Math")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
+		t.Fatal(err)
+	}
+
+	tmpDir := t.TempDir()
+	audioPath := filepath.Join(tmpDir, "recording.m4a")
+	if err := os.WriteFile(audioPath, []byte("fake audio"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	queue := newStubVoiceNoteQueue()
+	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
+
+	rawQuote := "Alice was impossibly good today - she blew my mind with her presentation"
+
+	d := &mockDepsAll{
+		transcriber: &stubTranscriber{result: "some transcript"},
+		roster: &stubRoster{
+			classNames: []string{"Math"},
+			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
+		},
+		extractor: &stubExtractor{result: &ExtractResponse{
+			Date: "2026-04-13",
+			Students: []MatchedStudent{
+				{Name: "Alice", Class: "Math", QuotedText: rawQuote, Confidence: 0.95},
+			},
+		}},
+		noteCreator:   nc,
+		studentRepo:   studentRepo,
+		voiceNoteRepo: voiceNoteRepo,
+	}
+
+	ctx := context.Background()
+	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)); err != nil {
+		t.Fatalf("processVoiceNote: %v", err)
+	}
+
+	if len(nc.calls) != 1 {
+		t.Fatalf("expected 1 note creation call, got %d", len(nc.calls))
+	}
+	if nc.calls[0].QuotedText != rawQuote {
+		t.Errorf("QuotedText not passed through.\nGot:  %s\nWant: %s", nc.calls[0].QuotedText, rawQuote)
 	}
 }

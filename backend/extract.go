@@ -35,7 +35,7 @@ type ExtractResponse struct {
 type MatchedStudent struct {
 	Name       string             `json:"name"`
 	Class      string             `json:"class"`
-	Summary    string             `json:"summary"`
+	QuotedText string             `json:"quoted_text"` // Extracted passages from transcript, unchanged
 	Confidence float64            `json:"confidence"`
 	Candidates []StudentCandidate `json:"candidates,omitempty"`
 }
@@ -63,7 +63,7 @@ func (e *gptExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 	systemPrompt := buildExtractionPrompt(req.Classes)
 
 	resp, err := e.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-5.4-mini",
+		Model: "gpt-4o-mini",
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
 			{Role: openai.ChatMessageRoleUser, Content: req.Transcript},
@@ -106,7 +106,11 @@ Your task:
 1. Identify which students are mentioned in the transcript
 2. Match each mentioned name to the student roster below (handle phonetic/partial matches)
 3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty
-4. Write a brief 1-3 sentence summary per student suitable for a report card
+4. Extract relevant passages from the transcript that mention or describe this student
+   - Include direct quotes where the teacher discusses this student
+   - Preserve the teacher's exact wording and tone
+   - Include 1-3 key passages per student, separated by " | " if multiple
+   - Do NOT rewrite, summarize, or paraphrase - use the teacher's original language
 
 Student Roster:
 `)
@@ -121,13 +125,16 @@ Rules:
 - Match mentioned names against the roster even if pronunciation differs slightly
 - Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.
 - If confidence < 0.7, include up to 3 closest roster matches in "candidates"
-- If the transcript contains observations about "everyone", "all students", "the class", or similar group references, apply those observations to EVERY student on the roster and produce a summary for each
-- Combine any group-level observations with student-specific observations in each student's summary
-- For multi-student transcripts, produce a separate summary per student
-- Each summary should be from the teacher's perspective, about that specific student
+- Extract quoted_text directly from the transcript - preserve the teacher's exact words and emotion
+- If the transcript contains observations about "everyone", "all students", "the class", or similar group references, include those statements ONLY for students who are also individually mentioned by name in the transcript
+- Do NOT create entries for students who are only covered by group observations but never mentioned individually
+- For individually mentioned students, combine their specific observations with any relevant group-level observations
+- If the transcript contains group references like "everyone", "all students", or "the class", apply those observations only to students in the class being discussed, not to ALL classes. Use context clues (class name mentions, prior student mentions) to determine which class is meant.
+- For multi-student transcripts, produce a separate entry per student with relevant passages
 - If a mentioned student cannot be matched to any roster entry, do not include them in the output
 - If no students are clearly mentioned, return an empty students array
 - The "class" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.
+- IMPORTANT: Never modify, clean up, or formally rewrite the teacher's text. Always preserve their original voice.
 `)
 	return sb.String()
 }
@@ -144,7 +151,7 @@ func extractResponseSchema() json.RawMessage {
 					"properties": {
 						"name": {"type": "string"},
 						"class": {"type": "string"},
-						"summary": {"type": "string"},
+						"quoted_text": {"type": "string"},
 						"confidence": {"type": "number"},
 						"candidates": {
 							"type": "array",
@@ -159,7 +166,7 @@ func extractResponseSchema() json.RawMessage {
 							}
 						}
 					},
-					"required": ["name", "class", "summary", "confidence", "candidates"],
+					"required": ["name", "class", "quoted_text", "confidence", "candidates"],
 					"additionalProperties": false
 				}
 			},
