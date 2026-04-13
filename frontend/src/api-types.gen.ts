@@ -60,7 +60,7 @@ export interface ExtractResponse {
 export interface MatchedStudent {
   name: string;
   class: string;
-  summary: string;
+  quoted_text: string; // Extracted passages from transcript, unchanged
   confidence: number /* float64 */;
   candidates?: StudentCandidate[];
 }
@@ -132,7 +132,7 @@ export type NoteCreator = any;
 export interface CreateNoteRequest {
   StudentID: number /* int64 */;
   StudentName: string;
-  Summary: string;
+  QuotedText: string; // Extracted passages from transcript
   Transcript: string;
   Date: string; // YYYY-MM-DD
 }
