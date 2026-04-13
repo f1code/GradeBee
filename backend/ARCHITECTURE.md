@@ -77,7 +77,9 @@ User uploads audio
         │
         ├─ Step 2: Extract (status → "extracting")
         │    Send transcript + student roster to GPT
-        │    → per-student observations (name, class, summary, confidence)
+        │    → per-student observations (name, class, quoted_text, confidence)
+        │    Note: quoted_text contains verbatim passages from the transcript.
+        │    Stored in the notes table `summary` column (legacy name, no migration needed).
         │
         ├─ Step 3: Create Notes (status → "creating_notes")
         │    For each student with confidence ≥ 0.5:
