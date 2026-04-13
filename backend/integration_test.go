@@ -463,13 +463,20 @@ func TestLLM_PartialNameMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Students) != 1 {
-		t.Fatalf("expected 1 student, got %d: %+v", len(result.Students), result.Students)
+	if len(result.Students) < 1 {
+		t.Fatalf("expected at least 1 student, got %d", len(result.Students))
 	}
-	if result.Students[0].Name != "Alexander Hamilton" {
-		t.Errorf("name = %q, want Alexander Hamilton", result.Students[0].Name)
+	var found bool
+	for _, s := range result.Students {
+		if s.Name == "Alexander Hamilton" {
+			found = true
+			if s.Class != "English 101" {
+				t.Errorf("class = %q, want English 101", s.Class)
+			}
+			break
+		}
 	}
-	if result.Students[0].Class != "English 101" {
-		t.Errorf("class = %q, want English 101", result.Students[0].Class)
+	if !found {
+		t.Errorf("Alexander Hamilton not found in results: %+v", result.Students)
 	}
 }

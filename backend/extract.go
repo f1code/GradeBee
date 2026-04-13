@@ -126,9 +126,9 @@ Rules:
 - Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.
 - If confidence < 0.7, include up to 3 closest roster matches in "candidates"
 - Extract quoted_text directly from the transcript - preserve the teacher's exact words and emotion
-- If the transcript contains observations about "everyone", "all students", "the class", or similar group references, include those statements ONLY for students who are also individually mentioned by name in the transcript
-- Do NOT create entries for students who are only covered by group observations but never mentioned individually
-- For individually mentioned students, combine their specific observations with any relevant group-level observations
+- A student is "individually mentioned" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like "everyone", "all students", "the class" do NOT count as individual mentions.
+- Do NOT create entries for students who are never individually mentioned by name. If a student is only covered by group-level observations (e.g. "the class was loud") but never called out by name, they must NOT appear in the output.
+- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations (e.g. "the class was too loud") from the transcript, separated by " | ". Always include the group-level quotes even if the student also has individual observations.
 - If the transcript contains group references like "everyone", "all students", or "the class", apply those observations only to students in the class being discussed, not to ALL classes. Use context clues (class name mentions, prior student mentions) to determine which class is meant.
 - For multi-student transcripts, produce a separate entry per student with relevant passages
 - If a mentioned student cannot be matched to any roster entry, do not include them in the output
