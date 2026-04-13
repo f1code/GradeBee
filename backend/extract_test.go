@@ -104,6 +104,10 @@ Specific note: Tommy helped me organize the materials, which was great.`
 		if s.QuotedText == "" {
 			t.Errorf("%s has empty QuotedText", s.Name)
 		}
+		// Group observation should be reflected for all students
+		if !contains(s.QuotedText, "too loud") && !contains(s.QuotedText, "unfocused") && !contains(s.QuotedText, "talking over") {
+			t.Errorf("%s QuotedText missing group observation. Got: %s", s.Name, s.QuotedText)
+		}
 	}
 }
 
