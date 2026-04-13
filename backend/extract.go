@@ -106,11 +106,11 @@ Your task:
 1. Identify which students are mentioned in the transcript
 2. Match each mentioned name to the student roster below (handle phonetic/partial matches)
 3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty
-4. Extract relevant passages from the transcript that mention or describe this student
-   - Include direct quotes where the teacher discusses this student
-   - Preserve the teacher's exact wording and tone
-   - Include 1-3 key passages per student, separated by " | " if multiple
-   - Do NOT rewrite, summarize, or paraphrase - use the teacher's original language
+4. Write a 1-3 sentence summary per student capturing what the teacher said about them
+   - Clean up speech artifacts (false starts, filler words, repetitions) into clear sentences
+   - Preserve the teacher's voice, tone, and specific observations — do NOT add details or opinions not present in the transcript
+   - Keep the teacher's vocabulary and perspective (first person if they used it)
+   - Combine multiple mentions of the same student into a cohesive note
 
 Student Roster:
 `)
@@ -125,16 +125,15 @@ Rules:
 - Match mentioned names against the roster even if pronunciation differs slightly
 - Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.
 - If confidence < 0.7, include up to 3 closest roster matches in "candidates"
-- Extract quoted_text directly from the transcript - preserve the teacher's exact words and emotion
 - A student is "individually mentioned" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like "everyone", "all students", "the class" do NOT count as individual mentions.
 - Do NOT create entries for students who are never individually mentioned by name. If a student is only covered by group-level observations (e.g. "the class was loud") but never called out by name, they must NOT appear in the output.
-- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations (e.g. "the class was too loud") from the transcript, separated by " | ". Always include the group-level quotes even if the student also has individual observations.
+- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations from the transcript. Always include the group-level context even if the student also has individual observations.
 - If the transcript contains group references like "everyone", "all students", or "the class", apply those observations only to students in the class being discussed, not to ALL classes. Use context clues (class name mentions, prior student mentions) to determine which class is meant.
 - For multi-student transcripts, produce a separate entry per student with relevant passages
 - If a mentioned student cannot be matched to any roster entry, do not include them in the output
 - If no students are clearly mentioned, return an empty students array
 - The "class" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.
-- IMPORTANT: Never modify, clean up, or formally rewrite the teacher's text. Always preserve their original voice.
+- IMPORTANT: Clean up speech into readable sentences, but do NOT invent observations or editorialize. Stay faithful to what the teacher actually said.
 `)
 	return sb.String()
 }
