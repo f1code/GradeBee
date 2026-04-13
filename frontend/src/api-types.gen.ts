@@ -300,7 +300,7 @@ report example.
 // source: report_example_extractor.go
 /*
 report_example_extractor.go extracts text from PDF/image report card examples
-using GPT Vision (gpt-4o-mini).
+using GPT Vision (gpt-5.4-mini).
 */
 
 /**

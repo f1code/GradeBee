@@ -1,5 +1,5 @@
 // report_example_extractor.go extracts text from PDF/image report card examples
-// using GPT Vision (gpt-4o-mini).
+// using GPT Vision (gpt-5.4-mini).
 package handler
 
 import (
@@ -21,7 +21,7 @@ type ExampleExtractor interface {
 	ExtractText(ctx context.Context, filename string, data []byte) (string, error)
 }
 
-// gptExampleExtractor uses OpenAI GPT-4o-mini to extract text via vision.
+// gptExampleExtractor uses OpenAI GPT-5.4-mini to extract text via vision.
 type gptExampleExtractor struct {
 	client *openai.Client
 }
