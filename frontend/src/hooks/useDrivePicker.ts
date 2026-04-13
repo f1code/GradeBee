@@ -83,12 +83,13 @@ export function useDrivePicker() {
   const openPicker = useCallback(
     async (
       accessToken: string,
-      options?: { mimeTypes?: string; title?: string }
-    ): Promise<PickerResult | null> => {
+      options?: { mimeTypes?: string; title?: string; multiSelect?: boolean }
+    ): Promise<PickerResult[] | null> => {
       await loadPickerApi()
 
       const mimeTypes = options?.mimeTypes ?? AUDIO_MIME_TYPES
       const title = options?.title ?? 'Select an audio file'
+      const multiSelect = options?.multiSelect ?? false
 
       return new Promise((resolve) => {
         const view = new window.google.picker.PickerBuilder()
@@ -106,10 +107,16 @@ export function useDrivePicker() {
           )
           .setOAuthToken(accessToken)
           .enableFeature(window.google.picker.Feature.NAV_HIDDEN)
+
+        if (multiSelect) {
+          view.enableFeature((window.google.picker.Feature as unknown as Record<string, string>).MULTISELECT_ENABLED)
+        }
+
+        view
           .setTitle(title)
           .setCallback((data: PickerCallbackData) => {
-            if (data.action === window.google.picker.Action.PICKED && data.docs?.[0]) {
-              resolve({ id: data.docs[0].id, name: data.docs[0].name })
+            if (data.action === window.google.picker.Action.PICKED && data.docs?.length) {
+              resolve(data.docs.map(doc => ({ id: doc.id, name: doc.name })))
             } else if (data.action === window.google.picker.Action.CANCEL) {
               resolve(null)
             }

@@ -881,6 +881,11 @@ button:active,
   margin-top: 0.75rem;
 }
 
+.upload-error-list {
+  margin-top: 0.25rem;
+  padding-left: 1.25rem;
+}
+
 /* Upload done */
 .upload-done {
   background: var(--chalk);

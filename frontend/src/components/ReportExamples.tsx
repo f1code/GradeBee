@@ -110,9 +110,9 @@ export default function ReportExamples() {
         mimeTypes: REPORT_MIME_TYPES,
         title: 'Select a report card',
       })
-      if (!picked) return
+      if (!picked || picked.length === 0) return
       setDriveImporting(true)
-      await importExampleFromDrive(picked.id, picked.name, getToken)
+      await importExampleFromDrive(picked[0].id, picked[0].name, getToken)
       await load()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Drive import failed')
