@@ -20,6 +20,7 @@ vi.mock('@clerk/react', () => ({
 
 vi.mock('../../hooks/useDrivePicker', () => ({
   useDrivePicker: () => ({ openPicker: vi.fn().mockResolvedValue(null) }),
+  AUDIO_MIME_TYPES: 'audio/mpeg',
 }))
 
 vi.mock('../../hooks/useMediaQuery', () => ({
@@ -167,5 +168,60 @@ describe('AudioUpload', () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(screen.getByTestId('paste-textarea'))
     })
+  })
+
+  it('uploads multiple files sequentially and shows success count', async () => {
+    mockUploadAudio.mockResolvedValue({ uploadId: 1 })
+
+    const { default: AudioUpload } = await import('../AudioUpload')
+    render(<AudioUpload />)
+
+    const file1 = new File(['audio'], 'a.mp3', { type: 'audio/mpeg' })
+    const file2 = new File(['audio'], 'b.mp3', { type: 'audio/mpeg' })
+    const input = screen.getByTestId('file-input') as HTMLInputElement
+    await userEvent.upload(input, [file1, file2])
+
+    await waitFor(() => {
+      expect(screen.getByTestId('upload-success')).toHaveTextContent('2 files uploaded')
+    })
+    expect(mockUploadAudio).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows partial failure summary when some files fail', async () => {
+    mockUploadAudio
+      .mockResolvedValueOnce({ uploadId: 1 })
+      .mockRejectedValueOnce(new Error('Server error'))
+
+    const { default: AudioUpload } = await import('../AudioUpload')
+    render(<AudioUpload />)
+
+    const file1 = new File(['audio'], 'ok.mp3', { type: 'audio/mpeg' })
+    const file2 = new File(['audio'], 'fail.mp3', { type: 'audio/mpeg' })
+    const input = screen.getByTestId('file-input') as HTMLInputElement
+    await userEvent.upload(input, [file1, file2])
+
+    await waitFor(() => {
+      const errorEl = screen.getByTestId('upload-error')
+      expect(errorEl).toHaveTextContent('1 file uploaded')
+      expect(errorEl).toHaveTextContent('fail.mp3')
+    })
+    expect(mockUploadAudio).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects all files when any file exceeds 25MB', async () => {
+    const { default: AudioUpload } = await import('../AudioUpload')
+    render(<AudioUpload />)
+
+    const okFile = new File(['audio'], 'ok.mp3', { type: 'audio/mpeg' })
+    const bigFile = new File(['x'.repeat(100)], 'big.mp3', { type: 'audio/mpeg' })
+    Object.defineProperty(bigFile, 'size', { value: 26 * 1024 * 1024 })
+
+    const input = screen.getByTestId('file-input') as HTMLInputElement
+    await userEvent.upload(input, [okFile, bigFile])
+
+    await waitFor(() => {
+      expect(screen.getByTestId('upload-error')).toHaveTextContent(/too large|exceed the 25 MB limit/)
+    })
+    expect(mockUploadAudio).not.toHaveBeenCalled()
   })
 })

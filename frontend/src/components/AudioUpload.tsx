@@ -14,6 +14,27 @@ const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024
 /** How long to show the success toast before resetting to idle. */
 const SUCCESS_TOAST_MS = 3000
 
+async function runBatchUpload(
+  items: { name: string; upload: () => Promise<unknown> }[],
+  onProgress: (index: number, name: string) => void
+): Promise<{ succeeded: number; failed: string[]; lastError: string | null }> {
+  const failed: string[] = []
+  let succeeded = 0
+  let lastError: string | null = null
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    onProgress(i + 1, item.name)
+    try {
+      await item.upload()
+      succeeded++
+    } catch (err) {
+      failed.push(item.name)
+      lastError = err instanceof Error ? err.message : 'Something went wrong'
+    }
+  }
+  return { succeeded, failed, lastError }
+}
+
 function MicIcon() {
   return (
     <svg className="drop-zone-icon" width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -64,6 +85,10 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   const [status, setStatus] = useState<UploadStatus>('idle')
   const [fileName, setFileName] = useState<string>('')
   const [error, setError] = useState<string>('')
+  const [uploadIndex, setUploadIndex] = useState(0)
+  const [uploadTotal, setUploadTotal] = useState(0)
+  const [failedFiles, setFailedFiles] = useState<string[]>([])
+  const [successCount, setSuccessCount] = useState(0)
   const [dragOver, setDragOver] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [showPaste, setShowPaste] = useState(false)
@@ -86,12 +111,15 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     setFileName('')
     setError('')
     setShowSuccess(false)
+    setFailedFiles([])
+    setSuccessCount(0)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  function onUploadComplete() {
+  function onUploadComplete(count: number) {
     setStatus('idle')
     setShowSuccess(true)
+    setSuccessCount(count)
     setPasteText('')
     setShowPaste(false)
     if (fileInputRef.current) fileInputRef.current.value = ''
@@ -99,24 +127,42 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     setTimeout(() => setShowSuccess(false), SUCCESS_TOAST_MS)
   }
 
-  async function processFile(file: File) {
-    if (file.size > MAX_SIZE_BYTES) {
-      setError(`File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max ${MAX_SIZE_MB} MB.`)
+  async function processFiles(files: File[]) {
+    const oversized = files.filter(f => f.size > MAX_SIZE_BYTES)
+    if (oversized.length > 0) {
+      setError(
+        oversized.length === 1
+          ? `File too large (${(oversized[0].size / 1024 / 1024).toFixed(1)} MB). Max ${MAX_SIZE_MB} MB.`
+          : `${oversized.length} files exceed the ${MAX_SIZE_MB} MB limit.`
+      )
       setStatus('error')
       return
     }
 
-    setFileName(file.name)
     setError('')
     setShowSuccess(false)
+    setFailedFiles([])
+    setUploadTotal(files.length)
 
-    try {
-      setStatus('uploading')
-      await uploadAudio(file, getToken)
-      onUploadComplete()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+    setStatus('uploading')
+    const { succeeded, failed, lastError } = await runBatchUpload(
+      files.map(file => ({ name: file.name, upload: () => uploadAudio(file, getToken) })),
+      (index, name) => { setUploadIndex(index); setFileName(name) }
+    )
+
+    if (failed.length > 0) {
+      setFailedFiles(failed)
       setStatus('error')
+      if (files.length === 1) {
+        setError(lastError ?? 'Something went wrong')
+      } else if (succeeded > 0) {
+        setError(`${succeeded} file${succeeded > 1 ? 's' : ''} uploaded. ${failed.length} failed:`)
+        onUploadDone?.()
+      } else {
+        setError(`All ${files.length} files failed to upload:`)
+      }
+    } else {
+      onUploadComplete(succeeded)
     }
   }
 
@@ -126,13 +172,28 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
 
     try {
       const { accessToken } = await getGoogleToken(getToken)
-      const picked = await openPicker(accessToken, { mimeTypes: AUDIO_MIME_TYPES })
-      if (!picked) return
+      const picked = await openPicker(accessToken, { mimeTypes: AUDIO_MIME_TYPES, multiSelect: true, title: 'Select audio files' })
+      if (!picked || picked.length === 0) return
 
-      setFileName(picked.name)
+      setUploadTotal(picked.length)
       setStatus('uploading')
-      await importFromDrive(picked.id, picked.name, getToken)
-      onUploadComplete()
+      const { succeeded, failed } = await runBatchUpload(
+        picked.map(item => ({ name: item.name, upload: () => importFromDrive(item.id, item.name, getToken) })),
+        (index, name) => { setUploadIndex(index); setFileName(name) }
+      )
+
+      if (failed.length > 0) {
+        setFailedFiles(failed)
+        setStatus('error')
+        if (succeeded > 0) {
+          setError(`${succeeded} file${succeeded > 1 ? 's' : ''} uploaded. ${failed.length} failed:`)
+          onUploadDone?.()
+        } else {
+          setError(`All ${picked.length} files failed to upload:`)
+        }
+      } else {
+        onUploadComplete(succeeded)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
       setStatus('error')
@@ -148,7 +209,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     try {
       setStatus('uploading')
       await submitTextNotes(pasteText, getToken)
-      onUploadComplete()
+      onUploadComplete(1)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
       setStatus('error')
@@ -156,15 +217,15 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) processFile(file)
+    const files = Array.from(e.target.files ?? [])
+    if (files.length > 0) processFiles(files)
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
     setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) processFile(file)
+    const files = Array.from(e.dataTransfer.files ?? [])
+    if (files.length > 0) processFiles(files)
   }
 
   function handleDragOver(e: React.DragEvent) {
@@ -203,7 +264,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                   onClick={() => fileInputRef.current?.click()}
                   data-testid="mobile-file-btn"
                 >
-                  🎙️ Choose Audio File
+                  🎙️ Choose Audio Files
                 </button>
                 <button
                   type="button"
@@ -223,12 +284,13 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                   <PasteIcon />
                   Paste Text
                 </button>
-                <p className="hint">Accepted audio: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
+                <p className="hint">Accepted audio: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB each)</p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept={ACCEPTED_FORMATS}
                   onChange={handleFileChange}
+                  multiple
                   style={{ display: 'none' }}
                   data-testid="file-input"
                 />
@@ -244,13 +306,14 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                   data-testid="drop-zone"
                 >
                   <MicIcon />
-                  <p>Drag & drop an audio file here, or click to browse</p>
-                  <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB)</p>
+                  <p>Drag & drop audio files here, or click to browse</p>
+                  <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB each)</p>
                   <input
                     ref={fileInputRef}
                     type="file"
                     accept={ACCEPTED_FORMATS}
                     onChange={handleFileChange}
+                    multiple
                     style={{ display: 'none' }}
                     data-testid="file-input"
                   />
@@ -326,7 +389,11 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
             transition={{ duration: 0.25 }}
           >
             <HoneycombSpinner />
-            <p>{fileName === 'pasted-text' ? 'Processing notes...' : <>Uploading <strong>{fileName}</strong>...</>}</p>
+            <p>{fileName === 'pasted-text'
+              ? 'Processing notes...'
+              : uploadTotal > 1
+                ? <>Uploading <strong>{uploadIndex}/{uploadTotal}</strong>: {fileName}...</>
+                : <>Uploading <strong>{fileName}</strong>...</>}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -342,7 +409,11 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
             transition={{ duration: 0.25 }}
           >
             <span className="upload-success-icon">✓</span>
-            {fileName === 'pasted-text' ? 'Submitted' : 'Uploaded'}! Processing in background.
+            {fileName === 'pasted-text'
+              ? 'Submitted'
+              : successCount > 1
+                ? `${successCount} files uploaded`
+                : 'Uploaded'}! Processing in background.
           </motion.div>
         )}
       </AnimatePresence>
@@ -350,6 +421,11 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
       {status === 'error' && (
         <div className="upload-error" data-testid="upload-error">
           <p>{error}</p>
+          {failedFiles.length > 0 && (
+            <ul className="upload-error-list">
+              {failedFiles.map((f, i) => <li key={i}>{f}</li>)}
+            </ul>
+          )}
           <button className="btn-secondary" onClick={reset} style={{ marginTop: '0.5rem' }}>
             Try again
           </button>
