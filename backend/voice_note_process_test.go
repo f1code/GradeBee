@@ -17,7 +17,7 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	// Seed class + students.
-	cls, err := classRepo.Create(t.Context(), "user1", "Math")
+	cls, err := classRepo.Create(t.Context(), "user1", "Math", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math")
+	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math")
+	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -303,7 +303,7 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math")
+	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -359,7 +359,7 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math")
+	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
 	if err != nil {
 		t.Fatal(err)
 	}
