@@ -10,6 +10,7 @@ import {
   deleteReportExample,
   importExampleFromDrive,
   getGoogleToken,
+  listClassNames,
   type ReportExampleItem,
 } from '../api'
 import { useDrivePicker } from '../hooks/useDrivePicker'
@@ -48,6 +49,56 @@ function FailedBadge() {
   return <span className="example-status-badge failed">Extraction failed</span>
 }
 
+interface ClassNameTagsProps {
+  classNames: string[]
+}
+
+function ClassNameTags({ classNames }: ClassNameTagsProps) {
+  if (!classNames || classNames.length === 0) return null
+  return (
+    <span className="class-name-tags">
+      {classNames.map(n => (
+        <span key={n} className="class-name-tag">{n}</span>
+      ))}
+    </span>
+  )
+}
+
+interface ClassNamesSelectProps {
+  available: string[]
+  selected: string[]
+  onChange: (selected: string[]) => void
+}
+
+function ClassNamesSelect({ available, selected, onChange }: ClassNamesSelectProps) {
+  function toggle(name: string) {
+    if (selected.includes(name)) {
+      onChange(selected.filter(n => n !== name))
+    } else {
+      onChange([...selected, name])
+    }
+  }
+
+  return (
+    <div className="class-names-select">
+      {available.length === 0 ? (
+        <p className="class-names-empty">No classes yet. Add classes first.</p>
+      ) : (
+        available.map(name => (
+          <label key={name} className="class-names-option">
+            <input
+              type="checkbox"
+              checked={selected.includes(name)}
+              onChange={() => toggle(name)}
+            />
+            <span>{name}</span>
+          </label>
+        ))
+      )}
+    </div>
+  )
+}
+
 export default function ReportExamples() {
   const { getToken } = useAuth()
   const [examples, setExamples] = useState<ReportExampleItem[]>([])
@@ -61,7 +112,12 @@ export default function ReportExamples() {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
   const [editContent, setEditContent] = useState('')
+  const [editClassNames, setEditClassNames] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [availableClassNames, setAvailableClassNames] = useState<string[]>([])
+  // Upload class names selection state
+  const [pendingFiles, setPendingFiles] = useState<File[] | null>(null)
+  const [uploadClassNames, setUploadClassNames] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { openPicker } = useDrivePicker()
 
@@ -78,6 +134,10 @@ export default function ReportExamples() {
 
   useEffect(() => { load() }, [load])
 
+  useEffect(() => {
+    listClassNames(getToken).then(({ classNames }) => setAvailableClassNames(classNames)).catch(() => {})
+  }, [getToken])
+
   // Poll while any example is still processing.
   useEffect(() => {
     const hasProcessing = examples.some(e => e.status === 'processing')
@@ -88,17 +148,26 @@ export default function ReportExamples() {
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
+    // Collect files and show class name picker
+    setPendingFiles(Array.from(files))
+    setUploadClassNames([])
+  }
+
+  async function confirmUpload() {
+    if (!pendingFiles) return
     setUploading(true)
     setError(null)
     try {
-      for (const file of Array.from(files)) {
-        await uploadReportExample(file, () => getToken())
+      for (const file of pendingFiles) {
+        await uploadReportExample(file, uploadClassNames, () => getToken())
       }
       await load()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Upload failed')
     } finally {
       setUploading(false)
+      setPendingFiles(null)
+      setUploadClassNames([])
     }
   }
 
@@ -125,6 +194,7 @@ export default function ReportExamples() {
     setEditingId(ex.id)
     setEditName(ex.name)
     setEditContent(ex.content)
+    setEditClassNames(ex.classNames || [])
   }
 
   function cancelEditing() {
@@ -136,7 +206,7 @@ export default function ReportExamples() {
     setSaving(true)
     setError(null)
     try {
-      await updateReportExample(editingId, editName, editContent, () => getToken())
+      await updateReportExample(editingId, editName, editContent, editClassNames, () => getToken())
       await load()
       setEditingId(null)
     } catch (e: unknown) {
@@ -178,48 +248,82 @@ export default function ReportExamples() {
             transition={{ duration: 0.2 }}
             style={{ overflow: 'hidden' }}
           >
+            {/* Pending upload class selection */}
+            {pendingFiles && (
+              <div className="upload-classnames-panel">
+                <p className="upload-classnames-title">
+                  Assign class{pendingFiles.length > 1 ? 'es' : ''} for {pendingFiles.length} file{pendingFiles.length > 1 ? 's' : ''}:
+                </p>
+                <ClassNamesSelect
+                  available={availableClassNames}
+                  selected={uploadClassNames}
+                  onChange={setUploadClassNames}
+                />
+                <div className="upload-classnames-actions">
+                  <button
+                    className="btn-secondary btn-sm"
+                    onClick={() => { setPendingFiles(null); setUploadClassNames([]) }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn-sm"
+                    onClick={confirmUpload}
+                    disabled={uploadClassNames.length === 0 || uploading}
+                  >
+                    {uploading ? 'Uploading…' : 'Upload'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Drop zone */}
-            <div
-              className={`example-drop-zone ${dragOver ? 'drag-over' : ''}`}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault()
-                setDragOver(false)
-                handleFiles(e.dataTransfer.files)
-              }}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".txt,.md,.text,.pdf,.png,.jpg,.jpeg,.webp"
-                multiple
-                style={{ display: 'none' }}
-                onChange={(e) => handleFiles(e.target.files)}
-              />
-              {uploading || driveImporting ? (
-                <>
-                  <div className="honeycomb-spinner" />
-                  <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.7 }}>
-                    {driveImporting ? 'Importing from Drive…' : 'Uploading…'}
-                  </p>
-                </>
-              ) : (
-                <p>Drop files here or click to upload<br/><span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Text, PDF, or image files</span></p>
-              )}
-            </div>
-            <div className="secondary-actions" style={{ marginTop: '0.5rem' }}>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={(e) => { e.stopPropagation(); handleDriveImport() }}
-                disabled={uploading || driveImporting}
+            {!pendingFiles && (
+              <div
+                className={`example-drop-zone ${dragOver ? 'drag-over' : ''}`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  setDragOver(false)
+                  handleFiles(e.dataTransfer.files)
+                }}
+                onClick={() => fileInputRef.current?.click()}
               >
-                <DriveIcon />
-                Import from Drive
-              </button>
-            </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,.md,.text,.pdf,.png,.jpg,.jpeg,.webp"
+                  multiple
+                  style={{ display: 'none' }}
+                  onChange={(e) => handleFiles(e.target.files)}
+                />
+                {uploading || driveImporting ? (
+                  <>
+                    <div className="honeycomb-spinner" />
+                    <p style={{ marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.7 }}>
+                      {driveImporting ? 'Importing from Drive…' : 'Uploading…'}
+                    </p>
+                  </>
+                ) : (
+                  <p>Drop files here or click to upload<br/><span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Text, PDF, or image files</span></p>
+                )}
+              </div>
+            )}
+
+            {!pendingFiles && (
+              <div className="secondary-actions" style={{ marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={(e) => { e.stopPropagation(); handleDriveImport() }}
+                  disabled={uploading || driveImporting}
+                >
+                  <DriveIcon />
+                  Import from Drive
+                </button>
+              </div>
+            )}
 
             {error && <p className="example-error">{error}</p>}
 
@@ -244,7 +348,7 @@ export default function ReportExamples() {
                       badge={
                         ex.status === 'processing' ? <ProcessingBadge /> :
                         ex.status === 'failed' ? <FailedBadge /> :
-                        undefined
+                        <ClassNameTags classNames={ex.classNames || []} />
                       }
                       actions={
                         ex.status === 'ready' ? (
@@ -269,6 +373,14 @@ export default function ReportExamples() {
                             />
                           </label>
                           <label className="example-edit-label">
+                            Classes
+                          </label>
+                          <ClassNamesSelect
+                            available={availableClassNames}
+                            selected={editClassNames}
+                            onChange={setEditClassNames}
+                          />
+                          <label className="example-edit-label">
                             Content
                             <textarea
                               className="example-edit-content"
@@ -279,7 +391,11 @@ export default function ReportExamples() {
                           </label>
                           <div className="example-edit-actions">
                             <button className="btn-secondary btn-sm" onClick={cancelEditing} disabled={saving}>Cancel</button>
-                            <button className="btn-sm" onClick={saveEdit} disabled={saving || !editName.trim() || !editContent.trim()}>
+                            <button
+                              className="btn-sm"
+                              onClick={saveEdit}
+                              disabled={saving || !editName.trim() || !editContent.trim() || editClassNames.length === 0}
+                            >
                               {saving ? 'Saving…' : 'Save'}
                             </button>
                           </div>

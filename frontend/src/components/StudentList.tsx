@@ -133,13 +133,13 @@ export default function StudentList() {
       return
     }
     // Optimistic update
-    setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: newName } : c).sort((a, b) => a.name.localeCompare(b.name)))
+    setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: newName, className: newName } : c).sort((a, b) => a.name.localeCompare(b.name)))
     setEditingClassId(null)
     try {
-      await renameClass(classId, newName, getToken)
+      await renameClass(classId, newName, old.groupName, getToken)
     } catch {
       // Revert
-      setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: old.name } : c).sort((a, b) => a.name.localeCompare(b.name)))
+      setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: old.name, className: old.className } : c).sort((a, b) => a.name.localeCompare(b.name)))
       showFlash('Failed to rename class')
     }
   }
