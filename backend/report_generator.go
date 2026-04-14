@@ -15,6 +15,7 @@ type GenerateReportRequest struct {
 	StudentID    int64
 	Student      string
 	Class        string
+	ClassName    string
 	StartDate    string // YYYY-MM-DD
 	EndDate      string // YYYY-MM-DD
 	UserID       string
@@ -41,6 +42,7 @@ type RegenerateReportRequest struct {
 	StudentID    int64
 	Student      string
 	Class        string
+	ClassName    string
 	StartDate    string
 	EndDate      string
 	UserID       string
@@ -76,7 +78,7 @@ func (g *gptReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	}
 
 	// 2. Load examples.
-	examples, err := g.loadExamples(ctx, req.UserID)
+	examples, err := g.loadExamples(ctx, req.UserID, req.ClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +119,7 @@ func (g *gptReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	}
 
 	// 2. Load examples.
-	examples, err := g.loadExamples(ctx, req.UserID)
+	examples, err := g.loadExamples(ctx, req.UserID, req.ClassName)
 	if err != nil {
 		return nil, err
 	}
@@ -150,11 +152,11 @@ func (g *gptReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	}, nil
 }
 
-func (g *gptReportGenerator) loadExamples(ctx context.Context, userID string) ([]ReportExample, error) {
+func (g *gptReportGenerator) loadExamples(ctx context.Context, userID, className string) ([]ReportExample, error) {
 	if userID == "" {
 		return nil, nil
 	}
-	dbExamples, err := g.exampleRepo.ListReady(ctx, userID)
+	dbExamples, err := g.exampleRepo.ListReadyByClassName(ctx, userID, className)
 	if err != nil {
 		return nil, fmt.Errorf("report: list examples: %w", err)
 	}

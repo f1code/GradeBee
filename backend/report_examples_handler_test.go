@@ -87,7 +87,7 @@ func TestUpdateReportExample_NoAuth(t *testing.T) {
 
 func TestUploadExample_IncludesContent(t *testing.T) {
 	store := &dbExampleStore{repo: &ReportExampleRepo{db: setupTestDB(t)}}
-	ex, err := store.UploadExample(context.Background(), "user1", "My Report", "Some content here")
+	ex, err := store.UploadExample(context.Background(), "user1", "My Report", "Some content here", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,6 +114,9 @@ func TestUploadExample_PDFDispatchesAsync(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := part.Write([]byte("fake pdf data")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.WriteField("classNames", `["Grade 4"]`); err != nil {
 		t.Fatal(err)
 	}
 	writer.Close()
@@ -158,6 +161,9 @@ func TestUploadExample_TextFileStoresDirect(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := part.Write([]byte("Some report card text")); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.WriteField("classNames", `["Grade 4"]`); err != nil {
 		t.Fatal(err)
 	}
 	writer.Close()

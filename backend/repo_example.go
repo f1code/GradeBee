@@ -138,6 +138,71 @@ func (r *ReportExampleRepo) ListReady(ctx context.Context, userID string) ([]DBR
 	return result, rows.Err()
 }
 
+// SetClassNames replaces the class names for a report example in a transaction.
+func (r *ReportExampleRepo) SetClassNames(ctx context.Context, exampleID int64, classNames []string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("set class names: begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // best-effort rollback on error
+	if _, err := tx.ExecContext(ctx, "DELETE FROM report_example_classes WHERE example_id = ?", exampleID); err != nil {
+		return fmt.Errorf("set class names: delete: %w", err)
+	}
+	for _, cn := range classNames {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO report_example_classes (example_id, class_name) VALUES (?, ?)", exampleID, cn); err != nil {
+			return fmt.Errorf("set class names: insert %q: %w", cn, err)
+		}
+	}
+	return tx.Commit()
+}
+
+// GetClassNames returns the class names associated with a report example.
+func (r *ReportExampleRepo) GetClassNames(ctx context.Context, exampleID int64) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx,
+		"SELECT class_name FROM report_example_classes WHERE example_id = ? ORDER BY class_name",
+		exampleID)
+	if err != nil {
+		return nil, fmt.Errorf("get class names: %w", err)
+	}
+	defer rows.Close()
+	var names []string
+	for rows.Next() {
+		var cn string
+		if err := rows.Scan(&cn); err != nil {
+			return nil, fmt.Errorf("get class names: scan: %w", err)
+		}
+		names = append(names, cn)
+	}
+	return names, rows.Err()
+}
+
+// ListReadyByClassName returns 'ready' examples for a user filtered by class name.
+// If className is empty, all ready examples are returned.
+func (r *ReportExampleRepo) ListReadyByClassName(ctx context.Context, userID, className string) ([]DBReportExample, error) {
+	if className == "" {
+		return r.ListReady(ctx, userID)
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT re.id, re.user_id, re.name, re.content, re.status, re.file_path, re.created_at
+		FROM report_examples re
+		JOIN report_example_classes rec ON rec.example_id = re.id
+		WHERE re.user_id = ? AND re.status = 'ready' AND rec.class_name = ?
+		ORDER BY re.created_at DESC`, userID, className)
+	if err != nil {
+		return nil, fmt.Errorf("list ready by class name: %w", err)
+	}
+	defer rows.Close()
+	var result []DBReportExample
+	for rows.Next() {
+		var e DBReportExample
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Name, &e.Content, &e.Status, &e.FilePath, &e.CreatedAt); err != nil {
+			return nil, fmt.Errorf("list ready by class name: scan: %w", err)
+		}
+		result = append(result, e)
+	}
+	return result, rows.Err()
+}
+
 // Delete removes a report example owned by the user.
 func (r *ReportExampleRepo) Delete(ctx context.Context, userID string, id int64) error {
 	res, err := r.db.ExecContext(ctx,

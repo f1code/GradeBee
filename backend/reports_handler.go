@@ -90,10 +90,19 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Look up student's class to get ClassName for example filtering.
+		var className string
+		if student, err := serviceDeps.GetStudentRepo().GetByID(ctx, s.StudentID); err == nil {
+			if class, err := serviceDeps.GetClassRepo().GetByID(ctx, student.ClassID); err == nil {
+				className = class.ClassName
+			}
+		}
+
 		resp, err := generator.Generate(ctx, GenerateReportRequest{
 			StudentID:    s.StudentID,
 			Student:      s.Name,
 			Class:        s.Class,
+			ClassName:    className,
 			StartDate:    req.StartDate,
 			EndDate:      req.EndDate,
 			UserID:       userID,
@@ -209,6 +218,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		StudentID:    rpt.StudentID,
 		Student:      student.Name,
 		Class:        class.Name,
+		ClassName:    class.ClassName,
 		StartDate:    rpt.StartDate,
 		EndDate:      rpt.EndDate,
 		UserID:       userID,
