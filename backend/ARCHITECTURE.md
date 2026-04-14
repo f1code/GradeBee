@@ -16,8 +16,9 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 |--------|------|------|---------|-------------|
 | GET | `/` `/health` | No | inline | Health check |
 | GET | `/classes` | Yes | `handleListClasses` | List user's classes with student counts |
-| POST | `/classes` | Yes | `handleCreateClass` | Create a class |
-| PUT | `/classes/{id}` | Yes | `handleUpdateClass` | Rename a class |
+| POST | `/classes` | Yes | `handleCreateClass` | Create a class (body: `{className, group}`) |
+| PUT | `/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{className, group}`) |
+| GET | `/classes/class-names` | Yes | `handleListClassNames` | Distinct class names for autocomplete |
 | DELETE | `/classes/{id}` | Yes | `handleDeleteClass` | Delete class + cascade |
 | GET | `/classes/{id}/students` | Yes | `handleListStudents` | List students in a class |
 | POST | `/classes/{id}/students` | Yes | `handleCreateStudent` | Add a student |
@@ -204,7 +205,8 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 
 | Table | Purpose |
 |-------|---------|
-| `classes` | Teacher's classes (user_id + name) |
+| `classes` | Teacher's classes (user_id, class_name, group_name, name) |
+| `report_example_classes` | M-M link: report examples ↔ class names |
 | `students` | Students belonging to classes |
 | `notes` | Observation notes per student |
 | `reports` | Generated HTML report cards |
