@@ -16,11 +16,11 @@ func TestHandleGetStudents_HappyPath(t *testing.T) {
 	studentRepo := &StudentRepo{db: db}
 
 	// Seed data
-	c1, err := classRepo.Create(t.Context(), "test-user", "5A")
+	c1, err := classRepo.Create(t.Context(), "test-user", "5A", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	c2, err := classRepo.Create(t.Context(), "test-user", "5B")
+	c2, err := classRepo.Create(t.Context(), "test-user", "5B", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,4 +113,44 @@ func setupTestDB(t *testing.T) *sql.DB {
 		t.Fatal(err)
 	}
 	return db
+}
+
+func TestListClassNames(t *testing.T) {
+	db := setupTestDB(t)
+	classRepo := &ClassRepo{db: db}
+
+	for _, args := range [][2]string{
+		{"Alpha", ""},
+		{"Beta", "AM"},
+		{"Alpha", "PM"},
+	} {
+		if _, err := classRepo.Create(t.Context(), "test-user", args[0], args[1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	origDeps := serviceDeps
+	defer func() { serviceDeps = origDeps }()
+	serviceDeps = &mockDepsAll{classRepo: classRepo, studentRepo: &StudentRepo{db: db}}
+
+	req := httptest.NewRequest(http.MethodGet, "/classes/class-names", http.NoBody)
+	ctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
+		RegisteredClaims: clerk.RegisteredClaims{Subject: "test-user"},
+	})
+	req = req.WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	handleListClassNames(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got status %d; body: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string][]string
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	names := resp["classNames"]
+	if len(names) != 2 {
+		t.Errorf("got %v, want 2 distinct names", names)
+	}
 }

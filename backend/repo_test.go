@@ -41,7 +41,7 @@ func TestClassRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	// Create
-	c, err := r.classes.Create(ctx, "user1", "Math")
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -59,18 +59,18 @@ func TestClassRepo_CRUD(t *testing.T) {
 	}
 
 	// Duplicate
-	_, err = r.classes.Create(ctx, "user1", "Math")
+	_, err = r.classes.Create(ctx, "user1", "Math", "")
 	if !errors.Is(err, ErrDuplicate) {
 		t.Fatalf("expected ErrDuplicate, got: %v", err)
 	}
 
 	// Rename
-	if err := r.classes.Rename(ctx, "user1", c.ID, "Science"); err != nil {
+	if err := r.classes.Update(ctx, "user1", c.ID, "Science", ""); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 
 	// Rename not found
-	if err := r.classes.Rename(ctx, "user1", 999, "X"); !errors.Is(err, ErrNotFound) {
+	if err := r.classes.Update(ctx, "user1", 999, "X", ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got: %v", err)
 	}
 
@@ -87,10 +87,10 @@ func TestClassRepo_CRUD(t *testing.T) {
 	}
 
 	// User isolation
-	if _, err := r.classes.Create(ctx, "user1", "A"); err != nil {
+	if _, err := r.classes.Create(ctx, "user1", "A", ""); err != nil {
 		t.Fatalf("create A: %v", err)
 	}
-	if _, err := r.classes.Create(ctx, "user2", "B"); err != nil {
+	if _, err := r.classes.Create(ctx, "user2", "B", ""); err != nil {
 		t.Fatalf("create B: %v", err)
 	}
 	l1, err := r.classes.List(ctx, "user1")
@@ -111,7 +111,7 @@ func TestClassRepo_GetByID(t *testing.T) {
 	repo := &ClassRepo{db: db}
 	ctx := context.Background()
 
-	c, err := repo.Create(ctx, "user1", "Math 101")
+	c, err := repo.Create(ctx, "user1", "Math 101", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestClassRepo_GetByID(t *testing.T) {
 func TestStudentRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math")
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
 	if err != nil {
 		t.Fatalf("create class: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestStudentRepo_CRUD(t *testing.T) {
 	}
 
 	// Move
-	c2, err := r.classes.Create(ctx, "user1", "Science")
+	c2, err := r.classes.Create(ctx, "user1", "Science", "")
 	if err != nil {
 		t.Fatalf("create class2: %v", err)
 	}
@@ -216,7 +216,7 @@ func TestStudentRepo_CRUD(t *testing.T) {
 func TestCascadeDelete(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math")
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
 	if err != nil {
 		t.Fatalf("create class: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestCascadeDelete(t *testing.T) {
 func TestNoteRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math")
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
 	if err != nil {
 		t.Fatalf("create class: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestNoteRepo_CRUD(t *testing.T) {
 func TestReportRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math")
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
 	if err != nil {
 		t.Fatalf("create class: %v", err)
 	}
@@ -491,7 +491,7 @@ func TestVoiceNoteRepo_CRUD(t *testing.T) {
 func TestClassStudentCount(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math")
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
 	if err != nil {
 		t.Fatalf("create class: %v", err)
 	}

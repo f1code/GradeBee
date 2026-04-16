@@ -44,7 +44,8 @@ export async function listClasses(
 }
 
 export async function createClass(
-  name: string,
+  className: string,
+  group: string,
   getToken: () => Promise<string | null>
 ): Promise<ClassItem> {
   const token = await getToken()
@@ -54,7 +55,7 @@ export async function createClass(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ className, group }),
   })
   const body = await resp.json()
   if (!resp.ok) throw new Error(body.error || 'Failed to create class')
@@ -63,7 +64,8 @@ export async function createClass(
 
 export async function renameClass(
   id: number,
-  name: string,
+  className: string,
+  group: string,
   getToken: () => Promise<string | null>
 ): Promise<void> {
   const token = await getToken()
@@ -73,12 +75,24 @@ export async function renameClass(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ className, group }),
   })
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}))
     throw new Error(body.error || 'Failed to rename class')
   }
+}
+
+export async function listClassNames(
+  getToken: () => Promise<string | null>
+): Promise<{ classNames: string[] }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/classes/class-names`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to list class names')
+  return body
 }
 
 export async function deleteClass(
@@ -300,6 +314,7 @@ export async function listReportExamples(
 
 export async function uploadReportExample(
   data: { name: string; content: string } | File,
+  classNames: string[],
   getToken: () => Promise<string | null>
 ): Promise<ReportExampleItem> {
   const token = await getToken()
@@ -307,6 +322,7 @@ export async function uploadReportExample(
   if (data instanceof File) {
     const form = new FormData()
     form.append('file', data)
+    form.append('classNames', JSON.stringify(classNames))
     resp = await fetch(`${apiUrl}/report-examples`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
@@ -319,7 +335,7 @@ export async function uploadReportExample(
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, classNames }),
     })
   }
   const body = await resp.json()
@@ -350,6 +366,7 @@ export async function updateReportExample(
   id: number,
   name: string,
   content: string,
+  classNames: string[],
   getToken: () => Promise<string | null>
 ): Promise<ReportExampleItem> {
   const token = await getToken()
@@ -359,7 +376,7 @@ export async function updateReportExample(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ name, content }),
+    body: JSON.stringify({ name, content, classNames }),
   })
   const body = await resp.json()
   if (!resp.ok) throw new Error(body.error || 'Failed to update example')

@@ -21,7 +21,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "int-user", "Math")
+	cls, err := classRepo.Create(t.Context(), "int-user", "Math", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "int-user", "Math")
+	cls, err := classRepo.Create(t.Context(), "int-user", "Math", "")
 	if err != nil {
 		t.Fatal(err)
 	}

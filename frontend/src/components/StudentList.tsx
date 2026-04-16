@@ -126,20 +126,21 @@ export default function StudentList() {
     setClasses(prev => prev.map(c => c.id === classId ? { ...c, studentCount: c.studentCount + 1 } : c))
   }
 
-  async function handleRenameClass(classId: number, newName: string) {
+  async function handleRenameClass(classId: number, newName: string, newGroup: string) {
     const old = classes.find(c => c.id === classId)
-    if (!old || newName === old.name) {
+    if (!old || (newName === old.className && newGroup === old.groupName)) {
       setEditingClassId(null)
       return
     }
+    const displayName = newGroup ? `${newName} — ${newGroup}` : newName
     // Optimistic update
-    setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: newName } : c).sort((a, b) => a.name.localeCompare(b.name)))
+    setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: displayName, className: newName, groupName: newGroup } : c).sort((a, b) => a.name.localeCompare(b.name)))
     setEditingClassId(null)
     try {
-      await renameClass(classId, newName, getToken)
+      await renameClass(classId, newName, newGroup, getToken)
     } catch {
       // Revert
-      setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: old.name } : c).sort((a, b) => a.name.localeCompare(b.name)))
+      setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: old.name, className: old.className, groupName: old.groupName } : c).sort((a, b) => a.name.localeCompare(b.name)))
       showFlash('Failed to rename class')
     }
   }
@@ -364,13 +365,17 @@ export default function StudentList() {
                       <h3>
                         <HexBullet />
                         {editingClassId === cls.id ? (
-                          <InlineEdit
-                            value={cls.name}
-                            onSave={newName => handleRenameClass(cls.id, newName)}
+                          <InlineClassEdit
+                            className={cls.className}
+                            groupName={cls.groupName}
+                            onSave={(newName, newGroup) => handleRenameClass(cls.id, newName, newGroup)}
                             onCancel={() => setEditingClassId(null)}
                           />
                         ) : (
-                          <span className="class-name-text">{cls.name}</span>
+                          <span className="class-name-text">
+                            {cls.className}
+                            {cls.groupName && <span className="group-name-text"> — {cls.groupName}</span>}
+                          </span>
                         )}
                         <span className="count">({cls.studentCount})</span>
                       </h3>
@@ -552,5 +557,77 @@ function InlineEdit({
       className="inline-edit-input"
       data-testid="inline-edit-input"
     />
+  )
+}
+
+function InlineClassEdit({
+  className,
+  groupName,
+  onSave,
+  onCancel,
+}: {
+  className: string
+  groupName: string
+  onSave: (className: string, groupName: string) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(className)
+  const [group, setGroup] = useState(groupName)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    nameRef.current?.focus()
+    nameRef.current?.select()
+  }, [])
+
+  function doSave() {
+    const trimmedName = name.trim()
+    if (trimmedName) {
+      onSave(trimmedName, group.trim())
+    } else {
+      onCancel()
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') {
+      doSave()
+    } else if (e.key === 'Escape') {
+      onCancel()
+    }
+  }
+
+  function handleBlur(e: React.FocusEvent) {
+    // Only save/cancel if focus leaves both inputs
+    if (!containerRef.current?.contains(e.relatedTarget as Node)) {
+      doSave()
+    }
+  }
+
+  return (
+    <div ref={containerRef} className="inline-class-edit" onClick={e => e.stopPropagation()}>
+      <input
+        ref={nameRef}
+        type="text"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+        className="inline-edit-input"
+        data-testid="inline-edit-class-name"
+        placeholder="Class name"
+      />
+      <input
+        type="text"
+        value={group}
+        onChange={e => setGroup(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
+        className="inline-edit-input inline-edit-group"
+        data-testid="inline-edit-group-name"
+        placeholder="Group (optional)"
+      />
+    </div>
   )
 }

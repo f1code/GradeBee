@@ -65,25 +65,49 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		name := header.Filename
-		if isExtractableFile(name) {
-			// PDF or image — save to disk and dispatch async extraction.
-			example, err := dispatchExtraction(r.Context(), userID, name, data, "")
-			if err != nil {
-				log.Error("failed to dispatch extraction", "error", err, "filename", name)
-				writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	if isExtractableFile(name) {
+				// Parse classNames from form field.
+				var classNames []string
+				if cn := r.FormValue("classNames"); cn != "" {
+					if err := json.Unmarshal([]byte(cn), &classNames); err != nil {
+						writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid classNames field"})
+						return
+					}
+				}
+				if len(classNames) == 0 {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": "classNames is required"})
+					return
+				}
+				// PDF or image — save to disk and dispatch async extraction.
+				example, err := dispatchExtraction(r.Context(), userID, name, data, "", classNames)
+				if err != nil {
+					log.Error("failed to dispatch extraction", "error", err, "filename", name)
+					writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				writeJSON(w, http.StatusOK, example)
 				return
 			}
-			writeJSON(w, http.StatusOK, example)
-			return
-		}
-		// Plain text file — store directly.
-		content := string(data)
-		if name == "" || content == "" {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name and content are required"})
-			return
-		}
-		store := serviceDeps.GetExampleStore()
-		example, err := store.UploadExample(r.Context(), userID, name, content)
+			// Plain text file — store directly.
+			content := string(data)
+			if name == "" || content == "" {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name and content are required"})
+				return
+			}
+			// Parse classNames from form field.
+			var classNames []string
+			if cn := r.FormValue("classNames"); cn != "" {
+				if err := json.Unmarshal([]byte(cn), &classNames); err != nil {
+					writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid classNames field"})
+					return
+				}
+			}
+			if len(classNames) == 0 {
+				writeJSON(w, http.StatusBadRequest, map[string]string{"error": "classNames is required"})
+				return
+			}
+			store := serviceDeps.GetExampleStore()
+			example, err := store.UploadExample(r.Context(), userID, name, content, classNames)
 		if err != nil {
 			log.Error("upload report example failed", "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -93,8 +117,9 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 	} else {
 		// JSON body with pasted text
 		var req struct {
-			Name    string `json:"name"`
-			Content string `json:"content"`
+			Name       string   `json:"name"`
+			Content    string   `json:"content"`
+			ClassNames []string `json:"classNames"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -104,8 +129,12 @@ func handleUploadReportExample(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name and content are required"})
 			return
 		}
+		if len(req.ClassNames) == 0 {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "classNames is required"})
+			return
+		}
 		store := serviceDeps.GetExampleStore()
-		example, err := store.UploadExample(r.Context(), userID, req.Name, req.Content)
+		example, err := store.UploadExample(r.Context(), userID, req.Name, req.Content, req.ClassNames)
 		if err != nil {
 			log.Error("upload report example failed", "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -131,8 +160,9 @@ func handleUpdateReportExample(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Name    string `json:"name"`
-		Content string `json:"content"`
+		Name       string   `json:"name"`
+		Content    string   `json:"content"`
+		ClassNames []string `json:"classNames"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" || req.Content == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name and content are required"})
@@ -140,7 +170,7 @@ func handleUpdateReportExample(w http.ResponseWriter, r *http.Request) {
 	}
 
 	store := serviceDeps.GetExampleStore()
-	example, err := store.UpdateExample(r.Context(), userID, id, req.Name, req.Content)
+	example, err := store.UpdateExample(r.Context(), userID, id, req.Name, req.Content, req.ClassNames)
 	if err != nil {
 		log.Error("update report example failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

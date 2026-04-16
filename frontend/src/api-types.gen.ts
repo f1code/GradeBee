@@ -164,6 +164,8 @@ export interface Class {
   id: number /* int64 */;
   userId: string;
   name: string;
+  className: string;
+  groupName: string;
   position: number /* int */;
   createdAt: string;
 }
@@ -343,6 +345,7 @@ export interface ReportExample {
   name: string;
   content: string;
   status: string; // "ready", "processing", "failed"
+  classNames: string[];
 }
 /**
  * ExampleStore abstracts CRUD operations for example report cards.
@@ -377,6 +380,7 @@ export interface GenerateReportRequest {
   StudentID: number /* int64 */;
   Student: string;
   Class: string;
+  ClassName: string;
   StartDate: string; // YYYY-MM-DD
   EndDate: string; // YYYY-MM-DD
   UserID: string;
@@ -403,6 +407,7 @@ export interface RegenerateReportRequest {
   StudentID: number /* int64 */;
   Student: string;
   Class: string;
+  ClassName: string;
   StartDate: string;
   EndDate: string;
   UserID: string;

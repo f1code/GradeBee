@@ -13,7 +13,7 @@ import (
 // publishes an ExtractionJob. Returns the pending example for the API response.
 // extOverride, if non-empty, is used instead of the file extension from name
 // (useful when the MIME type is more reliable than the filename).
-func dispatchExtraction(ctx context.Context, userID, name string, data []byte, extOverride string) (*ReportExample, error) {
+func dispatchExtraction(ctx context.Context, userID, name string, data []byte, extOverride string, classNames []string) (*ReportExample, error) {
 	ext := filepath.Ext(name)
 	if extOverride != "" {
 		ext = extOverride
@@ -31,7 +31,7 @@ func dispatchExtraction(ctx context.Context, userID, name string, data []byte, e
 	}
 
 	store := serviceDeps.GetExampleStore()
-	example, err := store.CreatePendingExample(ctx, userID, name, diskPath)
+	example, err := store.CreatePendingExample(ctx, userID, name, diskPath, classNames)
 	if err != nil {
 		os.Remove(diskPath)
 		return nil, err

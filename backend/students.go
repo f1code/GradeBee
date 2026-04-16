@@ -121,13 +121,14 @@ func handleCreateClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name string `json:"name"`
+		ClassName string `json:"className"`
+		Group     string `json:"group"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClassName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "className is required"})
 		return
 	}
-	c, err := serviceDeps.GetClassRepo().Create(r.Context(), userID, req.Name)
+	c, err := serviceDeps.GetClassRepo().Create(r.Context(), userID, req.ClassName, req.Group)
 	if err != nil {
 		if errors.Is(err, ErrDuplicate) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "class already exists"})
@@ -152,13 +153,14 @@ func handleUpdateClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Name string `json:"name"`
+		ClassName string `json:"className"`
+		Group     string `json:"group"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Name == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClassName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "className is required"})
 		return
 	}
-	if err := serviceDeps.GetClassRepo().Rename(r.Context(), userID, id, req.Name); err != nil {
+	if err := serviceDeps.GetClassRepo().Update(r.Context(), userID, id, req.ClassName, req.Group); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "class not found"})
 			return
@@ -193,6 +195,25 @@ func handleDeleteClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+// --- Student CRUD ---
+
+func handleListClassNames(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		return
+	}
+	names, err := serviceDeps.GetClassRepo().ListDistinctClassNames(r.Context(), userID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if names == nil {
+		names = []string{}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"classNames": names})
 }
 
 // --- Student CRUD ---

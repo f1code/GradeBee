@@ -274,7 +274,7 @@ func (s *stubExampleStore) ListExamples(_ context.Context, _ string) ([]ReportEx
 	return nil, nil
 }
 
-func (s *stubExampleStore) UploadExample(_ context.Context, _, name, content string) (*ReportExample, error) {
+func (s *stubExampleStore) UploadExample(_ context.Context, _, name, content string, classNames []string) (*ReportExample, error) {
 	s.uploadedName = name
 	s.uploadedContent = content
 	if s.uploadErr != nil {
@@ -283,17 +283,17 @@ func (s *stubExampleStore) UploadExample(_ context.Context, _, name, content str
 	if s.uploadResult != nil {
 		return s.uploadResult, nil
 	}
-	return &ReportExample{ID: 1, Name: name, Status: "ready"}, nil
+	return &ReportExample{ID: 1, Name: name, Status: "ready", ClassNames: classNames}, nil
 }
 
-func (s *stubExampleStore) CreatePendingExample(_ context.Context, _, name, filePath string) (*ReportExample, error) {
+func (s *stubExampleStore) CreatePendingExample(_ context.Context, _, name, filePath string, classNames []string) (*ReportExample, error) {
 	if s.pendingErr != nil {
 		return nil, s.pendingErr
 	}
 	if s.pendingResult != nil {
 		return s.pendingResult, nil
 	}
-	return &ReportExample{ID: 1, Name: name, Status: "processing"}, nil
+	return &ReportExample{ID: 1, Name: name, Status: "processing", ClassNames: classNames}, nil
 }
 
 func (s *stubExampleStore) UpdateExampleStatus(_ context.Context, id int64, status, content string) error {
@@ -309,6 +309,6 @@ func (s *stubExampleStore) DeleteExample(_ context.Context, _ string, _ int64) e
 	return nil
 }
 
-func (s *stubExampleStore) UpdateExample(_ context.Context, _ string, id int64, name, content string) (*ReportExample, error) {
-	return &ReportExample{ID: id, Name: name, Content: content, Status: "ready"}, nil
+func (s *stubExampleStore) UpdateExample(_ context.Context, _ string, id int64, name, content string, classNames []string) (*ReportExample, error) {
+	return &ReportExample{ID: id, Name: name, Content: content, Status: "ready", ClassNames: classNames}, nil
 }

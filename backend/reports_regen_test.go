@@ -44,7 +44,7 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 	reportRepo := &ReportRepo{db: db}
 	ctx := context.Background()
 
-	cls, err := classRepo.Create(ctx, "user_abc", "Thursday Timezone")
+	cls, err := classRepo.Create(ctx, "user_abc", "Thursday Timezone", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	reportRepo := &ReportRepo{db: db}
 	ctx := context.Background()
 
-	cls, err := classRepo.Create(ctx, "user_abc", "Art")
+	cls, err := classRepo.Create(ctx, "user_abc", "Art", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 	reportRepo := &ReportRepo{db: db}
 	ctx := context.Background()
 
-	cls, err := classRepo.Create(ctx, "user_abc", "Science")
+	cls, err := classRepo.Create(ctx, "user_abc", "Science", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +302,7 @@ func TestHandleGetReport_IncludesStudentAndClass(t *testing.T) {
 	reportRepo := &ReportRepo{db: db}
 	ctx := context.Background()
 
-	cls, err := classRepo.Create(ctx, "user_abc", "History")
+	cls, err := classRepo.Create(ctx, "user_abc", "History", "")
 	if err != nil {
 		t.Fatal(err)
 	}
