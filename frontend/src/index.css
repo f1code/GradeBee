@@ -527,6 +527,30 @@ button:active,
   max-width: 260px;
 }
 
+.inline-class-edit {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-class-edit .inline-edit-input {
+  max-width: 180px;
+}
+
+.inline-class-edit .inline-edit-group {
+  max-width: 140px;
+  font-weight: 400;
+  font-size: 0.9em;
+}
+
+.group-name-text {
+  font-weight: 400;
+  color: var(--ink-muted);
+  font-size: 0.9em;
+}
+
 /* --- Delete confirmation bar --- */
 
 .delete-confirm {
@@ -578,9 +602,54 @@ button:active,
   background: var(--chalk);
   border: 1.5px solid var(--comb);
   border-radius: var(--radius);
-  padding: 1rem 1.25rem;
+  padding: 1.25rem 1.5rem;
   margin-bottom: 1rem;
   box-shadow: var(--shadow-sm);
+}
+
+.add-class-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.add-class-field-group .add-class-input {
+  width: 100%;
+}
+
+.add-class-autocomplete-wrapper {
+  position: relative;
+}
+
+.add-class-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem 0;
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.add-class-suggestion-item {
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.add-class-suggestion-item:hover {
+  background: var(--honey-light, rgba(232, 163, 23, 0.08));
 }
 
 .add-class-form-row {
