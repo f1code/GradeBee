@@ -6,9 +6,15 @@ discovery.docker "containers" {
 loki.source.docker "docker_logs" {
   host       = "unix:///var/run/docker.sock"
   targets    = discovery.docker.containers.targets
+  forward_to = [loki.relabel.docker_labels.receiver]
+}
+
+loki.relabel "docker_labels" {
   forward_to = [loki.write.cockpit.receiver]
-  labels     = {
-    job = "gradebee-docker",
+  rule {
+    action        = "replace"
+    target_label  = "job"
+    replacement   = "gradebee-docker"
   }
 }
 
@@ -21,9 +27,15 @@ local.file_match "backup_log" {
 
 loki.source.file "backup" {
   targets    = local.file_match.backup_log.targets
+  forward_to = [loki.relabel.backup_labels.receiver]
+}
+
+loki.relabel "backup_labels" {
   forward_to = [loki.write.cockpit.receiver]
-  labels     = {
-    job = "gradebee-backup",
+  rule {
+    action        = "replace"
+    target_label  = "job"
+    replacement   = "gradebee-backup"
   }
 }
 
