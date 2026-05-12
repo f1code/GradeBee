@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import DOMPurify from 'dompurify'
@@ -27,6 +27,63 @@ export default function ReportViewer({
   const [error, setError] = useState<string | null>(null)
 
   const sanitizedHtml = DOMPurify.sanitize(html)
+  const frameRef = useRef<HTMLDivElement | null>(null)
+
+  // Attach per-paragraph copy buttons after the sanitized HTML is rendered.
+  useEffect(() => {
+    const frame = frameRef.current
+    if (!frame) return
+
+    const blocks = frame.querySelectorAll<HTMLElement>('p, li')
+    const cleanups: Array<() => void> = []
+
+    blocks.forEach(block => {
+      // Skip empty/whitespace-only blocks
+      if (!(block.textContent || '').trim()) return
+      // Avoid double-decorating on re-render
+      if (block.querySelector(':scope > .para-copy-btn')) return
+
+      block.classList.add('has-para-copy')
+
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'para-copy-btn'
+      btn.setAttribute('aria-label', 'Copy paragraph')
+      btn.textContent = 'Copy'
+      // Don't let clicking the button clear the user's selection
+      btn.addEventListener('mousedown', e => e.preventDefault())
+
+      const onClick = async (e: MouseEvent) => {
+        e.stopPropagation()
+        // Clone and strip copy buttons so their label isn't included in the text.
+        const clone = block.cloneNode(true) as HTMLElement
+        clone.querySelectorAll('.para-copy-btn').forEach(el => el.remove())
+        const text = (clone.textContent || '').trim()
+        if (!text) return
+        try {
+          await navigator.clipboard.writeText(text)
+        } catch {
+          return
+        }
+        btn.textContent = '✓ Copied'
+        btn.classList.add('para-copy-btn-success')
+        window.setTimeout(() => {
+          btn.textContent = 'Copy'
+          btn.classList.remove('para-copy-btn-success')
+        }, 1500)
+      }
+      btn.addEventListener('click', onClick)
+
+      block.appendChild(btn)
+      cleanups.push(() => {
+        btn.removeEventListener('click', onClick)
+        btn.remove()
+        block.classList.remove('has-para-copy')
+      })
+    })
+
+    return () => cleanups.forEach(fn => fn())
+  }, [sanitizedHtml])
 
   const handleCopy = useCallback(async () => {
     try {
@@ -122,8 +179,8 @@ export default function ReportViewer({
 
       {/* Report HTML content */}
       <div
+        ref={frameRef}
         className="report-viewer-frame"
-        style={{ userSelect: 'all' }}
         dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       />
 

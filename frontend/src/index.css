@@ -2839,6 +2839,46 @@ button:active,
   overflow-x: auto;
 }
 
+/* Per-paragraph copy button (hover-reveal) */
+.report-viewer-frame .has-para-copy {
+  position: relative;
+}
+
+.report-viewer-frame .para-copy-btn {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.1rem;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--comb);
+  border-radius: 4px;
+  background: var(--chalk);
+  color: var(--ink-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s, color 0.12s;
+  user-select: none;
+}
+
+.report-viewer-frame .has-para-copy:hover > .para-copy-btn,
+.report-viewer-frame .para-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.report-viewer-frame .para-copy-btn:hover {
+  background: var(--honey-light);
+  color: var(--ink);
+}
+
+.report-viewer-frame .para-copy-btn-success {
+  opacity: 1 !important;
+  background: var(--honey);
+  color: var(--ink);
+  border-color: var(--honey);
+}
+
 .report-viewer-error {
   background: rgba(197, 48, 48, 0.06);
   border: 1px solid rgba(197, 48, 48, 0.2);
