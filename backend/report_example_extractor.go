@@ -21,7 +21,7 @@ type ExampleExtractor interface {
 	ExtractText(ctx context.Context, filename string, data []byte) (string, error)
 }
 
-// gptExampleExtractor uses OpenAI GPT-5.4-mini to extract text via vision.
+// gptExampleExtractor uses OpenAI gpt-5.4-mini to extract text via vision.
 type gptExampleExtractor struct {
 	client *openai.Client
 }
@@ -109,7 +109,7 @@ func (e *gptExampleExtractor) extractFromImage(ctx context.Context, mediaType st
 	dataURL := fmt.Sprintf("data:%s;base64,%s", mediaType, b64)
 
 	resp, err := e.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT4oMini,
+		Model: "gpt-5.4-mini",
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role: openai.ChatMessageRoleUser,
