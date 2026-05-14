@@ -125,7 +125,7 @@ func (e *gptExampleExtractor) extractFromImage(ctx context.Context, mediaType st
 				},
 			},
 		},
-		MaxTokens: 4096,
+		MaxCompletionTokens: 4096,
 		ResponseFormat: &openai.ChatCompletionResponseFormat{
 			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
 			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{

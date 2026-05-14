@@ -37,11 +37,17 @@ func dispatchExtraction(ctx context.Context, userID, name string, data []byte, e
 		return nil, err
 	}
 
+	// If extension was added, update the filename for extraction (needs extension to determine file type).
+	jobFileName := name
+	if extOverride != "" && filepath.Ext(name) == "" {
+		jobFileName = name + ext
+	}
+
 	err = publishOrCleanup(ctx, queue, ExtractionJob{
 		UserID:    userID,
 		ExampleID: example.ID,
 		FilePath:  diskPath,
-		FileName:  name,
+		FileName:  jobFileName,
 		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	},
