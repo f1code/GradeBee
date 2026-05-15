@@ -62,6 +62,9 @@ GradeBee/
    VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
    VITE_API_URL=http://localhost:8080
 
+   # Sentry User Feedback (optional — leave blank to disable)
+   VITE_SENTRY_DSN=https://xxx@oXXX.ingest.sentry.io/YYY
+
    # Backend
    CLERK_SECRET_KEY=sk_live_xxx
    ALLOWED_ORIGIN=http://localhost:5173

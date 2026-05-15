@@ -1,4 +1,4 @@
-import { Show, SignInButton, UserButton } from '@clerk/react'
+import { Show, SignInButton, UserButton, useUser } from '@clerk/react'
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
 import StudentList from './components/StudentList'
@@ -7,6 +7,7 @@ import JobStatus from './components/JobStatus'
 import ReportGeneration from './components/ReportGeneration'
 import HowItWorks from './components/HowItWorks'
 import HintBanner from './components/HintBanner'
+import FeedbackButton from './components/FeedbackButton'
 
 function BeeIcon({ size = 28 }: { size?: number }) {
   return (
@@ -95,6 +96,7 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
   setShowGuide: (v: boolean) => void
 }) {
   const jobPollNowRef = useRef<(() => void) | null>(null)
+  const { user } = useUser()
 
   // Auto-show guide on first visit
   useEffect(() => {
@@ -136,6 +138,13 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
           <HintBanner storageKey="gradebee:hint:reports">Select students and a date range to generate report cards from your accumulated notes.</HintBanner>
           <ReportGeneration />
         </>
+      )}
+      {/* Floating feedback button — only shown to authenticated teachers */}
+      {user && (
+        <FeedbackButton
+          userId={user.id}
+          userEmail={user.primaryEmailAddress?.emailAddress ?? ''}
+        />
       )}
     </motion.div>
   )

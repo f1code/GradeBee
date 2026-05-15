@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@clerk/react": "6.2.1",
+    "@sentry/react": "^10.53.1",
     "dompurify": "^3.3.3",
     "motion": "^12.38.0",
     "react": "^19.2.5",
