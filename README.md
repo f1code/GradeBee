@@ -37,7 +37,13 @@ GradeBee/
 └── .env.example           # Environment variable template
 ```
 
-See `backend/ARCHITECTURE.md` for backend details and `frontend/DESIGN.md` for the frontend design system.
+## Documentation
+
+- `backend/ARCHITECTURE.md` -- backend architecture and patterns
+- `frontend/DESIGN.md` -- frontend design system
+- `docs/` -- implementation plans and design docs
+- `docs/analysis/` -- generated codebase analysis, diagrams, and quick references
+- `AGENTS.md` -- guidance for AI/automation agents working on this repo
 
 ## Getting Started
 
