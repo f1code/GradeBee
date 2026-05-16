@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // repos is a helper container returned by testDBAndRepos.
@@ -20,12 +23,8 @@ type repos struct {
 func testDBAndRepos(t *testing.T) (context.Context, *repos) {
 	t.Helper()
 	db, err := OpenDB(":memory:")
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	if err := RunMigrations(db); err != nil {
-		t.Fatalf("run migrations: %v", err)
-	}
+	require.NoError(t, err, "open test db")
+	require.NoError(t, RunMigrations(db), "run migrations")
 	t.Cleanup(func() { db.Close() })
 	return context.Background(), &repos{
 		classes:  &ClassRepo{db: db},
@@ -42,68 +41,46 @@ func TestClassRepo_CRUD(t *testing.T) {
 
 	// Create
 	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if c.Name != "Math" || c.UserID != "user1" || c.ID == 0 {
-		t.Fatalf("unexpected class: %+v", c)
-	}
+	require.NoError(t, err, "create")
+	assert.Equal(t, "Math", c.Name)
+	assert.Equal(t, "user1", c.UserID)
+	assert.NotZero(t, c.ID)
 
 	// List
 	list, err := r.classes.List(ctx, "user1")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(list) != 1 || list[0].Name != "Math" || list[0].StudentCount != 0 {
-		t.Fatalf("unexpected list: %+v", list)
-	}
+	require.NoError(t, err, "list")
+	require.Len(t, list, 1)
+	assert.Equal(t, "Math", list[0].Name)
+	assert.Equal(t, 0, list[0].StudentCount)
 
 	// Duplicate
 	_, err = r.classes.Create(ctx, "user1", "Math", "")
-	if !errors.Is(err, ErrDuplicate) {
-		t.Fatalf("expected ErrDuplicate, got: %v", err)
-	}
+	assert.True(t, errors.Is(err, ErrDuplicate), "expected ErrDuplicate, got: %v", err)
 
 	// Rename
-	if err := r.classes.Update(ctx, "user1", c.ID, "Science", ""); err != nil {
-		t.Fatalf("rename: %v", err)
-	}
+	require.NoError(t, r.classes.Update(ctx, "user1", c.ID, "Science", ""), "rename")
 
 	// Rename not found
-	if err := r.classes.Update(ctx, "user1", 999, "X", ""); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got: %v", err)
-	}
+	err = r.classes.Update(ctx, "user1", 999, "X", "")
+	assert.True(t, errors.Is(err, ErrNotFound), "expected ErrNotFound, got: %v", err)
 
 	// Delete
-	if err := r.classes.Delete(ctx, "user1", c.ID); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
+	require.NoError(t, r.classes.Delete(ctx, "user1", c.ID), "delete")
 	list, err = r.classes.List(ctx, "user1")
-	if err != nil {
-		t.Fatalf("list after delete: %v", err)
-	}
-	if len(list) != 0 {
-		t.Fatalf("expected empty list after delete")
-	}
+	require.NoError(t, err, "list after delete")
+	assert.Empty(t, list)
 
 	// User isolation
-	if _, err := r.classes.Create(ctx, "user1", "A", ""); err != nil {
-		t.Fatalf("create A: %v", err)
-	}
-	if _, err := r.classes.Create(ctx, "user2", "B", ""); err != nil {
-		t.Fatalf("create B: %v", err)
-	}
+	_, err = r.classes.Create(ctx, "user1", "A", "")
+	require.NoError(t, err, "create A")
+	_, err = r.classes.Create(ctx, "user2", "B", "")
+	require.NoError(t, err, "create B")
 	l1, err := r.classes.List(ctx, "user1")
-	if err != nil {
-		t.Fatalf("list user1: %v", err)
-	}
+	require.NoError(t, err, "list user1")
 	l2, err := r.classes.List(ctx, "user2")
-	if err != nil {
-		t.Fatalf("list user2: %v", err)
-	}
-	if len(l1) != 1 || len(l2) != 1 {
-		t.Fatalf("user isolation failed: user1=%d user2=%d", len(l1), len(l2))
-	}
+	require.NoError(t, err, "list user2")
+	assert.Len(t, l1, 1, "user isolation failed for user1")
+	assert.Len(t, l2, 1, "user isolation failed for user2")
 }
 
 func TestClassRepo_GetByID(t *testing.T) {
@@ -112,416 +89,251 @@ func TestClassRepo_GetByID(t *testing.T) {
 	ctx := context.Background()
 
 	c, err := repo.Create(ctx, "user1", "Math 101", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	got, err := repo.GetByID(ctx, c.ID)
-	if err != nil {
-		t.Fatalf("GetByID: %v", err)
-	}
-	if got.Name != "Math 101" {
-		t.Errorf("Name = %q, want %q", got.Name, "Math 101")
-	}
-	if got.UserID != "user1" {
-		t.Errorf("UserID = %q, want %q", got.UserID, "user1")
-	}
+	require.NoError(t, err, "GetByID")
+	assert.Equal(t, "Math 101", got.Name)
+	assert.Equal(t, "user1", got.UserID)
 
 	_, err = repo.GetByID(ctx, 99999)
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("expected ErrNotFound, got %v", err)
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "expected ErrNotFound, got %v", err)
 }
 
 func TestStudentRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	if err != nil {
-		t.Fatalf("create class: %v", err)
-	}
+	require.NoError(t, err, "create class")
 
 	// Create
 	s, err := r.students.Create(ctx, c.ID, "Alice")
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if s.Name != "Alice" || s.ClassID != c.ID {
-		t.Fatalf("unexpected student: %+v", s)
-	}
+	require.NoError(t, err, "create")
+	assert.Equal(t, "Alice", s.Name)
+	assert.Equal(t, c.ID, s.ClassID)
 
 	// Duplicate
 	_, err = r.students.Create(ctx, c.ID, "Alice")
-	if !errors.Is(err, ErrDuplicate) {
-		t.Fatalf("expected ErrDuplicate, got: %v", err)
-	}
+	assert.True(t, errors.Is(err, ErrDuplicate), "expected ErrDuplicate, got: %v", err)
 
 	// List
 	list, err := r.students.List(ctx, c.ID)
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(list) != 1 {
-		t.Fatalf("expected 1 student, got %d", len(list))
-	}
+	require.NoError(t, err, "list")
+	assert.Len(t, list, 1)
 
 	// GetByID
 	got, err := r.students.GetByID(ctx, s.ID)
-	if err != nil || got.Name != "Alice" {
-		t.Fatalf("get by id: %v %+v", err, got)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Alice", got.Name)
 
 	// BelongsToUser
 	ok, err := r.students.BelongsToUser(ctx, s.ID, "user1")
-	if err != nil {
-		t.Fatalf("belongs: %v", err)
-	}
-	if !ok {
-		t.Fatal("expected belongs to user1")
-	}
+	require.NoError(t, err, "belongs")
+	assert.True(t, ok)
 	ok, err = r.students.BelongsToUser(ctx, s.ID, "user2")
-	if err != nil {
-		t.Fatalf("belongs: %v", err)
-	}
-	if ok {
-		t.Fatal("should not belong to user2")
-	}
+	require.NoError(t, err, "belongs")
+	assert.False(t, ok)
 
 	// Move
 	c2, err := r.classes.Create(ctx, "user1", "Science", "")
-	if err != nil {
-		t.Fatalf("create class2: %v", err)
-	}
-	if err := r.students.Move(ctx, s.ID, c2.ID); err != nil {
-		t.Fatalf("move: %v", err)
-	}
+	require.NoError(t, err, "create class2")
+	require.NoError(t, r.students.Move(ctx, s.ID, c2.ID), "move")
 	got, err = r.students.GetByID(ctx, s.ID)
-	if err != nil {
-		t.Fatalf("get after move: %v", err)
-	}
-	if got.ClassID != c2.ID {
-		t.Fatal("move did not update class")
-	}
+	require.NoError(t, err, "get after move")
+	assert.Equal(t, c2.ID, got.ClassID, "move did not update class")
 
 	// Delete
-	if err := r.students.Delete(ctx, s.ID); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
+	require.NoError(t, r.students.Delete(ctx, s.ID), "delete")
 	_, err = r.students.GetByID(ctx, s.ID)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("expected not found after delete, got: %v", err)
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "expected not found after delete, got: %v", err)
 }
 
 func TestCascadeDelete(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	if err != nil {
-		t.Fatalf("create class: %v", err)
-	}
+	require.NoError(t, err, "create class")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
-	if err != nil {
-		t.Fatalf("create student: %v", err)
-	}
+	require.NoError(t, err, "create student")
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Good work", Source: "manual"}
-	if err := r.notes.Create(ctx, n); err != nil {
-		t.Fatalf("create note: %v", err)
-	}
+	require.NoError(t, r.notes.Create(ctx, n), "create note")
 
 	// Delete class should cascade to student and note.
-	if err := r.classes.Delete(ctx, "user1", c.ID); err != nil {
-		t.Fatalf("delete class: %v", err)
-	}
+	require.NoError(t, r.classes.Delete(ctx, "user1", c.ID), "delete class")
 
 	_, err = r.students.GetByID(ctx, s.ID)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatal("student should be deleted by cascade")
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "student should be deleted by cascade")
 	_, err = r.notes.GetByID(ctx, n.ID)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatal("note should be deleted by cascade")
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "note should be deleted by cascade")
 }
 
 func TestNoteRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	if err != nil {
-		t.Fatalf("create class: %v", err)
-	}
+	require.NoError(t, err, "create class")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
-	if err != nil {
-		t.Fatalf("create student: %v", err)
-	}
+	require.NoError(t, err, "create student")
 
 	// Create
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Great participation", Source: "manual"}
-	if err := r.notes.Create(ctx, n); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if n.ID == 0 || n.CreatedAt == "" {
-		t.Fatalf("fields not populated: %+v", n)
-	}
+	require.NoError(t, r.notes.Create(ctx, n), "create")
+	assert.NotZero(t, n.ID)
+	assert.NotEmpty(t, n.CreatedAt)
 
 	// Create auto note with transcript
 	transcript := "some transcript"
 	n2 := &Note{StudentID: s.ID, Date: "2026-01-16", Summary: "Auto note", Transcript: &transcript, Source: "auto"}
-	if err := r.notes.Create(ctx, n2); err != nil {
-		t.Fatalf("create n2: %v", err)
-	}
+	require.NoError(t, r.notes.Create(ctx, n2), "create n2")
 
 	// List
 	list, err := r.notes.List(ctx, s.ID)
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(list) != 2 {
-		t.Fatalf("expected 2 notes, got %d", len(list))
-	}
+	require.NoError(t, err, "list")
+	assert.Len(t, list, 2)
 	// Should be date desc
-	if list[0].Date != "2026-01-16" {
-		t.Fatalf("wrong order: %s", list[0].Date)
-	}
+	assert.Equal(t, "2026-01-16", list[0].Date, "wrong order")
 
 	// Update
-	if err := r.notes.Update(ctx, n.ID, "Updated summary"); err != nil {
-		t.Fatalf("update: %v", err)
-	}
+	require.NoError(t, r.notes.Update(ctx, n.ID, "Updated summary"), "update")
 	got, err := r.notes.GetByID(ctx, n.ID)
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if got.Summary != "Updated summary" {
-		t.Fatal("summary not updated")
-	}
+	require.NoError(t, err, "get")
+	assert.Equal(t, "Updated summary", got.Summary)
 
 	// ListForStudents
 	batch, err := r.notes.ListForStudents(ctx, []int64{s.ID}, "2026-01-01", "2026-12-31")
-	if err != nil {
-		t.Fatalf("list for students: %v", err)
-	}
-	if len(batch) != 2 {
-		t.Fatalf("expected 2 in batch, got %d", len(batch))
-	}
+	require.NoError(t, err, "list for students")
+	assert.Len(t, batch, 2)
 
 	// Delete
-	if err := r.notes.Delete(ctx, n.ID); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
+	require.NoError(t, r.notes.Delete(ctx, n.ID), "delete")
 	_, err = r.notes.GetByID(ctx, n.ID)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatal("expected not found after delete")
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "expected not found after delete")
 }
 
 func TestReportRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	if err != nil {
-		t.Fatalf("create class: %v", err)
-	}
+	require.NoError(t, err, "create class")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
-	if err != nil {
-		t.Fatalf("create student: %v", err)
-	}
+	require.NoError(t, err, "create student")
 
 	rpt := &Report{StudentID: s.ID, StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<h1>Report</h1>"}
-	if err := r.reports.Create(ctx, rpt); err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if rpt.ID == 0 {
-		t.Fatal("id not set")
-	}
+	require.NoError(t, r.reports.Create(ctx, rpt), "create")
+	assert.NotZero(t, rpt.ID)
 
 	// List (no HTML)
 	list, err := r.reports.List(ctx, s.ID)
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(list) != 1 || list[0].ID != rpt.ID {
-		t.Fatalf("list unexpected: %+v", list)
-	}
+	require.NoError(t, err, "list")
+	require.Len(t, list, 1)
+	assert.Equal(t, rpt.ID, list[0].ID)
 
 	// GetByID (with HTML)
 	got, err := r.reports.GetByID(ctx, rpt.ID)
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if got.HTML != "<h1>Report</h1>" {
-		t.Fatal("html not returned")
-	}
+	require.NoError(t, err, "get")
+	assert.Equal(t, "<h1>Report</h1>", got.HTML)
 
 	// Delete
-	if err := r.reports.Delete(ctx, rpt.ID); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
+	require.NoError(t, r.reports.Delete(ctx, rpt.ID), "delete")
 	_, err = r.reports.GetByID(ctx, rpt.ID)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatal("expected not found")
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "expected not found")
 }
 
 func TestReportExampleRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	e, err := r.examples.Create(ctx, "user1", "sample.txt", "Example content")
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if e.ID == 0 {
-		t.Fatal("id not set")
-	}
+	require.NoError(t, err, "create")
+	assert.NotZero(t, e.ID)
 
 	list, err := r.examples.List(ctx, "user1")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(list) != 1 || list[0].Name != "sample.txt" {
-		t.Fatalf("unexpected list: %+v", list)
-	}
+	require.NoError(t, err, "list")
+	require.Len(t, list, 1)
+	assert.Equal(t, "sample.txt", list[0].Name)
 
 	// User isolation
-	if _, err := r.examples.Create(ctx, "user2", "other.txt", "other"); err != nil {
-		t.Fatalf("create user2: %v", err)
-	}
+	_, err = r.examples.Create(ctx, "user2", "other.txt", "other")
+	require.NoError(t, err, "create user2")
 	l1, err := r.examples.List(ctx, "user1")
-	if err != nil {
-		t.Fatalf("list user1: %v", err)
-	}
+	require.NoError(t, err, "list user1")
 	l2, err := r.examples.List(ctx, "user2")
-	if err != nil {
-		t.Fatalf("list user2: %v", err)
-	}
-	if len(l1) != 1 || len(l2) != 1 {
-		t.Fatal("user isolation failed")
-	}
+	require.NoError(t, err, "list user2")
+	assert.Len(t, l1, 1, "user isolation failed")
+	assert.Len(t, l2, 1, "user isolation failed")
 
 	// Delete
-	if err := r.examples.Delete(ctx, "user1", e.ID); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
+	require.NoError(t, r.examples.Delete(ctx, "user1", e.ID), "delete")
 	list, err = r.examples.List(ctx, "user1")
-	if err != nil {
-		t.Fatalf("list after delete: %v", err)
-	}
-	if len(list) != 0 {
-		t.Fatal("expected empty after delete")
-	}
+	require.NoError(t, err, "list after delete")
+	assert.Empty(t, list)
 
 	// Delete wrong user
 	e2, err := r.examples.Create(ctx, "user1", "x.txt", "x")
-	if err != nil {
-		t.Fatalf("create e2: %v", err)
-	}
+	require.NoError(t, err, "create e2")
 	err = r.examples.Delete(ctx, "user2", e2.ID)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatal("should not delete other user's example")
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "should not delete other user's example")
 
 	// Update
 	updated, err := r.examples.Update(ctx, "user1", e2.ID, "renamed.txt", "new content")
-	if err != nil {
-		t.Fatalf("update: %v", err)
-	}
-	if updated.Name != "renamed.txt" || updated.Content != "new content" {
-		t.Fatalf("unexpected update result: %+v", updated)
-	}
+	require.NoError(t, err, "update")
+	assert.Equal(t, "renamed.txt", updated.Name)
+	assert.Equal(t, "new content", updated.Content)
 
 	// Update wrong user
 	_, err = r.examples.Update(ctx, "user2", e2.ID, "hack", "hack")
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("should not update other user's example, got: %v", err)
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "should not update other user's example, got: %v", err)
 }
 
 func TestVoiceNoteRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	u, err := r.voiceNotes.Create(ctx, "user1", "audio.mp3", "/data/uploads/abc.mp3")
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if u.ProcessedAt != nil {
-		t.Fatal("should not be processed yet")
-	}
+	require.NoError(t, err, "create")
+	assert.Nil(t, u.ProcessedAt, "should not be processed yet")
 
 	// MarkProcessed
-	if err := r.voiceNotes.MarkProcessed(ctx, u.ID); err != nil {
-		t.Fatalf("mark processed: %v", err)
-	}
+	require.NoError(t, r.voiceNotes.MarkProcessed(ctx, u.ID), "mark processed")
 	got, err := r.voiceNotes.GetByID(ctx, u.ID)
-	if err != nil {
-		t.Fatalf("get: %v", err)
-	}
-	if got.ProcessedAt == nil {
-		t.Fatal("should be processed")
-	}
+	require.NoError(t, err, "get")
+	assert.NotNil(t, got.ProcessedAt, "should be processed")
 
 	// ListStale — use a future cutoff
 	stale, err := r.voiceNotes.ListStale(ctx, "2099-01-01T00:00:00.000Z")
-	if err != nil {
-		t.Fatalf("list stale: %v", err)
-	}
-	if len(stale) != 1 {
-		t.Fatalf("expected 1 stale, got %d", len(stale))
-	}
+	require.NoError(t, err, "list stale")
+	assert.Len(t, stale, 1)
 
 	// ListStale — past cutoff
 	stale, err = r.voiceNotes.ListStale(ctx, "2000-01-01T00:00:00.000Z")
-	if err != nil {
-		t.Fatalf("list stale past: %v", err)
-	}
-	if len(stale) != 0 {
-		t.Fatalf("expected 0 stale, got %d", len(stale))
-	}
+	require.NoError(t, err, "list stale past")
+	assert.Empty(t, stale)
 
 	// Delete
-	if err := r.voiceNotes.Delete(ctx, u.ID); err != nil {
-		t.Fatalf("delete: %v", err)
-	}
+	require.NoError(t, r.voiceNotes.Delete(ctx, u.ID), "delete")
 	_, err = r.voiceNotes.GetByID(ctx, u.ID)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatal("expected not found")
-	}
+	assert.True(t, errors.Is(err, ErrNotFound), "expected not found")
 }
 
 func TestClassStudentCount(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	if err != nil {
-		t.Fatalf("create class: %v", err)
-	}
-	if _, err := r.students.Create(ctx, c.ID, "Alice"); err != nil {
-		t.Fatalf("create alice: %v", err)
-	}
-	if _, err := r.students.Create(ctx, c.ID, "Bob"); err != nil {
-		t.Fatalf("create bob: %v", err)
-	}
+	require.NoError(t, err, "create class")
+	_, err = r.students.Create(ctx, c.ID, "Alice")
+	require.NoError(t, err, "create alice")
+	_, err = r.students.Create(ctx, c.ID, "Bob")
+	require.NoError(t, err, "create bob")
 
 	list, err := r.classes.List(ctx, "user1")
-	if err != nil {
-		t.Fatalf("list: %v", err)
-	}
-	if len(list) != 1 || list[0].StudentCount != 2 {
-		t.Fatalf("expected count 2, got %+v", list)
-	}
+	require.NoError(t, err, "list")
+	require.Len(t, list, 1)
+	assert.Equal(t, 2, list[0].StudentCount)
 }
 
 func TestMigrationsIdempotent(t *testing.T) {
 	db, err := OpenDB(":memory:")
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
+	require.NoError(t, err, "open")
 	defer db.Close()
 
-	if err := RunMigrations(db); err != nil {
-		t.Fatalf("first run: %v", err)
-	}
-	if err := RunMigrations(db); err != nil {
-		t.Fatalf("second run should be idempotent: %v", err)
-	}
+	require.NoError(t, RunMigrations(db), "first run")
+	require.NoError(t, RunMigrations(db), "second run should be idempotent")
 }

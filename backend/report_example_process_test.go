@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubExtractionQueue implements JobQueue[ExtractionJob] for tests.
@@ -60,9 +63,7 @@ func (q *stubExtractionQueue) Close() {}
 func TestProcessExtraction_HappyPath(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "report.png")
-	if err := os.WriteFile(filePath, []byte("fake image data"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte("fake image data"), 0o644))
 
 	queue := newStubExtractionQueue()
 	exStore := &stubExampleStore{}
@@ -81,44 +82,31 @@ func TestProcessExtraction_HappyPath(t *testing.T) {
 		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	}
-	if err := queue.Publish(ctx, job); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, job))
 
 	key := job.JobKey()
-	if err := processExtraction(ctx, d, queue, key); err != nil {
-		t.Fatalf("processExtraction: %v", err)
-	}
+	require.NoError(t, processExtraction(ctx, d, queue, key))
 
 	got, err := queue.GetJob(ctx, key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != JobStatusDone {
-		t.Errorf("status = %q, want %q", got.Status, JobStatusDone)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusDone, got.Status)
 
 	// Verify example was updated.
-	if len(exStore.updateStatusCalls) != 1 {
-		t.Fatalf("updateStatusCalls = %d, want 1", len(exStore.updateStatusCalls))
-	}
+	require.Len(t, exStore.updateStatusCalls, 1)
 	call := exStore.updateStatusCalls[0]
-	if call.ID != 42 || call.Status != "ready" || call.Content != "Extracted report card text" {
-		t.Errorf("updateStatus call = %+v", call)
-	}
+	assert.Equal(t, int64(42), call.ID)
+	assert.Equal(t, "ready", call.Status)
+	assert.Equal(t, "Extracted report card text", call.Content)
 
 	// Verify file was cleaned up.
-	if _, err := os.Stat(filePath); !os.IsNotExist(err) {
-		t.Error("expected file to be deleted after extraction")
-	}
+	_, err = os.Stat(filePath)
+	assert.True(t, os.IsNotExist(err), "expected file to be deleted after extraction")
 }
 
 func TestProcessExtraction_ExtractFails(t *testing.T) {
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "report.pdf")
-	if err := os.WriteFile(filePath, []byte("fake pdf"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(filePath, []byte("fake pdf"), 0o644))
 
 	queue := newStubExtractionQueue()
 	exStore := &stubExampleStore{}
@@ -137,33 +125,19 @@ func TestProcessExtraction_ExtractFails(t *testing.T) {
 		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	}
-	if err := queue.Publish(ctx, job); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, job))
 
 	err := processExtraction(ctx, d, queue, job.JobKey())
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 
 	got, err := queue.GetJob(ctx, job.JobKey())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != JobStatusFailed {
-		t.Errorf("status = %q, want %q", got.Status, JobStatusFailed)
-	}
-	if !strings.Contains(got.Error, "extract") {
-		t.Errorf("error = %q, want to contain 'extract'", got.Error)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusFailed, got.Status)
+	assert.Contains(t, got.Error, "extract")
 
 	// Verify example was marked failed.
-	if len(exStore.updateStatusCalls) != 1 {
-		t.Fatalf("updateStatusCalls = %d, want 1", len(exStore.updateStatusCalls))
-	}
-	if exStore.updateStatusCalls[0].Status != "failed" {
-		t.Errorf("example status = %q, want 'failed'", exStore.updateStatusCalls[0].Status)
-	}
+	require.Len(t, exStore.updateStatusCalls, 1)
+	assert.Equal(t, "failed", exStore.updateStatusCalls[0].Status)
 }
 
 func TestProcessExtraction_FileNotFound(t *testing.T) {
@@ -180,22 +154,14 @@ func TestProcessExtraction_FileNotFound(t *testing.T) {
 		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	}
-	if err := queue.Publish(ctx, job); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, job))
 
 	err := processExtraction(ctx, d, queue, job.JobKey())
-	if err == nil {
-		t.Fatal("expected error for missing file")
-	}
+	require.Error(t, err, "expected error for missing file")
 
 	got, gErr := queue.GetJob(ctx, job.JobKey())
-	if gErr != nil {
-		t.Fatal(gErr)
-	}
-	if got.Status != JobStatusFailed {
-		t.Errorf("status = %q, want %q", got.Status, JobStatusFailed)
-	}
+	require.NoError(t, gErr)
+	assert.Equal(t, JobStatusFailed, got.Status)
 }
 
 func TestProcessExtraction_AlreadyProcessed(t *testing.T) {
@@ -208,16 +174,9 @@ func TestProcessExtraction_AlreadyProcessed(t *testing.T) {
 		UserID: "user1", ExampleID: 1, Status: JobStatusDone,
 	}
 
-	err := processExtraction(ctx, d, queue, key)
-	if err != nil {
-		t.Fatalf("expected no error for already-processed job, got: %v", err)
-	}
+	require.NoError(t, processExtraction(ctx, d, queue, key), "expected no error for already-processed job")
 
 	got, gErr := queue.GetJob(ctx, key)
-	if gErr != nil {
-		t.Fatal(gErr)
-	}
-	if got.Status != JobStatusDone {
-		t.Errorf("status changed to %q, should remain done", got.Status)
-	}
+	require.NoError(t, gErr)
+	assert.Equal(t, JobStatusDone, got.Status, "status should remain done")
 }

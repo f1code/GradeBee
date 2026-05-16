@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // testJob is a minimal Keyed implementation for generic queue tests.
@@ -23,17 +26,11 @@ func TestGenericQueue_PublishAndGetJob(t *testing.T) {
 	defer q.Close()
 
 	ctx := context.Background()
-	if err := q.Publish(ctx, testJob{Owner: "u1", ID: 1, Status: "queued", Data: "hello"}); err != nil {
-		t.Fatalf("Publish: %v", err)
-	}
+	require.NoError(t, q.Publish(ctx, testJob{Owner: "u1", ID: 1, Status: "queued", Data: "hello"}))
 
 	got, err := q.GetJob(ctx, "u1/1")
-	if err != nil {
-		t.Fatalf("GetJob: %v", err)
-	}
-	if got.Data != "hello" {
-		t.Errorf("data = %q, want %q", got.Data, "hello")
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "hello", got.Data)
 }
 
 func TestGenericQueue_GetJob_NotFound(t *testing.T) {
@@ -41,9 +38,7 @@ func TestGenericQueue_GetJob_NotFound(t *testing.T) {
 	defer q.Close()
 
 	_, err := q.GetJob(context.Background(), "u1/999")
-	if err == nil {
-		t.Fatal("expected error for missing job")
-	}
+	assert.Error(t, err, "expected error for missing job")
 }
 
 func TestGenericQueue_UpdateJob(t *testing.T) {
@@ -51,24 +46,13 @@ func TestGenericQueue_UpdateJob(t *testing.T) {
 	defer q.Close()
 
 	ctx := context.Background()
-	if err := q.Publish(ctx, testJob{Owner: "u1", ID: 1, Status: "queued"}); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := q.UpdateJob(ctx, testJob{Owner: "u1", ID: 1, Status: "done", Data: "result"}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, q.Publish(ctx, testJob{Owner: "u1", ID: 1, Status: "queued"}))
+	require.NoError(t, q.UpdateJob(ctx, testJob{Owner: "u1", ID: 1, Status: "done", Data: "result"}))
 
 	got, err := q.GetJob(ctx, "u1/1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != "done" {
-		t.Errorf("status = %q, want done", got.Status)
-	}
-	if got.Data != "result" {
-		t.Errorf("data = %q, want result", got.Data)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "done", got.Status)
+	assert.Equal(t, "result", got.Data)
 }
 
 func TestGenericQueue_ListJobs(t *testing.T) {
@@ -76,31 +60,17 @@ func TestGenericQueue_ListJobs(t *testing.T) {
 	defer q.Close()
 
 	ctx := context.Background()
-	if err := q.Publish(ctx, testJob{Owner: "u1", ID: 1}); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.Publish(ctx, testJob{Owner: "u1", ID: 2}); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.Publish(ctx, testJob{Owner: "u2", ID: 3}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, q.Publish(ctx, testJob{Owner: "u1", ID: 1}))
+	require.NoError(t, q.Publish(ctx, testJob{Owner: "u1", ID: 2}))
+	require.NoError(t, q.Publish(ctx, testJob{Owner: "u2", ID: 3}))
 
 	jobs, err := q.ListJobs(ctx, "u1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(jobs) != 2 {
-		t.Errorf("got %d jobs for u1, want 2", len(jobs))
-	}
+	require.NoError(t, err)
+	assert.Len(t, jobs, 2)
 
 	jobs2, err := q.ListJobs(ctx, "u2")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(jobs2) != 1 {
-		t.Errorf("got %d jobs for u2, want 1", len(jobs2))
-	}
+	require.NoError(t, err)
+	assert.Len(t, jobs2, 1)
 }
 
 func TestGenericQueue_ListJobs_Empty(t *testing.T) {
@@ -108,12 +78,8 @@ func TestGenericQueue_ListJobs_Empty(t *testing.T) {
 	defer q.Close()
 
 	jobs, err := q.ListJobs(context.Background(), "nobody")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(jobs) != 0 {
-		t.Errorf("got %d jobs, want 0", len(jobs))
-	}
+	require.NoError(t, err)
+	assert.Empty(t, jobs)
 }
 
 func TestGenericQueue_DeleteJob(t *testing.T) {
@@ -121,16 +87,10 @@ func TestGenericQueue_DeleteJob(t *testing.T) {
 	defer q.Close()
 
 	ctx := context.Background()
-	if err := q.Publish(ctx, testJob{Owner: "u1", ID: 1}); err != nil {
-		t.Fatal(err)
-	}
-	if err := q.DeleteJob(ctx, "u1/1"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, q.Publish(ctx, testJob{Owner: "u1", ID: 1}))
+	require.NoError(t, q.DeleteJob(ctx, "u1/1"))
 	_, err := q.GetJob(ctx, "u1/1")
-	if err == nil {
-		t.Fatal("expected error after delete")
-	}
+	assert.Error(t, err, "expected error after delete")
 }
 
 func TestGenericQueue_ChannelFull(t *testing.T) {
@@ -142,13 +102,9 @@ func TestGenericQueue_ChannelFull(t *testing.T) {
 	defer q.Close()
 
 	ctx := context.Background()
-	if err := q.Publish(ctx, testJob{Owner: "u1", ID: 1}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, q.Publish(ctx, testJob{Owner: "u1", ID: 1}))
 	err := q.Publish(ctx, testJob{Owner: "u1", ID: 2})
-	if err == nil {
-		t.Fatal("expected error when channel is full")
-	}
+	assert.Error(t, err, "expected error when channel is full")
 }
 
 func TestGenericQueue_WorkerProcessesJob(t *testing.T) {
@@ -159,15 +115,11 @@ func TestGenericQueue_WorkerProcessesJob(t *testing.T) {
 	}, 1)
 	defer q.Close()
 
-	if err := q.Publish(context.Background(), testJob{Owner: "u1", ID: 1, Status: "queued"}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, q.Publish(context.Background(), testJob{Owner: "u1", ID: 1, Status: "queued"}))
 
 	select {
 	case key := <-processed:
-		if key != "u1/1" {
-			t.Errorf("processed key = %q, want u1/1", key)
-		}
+		assert.Equal(t, "u1/1", key)
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for worker")
 	}

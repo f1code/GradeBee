@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUpdateReportExample_OK(t *testing.T) {
@@ -17,9 +19,7 @@ func TestUpdateReportExample_OK(t *testing.T) {
 	withDeps(t, &mockDepsAll{exampleStore: stub})
 
 	body, err := json.Marshal(map[string]string{"name": "Updated", "content": "New content"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodPut, "/report-examples/1", bytes.NewReader(body))
 	ctx := clerk.ContextWithSessionClaims(r.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: "user1"},
@@ -29,20 +29,12 @@ func TestUpdateReportExample_OK(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleUpdateReportExample(rec, r)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 
 	var result ReportExample
-	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
-		t.Fatal(err)
-	}
-	if result.Name != "Updated" {
-		t.Errorf("name = %q, want Updated", result.Name)
-	}
-	if result.Content != "New content" {
-		t.Errorf("content = %q, want 'New content'", result.Content)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
+	assert.Equal(t, "Updated", result.Name)
+	assert.Equal(t, "New content", result.Content)
 }
 
 func TestUpdateReportExample_MissingFields(t *testing.T) {
@@ -50,9 +42,7 @@ func TestUpdateReportExample_MissingFields(t *testing.T) {
 	withDeps(t, &mockDepsAll{exampleStore: stub})
 
 	body, err := json.Marshal(map[string]string{"name": "Only name"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodPut, "/report-examples/1", bytes.NewReader(body))
 	ctx := clerk.ContextWithSessionClaims(r.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: "user1"},
@@ -62,9 +52,7 @@ func TestUpdateReportExample_MissingFields(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleUpdateReportExample(rec, r)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestUpdateReportExample_NoAuth(t *testing.T) {
@@ -72,28 +60,20 @@ func TestUpdateReportExample_NoAuth(t *testing.T) {
 	withDeps(t, &mockDepsAll{exampleStore: stub})
 
 	body, err := json.Marshal(map[string]string{"name": "x", "content": "y"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodPut, "/report-examples/1", bytes.NewReader(body))
 
 	rec := httptest.NewRecorder()
 	handleUpdateReportExample(rec, r)
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
 func TestUploadExample_IncludesContent(t *testing.T) {
 	store := &dbExampleStore{repo: &ReportExampleRepo{db: setupTestDB(t)}}
 	ex, err := store.UploadExample(context.Background(), "user1", "My Report", "Some content here", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ex.Content != "Some content here" {
-		t.Errorf("Content = %q, want 'Some content here'", ex.Content)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "Some content here", ex.Content)
 }
 
 func TestUploadExample_PDFDispatchesAsync(t *testing.T) {
@@ -110,15 +90,10 @@ func TestUploadExample_PDFDispatchesAsync(t *testing.T) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", "report.pdf")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := part.Write([]byte("fake pdf data")); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.WriteField("classNames", `["Grade 4"]`); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = part.Write([]byte("fake pdf data"))
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteField("classNames", `["Grade 4"]`))
 	writer.Close()
 
 	r := httptest.NewRequest(http.MethodPost, "/report-examples", &buf)
@@ -131,23 +106,13 @@ func TestUploadExample_PDFDispatchesAsync(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleUploadReportExample(rec, r)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 
 	var result ReportExample
-	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
-		t.Fatal(err)
-	}
-	if result.Status != "processing" {
-		t.Errorf("status = %q, want processing", result.Status)
-	}
-	if len(queue.published) != 1 {
-		t.Fatalf("published jobs = %d, want 1", len(queue.published))
-	}
-	if queue.published[0].FileName != "report.pdf" {
-		t.Errorf("job filename = %q, want report.pdf", queue.published[0].FileName)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
+	assert.Equal(t, "processing", result.Status)
+	require.Len(t, queue.published, 1)
+	assert.Equal(t, "report.pdf", queue.published[0].FileName)
 }
 
 func TestUploadExample_TextFileStoresDirect(t *testing.T) {
@@ -157,15 +122,10 @@ func TestUploadExample_TextFileStoresDirect(t *testing.T) {
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	part, err := writer.CreateFormFile("file", "notes.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := part.Write([]byte("Some report card text")); err != nil {
-		t.Fatal(err)
-	}
-	if err := writer.WriteField("classNames", `["Grade 4"]`); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = part.Write([]byte("Some report card text"))
+	require.NoError(t, err)
+	require.NoError(t, writer.WriteField("classNames", `["Grade 4"]`))
 	writer.Close()
 
 	r := httptest.NewRequest(http.MethodPost, "/report-examples", &buf)
@@ -178,10 +138,6 @@ func TestUploadExample_TextFileStoresDirect(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleUploadReportExample(rec, r)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if store.uploadedContent != "Some report card text" {
-		t.Errorf("content = %q, want direct text", store.uploadedContent)
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
+	assert.Equal(t, "Some report card text", store.uploadedContent)
 }

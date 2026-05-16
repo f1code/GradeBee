@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHandleGetStudents_HappyPath(t *testing.T) {
@@ -17,22 +19,15 @@ func TestHandleGetStudents_HappyPath(t *testing.T) {
 
 	// Seed data
 	c1, err := classRepo.Create(t.Context(), "test-user", "5A", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	c2, err := classRepo.Create(t.Context(), "test-user", "5B", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), c1.ID, "Emma"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), c1.ID, "Liam"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), c2.ID, "Noah"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), c1.ID, "Emma")
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), c1.ID, "Liam")
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), c2.ID, "Noah")
+	require.NoError(t, err)
 
 	origDeps := serviceDeps
 	defer func() { serviceDeps = origDeps }()
@@ -50,23 +45,13 @@ func TestHandleGetStudents_HappyPath(t *testing.T) {
 
 	handleGetStudents(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("got status %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	var resp StudentsResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if len(resp.Classes) != 2 {
-		t.Errorf("got %d classes, want 2", len(resp.Classes))
-	}
-	if resp.Classes[0].Name != "5A" {
-		t.Errorf("first class = %q, want 5A", resp.Classes[0].Name)
-	}
-	if len(resp.Classes[0].Students) != 2 {
-		t.Errorf("5A students = %d, want 2", len(resp.Classes[0].Students))
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode failed")
+	assert.Len(t, resp.Classes, 2)
+	assert.Equal(t, "5A", resp.Classes[0].Name)
+	assert.Len(t, resp.Classes[0].Students, 2)
 }
 
 func TestHandleGetStudents_Empty(t *testing.T) {
@@ -88,30 +73,20 @@ func TestHandleGetStudents_Empty(t *testing.T) {
 
 	handleGetStudents(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("got status %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 
 	var resp StudentsResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if len(resp.Classes) != 0 {
-		t.Errorf("got %d classes, want 0", len(resp.Classes))
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode failed")
+	assert.Empty(t, resp.Classes)
 }
 
 // setupTestDB opens an in-memory SQLite DB with migrations applied.
 func setupTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := OpenDB(":memory:")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
-	if err := RunMigrations(db); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, RunMigrations(db))
 	return db
 }
 
@@ -124,9 +99,8 @@ func TestListClassNames(t *testing.T) {
 		{"Beta", "AM"},
 		{"Alpha", "PM"},
 	} {
-		if _, err := classRepo.Create(t.Context(), "test-user", args[0], args[1]); err != nil {
-			t.Fatal(err)
-		}
+		_, err := classRepo.Create(t.Context(), "test-user", args[0], args[1])
+		require.NoError(t, err)
 	}
 
 	origDeps := serviceDeps
@@ -142,15 +116,9 @@ func TestListClassNames(t *testing.T) {
 
 	handleListClassNames(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("got status %d; body: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	var resp map[string][]string
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode failed")
 	names := resp["classNames"]
-	if len(names) != 2 {
-		t.Errorf("got %v, want 2 distinct names", names)
-	}
+	assert.Len(t, names, 2, "got %v, want 2 distinct names", names)
 }

@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestHandleTextNotesUpload_EmptyText(t *testing.T) {
@@ -24,24 +26,16 @@ func TestHandleTextNotesUpload_EmptyText(t *testing.T) {
 
 	handleTextNotesUpload(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("empty text: got status %d, want 400", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "empty text: unexpected status")
 	var resp map[string]string
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if resp["error"] != "text is required" {
-		t.Errorf("empty text: got error %q, want %q", resp["error"], "text is required")
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode response")
+	assert.Equal(t, "text is required", resp["error"])
 }
 
 func TestHandleTextNotesUpload_TooLarge(t *testing.T) {
 	big := strings.Repeat("x", maxTextSize+1)
 	body, err := json.Marshal(textNotesRequest{Text: big})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/text-notes/upload", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
@@ -52,9 +46,7 @@ func TestHandleTextNotesUpload_TooLarge(t *testing.T) {
 
 	handleTextNotesUpload(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("too large: got status %d, want 400", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "too large: unexpected status")
 }
 
 func TestHandleTextNotesUpload_InvalidJSON(t *testing.T) {
@@ -68,9 +60,7 @@ func TestHandleTextNotesUpload_InvalidJSON(t *testing.T) {
 
 	handleTextNotesUpload(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("invalid json: got status %d, want 400", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "invalid json: unexpected status")
 }
 
 func TestHandleTextNotesUpload_HappyPath(t *testing.T) {
@@ -86,9 +76,7 @@ func TestHandleTextNotesUpload_HappyPath(t *testing.T) {
 	t.Cleanup(func() { serviceDeps = oldDeps })
 
 	body, err := json.Marshal(textNotesRequest{Text: "Alice did great today"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/text-notes/upload", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
@@ -99,33 +87,17 @@ func TestHandleTextNotesUpload_HappyPath(t *testing.T) {
 
 	handleTextNotesUpload(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("happy path: got status %d, want 200; body: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "happy path: body: %s", rec.Body.String())
 
 	var resp UploadResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if resp.UploadID == 0 {
-		t.Error("expected non-zero upload ID")
-	}
-	if resp.FileName != "pasted-text" {
-		t.Errorf("got fileName %q, want %q", resp.FileName, "pasted-text")
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode response")
+	assert.NotZero(t, resp.UploadID, "expected non-zero upload ID")
+	assert.Equal(t, "pasted-text", resp.FileName)
 
 	// Verify the job was published with the transcript.
 	jobs, err := queue.ListJobs(t.Context(), "user-1")
-	if err != nil {
-		t.Fatalf("list jobs: %v", err)
-	}
-	if len(jobs) != 1 {
-		t.Fatalf("expected 1 job, got %d", len(jobs))
-	}
-	if jobs[0].Transcript != "Alice did great today" {
-		t.Errorf("job transcript = %q, want %q", jobs[0].Transcript, "Alice did great today")
-	}
-	if jobs[0].Source != "text" {
-		t.Errorf("job source = %q, want %q", jobs[0].Source, "text")
-	}
+	require.NoError(t, err, "list jobs")
+	require.Len(t, jobs, 1)
+	assert.Equal(t, "Alice did great today", jobs[0].Transcript)
+	assert.Equal(t, "text", jobs[0].Source)
 }

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIntegration_PublishToNoteCreation(t *testing.T) {
@@ -22,21 +24,15 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "int-user", "Math", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Bob"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Bob")
+	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
-	if err := os.WriteFile(audioPath, []byte("fake audio bytes"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio bytes"), 0o644))
 
 	queue := newTestQueue(t)
 	nc := &stubNoteCreator{
@@ -76,43 +72,25 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	}
-	if err := queue.Publish(ctx, job); err != nil {
-		t.Fatalf("publish: %v", err)
-	}
+	require.NoError(t, queue.Publish(ctx, job), "publish")
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", 1))
-	if err != nil {
-		t.Fatalf("get job after publish: %v", err)
-	}
-	if got.Status != JobStatusQueued {
-		t.Fatalf("status after publish = %q, want queued", got.Status)
-	}
+	require.NoError(t, err, "get job after publish")
+	assert.Equal(t, JobStatusQueued, got.Status, "status after publish")
 
-	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)); err != nil {
-		t.Fatalf("process: %v", err)
-	}
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)), "process")
 
 	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", 1))
-	if err != nil {
-		t.Fatalf("get job after process: %v", err)
-	}
-	if got.Status != JobStatusDone {
-		t.Errorf("status = %q, want done", got.Status)
-	}
-	if len(got.NoteLinks) != 2 {
-		t.Errorf("noteLinks = %v, want 2 items", got.NoteLinks)
-	}
-	if len(nc.calls) != 2 {
-		t.Errorf("note creator calls = %d, want 2", len(nc.calls))
-	}
+	require.NoError(t, err, "get job after process")
+	assert.Equal(t, JobStatusDone, got.Status)
+	assert.Len(t, got.NoteLinks, 2)
+	assert.Len(t, nc.calls, 2)
 }
 
 func TestIntegration_PublishToFailure(t *testing.T) {
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
-	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
 
 	queue := newTestQueue(t)
 
@@ -123,27 +101,17 @@ func TestIntegration_PublishToFailure(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, VoiceNoteJob{
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{
 		UserID: "int-user", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now(),
-	}); err != nil {
-		t.Fatalf("publish: %v", err)
-	}
+	}), "publish")
 
 	err := processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1))
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", 1))
-	if err != nil {
-		t.Fatalf("get job: %v", err)
-	}
-	if got.Status != JobStatusFailed {
-		t.Errorf("status = %q, want failed", got.Status)
-	}
-	if got.FailedAt == nil {
-		t.Error("failedAt should be set")
-	}
+	require.NoError(t, err, "get job")
+	assert.Equal(t, JobStatusFailed, got.Status)
+	assert.NotNil(t, got.FailedAt, "failedAt should be set")
 }
 
 func TestIntegration_RetryAfterFailure(t *testing.T) {
@@ -153,18 +121,13 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "int-user", "Math", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
-	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
 
 	queue := newTestQueue(t)
 	failingTranscriber := &stubTranscriber{err: ErrNotFound}
@@ -187,23 +150,15 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	t.Cleanup(func() { serviceDeps = old })
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, VoiceNoteJob{
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{
 		UserID: "int-user", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now(),
-	}); err != nil {
-		t.Fatalf("publish: %v", err)
-	}
+	}), "publish")
 
 	// First attempt fails.
-	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)); err == nil {
-		t.Fatal("expected error on first attempt")
-	}
+	require.Error(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)), "expected error on first attempt")
 	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", 1))
-	if err != nil {
-		t.Fatalf("get job: %v", err)
-	}
-	if got.Status != JobStatusFailed {
-		t.Fatalf("expected failed, got %q", got.Status)
-	}
+	require.NoError(t, err, "get job")
+	assert.Equal(t, JobStatusFailed, got.Status)
 
 	// Fix the transcriber.
 	failingTranscriber.err = nil
@@ -218,29 +173,17 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleJobRetry(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("retry status = %d, body = %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "retry status; body = %s", rec.Body.String())
 	var retryResp jobRetryResponse
-	if err := json.NewDecoder(rec.Body).Decode(&retryResp); err != nil {
-		t.Fatalf("decode retry resp: %v", err)
-	}
-	if retryResp.RetriedCount != 1 {
-		t.Errorf("retriedCount = %d, want 1", retryResp.RetriedCount)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&retryResp), "decode retry resp")
+	assert.Equal(t, 1, retryResp.RetriedCount)
 
 	// Process the retried job.
-	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)); err != nil {
-		t.Fatalf("second process: %v", err)
-	}
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)), "second process")
 
 	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", 1))
-	if err != nil {
-		t.Fatalf("get job after retry: %v", err)
-	}
-	if got.Status != JobStatusDone {
-		t.Errorf("status after retry = %q, want done", got.Status)
-	}
+	require.NoError(t, err, "get job after retry")
+	assert.Equal(t, JobStatusDone, got.Status)
 }
 
 func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
@@ -248,39 +191,25 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	ctx := context.Background()
 
 	// Job 1: done.
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, Status: JobStatusQueued, CreatedAt: time.Now()}))
 	doneJob, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	doneJob.Status = JobStatusDone
 	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1, StudentID: 5, ClassName: "Math"}}
-	if err := queue.UpdateJob(ctx, *doneJob); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.UpdateJob(ctx, *doneJob))
 
 	// Job 2: failed.
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 2, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 2, Status: JobStatusQueued, CreatedAt: time.Now()}))
 	failedJob, err := queue.GetJob(ctx, voiceNoteKey("u1", 2))
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	now := time.Now()
 	failedJob.Status = JobStatusFailed
 	failedJob.Error = "boom"
 	failedJob.FailedAt = &now
-	if err := queue.UpdateJob(ctx, *failedJob); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.UpdateJob(ctx, *failedJob))
 
 	// Job 3: still queued.
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 3, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 3, Status: JobStatusQueued, CreatedAt: time.Now()}))
 
 	old := serviceDeps
 	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
@@ -294,24 +223,13 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleJobList(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 
 	var resp JobListResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-
-	if len(resp.Active) != 1 {
-		t.Errorf("active = %d, want 1", len(resp.Active))
-	}
-	if len(resp.Failed) != 1 {
-		t.Errorf("failed = %d, want 1", len(resp.Failed))
-	}
-	if len(resp.Done) != 1 {
-		t.Errorf("done = %d, want 1", len(resp.Done))
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode")
+	assert.Len(t, resp.Active, 1)
+	assert.Len(t, resp.Failed, 1)
+	assert.Len(t, resp.Done, 1)
 }
 
 func TestIntegration_UpdateReportExample(t *testing.T) {
@@ -320,9 +238,7 @@ func TestIntegration_UpdateReportExample(t *testing.T) {
 
 	// Create an example first
 	ex, err := exampleRepo.Create(t.Context(), "user1", "original.txt", "original content")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	store := newDBExampleStore(exampleRepo)
 	old := serviceDeps
@@ -331,9 +247,7 @@ func TestIntegration_UpdateReportExample(t *testing.T) {
 
 	// Update via full Handle router
 	body, err := json.Marshal(map[string]string{"name": "updated.txt", "content": "updated content"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/report-examples/%d", ex.ID), bytes.NewReader(body))
 	rctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: "user1"},
@@ -342,17 +256,11 @@ func TestIntegration_UpdateReportExample(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleUpdateReportExample(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "want 200, got %d: %s", rec.Code, rec.Body.String())
 
 	var result ReportExample
-	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
-		t.Fatal(err)
-	}
-	if result.Name != "updated.txt" {
-		t.Errorf("name = %q, want updated.txt", result.Name)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
+	assert.Equal(t, "updated.txt", result.Name)
 }
 
 // llmExtractor creates a gptExtractor, skipping if OPENAI_API_KEY is not set.
@@ -362,9 +270,7 @@ func llmExtractor(t *testing.T) Extractor {
 		t.Skip("OPENAI_API_KEY not set, skipping LLM integration test")
 	}
 	e, err := newGPTExtractor()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return e
 }
 
@@ -379,18 +285,10 @@ func TestLLM_SingleStudentCorrectClass(t *testing.T) {
 		Transcript: "Alice Johnson demonstrated excellent problem-solving skills on today's algebra quiz. She scored 95% and helped her classmates understand the quadratic formula.",
 		Classes:    classes,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Students) != 1 {
-		t.Fatalf("expected 1 student, got %d: %+v", len(result.Students), result.Students)
-	}
-	if result.Students[0].Name != "Alice Johnson" {
-		t.Errorf("name = %q, want Alice Johnson", result.Students[0].Name)
-	}
-	if result.Students[0].Class != "Math 101" {
-		t.Errorf("class = %q, want Math 101", result.Students[0].Class)
-	}
+	require.NoError(t, err)
+	require.Len(t, result.Students, 1, "got %+v", result.Students)
+	assert.Equal(t, "Alice Johnson", result.Students[0].Name)
+	assert.Equal(t, "Math 101", result.Students[0].Class)
 }
 
 func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
@@ -405,23 +303,15 @@ func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
 		Transcript: "Today I observed two students. In Math 101, Bob Smith was very engaged during the fractions lesson and volunteered to solve problems on the board. In Science 202, Diana Lee conducted her chemistry experiment carefully and wrote detailed lab notes.",
 		Classes:    classes,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Students) < 2 {
-		t.Fatalf("expected at least 2 students, got %d: %+v", len(result.Students), result.Students)
-	}
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Students), 2, "got %+v", result.Students)
 
 	found := map[string]string{}
 	for _, s := range result.Students {
 		found[s.Name] = s.Class
 	}
-	if found["Bob Smith"] != "Math 101" {
-		t.Errorf("Bob Smith class = %q, want Math 101", found["Bob Smith"])
-	}
-	if found["Diana Lee"] != "Science 202" {
-		t.Errorf("Diana Lee class = %q, want Science 202", found["Diana Lee"])
-	}
+	assert.Equal(t, "Math 101", found["Bob Smith"])
+	assert.Equal(t, "Science 202", found["Diana Lee"])
 }
 
 func TestLLM_UnknownClassSkipped(t *testing.T) {
@@ -435,17 +325,13 @@ func TestLLM_UnknownClassSkipped(t *testing.T) {
 		Transcript: "Report card for Tommy Wilson, Art 303. Tommy shows great creativity in his paintings and participates actively in class discussions about art history.",
 		Classes:    classes,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	// Tommy Wilson is not in any roster class. The extractor should return no students
 	// (or possibly empty results). It must NOT invent a class name.
 	validClasses := map[string]bool{"Math 101": true, "Science 202": true}
 	for _, s := range result.Students {
-		if !validClasses[s.Class] {
-			t.Errorf("student %q assigned to invalid class %q", s.Name, s.Class)
-		}
+		assert.True(t, validClasses[s.Class], "student %q assigned to invalid class %q", s.Name, s.Class)
 	}
 }
 
@@ -460,23 +346,16 @@ func TestLLM_PartialNameMatch(t *testing.T) {
 		Transcript: "Alex Hamilton wrote an outstanding essay on democracy today. His arguments were well-structured and his writing has improved significantly this semester.",
 		Classes:    classes,
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(result.Students) < 1 {
-		t.Fatalf("expected at least 1 student, got %d", len(result.Students))
-	}
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(result.Students), 1)
+
 	var found bool
 	for _, s := range result.Students {
 		if s.Name == "Alexander Hamilton" {
 			found = true
-			if s.Class != "English 101" {
-				t.Errorf("class = %q, want English 101", s.Class)
-			}
+			assert.Equal(t, "English 101", s.Class)
 			break
 		}
 	}
-	if !found {
-		t.Errorf("Alexander Hamilton not found in results: %+v", result.Students)
-	}
+	assert.True(t, found, "Alexander Hamilton not found in results: %+v", result.Students)
 }

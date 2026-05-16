@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func clerkCtx(r *http.Request, userID string) *http.Request {
@@ -37,23 +39,13 @@ func TestJobList_GroupsByStatus(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleJobList(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 
 	var resp JobListResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
-	if len(resp.Active) != 2 {
-		t.Errorf("active = %d, want 2", len(resp.Active))
-	}
-	if len(resp.Done) != 1 {
-		t.Errorf("done = %d, want 1", len(resp.Done))
-	}
-	if len(resp.Failed) != 1 {
-		t.Errorf("failed = %d, want 1", len(resp.Failed))
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.Len(t, resp.Active, 2)
+	assert.Len(t, resp.Done, 1)
+	assert.Len(t, resp.Failed, 1)
 }
 
 func TestJobList_EmptyUser(t *testing.T) {
@@ -67,18 +59,13 @@ func TestJobList_EmptyUser(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleJobList(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
 	var resp JobListResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if len(resp.Active) != 0 || len(resp.Failed) != 0 || len(resp.Done) != 0 {
-		t.Errorf("expected all empty arrays, got active=%d failed=%d done=%d",
-			len(resp.Active), len(resp.Failed), len(resp.Done))
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode")
+	assert.Empty(t, resp.Active)
+	assert.Empty(t, resp.Failed)
+	assert.Empty(t, resp.Done)
 }
 
 func TestJobList_SortedDescending(t *testing.T) {
@@ -97,17 +84,10 @@ func TestJobList_SortedDescending(t *testing.T) {
 	handleJobList(rec, req)
 
 	var resp JobListResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(resp.Active) != 2 {
-		t.Fatalf("active = %d, want 2", len(resp.Active))
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	require.Len(t, resp.Active, 2)
 	// Newest first = uploadID 2
-	if resp.Active[0].UploadID != 2 {
-		t.Errorf("first active uploadID = %d, want 2 (newest first)", resp.Active[0].UploadID)
-	}
+	assert.Equal(t, int64(2), resp.Active[0].UploadID, "first active should be newest (uploadID 2)")
 }
 
 // --- Retry tests ---
@@ -130,38 +110,22 @@ func TestJobRetry_RetriesFailedOnly(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleJobRetry(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 
 	var resp jobRetryResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.RetriedCount != 2 {
-		t.Errorf("retriedCount = %d, want 2", resp.RetriedCount)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.Equal(t, 2, resp.RetriedCount)
 
 	// Failed jobs should now be queued.
 	f1, err := queue.GetJob(context.TODO(), voiceNoteKey("u1", 2))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if f1.Status != JobStatusQueued {
-		t.Errorf("failed1 status = %q, want queued", f1.Status)
-	}
-	if f1.Error != "" {
-		t.Errorf("failed1 error = %q, want empty", f1.Error)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusQueued, f1.Status)
+	assert.Empty(t, f1.Error)
 
 	// Done job should be unchanged.
 	dj, err := queue.GetJob(context.TODO(), voiceNoteKey("u1", 1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if dj.Status != JobStatusDone {
-		t.Errorf("done-job status = %q, want done", dj.Status)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusDone, dj.Status)
 }
 
 func TestJobRetry_NoFailedJobs(t *testing.T) {
@@ -176,15 +140,9 @@ func TestJobRetry_NoFailedJobs(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleJobRetry(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
+	require.Equal(t, http.StatusOK, rec.Code)
 
 	var resp jobRetryResponse
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.RetriedCount != 0 {
-		t.Errorf("retriedCount = %d, want 0", resp.RetriedCount)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.Equal(t, 0, resp.RetriedCount)
 }

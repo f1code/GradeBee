@@ -11,15 +11,15 @@ import (
 	"testing"
 
 	clerk "github.com/clerk/clerk-sdk-go/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // newDriveImportExampleReq creates a POST /drive-import-example request with Clerk auth.
 func newDriveImportExampleReq(t *testing.T, userID, fileID, fileName string) *http.Request {
 	t.Helper()
 	body, err := json.Marshal(map[string]string{"fileId": fileID, "fileName": fileName})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodPost, "/drive-import-example", bytes.NewReader(body))
 	ctx := clerk.ContextWithSessionClaims(r.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: userID},
@@ -31,9 +31,7 @@ func newDriveImportExampleReq(t *testing.T, userID, fileID, fileName string) *ht
 func noAuthDriveImportExampleReq(t *testing.T, fileID, fileName string) *http.Request {
 	t.Helper()
 	body, err := json.Marshal(map[string]string{"fileId": fileID, "fileName": fileName})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	return httptest.NewRequest(http.MethodPost, "/drive-import-example", bytes.NewReader(body))
 }
 
@@ -49,35 +47,25 @@ func TestDriveImportExample_InvalidJSON(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/drive-import-example", strings.NewReader("{invalid"))
 	handleDriveImportExample(rec, r)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestDriveImportExample_MissingFileID(t *testing.T) {
 	rec := httptest.NewRecorder()
 	body, err := json.Marshal(map[string]string{"fileName": "report.pdf"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodPost, "/drive-import-example", bytes.NewReader(body))
 	handleDriveImportExample(rec, r)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestDriveImportExample_MissingFileName(t *testing.T) {
 	rec := httptest.NewRecorder()
 	body, err := json.Marshal(map[string]string{"fileId": "abc123"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	r := httptest.NewRequest(http.MethodPost, "/drive-import-example", bytes.NewReader(body))
 	handleDriveImportExample(rec, r)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestDriveImportExample_BlankFileName(t *testing.T) {
@@ -92,17 +80,13 @@ func TestDriveImportExample_BlankFileName(t *testing.T) {
 	rec := httptest.NewRecorder()
 	r := newDriveImportExampleReq(t, "u1", "fileXYZ", "   ")
 	handleDriveImportExample(rec, r)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestDriveImportExample_NoSession(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, noAuthDriveImportExampleReq(t, "abc", "file.txt"))
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
 func TestDriveImportExample_DriveClientError(t *testing.T) {
@@ -110,9 +94,7 @@ func TestDriveImportExample_DriveClientError(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("want 502, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadGateway, rec.Code)
 }
 
 func TestDriveImportExample_FileMetaError(t *testing.T) {
@@ -122,9 +104,7 @@ func TestDriveImportExample_FileMetaError(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("want 404, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
 func TestDriveImportExample_DownloadError(t *testing.T) {
@@ -137,9 +117,7 @@ func TestDriveImportExample_DownloadError(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("want 500, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 func TestDriveImportExample_DisallowedMIME(t *testing.T) {
@@ -149,9 +127,7 @@ func TestDriveImportExample_DisallowedMIME(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "archive.zip"))
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestDriveImportExample_ExceedsSizeLimit(t *testing.T) {
@@ -165,9 +141,7 @@ func TestDriveImportExample_ExceedsSizeLimit(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "big.txt"))
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestDriveImportExample_PDFExtractsText(t *testing.T) {
@@ -185,22 +159,12 @@ func TestDriveImportExample_PDFExtractsText(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 	var result ReportExample
-	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
-		t.Fatal(err)
-	}
-	if result.Status != "processing" {
-		t.Errorf("status = %q, want processing", result.Status)
-	}
-	if len(queue.published) != 1 {
-		t.Fatalf("published jobs = %d, want 1", len(queue.published))
-	}
-	if queue.published[0].FileName != "report.pdf" {
-		t.Errorf("job filename = %q, want report.pdf", queue.published[0].FileName)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
+	assert.Equal(t, "processing", result.Status)
+	require.Len(t, queue.published, 1)
+	assert.Equal(t, "report.pdf", queue.published[0].FileName)
 }
 
 func TestDriveImportExample_ImageExtractsText(t *testing.T) {
@@ -218,12 +182,8 @@ func TestDriveImportExample_ImageExtractsText(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "scan.png"))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if len(queue.published) != 1 {
-		t.Fatalf("published jobs = %d, want 1", len(queue.published))
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
+	assert.Len(t, queue.published, 1)
 }
 
 func TestDriveImportExample_ExtractorUnavailable(t *testing.T) {
@@ -241,9 +201,7 @@ func TestDriveImportExample_ExtractorUnavailable(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("want 500, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 func TestDriveImportExample_ExtractorFails(t *testing.T) {
@@ -262,9 +220,7 @@ func TestDriveImportExample_ExtractorFails(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200 (async), got %d: %s", rec.Code, rec.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, rec.Code, "want 200 (async), body = %s", rec.Body.String())
 }
 
 func TestDriveImportExample_ExtractorReturnsEmpty(t *testing.T) {
@@ -283,9 +239,7 @@ func TestDriveImportExample_ExtractorReturnsEmpty(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.pdf"))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200 (async), got %d: %s", rec.Code, rec.Body.String())
-	}
+	assert.Equal(t, http.StatusOK, rec.Code, "want 200 (async), body = %s", rec.Body.String())
 }
 
 func TestDriveImportExample_PlainTextDirect(t *testing.T) {
@@ -302,15 +256,9 @@ func TestDriveImportExample_PlainTextDirect(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "notes.txt"))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if ext.gotFilename != "" {
-		t.Error("extractor should NOT be called for plain text")
-	}
-	if store.uploadedContent != "plain text content" {
-		t.Errorf("unexpected stored content: %q", store.uploadedContent)
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
+	assert.Empty(t, ext.gotFilename, "extractor should NOT be called for plain text")
+	assert.Equal(t, "plain text content", store.uploadedContent)
 }
 
 func TestDriveImportExample_MarkdownDirect(t *testing.T) {
@@ -327,12 +275,8 @@ func TestDriveImportExample_MarkdownDirect(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "report.md"))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if ext.gotFilename != "" {
-		t.Error("extractor should NOT be called for markdown")
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
+	assert.Empty(t, ext.gotFilename, "extractor should NOT be called for markdown")
 }
 
 func TestDriveImportExample_EmptyTextFile(t *testing.T) {
@@ -346,9 +290,7 @@ func TestDriveImportExample_EmptyTextFile(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "empty.txt"))
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestDriveImportExample_StoreFailure(t *testing.T) {
@@ -362,9 +304,7 @@ func TestDriveImportExample_StoreFailure(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "file.txt"))
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("want 500, got %d", rec.Code)
-	}
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 }
 
 func TestDriveImportExample_Success(t *testing.T) {
@@ -381,17 +321,10 @@ func TestDriveImportExample_Success(t *testing.T) {
 
 	rec := httptest.NewRecorder()
 	handleDriveImportExample(rec, newDriveImportExampleReq(t, "u1", "fileABC", "My Report"))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 	var result ReportExample
-	if err := json.NewDecoder(rec.Body).Decode(&result); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if result.ID != 42 || result.Name != "My Report" {
-		t.Errorf("unexpected result: %+v", result)
-	}
-	if store.uploadedContent != "report content" {
-		t.Errorf("unexpected stored content: %q", store.uploadedContent)
-	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
+	assert.Equal(t, int64(42), result.ID)
+	assert.Equal(t, "My Report", result.Name)
+	assert.Equal(t, "report content", store.uploadedContent)
 }

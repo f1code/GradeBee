@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -18,12 +20,8 @@ func TestHandle_Health(t *testing.T) {
 
 	Handle(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("GET /health: got status %d, want 200", rec.Code)
-	}
-	if rec.Header().Get("Content-Type") != "application/json" {
-		t.Errorf("GET /health: Content-Type = %q, want application/json", rec.Header().Get("Content-Type"))
-	}
+	assert.Equal(t, http.StatusOK, rec.Code, "GET /health: unexpected status")
+	assert.Equal(t, "application/json", rec.Header().Get("Content-Type"), "GET /health: wrong Content-Type")
 }
 
 func TestHandle_OptionsCORS(t *testing.T) {
@@ -32,19 +30,10 @@ func TestHandle_OptionsCORS(t *testing.T) {
 
 	Handle(rec, req)
 
-	if rec.Code != http.StatusNoContent {
-		t.Errorf("OPTIONS: got status %d, want 204", rec.Code)
-	}
-	if rec.Header().Get("Access-Control-Allow-Origin") == "" {
-		t.Error("OPTIONS: missing Access-Control-Allow-Origin header")
-	}
-	if rec.Header().Get("Access-Control-Allow-Headers") == "" {
-		t.Error("OPTIONS: missing Access-Control-Allow-Headers header")
-	}
-	methods := rec.Header().Get("Access-Control-Allow-Methods")
-	if methods == "" {
-		t.Error("OPTIONS: missing Access-Control-Allow-Methods header")
-	}
+	assert.Equal(t, http.StatusNoContent, rec.Code, "OPTIONS: unexpected status")
+	assert.NotEmpty(t, rec.Header().Get("Access-Control-Allow-Origin"), "OPTIONS: missing Access-Control-Allow-Origin header")
+	assert.NotEmpty(t, rec.Header().Get("Access-Control-Allow-Headers"), "OPTIONS: missing Access-Control-Allow-Headers header")
+	assert.NotEmpty(t, rec.Header().Get("Access-Control-Allow-Methods"), "OPTIONS: missing Access-Control-Allow-Methods header")
 }
 
 func TestHandle_Options_NotProtectedByAuth(t *testing.T) {
@@ -53,9 +42,7 @@ func TestHandle_Options_NotProtectedByAuth(t *testing.T) {
 
 	Handle(rec, req)
 
-	if rec.Code != http.StatusNoContent {
-		t.Errorf("OPTIONS /classes: got status %d, want 204 (middleware must not run for OPTIONS)", rec.Code)
-	}
+	assert.Equal(t, http.StatusNoContent, rec.Code, "OPTIONS /classes: middleware must not run for OPTIONS")
 }
 
 func TestHandle_NotFound(t *testing.T) {
@@ -64,9 +51,7 @@ func TestHandle_NotFound(t *testing.T) {
 
 	Handle(rec, req)
 
-	if rec.Code != http.StatusNotFound {
-		t.Errorf("unknown route: got status %d, want 404", rec.Code)
-	}
+	assert.Equal(t, http.StatusNotFound, rec.Code, "unknown route: unexpected status")
 }
 
 func TestHandle_GetStudents_NoAuth(t *testing.T) {
@@ -76,7 +61,5 @@ func TestHandle_GetStudents_NoAuth(t *testing.T) {
 
 	Handle(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("GET /students no auth: got status %d, want 401", rec.Code)
-	}
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "GET /students no auth: unexpected status")
 }

@@ -5,26 +5,19 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExtractionResponseSchema_Valid(t *testing.T) {
 	var schema map[string]interface{}
-	if err := json.Unmarshal(extractionResponseSchema(), &schema); err != nil {
-		t.Fatalf("extractionResponseSchema is not valid JSON: %v", err)
-	}
-	if schema["type"] != "object" {
-		t.Errorf("expected type=object, got %v", schema["type"])
-	}
+	require.NoError(t, json.Unmarshal(extractionResponseSchema(), &schema), "extractionResponseSchema is not valid JSON")
+	assert.Equal(t, "object", schema["type"])
 	props, ok := schema["properties"].(map[string]interface{})
-	if !ok {
-		t.Fatal("missing 'properties' in schema")
-	}
-	if _, ok := props["success"]; !ok {
-		t.Error("missing 'success' property")
-	}
-	if _, ok := props["text"]; !ok {
-		t.Error("missing 'text' property")
-	}
+	require.True(t, ok, "missing 'properties' in schema")
+	assert.Contains(t, props, "success", "missing 'success' property")
+	assert.Contains(t, props, "text", "missing 'text' property")
 }
 
 func TestPdfToImages_ValidPDF(t *testing.T) {
@@ -32,18 +25,13 @@ func TestPdfToImages_ValidPDF(t *testing.T) {
 	if err != nil {
 		t.Skip("testdata/sample.pdf not found, skipping")
 	}
-	images, err := pdfToImages(context.Background(), data)
-	if err != nil {
-		t.Fatalf("pdfToImages failed: %v", err)
-	}
-	if len(images) == 0 {
-		t.Fatal("expected at least one image")
-	}
+	images, err := pdfToImages(t.Context(), data)
+	require.NoError(t, err, "pdfToImages failed")
+	require.NotEmpty(t, images)
 	for i, img := range images {
 		// JPEG magic bytes: FF D8 FF
-		if len(img) < 3 || img[0] != 0xFF || img[1] != 0xD8 || img[2] != 0xFF {
-			t.Errorf("image %d is not a valid JPEG", i)
-		}
+		assert.True(t, len(img) >= 3 && img[0] == 0xFF && img[1] == 0xD8 && img[2] == 0xFF,
+			"image %d is not a valid JPEG", i)
 	}
 }
 
@@ -63,15 +51,11 @@ func TestIsExtractableFile(t *testing.T) {
 		{"", false},
 	}
 	for _, tc := range cases {
-		if got := isExtractableFile(tc.name); got != tc.want {
-			t.Errorf("isExtractableFile(%q) = %v, want %v", tc.name, got, tc.want)
-		}
+		assert.Equal(t, tc.want, isExtractableFile(tc.name), "isExtractableFile(%q)", tc.name)
 	}
 }
 
 func TestPdfToImages_InvalidData(t *testing.T) {
 	_, err := pdfToImages(context.Background(), []byte("not a pdf"))
-	if err == nil {
-		t.Fatal("expected error for invalid PDF data")
-	}
+	assert.Error(t, err, "expected error for invalid PDF data")
 }

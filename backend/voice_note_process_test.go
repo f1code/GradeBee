@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcessJob_HappyPath(t *testing.T) {
@@ -18,22 +21,16 @@ func TestProcessJob_HappyPath(t *testing.T) {
 
 	// Seed class + students.
 	cls, err := classRepo.Create(t.Context(), "user1", "Math", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Bob"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Bob")
+	require.NoError(t, err)
 
 	// Write a temp audio file.
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
-	if err := os.WriteFile(audioPath, []byte("fake audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio"), 0o644))
 
 	queue := newStubVoiceNoteQueue()
 	nc := &stubNoteCreator{
@@ -71,35 +68,20 @@ func TestProcessJob_HappyPath(t *testing.T) {
 		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	}
-	if err := queue.Publish(ctx, job); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("user1", 1)); err != nil {
-		t.Fatalf("processVoiceNote: %v", err)
-	}
+	require.NoError(t, queue.Publish(ctx, job))
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("user1", 1)))
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("user1", 1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != JobStatusDone {
-		t.Errorf("status = %q, want %q", got.Status, JobStatusDone)
-	}
-	if len(got.NoteLinks) != 2 {
-		t.Errorf("noteLinks = %d, want 2", len(got.NoteLinks))
-	}
-	if len(nc.calls) != 2 {
-		t.Errorf("note creator calls = %d, want 2", len(nc.calls))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusDone, got.Status)
+	assert.Len(t, got.NoteLinks, 2)
+	assert.Len(t, nc.calls, 2)
 }
 
 func TestProcessJob_TranscribeFail(t *testing.T) {
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
-	if err := os.WriteFile(audioPath, []byte("fake audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio"), 0o644))
 
 	queue := newStubVoiceNoteQueue()
 	d := &mockDepsAll{
@@ -109,33 +91,21 @@ func TestProcessJob_TranscribeFail(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 
 	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != JobStatusFailed {
-		t.Errorf("status = %q, want %q", got.Status, JobStatusFailed)
-	}
-	if !strings.Contains(got.Error, "transcribe") {
-		t.Errorf("error = %q, want to contain 'transcribe'", got.Error)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusFailed, got.Status)
+	assert.True(t, strings.Contains(got.Error, "transcribe"), "error = %q, want to contain 'transcribe'", got.Error)
 }
 
 func TestProcessJob_ExtractFail(t *testing.T) {
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
-	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
 
 	queue := newStubVoiceNoteQueue()
 	d := &mockDepsAll{
@@ -146,22 +116,14 @@ func TestProcessJob_ExtractFail(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 
 	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != JobStatusFailed {
-		t.Errorf("status = %q, want %q", got.Status, JobStatusFailed)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusFailed, got.Status)
 }
 
 func TestProcessJob_NoteCreateFail(t *testing.T) {
@@ -171,18 +133,13 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
-	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
 
 	queue := newStubVoiceNoteQueue()
 	d := &mockDepsAll{
@@ -198,22 +155,14 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 
 	err = processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
-	if err == nil {
-		t.Fatal("expected error")
-	}
+	require.Error(t, err)
 
 	got, gErr := queue.GetJob(ctx, voiceNoteKey("u1", 1))
-	if gErr != nil {
-		t.Fatal(gErr)
-	}
-	if got.Status != JobStatusFailed {
-		t.Errorf("status = %q, want %q", got.Status, JobStatusFailed)
-	}
+	require.NoError(t, gErr)
+	assert.Equal(t, JobStatusFailed, got.Status)
 }
 
 func TestProcessJob_AlreadyProcessed(t *testing.T) {
@@ -225,18 +174,11 @@ func TestProcessJob_AlreadyProcessed(t *testing.T) {
 		UserID: "u1", UploadID: 1, Status: JobStatusDone,
 	}
 
-	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
-	if err != nil {
-		t.Fatalf("expected no error for already-processed job, got: %v", err)
-	}
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)), "expected no error for already-processed job")
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != JobStatusDone {
-		t.Errorf("status changed to %q, should remain done", got.Status)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusDone, got.Status, "status changed, should remain done")
 }
 
 func TestProcessJob_WrongClassSkipped(t *testing.T) {
@@ -246,18 +188,13 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
-	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
 
 	queue := newStubVoiceNoteQueue()
 	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
@@ -277,24 +214,13 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)); err != nil {
-		t.Fatalf("processVoiceNote should succeed despite wrong class: %v", err)
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)), "processVoiceNote should succeed despite wrong class")
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status != JobStatusDone {
-		t.Errorf("status = %q, want %q", got.Status, JobStatusDone)
-	}
-	if len(nc.calls) != 1 {
-		t.Errorf("note creator calls = %d, want 1 (wrong class skipped)", len(nc.calls))
-	}
+	require.NoError(t, err)
+	assert.Equal(t, JobStatusDone, got.Status)
+	assert.Len(t, nc.calls, 1, "note creator calls: wrong class should be skipped")
 }
 
 func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
@@ -304,21 +230,15 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Maybe"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Maybe")
+	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
-	if err := os.WriteFile(audioPath, []byte("audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
 
 	queue := newStubVoiceNoteQueue()
 	nc := &stubNoteCreator{}
@@ -338,17 +258,9 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)); err != nil {
-		t.Fatal(err)
-	}
-
-	if len(nc.calls) != 1 {
-		t.Errorf("note creator calls = %d, want 1 (low confidence skipped)", len(nc.calls))
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)))
+	assert.Len(t, nc.calls, 1, "note creator calls: low confidence should be skipped")
 }
 
 // TestProcessJob_QuotedTextPassedToNoteCreator verifies that QuotedText from
@@ -360,18 +272,13 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := studentRepo.Create(t.Context(), cls.ID, "Alice"); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
-	if err := os.WriteFile(audioPath, []byte("fake audio"), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio"), 0o644))
 
 	queue := newStubVoiceNoteQueue()
 	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
@@ -396,18 +303,9 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}); err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)))
 
-	if err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1)); err != nil {
-		t.Fatalf("processVoiceNote: %v", err)
-	}
-
-	if len(nc.calls) != 1 {
-		t.Fatalf("expected 1 note creation call, got %d", len(nc.calls))
-	}
-	if nc.calls[0].QuotedText != rawQuote {
-		t.Errorf("QuotedText not passed through.\nGot:  %s\nWant: %s", nc.calls[0].QuotedText, rawQuote)
-	}
+	require.Len(t, nc.calls, 1, "expected 1 note creation call")
+	assert.Equal(t, rawQuote, nc.calls[0].QuotedText, "QuotedText not passed through")
 }

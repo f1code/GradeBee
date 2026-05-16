@@ -4,6 +4,9 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestExtractPreservesTeacherVoice verifies that extracted QuotedText preserves
@@ -33,13 +36,8 @@ Amara was great - very attentive and helpful to other students.`
 	}
 
 	result, err := extractor.Extract(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
-	}
-
-	if len(result.Students) != 2 {
-		t.Fatalf("Expected 2 students, got %d", len(result.Students))
-	}
+	require.NoError(t, err, "Extract failed")
+	require.Len(t, result.Students, 2, "Expected 2 students")
 
 	// Find Maxence
 	var maxence *MatchedStudent
@@ -49,20 +47,15 @@ Amara was great - very attentive and helpful to other students.`
 			break
 		}
 	}
-	if maxence == nil {
-		t.Fatal("Maxence not found in extraction")
-	}
+	require.NotNil(t, maxence, "Maxence not found in extraction")
 
 	// Verify QuotedText contains original phrasing, not formal rewrite
-	if maxence.QuotedText == "" {
-		t.Error("QuotedText is empty")
-	}
+	assert.NotEmpty(t, maxence.QuotedText, "QuotedText is empty")
 
 	// The quoted text should contain evidence of teacher's original voice
 	// (not formal language like "had a very difficult day")
-	if !contains(maxence.QuotedText, "impossibly bad") {
-		t.Errorf("QuotedText does not preserve original phrasing. Got: %s", maxence.QuotedText)
-	}
+	assert.True(t, contains(maxence.QuotedText, "impossibly bad"),
+		"QuotedText does not preserve original phrasing. Got: %s", maxence.QuotedText)
 }
 
 // TestExtractGroupObservations verifies that group-level observations
@@ -91,9 +84,7 @@ Specific note: Tommy helped me organize the materials, which was great.`
 	}
 
 	result, err := extractor.Extract(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
-	}
+	require.NoError(t, err, "Extract failed")
 
 	// Only Tommy should be extracted — Lisa is not individually mentioned
 	if len(result.Students) != 1 {
@@ -105,17 +96,13 @@ Specific note: Tommy helped me organize the materials, which was great.`
 	}
 
 	tommy := result.Students[0]
-	if tommy.Name != "Tommy" {
-		t.Fatalf("Expected Tommy, got %s", tommy.Name)
-	}
+	require.Equal(t, "Tommy", tommy.Name)
 
 	// Tommy's QuotedText should include both his individual mention and the group observation
-	if !contains(tommy.QuotedText, "organize") {
-		t.Errorf("Tommy QuotedText missing individual observation. Got: %s", tommy.QuotedText)
-	}
-	if !contains(tommy.QuotedText, "too loud") && !contains(tommy.QuotedText, "unfocused") && !contains(tommy.QuotedText, "talking over") {
-		t.Errorf("Tommy QuotedText missing group observation. Got: %s", tommy.QuotedText)
-	}
+	assert.True(t, contains(tommy.QuotedText, "organize"),
+		"Tommy QuotedText missing individual observation. Got: %s", tommy.QuotedText)
+	assert.True(t, contains(tommy.QuotedText, "too loud") || contains(tommy.QuotedText, "unfocused") || contains(tommy.QuotedText, "talking over"),
+		"Tommy QuotedText missing group observation. Got: %s", tommy.QuotedText)
 }
 
 // TestExtractGroupObservationsMultiClass verifies that group-level observations
@@ -150,9 +137,7 @@ Period 2 notes: Sarah did an amazing presentation on volcanoes.`
 	}
 
 	result, err := extractor.Extract(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Extract failed: %v", err)
-	}
+	require.NoError(t, err, "Extract failed")
 
 	// Only Tommy and Sarah should be extracted (individually mentioned).
 	// Lisa and Jake are not mentioned by name.
@@ -161,30 +146,20 @@ Period 2 notes: Sarah did an amazing presentation on volcanoes.`
 		nameSet[s.Name] = s
 	}
 
-	if _, ok := nameSet["Tommy"]; !ok {
-		t.Error("Tommy should be extracted (individually mentioned)")
-	}
-	if _, ok := nameSet["Sarah"]; !ok {
-		t.Error("Sarah should be extracted (individually mentioned)")
-	}
-	if _, ok := nameSet["Lisa"]; ok {
-		t.Error("Lisa should NOT be extracted (not individually mentioned)")
-	}
-	if _, ok := nameSet["Jake"]; ok {
-		t.Error("Jake should NOT be extracted (not individually mentioned)")
-	}
+	assert.Contains(t, nameSet, "Tommy", "Tommy should be extracted (individually mentioned)")
+	assert.Contains(t, nameSet, "Sarah", "Sarah should be extracted (individually mentioned)")
+	assert.NotContains(t, nameSet, "Lisa", "Lisa should NOT be extracted (not individually mentioned)")
+	assert.NotContains(t, nameSet, "Jake", "Jake should NOT be extracted (not individually mentioned)")
 
 	// Tommy should have the group observation about the class being loud
 	tommy := nameSet["Tommy"]
-	if !contains(tommy.QuotedText, "loud") {
-		t.Errorf("Tommy should include Period 1 group observation about loudness. Got: %s", tommy.QuotedText)
-	}
+	assert.True(t, contains(tommy.QuotedText, "loud"),
+		"Tommy should include Period 1 group observation about loudness. Got: %s", tommy.QuotedText)
 
 	// Sarah should NOT have the "loud" group observation — that was about Period 1
 	sarah := nameSet["Sarah"]
-	if contains(sarah.QuotedText, "loud") {
-		t.Errorf("Sarah should NOT have Period 1's group observation. Got: %s", sarah.QuotedText)
-	}
+	assert.False(t, contains(sarah.QuotedText, "loud"),
+		"Sarah should NOT have Period 1's group observation. Got: %s", sarah.QuotedText)
 }
 
 // Helper
