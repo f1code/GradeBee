@@ -28,13 +28,14 @@ GradeBee helps teachers record voice notes about students and automatically gene
 ```
 GradeBee/
 ├── frontend/              # React SPA (Vite + TypeScript)
+│   └── .env.example       # Browser env vars (VITE_*)
 ├── backend/               # Go API (plain net/http, vendored deps)
 │   └── cmd/server/        # Local dev server entrypoint
 ├── e2e/                   # Playwright end-to-end tests
 ├── docs/                  # Design docs and implementation plans
 ├── Makefile               # build, clean, deploy, dev
 ├── package.json           # Root: runs frontend + backend concurrently
-└── .env.example           # Environment variable template
+└── .env.example           # Backend + deployment env vars
 ```
 
 ## Documentation
@@ -55,20 +56,22 @@ GradeBee/
 
 ### Setup
 
-1. Copy `.env.example` to `.env` at the project root and fill in the values:
+1. Copy `.env.example` to `.env` at the project root and fill in the backend/deployment values.
+
+   Copy `frontend/.env.example` to `frontend/.env` and fill in the browser (Vite) values:
 
    ```
-   # Frontend (VITE_* exposed to client)
    VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
    VITE_API_URL=http://localhost:8080
 
    # Sentry User Feedback (optional — leave blank to disable)
    VITE_SENTRY_DSN=https://xxx@oXXX.ingest.sentry.io/YYY
-
-   # Backend
-   CLERK_SECRET_KEY=sk_live_xxx
-   ALLOWED_ORIGIN=http://localhost:5173
    ```
+
+   > **Why two files?** Vite only reads `.env` from its own project directory (`frontend/`), and
+   > `VITE_*` vars are inlined into the browser bundle at build time. Backend secrets
+   > (`CLERK_SECRET_KEY`, `OPENAI_API_KEY`, …) must never appear in the bundle, so they live
+   > in the root `.env` only.
 
 2. Install dependencies:
 

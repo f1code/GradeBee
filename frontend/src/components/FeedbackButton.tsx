@@ -77,6 +77,7 @@ export default function FeedbackButton({ userId, userEmail }: FeedbackButtonProp
         : 'What improvement or new feature would help you most?',
       submitButtonLabel: isBug ? 'Send bug report' : 'Send suggestion',
       tags: { feedback_type: type },
+      showName: false,
     })
     form.appendToDom()
     form.open()

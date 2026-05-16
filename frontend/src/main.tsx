@@ -30,17 +30,12 @@ if (sentryDsn) {
         autoInject: false,
         // Screenshot capture is on by default — keep it enabled.
       }),
-      Sentry.replayIntegration({
-        // Capture replays only on errors / feedback submissions to stay on
-        // the free tier. Normal sessions are not recorded.
-        replaysSessionSampleRate: 0,
-        replaysOnErrorSampleRate: 1.0,
-        // Mask all text inputs and block media elements by default (Sentry
-        // default — explicitly noted here for reviewers).
-        maskAllText: true,
-        blockAllMedia: false,
-      }),
+      Sentry.replayIntegration(),
     ],
+    // Capture replays only on errors / feedback submissions to stay on
+    // the free tier. Normal sessions are not recorded.
+    replaysSessionSampleRate: 0.01,
+    replaysOnErrorSampleRate: 1.0,
   })
 }
 
