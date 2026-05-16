@@ -1,0 +1,275 @@
+---
+# Ansible playbook: provision a bare Ubuntu/Debian VPS as a production Dokku host.
+#
+# Usage:
+#   ansible-playbook -i inventory ansible/provision.yml \
+#     -e "dokku_domain=example.com" \
+#     -e "deploy_ssh_pubkey=ssh-ed25519 AAAA..." \
+#     -e "ghcr_token=ghp_xxx" \
+#     -e "ghcr_user=my-gh-user" \
+#     -e "grafana_loki_url=https://..." \
+#     -e "grafana_loki_token=xxx" \
+#     -e "backup_s3_bucket=s3://gradebee-backups" \
+#     -e "backup_s3_endpoint=https://s3.fr-par.scw.cloud" \
+#     -e "backup_s3_region=fr-par" \
+#     -e "backup_s3_access_key=xxx" \
+#     -e "backup_s3_secret_key=xxx"
+#
+# Required variables:
+#   dokku_domain         - VHOST domain for Dokku (e.g. gradebee.app)
+#   deploy_ssh_pubkey    - SSH public key injected into dokku's authorized_keys for git push deploys
+#   ghcr_token           - GitHub PAT with read:packages for docker login ghcr.io
+#   ghcr_user            - GitHub username / org owning the GHCR packages
+#   grafana_loki_url     - Loki push URL (e.g. https://logs.grafana.net/loki/api/v1/push)
+#   grafana_loki_token   - Grafana Cloud API token (Bearer)
+#   backup_s3_bucket     - S3 bucket URL (e.g. s3://gradebee-backups)
+#   backup_s3_endpoint   - S3-compatible endpoint URL
+#   backup_s3_region     - S3 region
+#   backup_s3_access_key - S3 access key ID
+#   backup_s3_secret_key - S3 secret access key
+
+- name: Provision Dokku server
+  hosts: gradebee
+  become: true
+
+  vars:
+    dokku_version: "0.35.14"          # pin to a known-good release; bump deliberately
+    app_name: gradebee
+    data_dir: /data
+    scripts_dir: /opt/gradebee/scripts
+    backup_log: /var/log/gradebee-backup.log
+
+  tasks:
+
+    # ------------------------------------------------------------------
+    # 1. System preparation
+    # ------------------------------------------------------------------
+
+    - name: Update apt cache and upgrade all packages
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install base dependencies
+      ansible.builtin.apt:
+        name:
+          - curl
+          - git
+          - software-properties-common
+          - apt-transport-https
+          - ca-certificates
+          - gnupg
+          - sqlite3
+          - awscli
+        state: present
+
+    - name: Ensure systemd-timesyncd is enabled and running (NTP)
+      ansible.builtin.systemd:
+        name: systemd-timesyncd
+        enabled: true
+        state: started
+
+    # ------------------------------------------------------------------
+    # 2. Dokku installation
+    # ------------------------------------------------------------------
+
+    - name: Check if Dokku is already installed
+      ansible.builtin.command: dokku version
+      register: dokku_check
+      changed_when: false
+      failed_when: false
+
+    - name: Download Dokku bootstrap script
+      ansible.builtin.get_url:
+        url: "https://dokku.com/bootstrap.sh"
+        dest: /tmp/dokku-bootstrap.sh
+        mode: "0755"
+      when: dokku_check.rc != 0
+
+    - name: Run Dokku unattended installer
+      ansible.builtin.command: bash /tmp/dokku-bootstrap.sh
+      environment:
+        DOKKU_TAG: "v{{ dokku_version }}"
+      when: dokku_check.rc != 0
+      register: dokku_install
+      changed_when: dokku_install.rc == 0
+
+    - name: Set Dokku global VHOST domain
+      ansible.builtin.command: "dokku domains:set-global {{ dokku_domain }}"
+      changed_when: true
+
+    # ------------------------------------------------------------------
+    # 3. Dokku app setup
+    # ------------------------------------------------------------------
+
+    - name: Create Dokku app (idempotent)
+      ansible.builtin.command: "dokku apps:create {{ app_name }}"
+      register: app_create
+      changed_when: app_create.rc == 0
+      failed_when: app_create.rc != 0 and 'already exists' not in app_create.stderr
+
+    - name: Ensure persistent data directory exists
+      ansible.builtin.file:
+        path: "{{ data_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Mount /data volume for SQLite persistence
+      ansible.builtin.command: "dokku storage:mount {{ app_name }} {{ data_dir }}:{{ data_dir }}"
+      register: storage_mount
+      changed_when: storage_mount.rc == 0
+      failed_when: storage_mount.rc != 0 and 'already exists' not in storage_mount.stderr
+
+    - name: Ensure dokku user authorized_keys directory exists
+      ansible.builtin.file:
+        path: /home/dokku/.ssh
+        state: directory
+        owner: dokku
+        group: dokku
+        mode: "0700"
+
+    - name: Inject deployment SSH public key into dokku authorized_keys
+      ansible.builtin.authorized_key:
+        user: dokku
+        key: "{{ deploy_ssh_pubkey }}"
+        state: present
+        manage_dir: false
+        path: /home/dokku/.ssh/authorized_keys
+
+    - name: Ensure /home/dokku/.ssh/authorized_keys has correct permissions
+      ansible.builtin.file:
+        path: /home/dokku/.ssh/authorized_keys
+        owner: dokku
+        group: dokku
+        mode: "0600"
+
+    - name: Authenticate Docker with GHCR
+      ansible.builtin.command: >
+        docker login ghcr.io
+        --username {{ ghcr_user }}
+        --password-stdin
+      args:
+        stdin: "{{ ghcr_token }}"
+      changed_when: true
+      no_log: true
+
+    # ------------------------------------------------------------------
+    # 4. Grafana Alloy installation & configuration
+    # ------------------------------------------------------------------
+
+    - name: Create APT keyrings directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Import Grafana GPG key
+      ansible.builtin.apt_key:
+        url: https://apt.grafana.com/gpg.key
+        keyring: /etc/apt/keyrings/grafana.gpg
+        state: present
+
+    - name: Add Grafana APT repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"
+        filename: grafana
+        state: present
+
+    - name: Install Grafana Alloy
+      ansible.builtin.apt:
+        name: alloy
+        state: present
+        update_cache: true
+
+    - name: Deploy Alloy configuration
+      ansible.builtin.template:
+        src: templates/alloy-config.alloy.j2
+        dest: /etc/alloy/config.alloy
+        owner: root
+        group: alloy
+        mode: "0640"
+      notify: Restart Alloy
+
+    - name: Add alloy user to docker group (for container log scraping)
+      ansible.builtin.user:
+        name: alloy
+        groups: docker
+        append: true
+
+    - name: Enable and start Alloy service
+      ansible.builtin.systemd:
+        name: alloy
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    # ------------------------------------------------------------------
+    # 5. Backup infrastructure
+    # ------------------------------------------------------------------
+
+    - name: Ensure scripts directory exists
+      ansible.builtin.file:
+        path: "{{ scripts_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy backup script
+      ansible.builtin.template:
+        src: templates/backup-db.sh.j2
+        dest: "{{ scripts_dir }}/backup-db.sh"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configure AWS CLI for S3-compatible backup storage
+      ansible.builtin.blockinfile:
+        path: /root/.aws/config
+        create: true
+        mode: "0600"
+        block: |
+          [default]
+          s3 =
+            endpoint_url = {{ backup_s3_endpoint }}
+          region = {{ backup_s3_region }}
+
+    - name: Write AWS credentials for backup
+      ansible.builtin.copy:
+        dest: /root/.aws/credentials
+        owner: root
+        group: root
+        mode: "0600"
+        content: |
+          [default]
+          aws_access_key_id = {{ backup_s3_access_key }}
+          aws_secret_access_key = {{ backup_s3_secret_key }}
+      no_log: true
+
+    - name: Ensure backup log file exists
+      ansible.builtin.file:
+        path: "{{ backup_log }}"
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"
+        modification_time: preserve
+        access_time: preserve
+
+    - name: Install daily backup cron job
+      ansible.builtin.cron:
+        name: gradebee-db-backup
+        minute: "0"
+        hour: "3"
+        user: root
+        job: "{{ scripts_dir }}/backup-db.sh >> {{ backup_log }} 2>&1"
+        state: present
+
+  handlers:
+    - name: Restart Alloy
+      ansible.builtin.systemd:
+        name: alloy
+        state: restarted

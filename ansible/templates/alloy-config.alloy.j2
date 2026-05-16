@@ -1,0 +1,59 @@
+// Grafana Alloy configuration for GradeBee
+// Scrapes Docker container logs and ships them to Grafana Loki (Grafana Cloud / Cockpit).
+//
+// Variables injected by Ansible:
+//   grafana_loki_url   - Loki push endpoint
+//   grafana_loki_token - Bearer token for Loki authentication
+
+// --- Docker container logs ---
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.source.docker "docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.containers.targets
+  forward_to = [loki.relabel.docker_labels.receiver]
+}
+
+loki.relabel "docker_labels" {
+  forward_to = [loki.write.grafana.receiver]
+  rule {
+    action        = "replace"
+    target_label  = "job"
+    replacement   = "gradebee-docker"
+  }
+}
+
+// --- Backup cron log ---
+local.file_match "backup_log" {
+  path_targets = [
+    {__path__ = "/var/log/gradebee-backup.log"},
+  ]
+}
+
+loki.source.file "backup" {
+  targets    = local.file_match.backup_log.targets
+  forward_to = [loki.relabel.backup_labels.receiver]
+}
+
+loki.relabel "backup_labels" {
+  forward_to = [loki.write.grafana.receiver]
+  rule {
+    action        = "replace"
+    target_label  = "job"
+    replacement   = "gradebee-backup"
+  }
+}
+
+// --- Ship to Grafana Loki ---
+loki.write "grafana" {
+  endpoint {
+    url = "{{ grafana_loki_url }}"
+
+    basic_auth {
+      username = "{{ grafana_loki_user | default('') }}"
+      password = "{{ grafana_loki_token }}"
+    }
+  }
+}
