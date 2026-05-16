@@ -1,0 +1,15 @@
+# Ansible inventory example for GradeBee production server
+#
+# Copy this file, replace the placeholder IP, and pass it to ansible-playbook:
+#
+#   ansible-playbook -i inventory ansible/provision.yml -e @secrets.yml
+#
+# Tip: store sensitive variables (ghcr_token, backup_s3_*, etc.) in an
+# Ansible Vault-encrypted file (e.g. secrets.yml) rather than on the CLI.
+
+[gradebee]
+192.0.2.1 ansible_user=root
+
+# For multiple environments, use groups:
+# [gradebee:vars]
+# ansible_ssh_private_key_file=~/.ssh/id_gradebee
