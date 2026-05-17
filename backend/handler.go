@@ -165,10 +165,26 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	reqLogger := getLogger().With("request_id", reqID)
 	r = r.WithContext(context.WithValue(r.Context(), loggerKey, reqLogger))
 
-	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("X-Request-ID", reqID)
 
-	// CORS
+	rawPath := strings.TrimPrefix(r.URL.Path, "/")
+
+	// Health probe lives at /health (outside /api/) for simplicity (Dokku/uptime checks).
+	if rawPath == "health" && r.Method == http.MethodGet {
+		w.Header().Set("Content-Type", "application/json")
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		return
+	}
+
+	// Anything not under /api/ is treated as a static/SPA request.
+	if !strings.HasPrefix(rawPath, "api/") && rawPath != "api" {
+		spaHandler().ServeHTTP(w, r)
+		return
+	}
+
+	// API routes — set JSON content-type and CORS headers.
+	w.Header().Set("Content-Type", "application/json")
+
 	origin := os.Getenv("ALLOWED_ORIGIN")
 	if origin == "" {
 		origin = "*"
@@ -182,11 +198,18 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	path := strings.TrimPrefix(r.URL.Path, "/")
+	// Strip /api/ prefix so existing case branches keep matching.
+	path := strings.TrimPrefix(rawPath, "api/")
+
+	// Rewrite r.URL.Path so handlers using pathParam() don't need to know about /api/.
+	r2 := r.Clone(r.Context())
+	r2.URL.Path = "/" + path
+	r = r2
+
 	rec := &statusRecorder{ResponseWriter: w, status: 0}
 	start := time.Now()
 
-	if path != "" && path != "health" {
+	if path != "" {
 		authHeader := r.Header.Get("Authorization")
 		reqLogger.Debug("incoming request",
 			"path", path,
@@ -197,12 +220,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Route matching
-	matched := true
 	switch {
-	// Health
-	case (path == "" || path == "health") && r.Method == http.MethodGet:
-		writeJSON(rec, http.StatusOK, map[string]string{"status": "ok"})
-
 	// Classes CRUD
 	case path == "classes" && r.Method == http.MethodGet:
 		authHandler(handleListClasses).ServeHTTP(rec, r)
@@ -288,13 +306,11 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		authHandler(handleJobDismiss).ServeHTTP(rec, r)
 
 	default:
-		matched = false
 		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
 	}
-	_ = matched
 
 	duration := time.Since(start).Milliseconds()
-	logAttrs := []any{"method", r.Method, "path", "/" + path, "status", rec.status, "duration_ms", duration}
+	logAttrs := []any{"method", r.Method, "path", "/api/" + path, "status", rec.status, "duration_ms", duration}
 	switch {
 	case rec.status == 401 || rec.status == 403:
 		logAttrs = append(logAttrs,
@@ -304,7 +320,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		reqLogger.Warn("request completed (auth failure)", logAttrs...)
 	case rec.status >= 400:
 		reqLogger.Warn("request completed", logAttrs...)
-	case path != "" && path != "health":
+	default:
 		reqLogger.Info("request completed", logAttrs...)
 	}
 }
