@@ -2,7 +2,9 @@
 
 ## Overview
 
-Go HTTP backend for GradeBee, a teacher tool for managing student rosters, processing audio recordings (upload → transcribe), and generating report cards. Runs as a standalone HTTP server. Deployed via Docker Compose on a VPS with Caddy for HTTPS and static file serving.
+Go HTTP backend for GradeBee, a teacher tool for managing student rosters, processing audio recordings (upload → transcribe), and generating report cards. Runs as a standalone HTTP server.
+
+**Deployment topology:** The Go binary embeds the React frontend via `embed.FS` and serves it directly. Dokku's nginx proxy handles TLS termination and gzip compression. No Caddy sidecar. See `Dockerfile` for the multi-stage build that copies the frontend `dist/` into `backend/static/` before the Go compile step.
 
 **Package:** `handler` (all source files in `backend/` share this package).
 
@@ -12,46 +14,54 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 
 **`handler.go`** — exports `Handle(w, r)`, the single HTTP handler. Routes use `strings.HasPrefix` + `pathParam()` for parameterized paths.
 
+All API routes live under `/api/*`. The `Handle` function strips the `/api/` prefix, sets JSON `Content-Type` and CORS headers, then dispatches to handlers via a `switch` on the rewritten path. `/health` is exposed at the root (outside `/api/`) for uptime probes.
+
+Anything else falls through to the embedded SPA handler (`spaHandler()` in `static.go`), which serves files from the embedded `static/` directory with `try_files`-style fallback to `index.html` for SPA client-side routing.
+
+Cache headers:
+- `/assets/*` (hashed filenames) → `Cache-Control: public, max-age=31536000, immutable`
+- SPA fallback (`index.html`) → `Cache-Control: no-cache`
+
 | Method | Path | Auth | Handler | Description |
 |--------|------|------|---------|-------------|
 | GET | `/` `/health` | No | inline | Health check |
-| GET | `/classes` | Yes | `handleListClasses` | List user's classes with student counts |
-| POST | `/classes` | Yes | `handleCreateClass` | Create a class (body: `{className, group}`) |
-| PUT | `/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{className, group}`) |
-| GET | `/classes/class-names` | Yes | `handleListClassNames` | Distinct class names for autocomplete |
-| DELETE | `/classes/{id}` | Yes | `handleDeleteClass` | Delete class + cascade |
-| GET | `/classes/{id}/students` | Yes | `handleListStudents` | List students in a class |
-| POST | `/classes/{id}/students` | Yes | `handleCreateStudent` | Add a student |
-| GET | `/students` | Yes | `handleGetStudents` | Full roster grouped by class |
-| PUT | `/students/{id}` | Yes | `handleUpdateStudent` | Rename / move student |
-| DELETE | `/students/{id}` | Yes | `handleDeleteStudent` | Delete student + cascade |
-| GET | `/students/{id}/notes` | Yes | `handleListNotes` | List notes for a student |
-| POST | `/students/{id}/notes` | Yes | `handleCreateNote` | Create a manual note |
-| GET | `/notes/{id}` | Yes | `handleGetNote` | Get single note |
-| PUT | `/notes/{id}` | Yes | `handleUpdateNote` | Edit note summary |
-| DELETE | `/notes/{id}` | Yes | `handleDeleteNote` | Delete a note |
-| POST | `/reports` | Yes | `handleGenerateReports` | Generate report cards (returns HTML) |
-| POST | `/reports/{id}/regenerate` | Yes | `handleRegenerateReport` | Regenerate with feedback |
-| GET | `/students/{id}/reports` | Yes | `handleListReports` | List reports for a student |
-| GET | `/reports/{id}` | Yes | `handleGetReport` | Get single report HTML |
-| DELETE | `/reports/{id}` | Yes | `handleDeleteReport` | Delete a report |
-| GET | `/report-examples` | Yes | `handleListReportExamples` | List example report cards |
-| POST | `/report-examples` | Yes | `handleUploadReportExample` | Upload example report card |
-| DELETE | `/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card |
-| PUT | `/report-examples/{id}` | Yes | `handleUpdateReportExample` | Update example report card |
-| POST | `/voice-notes/upload` | Yes | `handleUpload` | Upload audio to disk + dispatch job |
-| POST | `/text-notes/upload` | Yes | `handleTextNotesUpload` | Submit pasted text + dispatch extraction job |
-| POST | `/voice-notes/drive-import` | Yes | `handleDriveImport` | Download from Drive + dispatch job |
-| GET | `/google-token` | Yes | `handleGoogleToken` | Return Google OAuth token for Drive Picker |
-| GET | `/voice-notes/jobs` | Yes | `handleJobList` | List user's async upload jobs |
-| POST | `/voice-notes/jobs/retry` | Yes | `handleJobRetry` | Retry failed jobs |
-| POST | `/voice-notes/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs |
+| GET | `/api/classes` | Yes | `handleListClasses` | List user's classes with student counts |
+| POST | `/api/classes` | Yes | `handleCreateClass` | Create a class (body: `{className, group}`) |
+| PUT | `/api/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{className, group}`) |
+| GET | `/api/classes/class-names` | Yes | `handleListClassNames` | Distinct class names for autocomplete |
+| DELETE | `/api/classes/{id}` | Yes | `handleDeleteClass` | Delete class + cascade |
+| GET | `/api/classes/{id}/students` | Yes | `handleListStudents` | List students in a class |
+| POST | `/api/classes/{id}/students` | Yes | `handleCreateStudent` | Add a student |
+| GET | `/api/students` | Yes | `handleGetStudents` | Full roster grouped by class |
+| PUT | `/api/students/{id}` | Yes | `handleUpdateStudent` | Rename / move student |
+| DELETE | `/api/students/{id}` | Yes | `handleDeleteStudent` | Delete student + cascade |
+| GET | `/api/students/{id}/notes` | Yes | `handleListNotes` | List notes for a student |
+| POST | `/api/students/{id}/notes` | Yes | `handleCreateNote` | Create a manual note |
+| GET | `/api/notes/{id}` | Yes | `handleGetNote` | Get single note |
+| PUT | `/api/notes/{id}` | Yes | `handleUpdateNote` | Edit note summary |
+| DELETE | `/api/notes/{id}` | Yes | `handleDeleteNote` | Delete a note |
+| POST | `/api/reports` | Yes | `handleGenerateReports` | Generate report cards (returns HTML) |
+| POST | `/api/reports/{id}/regenerate` | Yes | `handleRegenerateReport` | Regenerate with feedback |
+| GET | `/api/students/{id}/reports` | Yes | `handleListReports` | List reports for a student |
+| GET | `/api/reports/{id}` | Yes | `handleGetReport` | Get single report HTML |
+| DELETE | `/api/reports/{id}` | Yes | `handleDeleteReport` | Delete a report |
+| GET | `/api/report-examples` | Yes | `handleListReportExamples` | List example report cards |
+| POST | `/api/report-examples` | Yes | `handleUploadReportExample` | Upload example report card |
+| DELETE | `/api/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card |
+| PUT | `/api/report-examples/{id}` | Yes | `handleUpdateReportExample` | Update example report card |
+| POST | `/api/voice-notes/upload` | Yes | `handleUpload` | Upload audio to disk + dispatch job |
+| POST | `/api/text-notes/upload` | Yes | `handleTextNotesUpload` | Submit pasted text + dispatch extraction job |
+| POST | `/api/voice-notes/drive-import` | Yes | `handleDriveImport` | Download from Drive + dispatch job |
+| GET | `/api/google-token` | Yes | `handleGoogleToken` | Return Google OAuth token for Drive Picker |
+| GET | `/api/voice-notes/jobs` | Yes | `handleJobList` | List user's async upload jobs |
+| POST | `/api/voice-notes/jobs/retry` | Yes | `handleJobRetry` | Retry failed jobs |
+| POST | `/api/voice-notes/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline (GET, POST, PUT, DELETE, OPTIONS).
 
 ## Async Upload Processing Pipeline
 
-Audio uploads are processed asynchronously via a generic in-memory queue (`MemQueue[VoiceNoteJob]`) with a background worker pool. Jobs are dispatched from `POST /voice-notes/upload` and `POST /voice-notes/drive-import` after the file is saved to disk.
+Audio uploads are processed asynchronously via a generic in-memory queue (`MemQueue[VoiceNoteJob]`) with a background worker pool. Jobs are dispatched from `POST /api/voice-notes/upload` and `POST /api/voice-notes/drive-import` after the file is saved to disk.
 
 ### Flow
 
@@ -229,7 +239,8 @@ All CRUD endpoints verify resource ownership:
 
 | File | Responsibility |
 |------|---------------|
-| `cmd/server/main.go` | Server entrypoint; loads `.env`, inits Clerk, opens DB, runs migrations, starts queue + cleanup + HTTP |
+| `cmd/server/main.go` | Server entrypoint; loads `.env`, inits Clerk, opens DB, runs migrations, starts queue + cleanup + HTTP. Supports `--migrate-only` flag (open DB, run migrations, exit 0) for Dokku predeploy hook. |
+| `static.go` | Embeds `static/` (frontend dist, copied at Docker build time) via `embed.FS`; provides `spaHandler()` with SPA fallback and cache-control headers |
 | `handler.go` | Routing, CORS, request logging, `Handle` entrypoint, `userIDFromRequest`, `pathParam` |
 | `deps.go` | DI interface, prod implementations, `serviceDeps` variable |
 | `google.go` | `apiError` type, `writeAPIError`, `newDriveReadClient` (Drive-read-only) |

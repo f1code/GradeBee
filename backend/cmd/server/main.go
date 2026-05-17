@@ -21,10 +21,15 @@ func main() {
 		slog.Warn("loading .env", "error", err)
 	}
 
-	if os.Getenv("CLERK_SECRET_KEY") == "" {
-		panic("CLERK_SECRET_KEY is not set")
+	// --migrate-only: run DB migrations and exit (used by Dokku predeploy hook).
+	migrateOnly := len(os.Args) > 1 && os.Args[1] == "--migrate-only"
+
+	if !migrateOnly {
+		if os.Getenv("CLERK_SECRET_KEY") == "" {
+			panic("CLERK_SECRET_KEY is not set")
+		}
+		clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 	}
-	clerk.SetKey(os.Getenv("CLERK_SECRET_KEY"))
 
 	// Open SQLite database and run migrations.
 	dbPath := os.Getenv("DB_PATH")
@@ -39,6 +44,11 @@ func main() {
 
 	if err := handler.RunMigrations(db); err != nil {
 		panic("run migrations: " + err.Error())
+	}
+
+	if migrateOnly {
+		slog.Info("migrations complete")
+		return
 	}
 
 	// Uploads directory.
