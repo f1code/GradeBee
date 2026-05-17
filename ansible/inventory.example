@@ -2,13 +2,19 @@
 #
 # Copy this file, replace the placeholder IP, and pass it to ansible-playbook:
 #
-#   ansible-playbook -i inventory ansible/provision.yml -e @secrets.yml
+#   ansible-playbook -i ansible/inventory ansible/provision.yml -e @secrets.yml
 #
 # Tip: store sensitive variables (ghcr_token, backup_s3_*, etc.) in an
 # Ansible Vault-encrypted file (e.g. secrets.yml) rather than on the CLI.
 
 [gradebee]
 192.0.2.1 ansible_user=root
+
+# Non-root user with sudo (become) example:
+# 192.0.2.1 ansible_user=ubuntu ansible_become=true ansible_become_method=sudo
+
+# If the target host uses a different Python interpreter, set it explicitly:
+# 192.0.2.1 ansible_user=root ansible_python_interpreter=/usr/bin/python3
 
 # For multiple environments, use groups:
 # [gradebee:vars]

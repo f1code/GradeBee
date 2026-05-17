@@ -8,7 +8,7 @@
 #     -e "ghcr_token=ghp_xxx" \
 #     -e "ghcr_user=my-gh-user" \
 #     -e "grafana_loki_url=https://..." \
-#     -e "grafana_loki_token=xxx" \
+#     -e "cockpit_token=xxx" \
 #     -e "backup_s3_bucket=s3://gradebee-backups" \
 #     -e "backup_s3_endpoint=https://s3.fr-par.scw.cloud" \
 #     -e "backup_s3_region=fr-par" \
@@ -20,8 +20,8 @@
 #   deploy_ssh_pubkey    - SSH public key injected into dokku's authorized_keys for git push deploys
 #   ghcr_token           - GitHub PAT with read:packages for docker login ghcr.io
 #   ghcr_user            - GitHub username / org owning the GHCR packages
-#   grafana_loki_url     - Loki push URL (e.g. https://logs.grafana.net/loki/api/v1/push)
-#   grafana_loki_token   - Grafana Cloud API token (Bearer)
+#   grafana_loki_url     - Loki push URL (Scaleway Cockpit endpoint)
+#   cockpit_token        - Scaleway Cockpit token (sent as X-Token header to Loki)
 #   backup_s3_bucket     - S3 bucket URL (e.g. s3://gradebee-backups)
 #   backup_s3_endpoint   - S3-compatible endpoint URL
 #   backup_s3_region     - S3 region
@@ -61,7 +61,7 @@
           - ca-certificates
           - gnupg
           - sqlite3
-          - awscli
+          - awscli   # v1 from apt; adequate for s3 cp/ls/rm; see docs for upgrade path
         state: present
 
     - name: Ensure systemd-timesyncd is enabled and running (NTP)
@@ -72,6 +72,7 @@
 
     # ------------------------------------------------------------------
     # 2. Dokku installation
+    # NOTE: The Dokku bootstrap script also installs Docker as a dependency.
     # ------------------------------------------------------------------
 
     - name: Check if Dokku is already installed
@@ -95,19 +96,31 @@
       register: dokku_install
       changed_when: dokku_install.rc == 0
 
-    - name: Set Dokku global VHOST domain
+    - name: Get current Dokku global domain
+      ansible.builtin.command: dokku domains:report --global
+      register: dokku_domain_report
+      changed_when: false
+      failed_when: false
+
+    - name: Set Dokku global VHOST domain (only if not already set)
       ansible.builtin.command: "dokku domains:set-global {{ dokku_domain }}"
+      when: dokku_domain not in (dokku_domain_report.stdout | default(''))
       changed_when: true
 
     # ------------------------------------------------------------------
     # 3. Dokku app setup
     # ------------------------------------------------------------------
 
-    - name: Create Dokku app (idempotent)
+    - name: Check if Dokku app exists
+      ansible.builtin.command: "dokku apps:exists {{ app_name }}"
+      register: app_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Create Dokku app
       ansible.builtin.command: "dokku apps:create {{ app_name }}"
-      register: app_create
-      changed_when: app_create.rc == 0
-      failed_when: app_create.rc != 0 and 'already exists' not in app_create.stderr
+      when: app_exists.rc != 0
+      changed_when: true
 
     - name: Ensure persistent data directory exists
       ansible.builtin.file:
@@ -116,12 +129,19 @@
         owner: root
         group: root
         mode: "0755"
+      # NOTE: Container write access to /data depends on the Dockerfile USER directive.
+      # Verify when task #14 (app packaging) sets a non-root user.
+
+    - name: Get current Dokku storage mounts for app
+      ansible.builtin.command: "dokku storage:list {{ app_name }}"
+      register: storage_list
+      changed_when: false
+      failed_when: false
 
     - name: Mount /data volume for SQLite persistence
       ansible.builtin.command: "dokku storage:mount {{ app_name }} {{ data_dir }}:{{ data_dir }}"
-      register: storage_mount
-      changed_when: storage_mount.rc == 0
-      failed_when: storage_mount.rc != 0 and 'already exists' not in storage_mount.stderr
+      when: data_dir not in (storage_list.stdout | default(''))
+      changed_when: true
 
     - name: Ensure dokku user authorized_keys directory exists
       ansible.builtin.file:
@@ -166,11 +186,17 @@
         state: directory
         mode: "0755"
 
-    - name: Import Grafana GPG key
-      ansible.builtin.apt_key:
+    - name: Download Grafana GPG key (armored)
+      ansible.builtin.get_url:
         url: https://apt.grafana.com/gpg.key
-        keyring: /etc/apt/keyrings/grafana.gpg
-        state: present
+        dest: /tmp/grafana-gpg.key
+        mode: "0644"
+
+    - name: Dearmor Grafana GPG key into keyring
+      ansible.builtin.command: >
+        gpg --dearmor -o /etc/apt/keyrings/grafana.gpg /tmp/grafana-gpg.key
+      args:
+        creates: /etc/apt/keyrings/grafana.gpg
 
     - name: Add Grafana APT repository
       ansible.builtin.apt_repository:
@@ -192,6 +218,11 @@
         group: alloy
         mode: "0640"
       notify: Restart Alloy
+
+    # Flush handlers immediately so Alloy starts with the correct config,
+    # not the package-default config that was written at install time.
+    - name: Flush handlers to apply Alloy config before starting service
+      ansible.builtin.meta: flush_handlers
 
     - name: Add alloy user to docker group (for container log scraping)
       ansible.builtin.user:
@@ -226,6 +257,15 @@
         group: root
         mode: "0755"
 
+    # Ensure /root/.aws parent directory exists before writing config files.
+    - name: Ensure /root/.aws directory exists
+      ansible.builtin.file:
+        path: /root/.aws
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
     - name: Configure AWS CLI for S3-compatible backup storage
       ansible.builtin.blockinfile:
         path: /root/.aws/config
@@ -259,14 +299,24 @@
         modification_time: preserve
         access_time: preserve
 
-    - name: Install daily backup cron job
+    # RPO note: 6-hourly matches the original cloud-init cadence; daily (03:00) was an
+    # unintentional regression. See docs/deployment.md for retention policy.
+    - name: Install 6-hourly backup cron job
       ansible.builtin.cron:
         name: gradebee-db-backup
         minute: "0"
-        hour: "3"
+        hour: "*/6"
         user: root
         job: "{{ scripts_dir }}/backup-db.sh >> {{ backup_log }} 2>&1"
         state: present
+
+    # Migration note: if this playbook is applied to a host that previously used
+    # the Terraform/Docker Compose layout, the live SQLite database is at
+    # /opt/gradebee/data/gradebee.db, not /data/gradebee.db. Before running the
+    # playbook on such a host, manually copy the database:
+    #   cp /opt/gradebee/data/gradebee.db /data/gradebee.db
+    # The backup script targets /data/gradebee.db exclusively; old data will not
+    # be backed up until the manual migration is done.
 
   handlers:
     - name: Restart Alloy

@@ -1,9 +1,9 @@
 // Grafana Alloy configuration for GradeBee
-// Scrapes Docker container logs and ships them to Grafana Loki (Grafana Cloud / Cockpit).
+// Scrapes Docker container logs and ships them to Scaleway Cockpit (Loki backend).
 //
 // Variables injected by Ansible:
-//   grafana_loki_url   - Loki push endpoint
-//   grafana_loki_token - Bearer token for Loki authentication
+//   grafana_loki_url  - Loki push endpoint (Scaleway Cockpit)
+//   cockpit_token     - Scaleway Cockpit token (sent as X-Token header)
 
 // --- Docker container logs ---
 discovery.docker "containers" {
@@ -46,14 +46,13 @@ loki.relabel "backup_labels" {
   }
 }
 
-// --- Ship to Grafana Loki ---
+// --- Ship to Scaleway Cockpit (Loki) ---
 loki.write "grafana" {
   endpoint {
     url = "{{ grafana_loki_url }}"
 
-    basic_auth {
-      username = "{{ grafana_loki_user | default('') }}"
-      password = "{{ grafana_loki_token }}"
+    headers = {
+      "X-Token" = "{{ cockpit_token }}",
     }
   }
 }
