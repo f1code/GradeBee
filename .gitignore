@@ -28,3 +28,5 @@ node_modules
 /playwright/.cache/
 /playwright/.clerk/
 kanban/
+.worktrees/
+docs/plans/
