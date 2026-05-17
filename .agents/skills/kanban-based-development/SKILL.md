@@ -14,7 +14,7 @@ allowed-tools:
   - Bash(golangci-lint *)
   - Bash(awk *)
 ---
-<!-- kanban-md-skill-version: 0.33.0 -->
+<!-- kanban-md-skill-version: 0.34.0 -->
 
 # Kanban-Based Development
 
@@ -33,11 +33,27 @@ The **claim** mechanic is the coordination primitive. It prevents two agents fro
 ## Non-Negotiables
 
 - **Claim before you change anything.** No task edits, no code changes.
+- **Plan before you build.** For non-trivial tasks, write a plan and STOP for user approval before any code changes or worktree creation. The claim does not authorize implementation — only investigation and planning.
+- **Check project conventions first.** Always read the project's `AGENTS.md` (and any nested ones) before starting work. If the project requires plans under `docs/plans/` or has other planning rules, follow them. The kanban claim does not bypass project planning workflow.
 - **One active task per agent.** Keep at most one task in `in-progress` for your agent session.
 - **Never steal a live claim.** If it's claimed, pick something else.
 - **Never release someone else’s claim.** Only use `edit --release` for your own work (or when the user explicitly asks).
 - **Always leave a handoff.** Before you park a task, write a short update in the body so someone else can continue.
 - **Refresh claims to avoid timeout.** If the task might take longer than `claim_timeout`, periodically renew your claim: `kanban-md edit <ID> --claim <agent>`.
+
+## Trivial Task
+
+Several rules below relax for trivial tasks. A task is **trivial** only if it
+is one of:
+
+- a typo fix
+- a single-line code change
+- a comment- or doc-only edit
+- a board-only change
+
+Touching more than one file of tracked code, changing a function signature,
+API, or schema, or modifying tests as the primary change is **not** trivial.
+If unsure, it is not trivial.
 
 ## Board Home vs Worktrees (simple rule)
 
@@ -61,12 +77,16 @@ Do not run multiple mutating `kanban-md` commands in parallel against the same b
 
 If you are unsure you’re using the shared board, run `kanban-md board --compact` and confirm the board name/shape is what you expect.
 
-## Defer-to-User Boundary (exceptions)
+## Defer-to-User Boundary
 
-By default, agents should take tasks all the way to `done` (worktree → commit → merge → done).
+By default, agents should:
 
-Defer to the user (leave the task in `review` with a handoff) only when you need:
+1. Claim → investigate → write plan → **PAUSE for user approval**
+2. After approval: worktree → implement → merge → done
 
+Defer to the user (leave the task in `review` with a handoff) when you need:
+
+- **plan approval** before implementing anything non-trivial (default for any task touching tracked code)
 - an important product/spec decision with multiple valid options and no clear winner
 - credentials/access or external actions (push to remote, releases, deployments, ENV variables, etc.)
 - a merge conflict that requires judgment (not just mechanical resolution)
@@ -120,9 +140,30 @@ After picking, read the full task:
 kanban-md show <ID>
 ```
 
+### 1.5) Write a plan and pause
+
+For any task that touches tracked code/config (i.e. anything that needs a worktree):
+
+1. Write the plan to `docs/plans/YYYY-MM-DD-<short-description>.md` (or wherever the project's `AGENTS.md` specifies)
+2. Plan must include: **goal**, **proposed changes** (with file paths), and **open questions**
+3. **Link the plan from the task** (required — this is how reviewers and other agents find the plan):
+   ```bash
+   kanban-md edit <ID> --append-body "Plan: [docs/plans/YYYY-MM-DD-<slug>.md](docs/plans/YYYY-MM-DD-<slug>.md) — awaiting approval." --timestamp --claim <agent>
+   ```
+4. **STOP and wait for the user** to review/approve and answer open questions before creating a worktree or writing code.
+
+Skip this step only for trivial tasks (see "Trivial Task" definition above) — and call out explicitly that you're skipping it and why.
+
 ### 2) Create a worktree (default)
 
-Create a worktree for the task branch from board home:
+Before creating a worktree, confirm:
+
+- [ ] Plan file exists (or task is genuinely trivial)
+- [ ] Plan is linked from the task body
+- [ ] User has explicitly approved (e.g. "proceed", "go ahead", "implement")
+- [ ] Open questions in the plan are answered
+
+**Load the `using-git-worktrees` skill first** — it handles the project's worktree-root convention and branch fuzzy-matching. If that skill is not available, fall back to:
 
 ```bash
 git worktree add ../kanban-md-task-<ID> -b task/<ID>-<kebab-description>
@@ -157,7 +198,94 @@ kanban-md edit <ID> --append-body "Implemented X/Y/Z, now running tests." --time
 
 The `--append-body` (`-a`) flag appends text to the existing body without replacing it. The `--timestamp` (`-t`) flag prefixes a timestamp line like `[[2026-02-10]] Mon 15:04`.
 
+### 3.5) Self-review (sub-agent)
+
+Before merging, run an independent self-review of the changes. The kanban
+workflow owns the orchestration here; the actual review checklist lives in
+the `reviewing-changes` skill, which the sub-agent loads.
+
+**Skip review entirely if the task is trivial** (see "Trivial Task"
+definition near the top). When skipping, append a one-line note to the task
+body for auditability:
+
+```bash
+kanban-md edit <ID> --append-body "Skipped review (trivial: <reason>)" --timestamp --claim <agent>
+```
+
+Then continue to §4.
+
+For non-trivial tasks:
+
+- Keep the task in `in-progress` during review. It flips to `review`
+  with a block immediately on `CHANGES_REQUESTED` (see below).
+- **Spawn a fresh-context sub-agent** to perform the review. In OpenCode,
+  use the `task` tool with `subagent_type: general`. In Claude Code, use
+  the equivalent `Task` tool with a general-purpose subagent. The
+  fresh-context sub-agent is what gives the review independence — loading
+  `reviewing-changes` in your own context will not.
+- The sub-agent runs **from the worktree shell** (cwd = the task worktree
+  path), so `git diff main...HEAD` and file reads resolve against the
+  branch under review.
+
+Sub-agent prompt template (pass as the `prompt` argument; fill in the
+placeholders):
+
+```
+Load the `reviewing-changes` skill (via the `skill` tool) and follow its
+instructions.
+
+Inputs:
+- Task ID: <ID>
+- Plan: <path read from the task body>
+- Base ref: main
+- Head ref / branch: task/<ID>-<slug>
+- Worktree path: <absolute path; this is your cwd>
+
+Return only the markdown review block (no commentary before or after).
+```
+
+When the sub-agent returns, append the entire returned block to the task
+body from board home:
+
+```bash
+cd <board-home>
+kanban-md edit <ID> --append-body "<review block>" --timestamp --claim <agent>
+```
+
+Branch on the verdict (the token after `verdict:` on the first line):
+
+- **APPROVE** → continue to §4 (merge).
+- **CHANGES_REQUESTED** → **do not attempt to fix.** Immediately follow
+  the [Blocked / Needs User Input](#blocked--needs-user-input-the-review-and-move-on-rule)
+  procedure. The findings are already appended to the task body, so the
+  handoff note can be a one-liner pointing at the latest review block:
+
+  ```bash
+  kanban-md handoff <ID> --claim <agent> \
+    --block "Review found N blocking issue(s)" \
+    --note "See latest review block in task body." \
+    --timestamp --release
+  ```
+
+  Then pick the next task. When the user resolves the findings (themselves
+  or by directing an agent), the task is re-claimed via the existing
+  "Resuming a parked task" procedure and a fresh review is run as part of
+  resuming work.
+
+> *Future extension point: an autonomous-fix mode would branch here to
+> attempt fixing blocking findings before handing off. Not implemented —
+> for now all `CHANGES_REQUESTED` verdicts go straight to handoff.*
+
+Each review (initial or post-resume) must be a fresh sub-agent invocation
+(new context). It re-reads the plan and the full diff via the skill — do
+not try to "continue" a previous review.
+
 ### 4) Merge to main (from board home)
+
+Before merging, confirm:
+
+- [ ] Working tree is clean in the worktree and tests pass
+- [ ] Latest review verdict on the task is `APPROVE` (or task is trivial)
 
 Switch back to board home and merge your task branch:
 
