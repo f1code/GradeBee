@@ -1,7 +1,10 @@
-frontend/
 infra/
 docs/
 .env
 .git/
 *.md
-dist/
+# frontend/ is needed for the multi-stage build, but skip its node_modules
+# (npm ci runs inside the build stage)
+frontend/node_modules/
+frontend/dist/
+backend/dist/

@@ -143,18 +143,50 @@ dokku git:from-image gradebee ghcr.io/<owner>/gradebee:<tag>
 
 ## Application environment variables
 
-Set via `dokku config:set gradebee KEY=VALUE`. Required variables:
+There are two distinct sets of variables:
+
+### Backend runtime (set via `dokku config:set gradebee KEY=VALUE`)
 
 | Variable | Required | Description |
 |---|---|---|
 | `CLERK_SECRET_KEY` | Yes | Clerk backend API key |
 | `OPENAI_API_KEY` | Yes | OpenAI API key (Whisper + GPT) |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Yes | Clerk publishable key (baked into image at build time via `--build-arg`) |
-| `ALLOWED_ORIGIN` | No | CORS origin (default `*`; set to `https://yourdomain` in prod) |
+| `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |
+| `UPLOADS_DIR` | No | Audio upload directory (default `/data/uploads`) |
+| `UPLOAD_RETENTION_HOURS` | No | Hours to keep processed audio (default 168 = 7 days) |
+| `ALLOWED_ORIGIN` | No | CORS origin (default `*`; in prod the SPA is same-origin so CORS is unused) |
 | `LOG_LEVEL` | No | `DEBUG`/`INFO`/`WARN`/`ERROR` (default `INFO`) |
 | `LOG_FORMAT` | No | `json` for JSON logs, else text |
+
+### Frontend build-time (passed as `--build-arg` to `docker build`)
+
+These are baked into the JS bundle at image build time. CI passes them from GitHub repository secrets.
+
+| Variable | Required | Description |
+|---|---|---|
+| `VITE_CLERK_PUBLISHABLE_KEY` | Yes | Clerk publishable key |
+| `VITE_API_URL` | No | API base URL (default `/api`, same origin) |
+| `VITE_SENTRY_DSN` | No | Sentry DSN (omit to disable Sentry) |
+| `VITE_APP_VERSION` | No | Release tag for Sentry (CI passes `${{ github.sha }}`) |
+
+## Troubleshooting
+
+- **Migrations fail on deploy** — check `dokku logs gradebee --num 200` for the predeploy output. The predeploy hook is `/gradebee --migrate-only` (see `app.json`); a non-zero exit aborts the deploy.
+- **Frontend shows blank page** — usually a missing build arg (`VITE_CLERK_PUBLISHABLE_KEY` not set at build time). The bundle throws on load; inspect the browser console.
+- **502 from nginx** — the binary panicked. Check `dokku logs gradebee` for the stack trace. Common cause: missing `CLERK_SECRET_KEY` runtime var.
+- **gzip not applied** — verify Dokku's nginx config gzips `application/javascript`, `text/css`, `application/json`. Override via `dokku nginx:set gradebee` or `nginx.conf.sigil` if needed.
 
 ## Local development
 
 For local development, use `docker compose` (see `docker-compose.yml`). The Compose file is
 not used in production — it exists as a local convenience only.
+
+For day-to-day work, run backend and frontend separately:
+
+```bash
+# Backend
+cd backend && go run ./cmd/server
+
+# Frontend (in another shell) — set VITE_API_URL=http://localhost:8080/api in frontend/.env
+npm run --prefix frontend dev
+```
