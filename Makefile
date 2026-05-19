@@ -36,8 +36,9 @@ build:
 #
 # Prerequisites:
 #   - SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID set in environment
-#   - .env.infra populated (copy from .env.infra.example; file is gitignored)
-#   - For a staging environment: ENV_FILE=.env.staging make infra-app
+#   - ansible/secrets.yml populated (see docs/deployment.md); file is gitignored,
+#     plain text is fine
+#   - dokku_domain is set in ansible/vars.yml; override with DOKKU_DOMAIN=other.app if needed
 
 # Provision cloud resources (S3 bucket, IAM, Cockpit token) via Terraform.
 infra-up:
@@ -45,17 +46,30 @@ infra-up:
 
 # Provision the VPS server level (apt, Dokku, Alloy, GHCR login, AWS CLI for backups).
 # Safe to re-run at any time — does not touch any app.
+ANSIBLE_EXTRA_VARS ?=
 infra-server:
-	./scripts/provision-server.sh
+	ansible-playbook -i ansible/inventory ansible/provision-server.yml \
+		$(foreach v,dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
+		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
+		-e @ansible/secrets.yml
 
 # Provision a single app environment (create app, config vars, deploy image, TLS, backup cron).
-# For a staging environment: ENV_FILE=.env.staging make infra-app
+# Override app_name for additional environments:
+#   make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/.../gradebee:staging
 infra-app:
-	./scripts/provision-app.sh
+	ansible-playbook -i ansible/inventory ansible/provision-app.yml \
+		$(foreach v,app_name ghcr_image dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
+		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
+		-e @ansible/secrets.yml
 
 # Provision everything (server + app) in one pass — convenience wrapper for first-time setup.
-# Prerequisite: push the Docker image to GHCR first (see docs/deployment.md).
-infra-provision: infra-server infra-app
+# ansible/secrets.yml is plain text (gitignored). If you encrypt it with
+# ansible-vault, add --vault-password-file ~/.ansible/vault-pass to this command.
+infra-provision:
+	ansible-playbook -i ansible/inventory ansible/provision.yml \
+		$(foreach v,app_name ghcr_image dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
+		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
+		-e @ansible/secrets.yml
 
 # Run both steps in order (full first-time setup).
 # Prerequisite: push the Docker image to GHCR first (see docs/deployment.md).

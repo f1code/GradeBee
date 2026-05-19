@@ -20,7 +20,7 @@ into the container by Dokku.
 - VPS: bare Ubuntu/Debian (tested on Scaleway STARDUST1-S, Paris)
 - Domain pointed at the VPS IP
 - Terraform ≥ 1.0 + Scaleway provider configured (`SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_DEFAULT_PROJECT_ID`)
-- `envsubst` installed locally (part of `gettext`; on macOS: `brew install gettext`)
+- Ansible ≥ 2.14 installed locally
 - GitHub PAT with `read:packages` + `write:packages` (for GHCR)
 
 ## Cloud Resource Setup (one-time, Terraform)
@@ -32,7 +32,7 @@ in the `terraform/` directory. Run this once before provisioning the server:
 make infra-up
 ```
 
-After apply, read the outputs needed for `.env.infra`:
+After apply, read the outputs needed for `ansible/secrets.yml`:
 
 ```bash
 cd terraform
@@ -40,7 +40,7 @@ terraform output -raw cockpit_token
 terraform output -raw cockpit_logs_push_url
 terraform output -raw backup_s3_access_key
 terraform output -raw backup_s3_secret_key
-terraform output    backup_bucket_name   # for BACKUP_S3_BUCKET: s3://<name>
+terraform output    backup_bucket_name   # for backup_s3_bucket: s3://<name>
 terraform output    vps_ip               # for your DNS A record
 ```
 
@@ -53,31 +53,51 @@ The following resources are **not** managed by Terraform and must be set up manu
 
 ## Server Provisioning
 
-Provisioning is split into two scripts with different lifecycles:
+Provisioning is split into two playbooks with different lifecycles:
 
-| Script | Make target | When to run |
+| Playbook | Make target | When to run |
 |---|---|---|
-| `scripts/provision-server.sh` | `make infra-server` | Once per VPS: apt, Dokku, Alloy, GHCR login, AWS CLI for backups |
-| `scripts/provision-app.sh` | `make infra-app` | Once per environment: create app, set config vars, deploy image, TLS, backup cron |
-| _(both in order)_ | `make infra-provision` | Convenience wrapper: runs server + app in order (first-time setup) |
+| `ansible/provision-server.yml` | `make infra-server` | Once per VPS: apt, Dokku, Alloy, GHCR login, AWS CLI for backups |
+| `ansible/provision-app.yml` | `make infra-app` | Once per environment: create app, set config vars, deploy image, TLS, backup cron |
+| `ansible/provision.yml` | `make infra-provision` | Convenience wrapper: runs server + app in order (first-time setup) |
 
-### 1. Configure `.env.infra`
+### 1. Configure inventory
 
 ```bash
-cp .env.infra.example .env.infra
-# Edit .env.infra: fill in SSH_HOST, secrets, and config values
+cp ansible/inventory.example ansible/inventory
+# Edit ansible/inventory: replace the placeholder IP with your VPS IP
 ```
 
-`.env.infra` is gitignored. `.env.infra.example` is committed with empty values and
-comments documenting each variable.
+### 2. Store secrets
 
-### 2. Run the scripts
+Create `ansible/secrets.yml` (gitignored — plain text is fine):
+
+```yaml
+# Server-level secrets (provision-server.yml)
+ghcr_token: "ghp_xxx"
+ghcr_user: "my-gh-user"
+grafana_loki_url: "https://logs.cockpit.fr-par.scaleway.com/loki/api/v1/push"
+cockpit_token: "xxx"
+backup_s3_bucket: "s3://gradebee-backups"
+backup_s3_endpoint: "https://s3.fr-par.scw.cloud"
+backup_s3_region: "fr-par"
+backup_s3_access_key: "xxx"
+backup_s3_secret_key: "xxx"
+
+# App-level secrets (provision-app.yml)
+deploy_ssh_pubkey: "ssh-ed25519 AAAA..."
+clerk_secret_key: "sk_live_xxx"
+openai_api_key: "sk-xxx"
+letsencrypt_email: "you@example.com"
+```
+
+### 3. Run the playbook
 
 ```bash
 make infra-provision   # runs server + app in one pass
 ```
 
-Or run Terraform + provisioning together for a full first-time setup:
+Or run Terraform + Ansible together for a full first-time setup:
 
 ```bash
 make infra
@@ -90,30 +110,38 @@ make infra-server      # re-run server setup (e.g. update Alloy config)
 make infra-app         # re-deploy app, update config vars, or redeploy image
 ```
 
-Re-running is safe — all steps are idempotent.
+The Dokku domain defaults to the value in `ansible/vars.yml`. Override for a different domain:
 
-### What each script does
+```bash
+make infra-provision DOKKU_DOMAIN=other.app
+```
 
-**`scripts/provision-server.sh`** (server-level, run once per VPS):
+Re-running is safe — all tasks are idempotent.
 
-1. **System prep** — package upgrades, base dependencies (`curl`, `git`, `ca-certificates`,
-   `gnupg`, `sqlite3`, `awscli`), NTP
+Non-secret config (log level, paths, retention) lives in `ansible/vars.yml` and is loaded
+automatically. Override individual values by adding them to `secrets.yml` or passing
+`-e key=value` on the command line.
+
+### What each playbook does
+
+**`provision-server.yml`** (server-level, run once per VPS):
+
+1. **System prep** — package upgrades, base dependencies, NTP
 2. **Dokku install** — downloads and runs the official unattended installer (also installs Docker)
 3. **Grafana Alloy** — imports GPG key via `gpg --dearmor`, adds APT repo, installs, deploys
    config template (Scaleway Cockpit `X-Token` auth), enables service
 4. **AWS CLI config** — writes `/root/.aws/config` + `/root/.aws/credentials` (shared by all per-app backup scripts)
 5. **Let's Encrypt plugin** — installs `dokku-letsencrypt`, enables auto-renewal cron
-6. **GHCR credentials** — writes `config.json` directly to `/home/dokku/.docker/` (fixes the
-   Ansible "become unprivileged user" ACL issue)
+6. **GHCR login** — `docker login ghcr.io` (host-scoped; all apps benefit)
 
-**`scripts/provision-app.sh`** (app-level, run once per environment):
+**`provision-app.yml`** (app-level, run once per environment):
 
-1. **Dokku app** — creates `$APP_NAME` app, mounts `/data/$APP_NAME` volume
-2. **Deploy SSH key** — appends `DEPLOY_SSH_PUBKEY` to dokku's `authorized_keys`
+1. **Dokku app** — creates `{{ app_name }}` app, mounts `/data/{{ app_name }}` volume
+2. **Deploy SSH key** — injects `deploy_ssh_pubkey` into dokku's `authorized_keys`
 3. **Config vars** — sets all app environment variables via `dokku config:set`
 4. **Initial deploy** — runs `dokku git:from-image` to pull the image from GHCR and start the app
 5. **TLS** — sets Let's Encrypt contact email, runs `dokku letsencrypt:enable`
-6. **Backup cron** — deploys `backup-db.sh` to `/opt/$APP_NAME/scripts/`, installs a 6-hourly cron
+6. **Backup cron** — deploys `backup-db.sh` to `/opt/{{ app_name }}/scripts/`, installs a 6-hourly cron named `{{ app_name }}-db-backup`
 
 > **Prerequisite for deploy and TLS:** push the Docker image to GHCR and ensure the domain
 > is resolving to the server before running `make infra-app` or `make infra-provision`.
@@ -121,18 +149,19 @@ Re-running is safe — all steps are idempotent.
 ### Provisioning additional environments
 
 To add a staging environment on the same host, create a per-env secrets file and run the app
-script with it:
+playbook with overrides:
 
 ```bash
-cp .env.infra.example .env.staging
-# Edit .env.staging: set APP_NAME=gradebee-staging, GHCR_IMAGE=...:staging, etc.
-ENV_FILE=.env.staging ./scripts/provision-app.sh
+ansible-playbook -i ansible/inventory ansible/provision-app.yml \
+  -e @ansible/secrets.staging.yml \
+  -e app_name=gradebee-staging \
+  -e ghcr_image=ghcr.io/nicogaller/gradebee:staging
 ```
 
-Or via Make:
+Or via Make for the common case:
 
 ```bash
-ENV_FILE=.env.staging make infra-app
+make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/nicogaller/gradebee:staging
 ```
 
 Each environment gets its own Dokku app, data directory (`/data/gradebee-staging`), scripts
@@ -142,21 +171,21 @@ the shared bucket.
 ### Backup retention
 
 Backups run every 6 hours; the script keeps the 30 most recent snapshots (≈ 7.5 days rolling
-window). Each app's backups are stored under `$APP_NAME/db/` in the S3 bucket to avoid
+window). Each app's backups are stored under `{{ app_name }}/db/` in the S3 bucket to avoid
 collisions between environments. For longer retention, configure an S3 lifecycle rule on the
 bucket directly.
 
 ### Migration note (existing Terraform/Compose host)
 
-If applying this to a host that previously used the Docker Compose layout, the
-live database is at `/opt/gradebee/data/gradebee.db`. Before running the scripts, copy it:
+If applying this playbook to a host that previously used the Docker Compose layout, the
+live database is at `/opt/gradebee/data/gradebee.db`. Before running the playbook, copy it:
 
 ```bash
 ssh root@<VPS_IP> "mkdir -p /data/gradebee && cp /opt/gradebee/data/gradebee.db /data/gradebee/gradebee.db"
 ```
 
-The backup script targets `/data/$APP_NAME/$APP_NAME.db` exclusively (via the host-side
-data dir; the container sees it as `/data/$APP_NAME.db` through the bind mount).
+The backup script targets `/data/{{ app_name }}/{{ app_name }}.db` exclusively (via the host-side
+data dir; the container sees it as `/data/{{ app_name }}.db` through the bind mount).
 
 ## Deployments (CI/CD)
 
@@ -173,7 +202,7 @@ Deployments are automated via GitHub Actions (see `.github/workflows/`):
 | Secret | Description |
 |---|---|
 | `DEPLOY_HOST` | VPS IP address |
-| `DEPLOY_SSH_KEY` | Private key matching `DEPLOY_SSH_PUBKEY` in `.env.infra` |
+| `DEPLOY_SSH_KEY` | Private key matching the `deploy_ssh_pubkey` in the playbook |
 | `CLERK_SECRET_KEY` | Clerk backend secret key (injected into review apps via `dokku config:set`) |
 | `OPENAI_API_KEY` | OpenAI API key (injected into review apps via `dokku config:set`) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (passed as Docker build-arg) |
@@ -200,20 +229,20 @@ dokku git:from-image gradebee ghcr.io/<owner>/gradebee:<tag>
 
 There are two distinct sets of variables:
 
-### Backend runtime (set by `provision-app.sh` via `dokku config:set`, sourced from `.env.infra`)
+### Backend runtime (set by Ansible via `dokku config:set`, sourced from `secrets.yml` / `vars.yml`)
 
 | Variable | Secret? | Description |
 |---|---|---|
-| `CLERK_SECRET_KEY` | Yes | Clerk backend API key |
-| `OPENAI_API_KEY` | Yes | OpenAI API key (Whisper + GPT) |
-| `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |
-| `UPLOADS_DIR` | No | Audio upload directory (default `/data/uploads`) |
-| `UPLOAD_RETENTION_HOURS` | No | Hours to keep processed audio (default 168 = 7 days) |
-| `ALLOWED_ORIGIN` | No | CORS origin (default `*`; in prod the SPA is same-origin so CORS is unused) |
-| `LOG_LEVEL` | No | `DEBUG`/`INFO`/`WARN`/`ERROR` (default `INFO`) |
-| `LOG_FORMAT` | No | `json` for JSON logs, else text |
+| `CLERK_SECRET_KEY` | Yes (`secrets.yml`) | Clerk backend API key |
+| `OPENAI_API_KEY` | Yes (`secrets.yml`) | OpenAI API key (Whisper + GPT) |
+| `DB_PATH` | No (`vars.yml`) | SQLite path (default `/data/gradebee.db`) |
+| `UPLOADS_DIR` | No (`vars.yml`) | Audio upload directory (default `/data/uploads`) |
+| `UPLOAD_RETENTION_HOURS` | No (`vars.yml`) | Hours to keep processed audio (default 168 = 7 days) |
+| `ALLOWED_ORIGIN` | No (`vars.yml`) | CORS origin (default `*`; in prod the SPA is same-origin so CORS is unused) |
+| `LOG_LEVEL` | No (`vars.yml`) | `DEBUG`/`INFO`/`WARN`/`ERROR` (default `INFO`) |
+| `LOG_FORMAT` | No (`vars.yml`) | `json` for JSON logs, else text |
 
-To change a value after initial provisioning, update `.env.infra` and re-run
+To change a value after initial provisioning, update `secrets.yml` or `vars.yml` and re-run
 `make infra-app`, or set it directly: `dokku config:set gradebee KEY=VALUE`.
 
 ### Frontend build-time (passed as `--build-arg` to `docker build`)
