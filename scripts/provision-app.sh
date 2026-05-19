@@ -138,12 +138,29 @@ REMOTE
 # 4. Dokku application environment variables
 # ---------------------------------------------------------------------------
 log "--- 4. App environment variables ---"
-# Secrets are passed via a remote heredoc; they never appear as shell arguments.
+# Write secrets to a temp file on the remote host and source it.
+# This avoids interpolating secret values as shell arguments (they could contain
+# spaces, $, quotes, or other metacharacters that would silently corrupt them).
+TMP_APP_ENV=$(mktemp /tmp/app-env.XXXXXX)
+chmod 600 "$TMP_APP_ENV"
+cat > "$TMP_APP_ENV" <<EOF
+CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+OPENAI_API_KEY=${OPENAI_API_KEY}
+EOF
+scp_to_remote "$TMP_APP_ENV" "/tmp/app-env-$$"
+rm -f "$TMP_APP_ENV"
+
 run_remote bash <<REMOTE
 set -euo pipefail
+# Source secrets from temp file
+set -a
+source /tmp/app-env-$$
+set +a
+rm -f /tmp/app-env-$$
+
 dokku config:set --no-restart ${APP_NAME} \\
-  CLERK_SECRET_KEY=${CLERK_SECRET_KEY} \\
-  OPENAI_API_KEY=${OPENAI_API_KEY} \\
+  CLERK_SECRET_KEY="\$CLERK_SECRET_KEY" \\
+  OPENAI_API_KEY="\$OPENAI_API_KEY" \\
   DB_PATH=${APP_DB_PATH} \\
   UPLOADS_DIR=${APP_UPLOADS_DIR} \\
   UPLOAD_RETENTION_HOURS=${APP_UPLOAD_RETENTION_HOURS} \\
@@ -171,7 +188,13 @@ log "--- 6. Let's Encrypt TLS ---"
 run_remote bash <<REMOTE
 set -euo pipefail
 dokku letsencrypt:set ${APP_NAME} email ${LETSENCRYPT_EMAIL}
-dokku letsencrypt:enable ${APP_NAME}
+# letsencrypt:enable is idempotent when the cert already exists and is valid,
+# but fails on some Dokku versions if already enabled. Guard defensively.
+if dokku letsencrypt:list 2>/dev/null | grep -q "^${APP_NAME} "; then
+  echo "Let's Encrypt already enabled for ${APP_NAME}."
+else
+  dokku letsencrypt:enable ${APP_NAME}
+fi
 REMOTE
 
 # ---------------------------------------------------------------------------
