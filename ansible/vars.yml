@@ -23,3 +23,6 @@ app_allowed_origin: "*"
 app_log_level: INFO
 app_log_format: json
 
+# SSH public key for the GitHub Actions deploy user.
+deploy_ssh_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB/DmrLmuFF8MToct25kde3gY+pwHFvb6DY5Lzhoxszr ngaller@4gclinical.com@ngaller-L41YCQPP9K"
+
