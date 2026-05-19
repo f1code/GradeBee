@@ -1,0 +1,209 @@
+---
+# Ansible playbook: app-level setup — parameterised by app_name and ghcr_image.
+# Runs once per environment (prod, staging, etc.) on the same host.
+#
+# Usage (run from the repo root):
+#   ansible-playbook -i ansible/inventory ansible/provision-app.yml \
+#     -e @ansible/secrets.yml
+#
+# For additional environments, supply a per-env secrets file and override vars:
+#   ansible-playbook -i ansible/inventory ansible/provision-app.yml \
+#     -e @ansible/secrets.staging.yml \
+#     -e app_name=gradebee-staging \
+#     -e ghcr_image=ghcr.io/nicogaller/gradebee:staging
+#
+# Or via Make:
+#   make infra-app
+#   make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/.../gradebee:staging
+#
+# Non-secret vars live in ansible/vars.yml and are loaded automatically.
+#
+# Prerequisite: provision-server.yml must have run at least once on this host.
+# This playbook assumes /root/.aws/ is already configured for S3 backup.
+#
+# Required variables (in secrets.yml):
+#   deploy_ssh_pubkey    - SSH public key injected into dokku's authorized_keys for git push deploys
+#   clerk_secret_key     - Clerk backend API key (set as Dokku config var)
+#   openai_api_key       - OpenAI API key (set as Dokku config var)
+#   letsencrypt_email    - Contact email for Let's Encrypt certificate
+#   backup_s3_bucket     - S3 bucket URL (e.g. s3://gradebee-backups)
+
+- name: Provision Dokku app (app-level setup)
+  hosts: gradebee
+  become: true
+
+  vars_files:
+    - vars.yml
+
+  vars:
+    # Derive paths from app_name so staging can never accidentally use prod's data dir.
+    # Override explicitly only if you need a non-standard layout.
+    data_dir: "/data/{{ app_name }}"
+    scripts_dir: "/opt/{{ app_name }}/scripts"
+    backup_log: "/var/log/{{ app_name }}-backup.log"
+
+  tasks:
+
+    # ------------------------------------------------------------------
+    # 1. Create Dokku app (idempotent)
+    # ------------------------------------------------------------------
+
+    - name: Check if Dokku app exists
+      ansible.builtin.command: "dokku apps:exists {{ app_name }}"
+      register: app_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Create Dokku app
+      ansible.builtin.command: "dokku apps:create {{ app_name }}"
+      when: app_exists.rc != 0
+      changed_when: true
+
+    # ------------------------------------------------------------------
+    # 2. Persistent storage
+    # ------------------------------------------------------------------
+
+    - name: Ensure persistent data directory exists
+      ansible.builtin.file:
+        path: "{{ data_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      # NOTE: Container write access to /data depends on the Dockerfile USER directive.
+      # Verify when task #14 (app packaging) sets a non-root user.
+
+    - name: Get current Dokku storage mounts for app
+      ansible.builtin.command: "dokku storage:list {{ app_name }}"
+      register: storage_list
+      changed_when: false
+      failed_when: false
+
+    - name: Mount /data volume for SQLite persistence
+      ansible.builtin.command: "dokku storage:mount {{ app_name }} {{ data_dir }}:/data"
+      when: data_dir not in (storage_list.stdout | default(''))
+      changed_when: true
+
+    # ------------------------------------------------------------------
+    # 3. Deploy SSH key
+    # ------------------------------------------------------------------
+
+    - name: Ensure dokku user authorized_keys directory exists
+      ansible.builtin.file:
+        path: /home/dokku/.ssh
+        state: directory
+        owner: dokku
+        group: dokku
+        mode: "0700"
+
+    - name: Inject deployment SSH public key into dokku authorized_keys
+      ansible.builtin.authorized_key:
+        user: dokku
+        key: "{{ deploy_ssh_pubkey }}"
+        state: present
+        manage_dir: false
+        path: /home/dokku/.ssh/authorized_keys
+
+    - name: Ensure /home/dokku/.ssh/authorized_keys has correct permissions
+      ansible.builtin.file:
+        path: /home/dokku/.ssh/authorized_keys
+        owner: dokku
+        group: dokku
+        mode: "0600"
+
+    # ------------------------------------------------------------------
+    # 4. Dokku application environment variables
+    # ------------------------------------------------------------------
+
+    - name: Set Dokku app environment variables
+      ansible.builtin.command: >
+        dokku config:set --no-restart {{ app_name }}
+        CLERK_SECRET_KEY={{ clerk_secret_key }}
+        OPENAI_API_KEY={{ openai_api_key }}
+        DB_PATH={{ app_db_path }}
+        UPLOADS_DIR={{ app_uploads_dir }}
+        UPLOAD_RETENTION_HOURS={{ app_upload_retention_hours }}
+        ALLOWED_ORIGIN={{ app_allowed_origin }}
+        LOG_LEVEL={{ app_log_level }}
+        LOG_FORMAT={{ app_log_format }}
+      changed_when: true
+      no_log: true
+
+    # ------------------------------------------------------------------
+    # 5. Initial app deployment
+    # ------------------------------------------------------------------
+    # Deploys the image from GHCR. Triggers the predeploy hook
+    # (/gradebee --migrate-only) before routing traffic.
+    # Re-running is safe — it simply redeploys the same image.
+
+    - name: Deploy app image from GHCR
+      ansible.builtin.command: "dokku git:from-image {{ app_name }} {{ ghcr_image }}"
+      changed_when: true
+
+    # ------------------------------------------------------------------
+    # 6. TLS — Let's Encrypt per-app cert
+    # ------------------------------------------------------------------
+    # Requires the domain to resolve to this server and the app to be
+    # deployed (HTTP challenge on port 80). Safe to re-run on an already-
+    # enabled app.
+
+    - name: Set Let's Encrypt contact email for app
+      ansible.builtin.command: "dokku letsencrypt:set {{ app_name }} email {{ letsencrypt_email }}"
+      changed_when: true
+
+    - name: Enable Let's Encrypt TLS for app
+      ansible.builtin.command: "dokku letsencrypt:enable {{ app_name }}"
+      changed_when: true
+
+    # ------------------------------------------------------------------
+    # 7. Per-app backup: script, log file, and cron job
+    # Relies on /root/.aws/ already being configured by provision-server.yml.
+    # ------------------------------------------------------------------
+
+    - name: Ensure scripts directory exists
+      ansible.builtin.file:
+        path: "{{ scripts_dir }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Deploy backup script
+      ansible.builtin.template:
+        src: templates/backup-db.sh.j2
+        dest: "{{ scripts_dir }}/backup-db.sh"
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Ensure backup log file exists
+      ansible.builtin.file:
+        path: "{{ backup_log }}"
+        state: touch
+        owner: root
+        group: root
+        mode: "0644"
+        modification_time: preserve
+        access_time: preserve
+
+    # RPO note: 6-hourly matches the original cloud-init cadence; daily (03:00) was an
+    # unintentional regression. See docs/deployment.md for retention policy.
+    # Cron name includes app_name to avoid collisions across environments.
+    - name: Install 6-hourly backup cron job
+      ansible.builtin.cron:
+        name: "{{ app_name }}-db-backup"
+        minute: "0"
+        hour: "*/6"
+        user: root
+        job: "{{ scripts_dir }}/backup-db.sh >> {{ backup_log }} 2>&1"
+        state: present
+
+    # Migration note: if this playbook is applied to a host that previously used
+    # the Terraform/Docker Compose layout, the live SQLite database is at
+    # /opt/gradebee/data/gradebee.db. The new layout stores it at
+    # /data/{{ app_name }}/{{ app_name }}.db on the host (mounted as /data/{{ app_name }}.db
+    # inside the container). Before running the playbook on such a host, copy the database:
+    #   mkdir -p /data/{{ app_name }}
+    #   cp /opt/gradebee/data/gradebee.db /data/{{ app_name }}/{{ app_name }}.db
+    # The backup script targets /data/{{ app_name }}/{{ app_name }}.db exclusively; old data
+    # will not be backed up until the manual migration is done.
