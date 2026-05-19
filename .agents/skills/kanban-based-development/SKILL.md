@@ -40,6 +40,7 @@ The **claim** mechanic is the coordination primitive. It prevents two agents fro
 - **Never release someone else’s claim.** Only use `edit --release` for your own work (or when the user explicitly asks).
 - **Always leave a handoff.** Before you park a task, write a short update in the body so someone else can continue.
 - **Refresh claims to avoid timeout.** If the task might take longer than `claim_timeout`, periodically renew your claim: `kanban-md edit <ID> --claim <agent>`.
+- **Review verdict ends your session scope.** After spawning the review sub-agent and appending its block, your work on this task is done for this session — regardless of verdict. APPROVE does not authorize you to proceed to merge unilaterally; it means the task is ready and the user may direct a merge. CHANGES_REQUESTED means hand off immediately. In both cases: stop, pick the next task (or report there is nothing to pick), and wait.
 
 ## Trivial Task
 
@@ -87,6 +88,7 @@ By default, agents should:
 Defer to the user (leave the task in `review` with a handoff) when you need:
 
 - **plan approval** before implementing anything non-trivial (default for any task touching tracked code)
+- **merge to main** — always requires explicit user direction; an APPROVE review verdict does not authorize autonomous merge
 - an important product/spec decision with multiple valid options and no clear winner
 - credentials/access or external actions (push to remote, releases, deployments, ENV variables, etc.)
 - a merge conflict that requires judgment (not just mechanical resolution)
@@ -212,7 +214,7 @@ body for auditability:
 kanban-md edit <ID> --append-body "Skipped review (trivial: <reason>)" --timestamp --claim <agent>
 ```
 
-Then continue to §4.
+Then pick the next task.
 
 For non-trivial tasks:
 
@@ -254,7 +256,16 @@ kanban-md edit <ID> --append-body "<review block>" --timestamp --claim <agent>
 
 Branch on the verdict (the token after `verdict:` on the first line):
 
-- **APPROVE** → continue to §4 (merge).
+- **APPROVE** → append the review block, then hand the task to the user:
+
+  ```bash
+  kanban-md handoff <ID> --claim <agent> \
+    --note "Review APPROVED. Ready to merge: task/<ID>-<slug>" \
+    --timestamp --release
+  ```
+
+  Then pick the next task. The user will direct merge when ready (e.g. "merge task 8", "proceed to merge").
+
 - **CHANGES_REQUESTED** → **do not attempt to fix.** Immediately follow
   the [Blocked / Needs User Input](#blocked--needs-user-input-the-review-and-move-on-rule)
   procedure. The findings are already appended to the task body, so the
@@ -289,6 +300,10 @@ Branch on the verdict (the token after `verdict:` on the first line):
 Each review (initial or post-resume) must be a fresh sub-agent invocation
 (new context). It re-reads the plan and the full diff via the skill — do
 not try to "continue" a previous review.
+
+## Resuming for merge (user-directed)
+
+The steps below are **not** an automatic continuation of implementation. They run only when the user explicitly directs a merge (e.g. "merge task 8", "go ahead and merge", "proceed to merge"). At that point, re-claim the task, move it back to `in-progress`, and follow the steps below.
 
 ### 4) Merge to main (from board home)
 
