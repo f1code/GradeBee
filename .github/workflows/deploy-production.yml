@@ -29,7 +29,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/nicocrm/gradebee:${{ github.sha }}
+          tags: ghcr.io/${{ github.repository_owner }}/gradebee:${{ github.sha }}
           build-args: |
             VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
@@ -42,4 +42,4 @@ jobs:
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            dokku git:from-image gradebee ghcr.io/nicocrm/gradebee:${{ github.sha }}
+            dokku git:from-image gradebee ghcr.io/${{ github.repository_owner }}/gradebee:${{ github.sha }}
