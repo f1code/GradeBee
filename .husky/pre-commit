@@ -1,5 +1,5 @@
 # Frontend: TypeScript check (whole project, catches type errors)
-(cd frontend && npx tsc -b --noEmit) || exit 1
+(cd frontend && pnpm exec tsc -b --noEmit) || exit 1
 
 # Lint & format staged files (frontend + backend)
-npx lint-staged || exit 1
+pnpm exec lint-staged || exit 1
