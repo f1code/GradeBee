@@ -31,8 +31,8 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/gradebee:${{ github.sha }}
           build-args: |
-            VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
-            VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
+            VITE_CLERK_PUBLISHABLE_KEY=${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
+            VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
             VITE_APP_VERSION=${{ github.sha }}
 
       - name: Deploy to production via SSH
