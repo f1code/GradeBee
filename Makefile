@@ -36,9 +36,8 @@ build:
 #
 # Prerequisites:
 #   - SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID set in environment
-#   - ansible/secrets.yml populated (see docs/deployment.md); file is gitignored,
-#     plain text is fine
-#   - dokku_domain is set in ansible/vars.yml; override with DOKKU_DOMAIN=other.app if needed
+#   - .env.infra populated (copy from .env.infra.example; file is gitignored)
+#   - For a staging environment: ENV_FILE=.env.staging make infra-app
 
 # Provision cloud resources (S3 bucket, IAM, Cockpit token) via Terraform.
 infra-up:
@@ -46,30 +45,17 @@ infra-up:
 
 # Provision the VPS server level (apt, Dokku, Alloy, GHCR login, AWS CLI for backups).
 # Safe to re-run at any time — does not touch any app.
-ANSIBLE_EXTRA_VARS ?=
 infra-server:
-	ansible-playbook -i ansible/inventory ansible/provision-server.yml \
-		$(foreach v,dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
-		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
-		-e @ansible/secrets.yml
+	./scripts/provision-server.sh
 
 # Provision a single app environment (create app, config vars, deploy image, TLS, backup cron).
-# Override app_name for additional environments:
-#   make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/.../gradebee:staging
+# For a staging environment: ENV_FILE=.env.staging make infra-app
 infra-app:
-	ansible-playbook -i ansible/inventory ansible/provision-app.yml \
-		$(foreach v,app_name ghcr_image dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
-		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
-		-e @ansible/secrets.yml
+	./scripts/provision-app.sh
 
 # Provision everything (server + app) in one pass — convenience wrapper for first-time setup.
-# ansible/secrets.yml is plain text (gitignored). If you encrypt it with
-# ansible-vault, add --vault-password-file ~/.ansible/vault-pass to this command.
-infra-provision:
-	ansible-playbook -i ansible/inventory ansible/provision.yml \
-		$(foreach v,app_name ghcr_image dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
-		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
-		-e @ansible/secrets.yml
+# Prerequisite: push the Docker image to GHCR first (see docs/deployment.md).
+infra-provision: infra-server infra-app
 
 # Run both steps in order (full first-time setup).
 # Prerequisite: push the Docker image to GHCR first (see docs/deployment.md).

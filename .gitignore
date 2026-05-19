@@ -1,6 +1,7 @@
 dist/
 .env
 .env.*
+!.env.infra.example
 *.log
 # Sqlite
 data/
@@ -31,6 +32,5 @@ kanban/
 .worktrees/
 docs/plans/
 
-# Ansible secrets (vault-encrypted or plaintext — never commit)
-ansible/secrets.yml
-ansible/inventory
+# Shell provisioning secrets — .env.infra is covered by .env.* above.
+# .env.infra.example is tracked via the !.env.infra.example exception above.
