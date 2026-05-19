@@ -7,7 +7,7 @@ export
 # --- Local development ---
 
 dev:
-	npm run --prefix frontend dev
+	pnpm -F frontend dev
 
 # --- Build ---
 #
@@ -18,7 +18,7 @@ build-backend:
 	cd backend && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o dist/gradebee ./cmd/server
 
 build-frontend:
-	npm run --prefix frontend build
+	pnpm -F frontend build
 
 # Build the production Docker image locally.
 # Pass VITE_CLERK_PUBLISHABLE_KEY=... at minimum.
@@ -61,7 +61,7 @@ infra: infra-up infra-provision
 test:
 	cd backend && $(MAKE) test
 	cd backend && $(MAKE) check-types
-	npm run --prefix frontend test
+	pnpm -F frontend test
 
 clean:
 	rm -rf dist frontend/dist backend/dist

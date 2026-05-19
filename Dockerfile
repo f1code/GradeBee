@@ -1,9 +1,12 @@
 # Stage 1: build frontend
-FROM node:24-alpine AS frontend
+FROM node:24.13.0-alpine AS frontend
+RUN corepack enable
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY frontend/package.json ./frontend/
+RUN pnpm install --frozen-lockfile --filter ./frontend...
+COPY frontend/ ./frontend/
 WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
 
 # Build-time args for the frontend bundle. Required:
 #   VITE_CLERK_PUBLISHABLE_KEY — frontend/src/main.tsx asserts this.
@@ -17,7 +20,7 @@ ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY \
     VITE_API_URL=$VITE_API_URL \
     VITE_SENTRY_DSN=$VITE_SENTRY_DSN \
     VITE_APP_VERSION=$VITE_APP_VERSION
-RUN npm run build
+RUN pnpm build
 
 # Stage 2: build Go binary with embedded frontend
 FROM golang:1.25-alpine AS builder

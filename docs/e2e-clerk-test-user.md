@@ -46,7 +46,7 @@ After creating the user:
 2. Run the authenticated E2E tests:
 
    ```bash
-   npm run test:e2e -- --project=authenticated
+   pnpm run test:e2e -- --project=authenticated
    ```
 
 If the user does not exist, the test will fail with an error like: `No user found with email: gradebee+clerk_test@example.com`.

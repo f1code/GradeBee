@@ -50,9 +50,10 @@ GradeBee/
 
 ### Prerequisites
 
-- Node.js
+- Node.js 24.13.x
 - Go 1.24+
 - A [Clerk](https://clerk.com) account configured with Google OAuth
+- pnpm (enabled via Corepack: `corepack enable`)
 
 ### Setup
 
@@ -76,20 +77,19 @@ GradeBee/
 2. Install dependencies:
 
    ```sh
-   npm install
-   cd frontend && npm install
+   pnpm install
    ```
 
 3. Install git hooks (runs TypeScript check, ESLint, Prettier, and Go lint on commit):
 
    ```sh
-   npm run prepare
+   pnpm run prepare
    ```
 
 4. Run the development servers:
 
    ```sh
-   npm run dev
+   pnpm run dev
    ```
 
    This starts the frontend on `http://localhost:5173` and the backend on `http://localhost:8080`.
@@ -100,10 +100,10 @@ End-to-end tests use [Playwright](https://playwright.dev) with [Clerk testing to
 
 ```sh
 # Run all e2e tests (starts the frontend dev server automatically)
-npm run test:e2e
+pnpm run test:e2e
 
 # Run with Playwright's interactive UI
-npm run test:e2e:ui
+pnpm run test:e2e:ui
 ```
 
 The `VITE_CLERK_PUBLISHABLE_KEY` (in `frontend/.env`) and `CLERK_SECRET_KEY` (in `.env`) must be set for the Clerk testing token integration to work.

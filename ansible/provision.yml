@@ -332,6 +332,31 @@
     # The backup script targets /data/gradebee.db exclusively; old data will not
     # be backed up until the manual migration is done.
 
+    # ------------------------------------------------------------------
+    # 6. TLS — Dokku Let's Encrypt plugin
+    # ------------------------------------------------------------------
+    # Installs the plugin and configures the contact email + auto-renewal
+    # cron. Run `dokku letsencrypt:enable gradebee` manually after the
+    # first deploy, once the domain is resolving to this server.
+
+    - name: Check if dokku-letsencrypt plugin is installed
+      ansible.builtin.command: dokku plugin:list
+      register: dokku_plugins
+      changed_when: false
+
+    - name: Install dokku-letsencrypt plugin
+      ansible.builtin.command: dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git
+      when: "'letsencrypt' not in dokku_plugins.stdout"
+      changed_when: true
+
+    - name: Set Let's Encrypt contact email for app
+      ansible.builtin.command: "dokku letsencrypt:set {{ app_name }} email {{ letsencrypt_email }}"
+      changed_when: true
+
+    - name: Enable Let's Encrypt auto-renewal cron job
+      ansible.builtin.command: dokku letsencrypt:cron-job --add
+      changed_when: true
+
   handlers:
     - name: Restart Alloy
       ansible.builtin.systemd:

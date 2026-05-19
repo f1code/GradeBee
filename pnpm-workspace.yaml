@@ -1,0 +1,6 @@
+packages:
+  - '.'
+  - 'frontend'
+allowBuilds:
+  '@clerk/shared': true
+  puppeteer: true

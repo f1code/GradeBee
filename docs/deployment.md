@@ -82,6 +82,9 @@ backup_s3_secret_key: "xxx"
 # Application secrets (set as Dokku config vars on the server)
 clerk_secret_key: "sk_live_xxx"
 openai_api_key: "sk-xxx"
+
+# TLS
+letsencrypt_email: "you@example.com"
 ```
 
 ### 3. Run the playbook
@@ -218,5 +221,5 @@ For day-to-day work, run backend and frontend separately:
 cd backend && go run ./cmd/server
 
 # Frontend (in another shell) — set VITE_API_URL=http://localhost:8080/api in frontend/.env
-npm run --prefix frontend dev
+pnpm -F frontend dev
 ```
