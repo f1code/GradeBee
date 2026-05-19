@@ -11,7 +11,7 @@ dokku_domain: gradebee.app
 app_name: gradebee
 
 # Docker image to deploy (pushed to GHCR before running make infra)
-ghcr_image: ghcr.io/nicogaller/gradebee:latest
+ghcr_image: ghcr.io/nicocrm/gradebee:latest
 
 # Dokku app environment variables
 # app_db_path is derived from app_name: /data/{{ app_name }}.db
