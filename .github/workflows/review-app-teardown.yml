@@ -1,0 +1,24 @@
+name: Review App - Teardown
+
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  teardown-review-app:
+    name: Destroy review app
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Destroy review app via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            APP_NAME="gradebee-pr-${{ github.event.number }}"
+            if dokku apps:exists "$APP_NAME" 2>/dev/null; then
+              dokku apps:destroy "$APP_NAME" --force
+            fi
