@@ -2,7 +2,7 @@
 export
 
 .PHONY: dev build build-frontend build-backend test clean \
-        infra-up infra-provision infra
+        infra-up infra-server infra-app infra-provision infra
 
 # --- Local development ---
 
@@ -44,16 +44,35 @@ build:
 infra-up:
 	cd terraform && terraform init && terraform apply
 
-# Provision the VPS (Dokku, Alloy, backup cron, app config) via Ansible.
+# Provision the VPS server level (apt, Dokku, Alloy, GHCR login, AWS CLI for backups).
+# Safe to re-run at any time — does not touch any app.
+ANSIBLE_EXTRA_VARS ?=
+infra-server:
+	ansible-playbook -i ansible/inventory ansible/provision-server.yml \
+		$(foreach v,dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
+		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
+		-e @ansible/secrets.yml
+
+# Provision a single app environment (create app, config vars, deploy image, TLS, backup cron).
+# Override app_name for additional environments:
+#   make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/.../gradebee:staging
+infra-app:
+	ansible-playbook -i ansible/inventory ansible/provision-app.yml \
+		$(foreach v,app_name ghcr_image dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
+		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
+		-e @ansible/secrets.yml
+
+# Provision everything (server + app) in one pass — convenience wrapper for first-time setup.
 # ansible/secrets.yml is plain text (gitignored). If you encrypt it with
 # ansible-vault, add --vault-password-file ~/.ansible/vault-pass to this command.
-# dokku_domain defaults to the value in ansible/vars.yml; override with DOKKU_DOMAIN=other.app.
 infra-provision:
 	ansible-playbook -i ansible/inventory ansible/provision.yml \
-		$(if $(DOKKU_DOMAIN),-e "dokku_domain=$(DOKKU_DOMAIN)") \
+		$(foreach v,app_name ghcr_image dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
+		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
 		-e @ansible/secrets.yml
 
 # Run both steps in order (full first-time setup).
+# Prerequisite: push the Docker image to GHCR first (see docs/deployment.md).
 infra: infra-up infra-provision
 
 # --- Test ---
