@@ -61,7 +61,10 @@ cleanup() {
 trap cleanup EXIT
 
 # Alloy config (uses GRAFANA_LOKI_URL, COCKPIT_TOKEN, APP_NAME — already exported)
-envsubst < "${SCRIPT_DIR}/lib/alloy-config.alloy.tmpl" > "$TMP_ALLOY"
+# Restrict envsubst to only the vars the template uses to avoid clobbering any
+# ${...} tokens that might appear in comments or Alloy HCL syntax.
+envsubst '${APP_NAME} ${GRAFANA_LOKI_URL} ${COCKPIT_TOKEN}' \
+  < "${SCRIPT_DIR}/lib/alloy-config.alloy.tmpl" > "$TMP_ALLOY"
 
 # AWS config (no secrets)
 cat > "$TMP_AWS_CONFIG" <<EOF

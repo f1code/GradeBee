@@ -72,7 +72,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-envsubst < "${SCRIPT_DIR}/lib/backup-db.sh.tmpl" > "$TMP_BACKUP"
+# Restrict envsubst to only the two vars the template uses.
+# Without the variable list, envsubst would expand ALL ${...} tokens including
+# ${TIMESTAMP}, ${TMPFILE}, etc. which must remain as shell vars in the deployed script.
+envsubst '${APP_NAME} ${BACKUP_S3_BUCKET}' \
+  < "${SCRIPT_DIR}/lib/backup-db.sh.tmpl" > "$TMP_BACKUP"
 chmod 755 "$TMP_BACKUP"
 
 # Write deploy pubkey to a temp file (avoid any shell quoting issues with key content)
