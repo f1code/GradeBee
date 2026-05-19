@@ -9,6 +9,7 @@ dokku_domain: gradebee.app
 #   make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/...
 # data_dir, scripts_dir, and backup_log are derived from app_name in provision-app.yml.
 app_name: gradebee
+app_domain: gradebee.app
 
 # Docker image to deploy (pushed to GHCR before running make infra)
 ghcr_image: ghcr.io/nicocrm/gradebee:latest
