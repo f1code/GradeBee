@@ -42,7 +42,7 @@ Replace `YOUR_CLERK_SECRET_KEY` with your `CLERK_SECRET_KEY` from `.env`.
 
 After creating the user:
 
-1. Ensure `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` are set in `.env` (or `.env.local`).
+1. Ensure `VITE_CLERK_PUBLISHABLE_KEY` is set in `frontend/.env` and `CLERK_SECRET_KEY` is set in `.env`.
 2. Run the authenticated E2E tests:
 
    ```bash

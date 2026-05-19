@@ -19,23 +19,37 @@ into the container by Dokku.
 
 - VPS: bare Ubuntu/Debian (tested on Scaleway STARDUST1-S, Paris)
 - Domain pointed at the VPS IP
+- Terraform ≥ 1.0 + Scaleway provider configured (`SCW_ACCESS_KEY`, `SCW_SECRET_KEY`, `SCW_DEFAULT_PROJECT_ID`)
 - Ansible ≥ 2.14 installed locally
-- Scaleway Cockpit token (for log shipping via Grafana Alloy)
-- Scaleway Object Storage bucket (for database backups)
 - GitHub PAT with `read:packages` + `write:packages` (for GHCR)
 
-## Cloud Resource Setup (one-time, manual)
+## Cloud Resource Setup (one-time, Terraform)
 
-The following resources are created once via the Scaleway console or CLI and are not
-managed by Ansible:
+The S3 backup bucket, IAM service account, and Cockpit token are managed by Terraform
+in the `terraform/` directory. Run this once before provisioning the server:
+
+```bash
+make infra-up
+```
+
+After apply, read the outputs needed for `ansible/secrets.yml`:
+
+```bash
+cd terraform
+terraform output -raw cockpit_token
+terraform output -raw cockpit_logs_push_url
+terraform output -raw backup_s3_access_key
+terraform output -raw backup_s3_secret_key
+terraform output    backup_bucket_name   # for backup_s3_bucket: s3://<name>
+terraform output    vps_ip               # for your DNS A record
+```
+
+The following resources are **not** managed by Terraform and must be set up manually:
 
 | Resource | Notes |
 |---|---|
 | VPS instance | Scaleway STARDUST1-S or equivalent |
 | DNS A record | Points `gradebee.app` (or your domain) to the VPS IP |
-| S3 backup bucket | e.g. `gradebee-backups` in `fr-par` |
-| Scaleway IAM application + API key | Scoped to the backup bucket |
-| Scaleway Cockpit token | `MetricsPublisher` + `LogsPublisher` roles |
 
 ## Server Provisioning (one-time)
 
@@ -50,9 +64,10 @@ cp ansible/inventory.example ansible/inventory
 
 ### 2. Store secrets
 
-Create `secrets.yml` (keep out of git — add to `.gitignore`):
+Create `ansible/secrets.yml` (gitignored — plain text is fine):
 
 ```yaml
+# Infrastructure secrets
 deploy_ssh_pubkey: "ssh-ed25519 AAAA..."
 ghcr_token: "ghp_xxx"
 ghcr_user: "my-gh-user"
@@ -63,30 +78,42 @@ backup_s3_endpoint: "https://s3.fr-par.scw.cloud"
 backup_s3_region: "fr-par"
 backup_s3_access_key: "xxx"
 backup_s3_secret_key: "xxx"
-```
 
-Optionally encrypt with Ansible Vault:
-
-```bash
-ansible-vault encrypt secrets.yml
+# Application secrets (set as Dokku config vars on the server)
+clerk_secret_key: "sk_live_xxx"
+openai_api_key: "sk-xxx"
 ```
 
 ### 3. Run the playbook
 
 ```bash
-ansible-playbook -i ansible/inventory ansible/provision.yml \
-  -e "dokku_domain=gradebee.app" \
-  -e @secrets.yml
+make infra-provision
+```
+
+Or run Terraform + Ansible together for a full first-time setup:
+
+```bash
+make infra
+```
+
+The Dokku domain defaults to the value in `ansible/vars.yml`. Override for a different domain:
+
+```bash
+make infra-provision DOKKU_DOMAIN=other.app
 ```
 
 Re-running is safe — all tasks are idempotent.
+
+Non-secret config (log level, paths, retention) lives in `ansible/vars.yml` and is loaded
+automatically. Override individual values by adding them to `secrets.yml` or passing
+`-e key=value` on the command line.
 
 ### What the playbook does
 
 1. **System prep** — package upgrades, base dependencies, NTP
 2. **Dokku install** — downloads and runs the official unattended installer (also installs Docker)
 3. **Dokku app setup** — creates `gradebee` app, mounts `/data` volume, injects deploy SSH key,
-   authenticates Docker with GHCR
+   authenticates Docker with GHCR, sets all app environment variables via `dokku config:set`
 4. **Grafana Alloy** — imports GPG key via `gpg --dearmor`, adds APT repo, installs, deploys
    config template (Scaleway Cockpit `X-Token` auth), enables service
 5. **Backup cron** — deploys `backup-db.sh`, writes AWS CLI config for Scaleway S3, installs
@@ -145,18 +172,21 @@ dokku git:from-image gradebee ghcr.io/<owner>/gradebee:<tag>
 
 There are two distinct sets of variables:
 
-### Backend runtime (set via `dokku config:set gradebee KEY=VALUE`)
+### Backend runtime (set by Ansible via `dokku config:set`, sourced from `secrets.yml` / `vars.yml`)
 
-| Variable | Required | Description |
+| Variable | Secret? | Description |
 |---|---|---|
-| `CLERK_SECRET_KEY` | Yes | Clerk backend API key |
-| `OPENAI_API_KEY` | Yes | OpenAI API key (Whisper + GPT) |
-| `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |
-| `UPLOADS_DIR` | No | Audio upload directory (default `/data/uploads`) |
-| `UPLOAD_RETENTION_HOURS` | No | Hours to keep processed audio (default 168 = 7 days) |
-| `ALLOWED_ORIGIN` | No | CORS origin (default `*`; in prod the SPA is same-origin so CORS is unused) |
-| `LOG_LEVEL` | No | `DEBUG`/`INFO`/`WARN`/`ERROR` (default `INFO`) |
-| `LOG_FORMAT` | No | `json` for JSON logs, else text |
+| `CLERK_SECRET_KEY` | Yes (`secrets.yml`) | Clerk backend API key |
+| `OPENAI_API_KEY` | Yes (`secrets.yml`) | OpenAI API key (Whisper + GPT) |
+| `DB_PATH` | No (`vars.yml`) | SQLite path (default `/data/gradebee.db`) |
+| `UPLOADS_DIR` | No (`vars.yml`) | Audio upload directory (default `/data/uploads`) |
+| `UPLOAD_RETENTION_HOURS` | No (`vars.yml`) | Hours to keep processed audio (default 168 = 7 days) |
+| `ALLOWED_ORIGIN` | No (`vars.yml`) | CORS origin (default `*`; in prod the SPA is same-origin so CORS is unused) |
+| `LOG_LEVEL` | No (`vars.yml`) | `DEBUG`/`INFO`/`WARN`/`ERROR` (default `INFO`) |
+| `LOG_FORMAT` | No (`vars.yml`) | `json` for JSON logs, else text |
+
+To change a value after initial provisioning, update `secrets.yml` or `vars.yml` and re-run
+the playbook, or set it directly: `dokku config:set gradebee KEY=VALUE`.
 
 ### Frontend build-time (passed as `--build-arg` to `docker build`)
 
