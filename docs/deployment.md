@@ -203,6 +203,8 @@ Deployments are automated via GitHub Actions (see `.github/workflows/`):
 |---|---|
 | `DEPLOY_HOST` | VPS IP address |
 | `DEPLOY_SSH_KEY` | Private key matching the `deploy_ssh_pubkey` in the playbook |
+| `CLERK_SECRET_KEY` | Clerk backend secret key (injected into review apps via `dokku config:set`) |
+| `OPENAI_API_KEY` | OpenAI API key (injected into review apps via `dokku config:set`) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (passed as Docker build-arg) |
 | `VITE_SENTRY_DSN` | Sentry DSN (optional; passed as Docker build-arg) |
 

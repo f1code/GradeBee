@@ -31,7 +31,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/nicocrm/gradebee:pr-${{ github.event.number }}
+          tags: ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}
           build-args: |
             VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
@@ -39,21 +39,33 @@ jobs:
 
       - name: Deploy review app via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: CLERK_SECRET_KEY,OPENAI_API_KEY
           script: |
             set -euo pipefail
             APP_NAME="gradebee-pr-${{ github.event.number }}"
-            IMAGE="ghcr.io/nicocrm/gradebee:pr-${{ github.event.number }}"
+            IMAGE="ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}"
 
             # Create app if it does not already exist
             if ! dokku apps:exists "$APP_NAME" 2>/dev/null; then
               dokku apps:create "$APP_NAME"
               # Use a per-app host path so each review app gets its own isolated SQLite database
               dokku storage:mount "$APP_NAME" "/data/$APP_NAME:/data"
+              # Inject backend runtime config; update on every deploy in case secrets rotate
             fi
+
+            # Always (re-)apply runtime config so secret rotations propagate on re-deploy
+            dokku config:set --no-restart "$APP_NAME" \
+              CLERK_SECRET_KEY="$CLERK_SECRET_KEY" \
+              OPENAI_API_KEY="$OPENAI_API_KEY" \
+              DB_PATH="/data/gradebee.db" \
+              UPLOADS_DIR="/data/uploads"
 
             # Deploy the PR image (predeploy script in app.json runs migrations automatically)
             dokku git:from-image "$APP_NAME" "$IMAGE"
