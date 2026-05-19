@@ -101,7 +101,7 @@ chmod 600 "$TMP_DOCKER_CFG"
 # 1. System preparation
 # ---------------------------------------------------------------------------
 log "--- 1. System preparation ---"
-run_remote_sudo <<'REMOTE'
+run_remote bash <<'REMOTE'
 set -euo pipefail
 apt-get update -qq
 # Do NOT run apt-get upgrade here — it is too slow and risky to run on every re-run.
@@ -116,7 +116,7 @@ REMOTE
 # 2. Dokku installation
 # ---------------------------------------------------------------------------
 log "--- 2. Dokku installation (version: ${DOKKU_VERSION}) ---"
-run_remote_sudo <<REMOTE
+run_remote bash <<REMOTE
 set -euo pipefail
 if dokku version &>/dev/null; then
   echo "Dokku already installed: \$(dokku version)"
@@ -136,15 +136,13 @@ REMOTE
 # 3. Grafana Alloy installation & configuration
 # ---------------------------------------------------------------------------
 log "--- 3. Grafana Alloy ---"
-run_remote_sudo <<'REMOTE'
+run_remote bash <<'REMOTE'
 set -euo pipefail
-# Add Grafana APT repository if not already present (or if keyring is missing/corrupt)
-if ! apt-cache policy alloy 2>/dev/null | grep -q grafana \
-   || ! gpg --batch --no-tty --list-keys --keyring /etc/apt/keyrings/grafana.gpg &>/dev/null; then
+# Add Grafana APT repository if not already present
+if ! apt-cache policy alloy 2>/dev/null | grep -q grafana; then
   mkdir -p /etc/apt/keyrings
-  rm -f /etc/apt/keyrings/grafana.gpg
-  curl -fsSL https://apt.grafana.com/gpg.key \
-    | gpg --batch --no-tty --dearmor -o /etc/apt/keyrings/grafana.gpg
+  curl -fsSL https://apt.grafana.com/gpg.key -o /tmp/grafana-gpg.key
+  gpg --dearmor -o /etc/apt/keyrings/grafana.gpg /tmp/grafana-gpg.key
   echo "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main" \
     > /etc/apt/sources.list.d/grafana.list
   apt-get update -qq
@@ -157,14 +155,16 @@ REMOTE
 log "  Deploying Alloy config..."
 # Hash the rendered config before uploading to detect changes.
 LOCAL_ALLOY_HASH=$(md5sum "$TMP_ALLOY" | cut -d' ' -f1)
-REMOTE_ALLOY_HASH=$(run_remote_sudo <<'REMOTE'
+REMOTE_ALLOY_HASH=$(run_remote bash <<'REMOTE'
 [ -f /etc/alloy/config.alloy ] && md5sum /etc/alloy/config.alloy | cut -d' ' -f1 || echo "none"
 REMOTE
 )
 if [ "$LOCAL_ALLOY_HASH" != "$REMOTE_ALLOY_HASH" ]; then
-  scp_to_remote_sudo "$TMP_ALLOY" /etc/alloy/config.alloy "root:alloy" "640"
-  run_remote_sudo <<'REMOTE'
+  scp_to_remote "$TMP_ALLOY" /etc/alloy/config.alloy
+  run_remote bash <<'REMOTE'
 set -euo pipefail
+chown root:alloy /etc/alloy/config.alloy
+chmod 640 /etc/alloy/config.alloy
 systemctl daemon-reload
 systemctl enable alloy
 systemctl restart alloy
@@ -172,7 +172,7 @@ echo "Alloy restarted with new config."
 REMOTE
 else
   log "  Alloy config unchanged — skipping restart."
-  run_remote_sudo <<'REMOTE'
+  run_remote bash <<'REMOTE'
 set -euo pipefail
 systemctl enable alloy
 systemctl is-active alloy >/dev/null || systemctl start alloy
@@ -183,22 +183,22 @@ fi
 # 4. AWS CLI configuration (shared by all per-app backup scripts)
 # ---------------------------------------------------------------------------
 log "--- 4. AWS CLI config ---"
-run_remote_sudo <<'REMOTE'
+run_remote mkdir -p /root/.aws
+run_remote chmod 700 /root/.aws
+scp_to_remote "$TMP_AWS_CONFIG" /root/.aws/config
+scp_to_remote "$TMP_AWS_CREDS"  /root/.aws/credentials
+run_remote bash <<'REMOTE'
 set -euo pipefail
-mkdir -p /root/.aws
-chmod 700 /root/.aws
+chmod 600 /root/.aws/config /root/.aws/credentials
 REMOTE
-scp_to_remote_sudo "$TMP_AWS_CONFIG" /root/.aws/config  "root:root" "600"
-scp_to_remote_sudo "$TMP_AWS_CREDS"  /root/.aws/credentials "root:root" "600"
 
 # ---------------------------------------------------------------------------
 # 5. Let's Encrypt plugin
 # ---------------------------------------------------------------------------
 log "--- 5. Let's Encrypt plugin ---"
-run_remote_sudo <<'REMOTE'
+run_remote bash <<'REMOTE'
 set -euo pipefail
-if ! dokku plugin:list 2>/dev/null | grep -q letsencrypt \
-   && [ ! -d /var/lib/dokku/plugins/available/letsencrypt ]; then
+if ! dokku plugin:list | grep -q letsencrypt; then
   dokku plugin:install https://github.com/dokku/dokku-letsencrypt.git
 fi
 dokku letsencrypt:cron-job --add
@@ -208,11 +208,13 @@ REMOTE
 # 6. GHCR docker login (write config directly as dokku user)
 # ---------------------------------------------------------------------------
 log "--- 6. GHCR docker credentials for dokku user ---"
-run_remote_sudo <<'REMOTE'
+run_remote mkdir -p /home/dokku/.docker
+run_remote chmod 700 /home/dokku/.docker
+scp_to_remote "$TMP_DOCKER_CFG" /home/dokku/.docker/config.json
+run_remote bash <<'REMOTE'
 set -euo pipefail
-mkdir -p /home/dokku/.docker
-chmod 700 /home/dokku/.docker
+chown dokku:dokku /home/dokku/.docker/config.json
+chmod 600 /home/dokku/.docker/config.json
 REMOTE
-scp_to_remote_sudo "$TMP_DOCKER_CFG" /home/dokku/.docker/config.json "dokku:dokku" "600"
 
 log "=== provision-server.sh complete ==="
