@@ -1,0 +1,24 @@
+# Non-secret application configuration for the GradeBee Dokku app.
+# Committed to version control — do NOT put secrets here.
+# Secret values (API keys, tokens) belong in secrets.yml.
+
+# Dokku server configuration
+dokku_domain: gradebee.app
+
+# App instance — override app_name for additional environments:
+#   make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/...
+# data_dir, scripts_dir, and backup_log are derived from app_name in provision-app.yml.
+app_name: gradebee
+
+# Docker image to deploy (pushed to GHCR before running make infra)
+ghcr_image: ghcr.io/nicogaller/gradebee:latest
+
+# Dokku app environment variables
+# app_db_path is derived from app_name: /data/{{ app_name }}.db
+# The container's /data is bind-mounted from /data/{{ app_name }} on the host.
+app_db_path: "/data/{{ app_name }}.db"
+app_uploads_dir: /data/uploads
+app_upload_retention_hours: "168"   # 7 days; quoted so dokku config:set treats it as a string
+app_allowed_origin: "*"
+app_log_level: INFO
+app_log_format: json

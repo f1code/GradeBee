@@ -1,25 +1,21 @@
 #!/bin/bash
 # backup-db.sh — 6-hourly SQLite backup to S3-compatible storage
-# Deployed by provision-server.sh to /opt/${APP_NAME}/scripts/backup-db.sh
-# App: ${APP_NAME}
-#
-# Variables substituted at deploy time by envsubst:
-#   APP_NAME, BACKUP_S3_BUCKET
+# Deployed by Ansible to {{ scripts_dir }}/backup-db.sh
+# App: {{ app_name }}
 set -euo pipefail
 
-# --- Configuration (substituted at deploy time) ---
-APP_NAME="${APP_NAME}"
-DB_PATH="/data/${APP_NAME}/${APP_NAME}.db"
-S3_BUCKET="${BACKUP_S3_BUCKET}"
+# --- Configuration (set by Ansible) ---
+DB_PATH="{{ data_dir }}/{{ app_name }}.db"
+S3_BUCKET="{{ backup_s3_bucket }}"
 # S3 key prefix: one subdirectory per app so prod and staging don't collide.
-S3_PREFIX="${APP_NAME}/db"
+S3_PREFIX="{{ app_name }}/db"
 BACKUP_RETENTION=30  # number of backups to keep
 
 # --- Timestamp ---
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%Sz)
-TMPFILE="/tmp/${APP_NAME}-${TIMESTAMP}.db"
+TMPFILE="/tmp/{{ app_name }}-${TIMESTAMP}.db"
 
-echo "[${TIMESTAMP}] Starting backup for ${APP_NAME}..."
+echo "[${TIMESTAMP}] Starting backup for {{ app_name }}..."
 
 # --- Safe online backup (does not lock WAL writers) ---
 sqlite3 "$DB_PATH" ".backup '${TMPFILE}'"
