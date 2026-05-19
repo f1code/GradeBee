@@ -5,6 +5,9 @@
 # Dokku server configuration
 dokku_domain: gradebee.app
 
+# Let's Encrypt contact email (used by dokku-letsencrypt plugin)
+letsencrypt_email: nic@f1code.com
+
 # Dokku app environment variables
 app_db_path: /data/gradebee.db
 app_uploads_dir: /data/uploads

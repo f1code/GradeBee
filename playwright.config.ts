@@ -44,12 +44,12 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'npm run dev:frontend',
+      command: 'pnpm run dev:frontend',
       url: 'http://localhost:5173',
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: 'npm run dev:backend',
+      command: 'pnpm run dev:backend',
       url: 'http://localhost:8080/health',
       reuseExistingServer: !process.env.CI,
     },

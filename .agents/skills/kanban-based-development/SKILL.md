@@ -272,6 +272,16 @@ Branch on the verdict (the token after `verdict:` on the first line):
   "Resuming a parked task" procedure and a fresh review is run as part of
   resuming work.
 
+  **Scope rule for the resuming agent**: when a task is resumed after a
+  review block, your scope is **the blocking findings in the latest review
+  block**, not the original task description. The original implementation
+  is assumed correct except where the review identified blockers. Do not
+  refactor unrelated code, re-do completed work, or expand scope. After
+  addressing the blockers, run §3.5 again (fresh sub-agent) — the
+  reviewer does re-read the full diff, so any drift will surface. If you
+  believe the review missed something or a finding is wrong, leave a note
+  on the task and defer to the user; do not silently override.
+
 > *Future extension point: an autonomous-fix mode would branch here to
 > attempt fixing blocking findings before handing off. Not implemented —
 > for now all `CHANGES_REQUESTED` verdicts go straight to handoff.*
@@ -378,6 +388,10 @@ kanban-md edit <ID> --claim <agent>
 kanban-md edit <ID> --unblock --claim <agent>   # if it was blocked
 kanban-md move <ID> in-progress --claim <agent>
 ```
+
+If the task was parked on a review block, your scope is constrained to
+the blocking findings in the latest review block — see the scope rule in
+§3.5. Do not re-do the original task.
 
 ## Status meanings (keep the board honest)
 
