@@ -9,6 +9,7 @@ jobs:
   teardown-review-app:
     name: Destroy review app
     runs-on: ubuntu-latest
+    permissions: {}
 
     steps:
       - name: Destroy review app via SSH
