@@ -3,5 +3,18 @@
     "dokku": {
       "predeploy": "/gradebee --migrate-only"
     }
+  },
+  "healthchecks": {
+    "web": [
+      {
+        "type": "startup",
+        "name": "web alive",
+        "description": "Checks that the web process has started",
+        "path": "/health",
+        "wait": 5,
+        "timeout": 30,
+        "attempts": 3
+      }
+    ]
   }
 }
