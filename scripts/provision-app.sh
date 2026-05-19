@@ -86,7 +86,7 @@ printf '%s\n' "$DEPLOY_SSH_PUBKEY" > "$TMP_AUTHORIZED_KEYS"
 # 1. Create Dokku app (idempotent)
 # ---------------------------------------------------------------------------
 log "--- 1. Create Dokku app ---"
-run_remote bash <<REMOTE
+run_remote_sudo <<REMOTE
 set -euo pipefail
 if dokku apps:exists ${APP_NAME} 2>/dev/null; then
   echo "App '${APP_NAME}' already exists."
@@ -99,7 +99,7 @@ REMOTE
 # 2. Persistent storage
 # ---------------------------------------------------------------------------
 log "--- 2. Persistent storage ---"
-run_remote bash <<REMOTE
+run_remote_sudo <<REMOTE
 set -euo pipefail
 mkdir -p ${DATA_DIR}
 # NOTE: Container write access depends on Dockerfile USER. Verify after task #14.
@@ -114,7 +114,7 @@ REMOTE
 # 3. Deploy SSH key
 # ---------------------------------------------------------------------------
 log "--- 3. Deploy SSH key ---"
-run_remote bash <<'REMOTE'
+run_remote_sudo <<'REMOTE'
 set -euo pipefail
 mkdir -p /home/dokku/.ssh
 chown dokku:dokku /home/dokku/.ssh
@@ -126,7 +126,7 @@ REMOTE
 
 # Use scp to transfer the pubkey file, then append it on the remote
 scp_to_remote "$TMP_AUTHORIZED_KEYS" "/tmp/deploy_pubkey_$$"
-run_remote bash <<REMOTE
+run_remote_sudo <<REMOTE
 set -euo pipefail
 PUBKEY=\$(cat /tmp/deploy_pubkey_$$)
 rm -f /tmp/deploy_pubkey_$$
@@ -154,7 +154,7 @@ EOF
 scp_to_remote "$TMP_APP_ENV" "/tmp/app-env-$$"
 rm -f "$TMP_APP_ENV"
 
-run_remote bash <<REMOTE
+run_remote_sudo <<REMOTE
 set -euo pipefail
 # Source secrets from temp file
 set -a
@@ -179,7 +179,7 @@ REMOTE
 # Triggers the predeploy hook (/gradebee --migrate-only) before routing traffic.
 # Re-running is safe — it simply redeploys the same (or newer) image.
 log "--- 5. Deploy image from GHCR ---"
-run_remote bash <<REMOTE
+run_remote_sudo <<REMOTE
 set -euo pipefail
 dokku git:from-image ${APP_NAME} ${GHCR_IMAGE}
 REMOTE
@@ -189,7 +189,7 @@ REMOTE
 # ---------------------------------------------------------------------------
 # Requires domain DNS to resolve to this host and app to be running on port 80.
 log "--- 6. Let's Encrypt TLS ---"
-run_remote bash <<REMOTE
+run_remote_sudo <<REMOTE
 set -euo pipefail
 dokku letsencrypt:set ${APP_NAME} email ${LETSENCRYPT_EMAIL}
 # letsencrypt:enable is idempotent when the cert already exists and is valid,
@@ -205,17 +205,16 @@ REMOTE
 # 7. Per-app backup script, log file, and cron job
 # ---------------------------------------------------------------------------
 log "--- 7. Backup script and cron ---"
-run_remote bash <<REMOTE
+run_remote_sudo <<REMOTE
 set -euo pipefail
 mkdir -p ${SCRIPTS_DIR}
 touch ${BACKUP_LOG}
 chmod 644 ${BACKUP_LOG}
 REMOTE
 
-scp_to_remote "$TMP_BACKUP" "${SCRIPTS_DIR}/backup-db.sh"
-run_remote bash <<REMOTE
+scp_to_remote_sudo "$TMP_BACKUP" "${SCRIPTS_DIR}/backup-db.sh" "root:root" "755"
+run_remote_sudo <<REMOTE
 set -euo pipefail
-chmod 755 ${SCRIPTS_DIR}/backup-db.sh
 # RPO note: 6-hourly matches the original cloud-init cadence.
 # Cron name includes app_name to avoid collisions across environments.
 (crontab -l 2>/dev/null | grep -v "${APP_NAME}-db-backup"; \
