@@ -203,7 +203,10 @@ Deployments are automated via GitHub Actions (see `.github/workflows/`):
 |---|---|
 | `DEPLOY_HOST` | VPS IP address |
 | `DEPLOY_SSH_KEY` | Private key matching the `deploy_ssh_pubkey` in the playbook |
-| `GHCR_TOKEN` | GitHub PAT with `read:packages` + `write:packages` |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (passed as Docker build-arg) |
+| `VITE_SENTRY_DSN` | Sentry DSN (optional; passed as Docker build-arg) |
+
+> **Note:** GHCR authentication uses `secrets.GITHUB_TOKEN` (auto-provided by GitHub Actions) — no PAT is needed.
 
 ## Manual deploy / debugging
 

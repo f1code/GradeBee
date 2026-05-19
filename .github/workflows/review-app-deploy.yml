@@ -51,7 +51,8 @@ jobs:
             # Create app if it does not already exist
             if ! dokku apps:exists "$APP_NAME" 2>/dev/null; then
               dokku apps:create "$APP_NAME"
-              dokku storage:mount "$APP_NAME" /data:/data
+              # Use a per-app host path so each review app gets its own isolated SQLite database
+              dokku storage:mount "$APP_NAME" "/data/$APP_NAME:/data"
             fi
 
             # Deploy the PR image (predeploy script in app.json runs migrations automatically)
