@@ -22,3 +22,8 @@ app_upload_retention_hours: "168"   # 7 days; quoted so dokku config:set treats 
 app_allowed_origin: "*"
 app_log_level: INFO
 app_log_format: json
+
+# SSH public key for the GitHub Actions deploy user.
+# Corresponds to the DOKKU_SSH_PRIVATE_KEY GitHub Actions secret.
+# Override via -e deploy_ssh_pubkey="ssh-ed25519 AAAA..." if not setting here.
+deploy_ssh_pubkey: ""
