@@ -20,6 +20,9 @@
 #   backup_s3_region     - S3 region
 #   backup_s3_access_key - S3 access key ID
 #   backup_s3_secret_key - S3 secret access key
+#
+# Non-secret variables (in vars.yml):
+#   deploy_ssh_pubkey    - SSH public key for GitHub Actions deploy user
 
 - name: Provision Dokku server (server-level setup)
   hosts: gradebee

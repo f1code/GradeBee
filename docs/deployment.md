@@ -85,7 +85,6 @@ backup_s3_access_key: "xxx"
 backup_s3_secret_key: "xxx"
 
 # App-level secrets (provision-app.yml)
-deploy_ssh_pubkey: "ssh-ed25519 AAAA..."
 clerk_secret_key: "sk_live_xxx"
 openai_api_key: "sk-xxx"
 letsencrypt_email: "you@example.com"
@@ -133,6 +132,7 @@ automatically. Override individual values by adding them to `secrets.yml` or pas
 4. **AWS CLI config** — writes `/root/.aws/config` + `/root/.aws/credentials` (shared by all per-app backup scripts)
 5. **Let's Encrypt plugin** — installs `dokku-letsencrypt`, enables auto-renewal cron
 6. **GHCR login** — `docker login ghcr.io` (host-scoped; all apps benefit)
+7. **Deploy key** — installs `deploy_ssh_pubkey` (from `vars.yml`) into `/home/dokku/.ssh/authorized_keys`
 
 **`provision-app.yml`** (app-level, run once per environment):
 
