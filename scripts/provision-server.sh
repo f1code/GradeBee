@@ -80,7 +80,9 @@ EOF
 chmod 600 "$TMP_AWS_CREDS"
 
 # GHCR docker config.json (base64-encoded credentials)
-GHCR_AUTH=$(printf '%s:%s' "$GHCR_USER" "$GHCR_TOKEN" | base64)
+# Use -w0 (GNU) to suppress line wrapping; fall back to openssl on macOS.
+GHCR_AUTH=$(printf '%s:%s' "$GHCR_USER" "$GHCR_TOKEN" | base64 -w0 2>/dev/null \
+            || printf '%s:%s' "$GHCR_USER" "$GHCR_TOKEN" | openssl base64 -A)
 cat > "$TMP_DOCKER_CFG" <<EOF
 {
   "auths": {
@@ -99,7 +101,8 @@ log "--- 1. System preparation ---"
 run_remote bash <<'REMOTE'
 set -euo pipefail
 apt-get update -qq
-DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -qq
+# Do NOT run apt-get upgrade here — it is too slow and risky to run on every re-run.
+# Run upgrades manually or via an unattended-upgrades policy.
 DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
   curl git ca-certificates gnupg sqlite3 awscli
 # NTP
@@ -147,15 +150,31 @@ usermod -aG docker alloy || true
 REMOTE
 
 log "  Deploying Alloy config..."
-scp_to_remote "$TMP_ALLOY" /etc/alloy/config.alloy
-run_remote bash <<'REMOTE'
+# Hash the rendered config before uploading to detect changes.
+LOCAL_ALLOY_HASH=$(md5sum "$TMP_ALLOY" | cut -d' ' -f1)
+REMOTE_ALLOY_HASH=$(run_remote bash <<'REMOTE'
+[ -f /etc/alloy/config.alloy ] && md5sum /etc/alloy/config.alloy | cut -d' ' -f1 || echo "none"
+REMOTE
+)
+if [ "$LOCAL_ALLOY_HASH" != "$REMOTE_ALLOY_HASH" ]; then
+  scp_to_remote "$TMP_ALLOY" /etc/alloy/config.alloy
+  run_remote bash <<'REMOTE'
 set -euo pipefail
 chown root:alloy /etc/alloy/config.alloy
 chmod 640 /etc/alloy/config.alloy
 systemctl daemon-reload
 systemctl enable alloy
 systemctl restart alloy
+echo "Alloy restarted with new config."
 REMOTE
+else
+  log "  Alloy config unchanged — skipping restart."
+  run_remote bash <<'REMOTE'
+set -euo pipefail
+systemctl enable alloy
+systemctl is-active alloy >/dev/null || systemctl start alloy
+REMOTE
+fi
 
 # ---------------------------------------------------------------------------
 # 4. AWS CLI configuration (shared by all per-app backup scripts)
