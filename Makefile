@@ -1,7 +1,8 @@
 -include .env
 export
 
-.PHONY: dev build build-frontend build-backend test clean
+.PHONY: dev build build-frontend build-backend test clean \
+        infra-up infra-provision infra
 
 # --- Local development ---
 
@@ -29,10 +30,31 @@ build:
 		--build-arg VITE_APP_VERSION=$(VITE_APP_VERSION) \
 		-t gradebee:local .
 
-# --- Deploy ---
+# --- Infrastructure ---
 #
-# Production deployment is handled by Dokku via GitHub Actions on push to main.
-# See docs/deployment.md. There is no Make target for deploy any more.
+# One-time setup. See docs/deployment.md for full instructions.
+#
+# Prerequisites:
+#   - SCW_ACCESS_KEY, SCW_SECRET_KEY, SCW_DEFAULT_PROJECT_ID set in environment
+#   - ansible/secrets.yml populated (see docs/deployment.md); file is gitignored,
+#     plain text is fine
+#   - dokku_domain is set in ansible/vars.yml; override with DOKKU_DOMAIN=other.app if needed
+
+# Provision cloud resources (S3 bucket, IAM, Cockpit token) via Terraform.
+infra-up:
+	cd terraform && terraform init && terraform apply
+
+# Provision the VPS (Dokku, Alloy, backup cron, app config) via Ansible.
+# ansible/secrets.yml is plain text (gitignored). If you encrypt it with
+# ansible-vault, add --vault-password-file ~/.ansible/vault-pass to this command.
+# dokku_domain defaults to the value in ansible/vars.yml; override with DOKKU_DOMAIN=other.app.
+infra-provision:
+	ansible-playbook -i ansible/inventory ansible/provision.yml \
+		$(if $(DOKKU_DOMAIN),-e "dokku_domain=$(DOKKU_DOMAIN)") \
+		-e @ansible/secrets.yml
+
+# Run both steps in order (full first-time setup).
+infra: infra-up infra-provision
 
 # --- Test ---
 

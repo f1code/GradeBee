@@ -106,7 +106,7 @@ npm run test:e2e
 npm run test:e2e:ui
 ```
 
-The `CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` environment variables must be set (from `.env`) for the Clerk testing token integration to work.
+The `VITE_CLERK_PUBLISHABLE_KEY` (in `frontend/.env`) and `CLERK_SECRET_KEY` (in `.env`) must be set for the Clerk testing token integration to work.
 
 ## Implementation Status
 

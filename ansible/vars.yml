@@ -1,0 +1,14 @@
+# Non-secret application configuration for the GradeBee Dokku app.
+# Committed to version control — do NOT put secrets here.
+# Secret values (API keys, tokens) belong in secrets.yml.
+
+# Dokku server configuration
+dokku_domain: gradebee.app
+
+# Dokku app environment variables
+app_db_path: /data/gradebee.db
+app_uploads_dir: /data/uploads
+app_upload_retention_hours: "168"   # 7 days; quoted so dokku config:set treats it as a string
+app_allowed_origin: "*"
+app_log_level: INFO
+app_log_format: json

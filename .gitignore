@@ -30,3 +30,7 @@ node_modules
 kanban/
 .worktrees/
 docs/plans/
+
+# Ansible secrets (vault-encrypted or plaintext — never commit)
+ansible/secrets.yml
+ansible/inventory
