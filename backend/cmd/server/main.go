@@ -102,26 +102,21 @@ func main() {
 	// Register eval endpoints when EVAL_TOKEN is set. These expose the real prompt
 	// paths to the promptfoo harness for regression testing.
 	// NEVER set EVAL_TOKEN in production — the startup code panics if APP_ENV=prod.
-	evalMux := http.NewServeMux()
+	topMux := http.NewServeMux()
 	if evalToken := os.Getenv("EVAL_TOKEN"); evalToken != "" {
 		if os.Getenv("APP_ENV") == "prod" {
 			panic("EVAL_TOKEN must NOT be set in production (APP_ENV=prod). Remove it immediately.")
 		}
 		slog.Warn("eval endpoints ENABLED — do NOT set EVAL_TOKEN in production")
-		evalMux.Handle("POST /eval/extract", handler.RequireEvalToken(evalToken, handler.HandleEvalExtract))
-		evalMux.Handle("POST /eval/generate-report", handler.RequireEvalToken(evalToken, handler.HandleEvalGenerateReport))
+		topMux.Handle("POST /eval/extract", handler.RequireEvalToken(evalToken, handler.HandleEvalExtract))
+		topMux.Handle("POST /eval/generate-report", handler.RequireEvalToken(evalToken, handler.HandleEvalGenerateReport))
 	}
+	// All non-eval paths fall through to the main GradeBee handler.
+	topMux.HandleFunc("/", handler.Handle)
 
 	srv := &http.Server{
-		Addr: ":" + port,
-		Handler: sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Dispatch eval routes before the main handler.
-			if len(r.URL.Path) > 5 && r.URL.Path[:5] == "/eval" {
-				evalMux.ServeHTTP(w, r)
-				return
-			}
-			handler.Handle(w, r)
-		})),
+		Addr:    ":" + port,
+		Handler: sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle(topMux),
 	}
 
 	// Graceful shutdown on SIGINT/SIGTERM.
