@@ -19,6 +19,8 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
   const [removingId, setRemovingId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [conflictStudentName, setConflictStudentName] = useState<string | null>(null)
+  // Snapshot of the alias that triggered a conflict error (not live input)
+  const [conflictAlias, setConflictAlias] = useState<string | null>(null)
 
   async function handleAdd() {
     const trimmed = input.trim()
@@ -26,6 +28,7 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
     setSaving(true)
     setError(null)
     setConflictStudentName(null)
+    setConflictAlias(null)
     try {
       const a = await addAlias(studentId, trimmed, getToken)
       setAliases(prev => [...prev, a])
@@ -33,6 +36,7 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
       setAdding(false)
     } catch (err) {
       if (err instanceof AliasConflictError) {
+        setConflictAlias(trimmed)
         setConflictStudentName(err.conflictStudentName || null)
         setError(err.message)
       } else {
@@ -47,6 +51,7 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
     setRemovingId(aliasId)
     setError(null)
     setConflictStudentName(null)
+    setConflictAlias(null)
     try {
       await removeAlias(studentId, aliasId, getToken)
       setAliases(prev => prev.filter(a => a.id !== aliasId))
@@ -59,12 +64,13 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
-    if (e.key === 'Escape') { setAdding(false); setInput(''); setError(null); setConflictStudentName(null) }
+    if (e.key === 'Escape') { setAdding(false); setInput(''); setError(null); setConflictStudentName(null); setConflictAlias(null) }
   }
 
   function handleDismissError() {
     setError(null)
     setConflictStudentName(null)
+    setConflictAlias(null)
   }
 
   return (
@@ -138,7 +144,7 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
             transition={{ duration: 0.15 }}
           >
             {conflictStudentName ? (
-              <InlineError title={`"${input.trim()}"`} onDismiss={handleDismissError}>
+              <InlineError title={`"${conflictAlias}"`} onDismiss={handleDismissError}>
                 is already used by {conflictStudentName} in this class. Aliases must be unique per class (case-insensitive).
               </InlineError>
             ) : (

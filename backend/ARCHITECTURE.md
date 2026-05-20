@@ -260,7 +260,7 @@ All CRUD endpoints verify resource ownership:
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
 | `repo_example.go` | `ReportExampleRepo` — CRUD for report examples |
 | `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `ListStale` |
-| `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr` |
+| `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr`; `ErrDuplicateAlias` (carries `ConflictStudentName` for alias 409 responses) |
 | `students.go` | GET /students, class/student CRUD handlers, `classGroup`/`student` types |
 | `aliases.go` | GET/POST/DELETE /students/{id}/aliases — alias CRUD handlers |
 | `roster.go` | `Roster` interface + `dbRoster` — DB-backed roster reads |
@@ -302,7 +302,12 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 
 ## Error Handling
 
-`apiError` struct (`google.go`) carries HTTP status, machine-readable code, and human message. Handlers check `errors.As(err, &apiError)` and call `writeAPIError`. All responses are JSON.
+`apiError` struct (`google.go`) carries HTTP status, machine-readable code, human message, and an optional `Details map[string]string` field for structured context (e.g. `conflictStudentName` on alias collision). Handlers check `errors.As(err, &apiError)` and call `writeAPIError`. All responses are JSON.
+
+Repo-level errors:
+- `ErrNotFound` — entity not found
+- `ErrDuplicate` — generic unique constraint violation (used by class/student/note repos)
+- `*ErrDuplicateAlias` — alias-specific conflict that carries the canonical name of the student who owns the conflicting alias, so the handler can include it in the 409 `details` field
 
 ## Observability / Sentry
 
