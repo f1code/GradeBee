@@ -43,7 +43,8 @@ type ClassGroup struct {
 }
 
 type ClassStudent struct {
-	Name string `json:"name"`
+	Name    string   `json:"name"`
+	Aliases []string `json:"aliases,omitempty"`
 }
 
 func handleGetStudents(w http.ResponseWriter, r *http.Request) {
@@ -234,7 +235,7 @@ func handleListStudents(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "class not found"})
 		return
 	}
-	students, err := serviceDeps.GetStudentRepo().List(r.Context(), classID)
+	students, err := serviceDeps.GetStudentRepo().ListWithAliases(r.Context(), classID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return

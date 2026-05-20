@@ -37,6 +37,9 @@ Cache headers:
 | DELETE | `/api/students/{id}` | Yes | `handleDeleteStudent` | Delete student + cascade |
 | GET | `/api/students/{id}/notes` | Yes | `handleListNotes` | List notes for a student |
 | POST | `/api/students/{id}/notes` | Yes | `handleCreateNote` | Create a manual note |
+| GET | `/api/students/{id}/aliases` | Yes | `handleListAliases` | List aliases for a student |
+| POST | `/api/students/{id}/aliases` | Yes | `handleAddAlias` | Add an alias |
+| DELETE | `/api/students/{id}/aliases/{aliasId}` | Yes | `handleRemoveAlias` | Remove an alias |
 | GET | `/api/notes/{id}` | Yes | `handleGetNote` | Get single note |
 | PUT | `/api/notes/{id}` | Yes | `handleUpdateNote` | Edit note summary |
 | DELETE | `/api/notes/{id}` | Yes | `handleDeleteNote` | Delete a note |
@@ -218,6 +221,7 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 | `classes` | Teacher's classes (user_id, class_name, group_name, name) |
 | `report_example_classes` | M-M link: report examples ↔ class names |
 | `students` | Students belonging to classes |
+| `student_aliases` | Nickname/variant aliases per student (per-class uniqueness, case-insensitive) |
 | `notes` | Observation notes per student |
 | `reports` | Generated HTML report cards |
 | `report_examples` | Example report cards for style matching |
@@ -248,15 +252,17 @@ All CRUD endpoints verify resource ownership:
 | `db.go` | Open SQLite, set PRAGMAs (WAL, busy_timeout, foreign_keys) |
 | `migrate.go` | Embed + run SQL migrations on startup |
 | `sql/001_init.sql` | Schema: classes, students, notes, reports, report_examples, uploads (renamed to voice_notes via 002) |
+| `sql/005_student_aliases.sql` | Migration: create `student_aliases` table with per-class uniqueness index |
 | `sql/002_rename_uploads.sql` | Migration: rename uploads → voice_notes, update indexes |
 | `repo_class.go` | `ClassRepo` — CRUD for classes |
-| `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass`, `BelongsToUser` |
+| `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass` (matches canonical name + aliases, case-insensitive), `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases` |
 | `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
 | `repo_example.go` | `ReportExampleRepo` — CRUD for report examples |
 | `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `ListStale` |
 | `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr` |
 | `students.go` | GET /students, class/student CRUD handlers, `classGroup`/`student` types |
+| `aliases.go` | GET/POST/DELETE /students/{id}/aliases — alias CRUD handlers |
 | `roster.go` | `Roster` interface + `dbRoster` — DB-backed roster reads |
 | `voice_note_upload.go` | POST /voice-notes/upload — multipart audio → disk + voice_notes table + dispatch job |
 | `transcriber.go` | `Transcriber` interface + `whisperTranscriber` (OpenAI Whisper) |

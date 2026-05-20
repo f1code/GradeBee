@@ -4,7 +4,7 @@ const steps = [
   {
     num: 1,
     heading: 'Set up your class list',
-    desc: 'Add your classes and student names. GradeBee uses them to match recordings to students.',
+    desc: 'Add your classes and student names. GradeBee uses them to match recordings to students. If a student goes by a nickname or shortened name, add it as an alias so GradeBee can recognise them however you say their name.',
   },
   {
     num: 2,

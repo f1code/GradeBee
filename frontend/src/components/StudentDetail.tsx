@@ -1,10 +1,14 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
-import { listNotes, createNote, updateNote, deleteNote, type Note } from '../api'
+import {
+  listNotes, createNote, updateNote, deleteNote, listAliases,
+  type Note, type AliasResponse,
+} from '../api'
 import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
 import ReportHistory from './ReportHistory'
+import StudentAliases from './StudentAliases'
 
 interface StudentDetailProps {
   studentId: number
@@ -26,13 +30,18 @@ export default function StudentDetail({ studentId, studentName, className, onCol
   const [addingNote, setAddingNote] = useState(false)
   const [savingNew, setSavingNew] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [aliases, setAliases] = useState<AliasResponse[]>([])
 
   const fetchNotes = useCallback(async () => {
     setStatus('loading')
     setError(null)
     try {
-      const { notes: fetched } = await listNotes(studentId, getToken)
+      const [{ notes: fetched }, { aliases: fetchedAliases }] = await Promise.all([
+        listNotes(studentId, getToken),
+        listAliases(studentId, getToken),
+      ])
       setNotes(fetched || [])
+      setAliases(fetchedAliases || [])
       setStatus('success')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load notes')
@@ -95,8 +104,11 @@ export default function StudentDetail({ studentId, studentName, className, onCol
       {/* Header */}
       <div className="student-detail-header">
         <div className="student-detail-info">
-          <h3 className="student-detail-name">{studentName}</h3>
-          <span className="student-detail-class">{className}</span>
+          <div className="student-detail-info-col">
+            <h3 className="student-detail-name">{studentName}</h3>
+            <span className="student-detail-class">{className}</span>
+            <StudentAliases studentId={studentId} initialAliases={aliases} />
+          </div>
         </div>
         {activeTab === 'notes' && (
           <button
