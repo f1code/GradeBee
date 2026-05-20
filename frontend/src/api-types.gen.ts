@@ -497,17 +497,6 @@ sentry.go initialises the Sentry SDK and exposes helpers for capturing
 non-error feedback events from server-side code paths.
 */
 
-/**
- * FeedbackEvent holds the fields for an explicit user-feedback event (e.g.
- * a thumbs-down on a generated report card). All fields are optional.
- */
-export interface FeedbackEvent {
-  UserID: string;
-  StudentID: number /* int64 */;
-  ReportID: number /* int64 */;
-  Rating: string; // e.g. "thumbs_down"
-  Comment: string;
-}
 
 //////////
 // source: students.go

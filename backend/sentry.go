@@ -49,9 +49,9 @@ func InitSentry() {
 	slog.Info("sentry: initialised", "release", release)
 }
 
-// FeedbackEvent holds the fields for an explicit user-feedback event (e.g.
+// feedbackEvent holds the fields for an explicit user-feedback event (e.g.
 // a thumbs-down on a generated report card). All fields are optional.
-type FeedbackEvent struct {
+type feedbackEvent struct {
 	UserID    string
 	StudentID int64
 	ReportID  int64
@@ -59,9 +59,9 @@ type FeedbackEvent struct {
 	Comment   string
 }
 
-// CaptureFeedback sends a non-error feedback event to Sentry. It is a no-op
+// captureFeedback sends a non-error feedback event to Sentry. It is a no-op
 // if Sentry was not initialised (i.e. SENTRY_DSN is unset in this environment).
-func CaptureFeedback(ctx context.Context, ev FeedbackEvent) {
+func captureFeedback(ctx context.Context, ev feedbackEvent) {
 	if !sentryInitialised {
 		return
 	}

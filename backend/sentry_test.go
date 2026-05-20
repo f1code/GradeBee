@@ -35,7 +35,7 @@ func TestCaptureFeedback_NoopWhenUninitialized(t *testing.T) {
 	t.Cleanup(func() { sentryInitialised = orig })
 
 	assert.NotPanics(t, func() {
-		CaptureFeedback(context.Background(), FeedbackEvent{
+		captureFeedback(context.Background(), feedbackEvent{
 			UserID:    "user_abc",
 			StudentID: 1,
 			ReportID:  2,
