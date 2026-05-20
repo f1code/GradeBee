@@ -46,17 +46,12 @@ var (
 )
 
 func init() {
-	// Bootstrap a stdout-only logger so logging works in tests, which never
-	// call InitLogger(). Production code always calls InitLogger() at startup.
-	logMu.Lock()
-	log = slog.New(buildStdoutHandler())
-	logMu.Unlock()
-	slog.SetDefault(log)
+	InitLogger()
 }
 
-// InitLogger wires the package logger. It must be called after InitSentry so
-// that the sentryslog handler can attach to the already-configured Sentry
-// client. When SENTRY_DSN is unset the logger falls back to stdout only.
+// InitLogger wires the package logger. It is called once by init() (stdout
+// only) and again by main() after InitSentry() so the sentryslog handler can
+// attach to the already-configured Sentry client. Safe to call multiple times.
 func InitLogger() {
 	stdoutH := buildStdoutHandler()
 
