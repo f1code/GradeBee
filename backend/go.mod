@@ -1,6 +1,6 @@
 module github.com/nicogaller/gradebee/backend
 
-go 1.26.0
+go 1.26.3
 
 require (
 	github.com/clerk/clerk-sdk-go/v2 v2.5.1
