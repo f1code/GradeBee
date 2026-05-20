@@ -8,8 +8,13 @@ on:
       - synchronize
 
 jobs:
+  test:
+    name: Run tests
+    uses: ./.github/workflows/test.yml
+
   deploy-review-app:
     name: Build, push, and deploy review app
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,7 +36,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}
+          tags: ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}-${{ github.sha }}
           build-args: |
             VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
@@ -47,11 +52,11 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: dokku
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: CLERK_SECRET_KEY,OPENAI_API_KEY
+          envs: CLERK_SECRET_KEY,OPENAI_API_KEY,LETSENCRYPT_EMAIL
           script: |
             set -euo pipefail
             APP_NAME="gradebee-pr-${{ github.event.number }}"
-            IMAGE="ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}"
+            IMAGE="ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}-${{ github.sha }}"
 
             # Create app if it does not already exist
             if ! dokku apps:exists "$APP_NAME" 2>/dev/null; then

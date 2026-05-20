@@ -6,8 +6,13 @@ on:
       - main
 
 jobs:
+  test:
+    name: Run tests
+    uses: ./.github/workflows/test.yml
+
   deploy:
     name: Build, push, and deploy
+    needs: [test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
