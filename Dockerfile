@@ -35,8 +35,7 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /gradebee ./cmd/server
 
 # Stage 3: minimal runtime
 FROM alpine:latest
-RUN apk add --no-cache ca-certificates poppler-utils
-WORKDIR /app
+RUN apk add --no-cache bash ca-certificates poppler-utils
 COPY app.json .
 COPY --from=builder /gradebee /gradebee
 EXPOSE 8080
