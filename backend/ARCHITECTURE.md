@@ -298,6 +298,25 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 
 `apiError` struct (`google.go`) carries HTTP status, machine-readable code, and human message. Handlers check `errors.As(err, &apiError)` and call `writeAPIError`. All responses are JSON.
 
+## Observability / Sentry
+
+**SDK:** `github.com/getsentry/sentry-go` v0.46.2 + `github.com/getsentry/sentry-go/http` sub-package.
+
+**Initialisation:** `InitSentry()` in `backend/sentry.go` is called from `cmd/server/main.go` at startup (before the HTTP server starts). It reads `SENTRY_DSN` and `SENTRY_RELEASE` from the environment. If `SENTRY_DSN` is empty the function is a no-op — Sentry remains inactive and no error is returned. `sentry.Flush(2s)` is deferred in `main()`.
+
+**HTTP middleware:** `sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle(...)` wraps the top-level `http.HandlerFunc(handler.Handle)` in `main.go`. This auto-captures panics and attaches request context to every event. `Repanic: true` ensures the server's default panic recovery still fires after Sentry has captured the event.
+
+**User tagging:** `debugAuthMiddleware` (in `handler.go`) sets `sentry.User{ID: decoded.Subject}` on the request-scoped hub after successful JWT decode, so all events from authenticated requests are correlated to the Clerk user ID.
+
+**Feedback events:** `CaptureFeedback(ctx, FeedbackEvent{...})` in `backend/sentry.go` sends a `CaptureMessage("user_feedback")` event with tags and extra context. Intended for explicit thumbs-down / report-card feedback (task #19). No-op if Sentry is uninitialised.
+
+**PII scrubbing (`BeforeSend`):**
+- Request body, query string, and cookies are cleared.
+- `Authorization` and `Cookie` headers are removed.
+- Exception values and stack-frame variables are scanned for name-shaped strings (two or more capitalised words, heuristic) and replaced with `[REDACTED]`.
+
+**DSN delivery:** `VITE_SENTRY_DSN` is passed as a Docker build-arg in CI and promoted to a runtime environment variable in Dockerfile Stage 3 (`ENV SENTRY_DSN=$VITE_SENTRY_DSN`). The release tag uses the same pattern via `VITE_APP_VERSION` → `ENV SENTRY_RELEASE`.
+
 ## Testing
 
 - Tests in `*_test.go` files override `serviceDeps` with stubs.
@@ -317,4 +336,5 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 | `ALLOWED_ORIGIN` | No | CORS origin (default `*`) |
 | `PORT` | No | Local dev port (default `8080`) |
 | `LOG_LEVEL` | No | DEBUG/INFO/WARN/ERROR/off |
-| `LOG_FORMAT` | No | `json` for JSON, else text |
+| `SENTRY_DSN` | No | Sentry DSN; baked into Docker image via `VITE_SENTRY_DSN` build-arg |
+| `SENTRY_RELEASE` | No | Release tag in Sentry; baked in via `VITE_APP_VERSION` build-arg (git SHA in prod) |

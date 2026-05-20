@@ -16,6 +16,7 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2"
 	clerkhttp "github.com/clerk/clerk-sdk-go/v2/http"
 	"github.com/clerk/clerk-sdk-go/v2/jwt"
+	"github.com/getsentry/sentry-go"
 	"github.com/google/uuid"
 )
 
@@ -74,6 +75,12 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 			"expires", expiry,
 			"issued_at", issuedAt,
 		)
+
+		// Tag the Sentry scope with the authenticated user so events can be
+		// correlated to a specific user in the Sentry dashboard.
+		if hub := sentry.GetHubFromContext(r.Context()); hub != nil {
+			hub.Scope().SetUser(sentry.User{ID: decoded.Subject})
+		}
 
 		verified := false
 		inner := clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
