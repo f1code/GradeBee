@@ -5,7 +5,6 @@ on:
   push:
     branches-ignore:
       - main  # covered by deploy-production.yml which calls this
-  pull_request:
 
 jobs:
   test:
