@@ -177,7 +177,7 @@ func (g *gptReportGenerator) loadExamples(ctx context.Context, userID, className
 
 func (g *gptReportGenerator) callGPT(ctx context.Context, prompt string) (string, error) {
 	resp, err := g.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-5.4-mini",
+		Model: ProductionModelName,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: prompt},
 			{Role: openai.ChatMessageRoleUser, Content: "Generate the report card now."},
