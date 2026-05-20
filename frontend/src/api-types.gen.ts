@@ -491,6 +491,14 @@ The Roster is used by the upload processing pipeline to get class names
 export type Roster = any;
 
 //////////
+// source: sentry.go
+/*
+sentry.go initialises the Sentry SDK and exposes helpers for capturing
+non-error feedback events from server-side code paths.
+*/
+
+
+//////////
 // source: students.go
 /*
 students.go handles the GET /students endpoint and CRUD handlers for

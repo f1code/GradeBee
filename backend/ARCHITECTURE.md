@@ -298,6 +298,10 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 
 `apiError` struct (`google.go`) carries HTTP status, machine-readable code, and human message. Handlers check `errors.As(err, &apiError)` and call `writeAPIError`. All responses are JSON.
 
+## Observability / Sentry
+
+`github.com/getsentry/sentry-go` v0.46.2. `InitSentry()` (`sentry.go`) reads `SENTRY_DSN` / `SENTRY_RELEASE` at startup — no-op if DSN is empty. `sentryhttp` middleware wraps the top-level handler in `main.go` (auto-captures panics; `Repanic: true`). Authenticated requests are tagged with the Clerk user ID. `BeforeSend` scrubs request bodies, query strings, cookies, auth headers, and name-shaped strings from exception values. `captureFeedback()` is available for non-error feedback events (task #19). DSN and release are baked into the Docker image via `VITE_SENTRY_DSN` / `VITE_APP_VERSION` build-args → `ENV SENTRY_DSN` / `ENV SENTRY_RELEASE` in Stage 3.
+
 ## Testing
 
 - Tests in `*_test.go` files override `serviceDeps` with stubs.
@@ -317,4 +321,5 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 | `ALLOWED_ORIGIN` | No | CORS origin (default `*`) |
 | `PORT` | No | Local dev port (default `8080`) |
 | `LOG_LEVEL` | No | DEBUG/INFO/WARN/ERROR/off |
-| `LOG_FORMAT` | No | `json` for JSON, else text |
+| `SENTRY_DSN` | No | Sentry DSN; baked into Docker image via `VITE_SENTRY_DSN` build-arg |
+| `SENTRY_RELEASE` | No | Release tag in Sentry; baked in via `VITE_APP_VERSION` build-arg (git SHA in prod) |

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
+	"github.com/getsentry/sentry-go"
+	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/joho/godotenv"
 	handler "github.com/nicogaller/gradebee/backend"
 )
@@ -20,6 +22,10 @@ func main() {
 	if err := godotenv.Load("../../../.env"); err != nil && !os.IsNotExist(err) {
 		slog.Warn("loading .env", "error", err)
 	}
+
+	// Initialise Sentry error reporting (no-op if SENTRY_DSN is unset).
+	handler.InitSentry()
+	defer sentry.Flush(2 * time.Second)
 
 	// --migrate-only: run DB migrations and exit (used by Dokku predeploy hook).
 	migrateOnly := len(os.Args) > 1 && os.Args[1] == "--migrate-only"
@@ -92,7 +98,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: http.HandlerFunc(handler.Handle),
+		Handler: sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle(http.HandlerFunc(handler.Handle)),
 	}
 
 	// Graceful shutdown on SIGINT/SIGTERM.

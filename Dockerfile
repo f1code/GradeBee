@@ -38,5 +38,12 @@ FROM alpine:latest
 RUN apk add --no-cache bash ca-certificates poppler-utils
 COPY app.json .
 COPY --from=builder /gradebee /gradebee
+
+# Promote build-time Sentry args into runtime env vars so the Go binary can read them.
+ARG VITE_SENTRY_DSN=
+ARG VITE_APP_VERSION=dev
+ENV SENTRY_DSN=$VITE_SENTRY_DSN \
+    SENTRY_RELEASE=$VITE_APP_VERSION
+
 EXPOSE 8080
 CMD ["/gradebee"]
