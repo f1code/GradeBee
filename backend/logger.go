@@ -46,8 +46,8 @@ var (
 )
 
 func init() {
-	// Bootstrap a stdout-only logger so logging works before InitLogger is
-	// called (e.g. during --migrate-only or in tests).
+	// Bootstrap a stdout-only logger so logging works in tests, which never
+	// call InitLogger(). Production code always calls InitLogger() at startup.
 	logMu.Lock()
 	log = slog.New(buildStdoutHandler())
 	logMu.Unlock()
