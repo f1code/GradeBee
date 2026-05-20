@@ -2,9 +2,6 @@ name: Test
 
 on:
   workflow_call:
-  push:
-    branches-ignore:
-      - main  # covered by deploy-production.yml which calls this
 
 jobs:
   test:
