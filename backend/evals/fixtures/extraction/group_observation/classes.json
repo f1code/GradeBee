@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Class A",
+    "students": [
+      { "name": "Lucas Green" },
+      { "name": "Isabelle Brown" }
+    ]
+  },
+  {
+    "name": "Class B",
+    "students": [
+      { "name": "Olivia Chen" },
+      { "name": "Marcus Davis" },
+      { "name": "Zoe Taylor" }
+    ]
+  }
+]

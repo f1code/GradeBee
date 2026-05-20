@@ -51,6 +51,7 @@ Cache headers:
 | GET | `/api/report-examples` | Yes | `handleListReportExamples` | List example report cards |
 | POST | `/api/report-examples` | Yes | `handleUploadReportExample` | Upload example report card |
 | DELETE | `/api/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card |
+| POST | `/api/feedback` | Yes | `handleSubmitFeedback` | Submit explicit thumbs rating on a report or auto note |
 | PUT | `/api/report-examples/{id}` | Yes | `handleUpdateReportExample` | Update example report card |
 | POST | `/api/voice-notes/upload` | Yes | `handleUpload` | Upload audio to disk + dispatch job |
 | POST | `/api/text-notes/upload` | Yes | `handleTextNotesUpload` | Submit pasted text + dispatch extraction job |
@@ -339,3 +340,110 @@ Repo-level errors:
 | `SENTRY_DSN` | No | Sentry DSN; baked into Docker image via `VITE_SENTRY_DSN` build-arg |
 | `SENTRY_RELEASE` | No | Release tag in Sentry; baked in via `VITE_APP_VERSION` build-arg (git SHA in prod) |
 | `SENTRY_ENVIRONMENT` | No | Environment tag in Sentry (e.g. `production`, `staging`); set via `dokku config:set` |
+| `EVAL_TOKEN` | No | Enables eval endpoints for `make eval` — **never set in production** |
+
+---
+
+## LLM Evaluation Harness
+
+Regression testing for extraction and report-generation quality. On-demand only (`make eval`) — not CI-gated.
+
+### Directory layout
+
+```
+backend/evals/
+  promptfooconfig.yaml          promptfoo test suite
+  baseline.json                 pinned baseline scores (committed to repo)
+  scoring/extraction.js         custom JS precision/recall + voice-preservation scorer
+  scripts/diff-baseline.js      baseline diff reporter (Node, always exits 0)
+  results/                      per-run result JSONs (git-ignored)
+  fixtures/
+    extraction/<case>/
+      transcript.txt            teacher audio transcript (synthetic)
+      classes.json              class roster
+      expected.json             expected students + must_quote_substrings
+    reports/<case>/
+      notes.json                student notes
+      examples.json             example report cards (optional)
+      instructions.txt          additional prompt instructions (optional)
+```
+
+### Running evals
+
+```bash
+# One-time eval — prints diff vs baseline
+cd backend && make eval
+
+# Update baseline after deliberate prompt/model change
+cd backend && make eval-baseline   # runs eval then copies latest result to baseline.json
+# Commit evals/baseline.json alongside the prompt change
+```
+
+### How to add a fixture
+
+1. Create `backend/evals/fixtures/{extraction,reports}/<descriptive-name>/` with the required files (see layout above).
+2. Add a test entry in `promptfooconfig.yaml` pointing at the new fixture.
+3. Run `make eval` to see the score; if it looks right, run `make eval-baseline`.
+
+### Baseline lifecycle
+
+`backend/evals/baseline.json` is a single committed file overwritten by `make eval-baseline`. The PR diff is the audit trail — deliberately accepting new scores.
+
+### Eval HTTP endpoints (gated by EVAL_TOKEN)
+
+`eval_endpoint.go` registers two routes when `EVAL_TOKEN` is set:
+
+| Route | Handler | Purpose |
+|---|---|---|
+| `POST /eval/extract` | `HandleEvalExtract` | Calls real extraction logic, no DB writes |
+| `POST /eval/generate-report` | `HandleEvalGenerateReport` | Calls real report builder + GPT, no DB writes |
+
+Both require `X-Eval-Token: <EVAL_TOKEN>` header. Missing/wrong token → 404 (not 401).
+
+---
+
+## User Feedback (artifact_feedback table)
+
+Captures explicit thumbs ratings (👍/👎) and implicit signals (regenerate / edit / delete on auto notes) to feed a fixture-mining flywheel.
+
+### Schema
+
+```sql
+CREATE TABLE artifact_feedback (
+  id             INTEGER PRIMARY KEY,
+  artifact_type  TEXT NOT NULL CHECK (artifact_type IN ('report', 'note')),
+  artifact_id    INTEGER NOT NULL,
+  rating         TEXT NOT NULL CHECK (rating IN ('up', 'down')),
+  signal         TEXT NOT NULL DEFAULT 'explicit'
+                 CHECK (signal IN ('explicit', 'regenerated', 'edited', 'deleted')),
+  comment        TEXT,          -- explicit/regenerated signals
+  previous_value TEXT,          -- edited/deleted signals (original content)
+  user_id        TEXT NOT NULL,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+**Append-only** — code never UPDATEs rows, only INSERTs. Multiple edits → multiple rows.
+
+### Signal taxonomy
+
+| signal | rating | When inserted |
+|---|---|---|
+| `explicit` | `up`/`down` | User clicks 👍/👎 in `ReportViewer` or `NotesList` |
+| `regenerated` | `down` | User clicks Regenerate on a report |
+| `edited` | `down` | User edits an auto-extracted note |
+| `deleted` | `down` | User deletes an auto-extracted note |
+
+Only **explicit thumbs-down** events fire a Sentry dual-write (via `captureFeedback`).
+
+### Prompt + model versioning
+
+Every generated `report` row and auto-extracted `note` row is stamped with:
+- `model_version` — the OpenAI model name (`ProductionModelName` const)
+- `prompt_hash` — first 12 hex chars of SHA-256(`PromptVersionTag + ":" + template`) from `prompts_version.go`
+
+`NULL` on pre-instrumentation rows. Filter `WHERE prompt_hash IS NOT NULL` when correlating quality.
+
+`PromptVersionTag` is a manually-bumped monotonic integer for non-template logic changes.
+
+---

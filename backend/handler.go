@@ -310,6 +310,10 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	case path == "google-token" && r.Method == http.MethodGet:
 		authHandler(handleGoogleToken).ServeHTTP(rec, r)
 
+	// Artifact feedback (explicit thumbs ratings)
+	case path == "feedback" && r.Method == http.MethodPost:
+		authHandler(handleSubmitFeedback).ServeHTTP(rec, r)
+
 	// Voice note jobs
 	case path == "voice-notes/jobs" && r.Method == http.MethodGet:
 		authHandler(handleJobList).ServeHTTP(rec, r)

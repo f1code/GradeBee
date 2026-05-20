@@ -1,0 +1,6 @@
+{
+  "_comment": "Initial empty baseline. Run `make eval-baseline` after your first eval run to set a real baseline.",
+  "results": {
+    "results": []
+  }
+}

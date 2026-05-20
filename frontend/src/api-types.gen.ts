@@ -48,6 +48,27 @@ export interface DriveFile {
 export type DriveClient = any;
 
 //////////
+// source: eval_endpoint.go
+/*
+eval_endpoint.go exposes lightweight HTTP endpoints that the promptfoo eval
+harness can call to exercise the real Go prompt-building paths.
+
+# Security
+
+The endpoints are registered in cmd/server/main.go ONLY when the EVAL_TOKEN
+environment variable is non-empty. Every request must include a matching
+X-Eval-Token header; the middleware refuses with 404 (not 401) to avoid
+advertising the endpoint's existence to an attacker.
+
+EVAL_TOKEN must NEVER be set in production. The startup code in
+cmd/server/main.go logs a warning when the var is set so operators notice if
+it leaks. A panic is raised when APP_ENV=prod and EVAL_TOKEN is non-empty.
+
+The handlers do NOT write to the database — evaluation is read-only.
+*/
+
+
+//////////
 // source: extract.go
 /*
 extract.go defines the Extractor interface and its OpenAI GPT implementation.
@@ -90,6 +111,14 @@ export interface StudentCandidate {
   name: string;
   class: string;
 }
+
+//////////
+// source: feedback_handler.go
+/*
+feedback_handler.go handles POST /api/feedback for explicit thumbs ratings
+on generated reports and auto-extracted notes.
+*/
+
 
 //////////
 // source: google.go
@@ -175,6 +204,44 @@ export interface ListNotesResponse {
 }
 
 //////////
+// source: prompts_version.go
+/*
+prompts_version.go provides deterministic hashes for prompt templates so
+every generated note and report row can be stamped with the prompt version
+that produced it.  This enables production quality drops to be correlated to
+specific prompt or model changes.
+
+# How it works
+
+Static template strings are defined here as package-level consts.  At init()
+time each string is hashed (SHA-256, first 12 hex chars) with a
+PromptVersionTag prefix so that non-template logic changes can be captured
+by manually bumping the tag.
+
+The builder functions in extract.go and report_prompt.go still live there and
+interpolate dynamic values (roster, notes, examples, feedback) into the
+templates.  Hashing the static portion is a reasonable proxy: substantive
+changes almost always touch the static text.
+*/
+
+/**
+ * PromptVersionTag is bumped manually when non-template logic changes (e.g.
+ * branching behaviour inside builder functions that hashing the template alone
+ * would not catch).  Format: monotonic integer as string.
+ */
+export const PromptVersionTag = "1";
+/**
+ * ExampleExtractionPromptTemplate is the static prompt used by the image/PDF
+ * example extractor (report_example_extractor.go).
+ */
+export const ExampleExtractionPromptTemplate = "Extract all text from this report card image exactly as written. " + "Preserve all paragraphs, headings, and formatting. Do not summarize or paraphrase.";
+/**
+ * ProductionModelName is the OpenAI model used for generation.
+ * Keep in sync with the model strings in extract.go and report_generator.go.
+ */
+export const ProductionModelName = "gpt-5.4-mini";
+
+//////////
 // source: repo_class.go
 
 /**
@@ -237,6 +304,34 @@ export interface DBReportExample {
 }
 
 //////////
+// source: repo_feedback.go
+/*
+repo_feedback.go provides CRUD operations for the artifact_feedback table.
+Feedback rows are append-only (no UPDATE); each edit/regen/delete event
+creates a new row to preserve the full signal trajectory.
+*/
+
+/**
+ * ArtifactFeedbackRepo provides insert + read access to the artifact_feedback table.
+ */
+export interface ArtifactFeedbackRepo {
+}
+/**
+ * ArtifactFeedback represents a single feedback event.
+ */
+export interface ArtifactFeedback {
+  ID: number /* int64 */;
+  ArtifactType: string; // 'report' | 'note'
+  ArtifactID: number /* int64 */;
+  Rating: string; // 'up' | 'down'
+  Signal: string; // 'explicit' | 'regenerated' | 'edited' | 'deleted'
+  Comment?: string; // populated for 'explicit' and 'regenerated'
+  PreviousValue?: string; // populated for 'edited' and 'deleted'
+  UserID: string;
+  CreatedAt: string;
+}
+
+//////////
 // source: repo_note.go
 
 /**
@@ -254,6 +349,8 @@ export interface Note {
   summary: string;
   transcript?: string;
   source: string;
+  modelVersion?: string;
+  promptHash?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -276,6 +373,8 @@ export interface Report {
   endDate: string;
   html?: string;
   instructions?: string;
+  modelVersion?: string;
+  promptHash?: string;
   createdAt: string;
 }
 /**

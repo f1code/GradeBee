@@ -38,11 +38,15 @@ func newDBNoteCreator(nr *NoteRepo) *dbNoteCreator {
 }
 
 func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
+	modelVersion := ProductionModelName
+	promptHash := ExtractionPromptHash
 	n := &Note{
-		StudentID: req.StudentID,
-		Date:      req.Date,
-		Summary:   req.QuotedText,  // Store extracted passages as the note summary
-		Source:    "auto",
+		StudentID:    req.StudentID,
+		Date:         req.Date,
+		Summary:      req.QuotedText, // Store extracted passages as the note summary
+		Source:       "auto",
+		ModelVersion: &modelVersion,
+		PromptHash:   &promptHash,
 	}
 	if req.Transcript != "" {
 		n.Transcript = &req.Transcript
@@ -190,6 +194,25 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+
+	// Implicit signal: editing an auto note records a thumbs-down with the original summary.
+	// Only fire when the summary actually changed and the note is LLM-extracted.
+	if n.Source == "auto" && n.Summary != req.Summary {
+		if feedbackRepo := serviceDeps.GetFeedbackRepo(); feedbackRepo != nil {
+			prev := n.Summary
+			if _, fbErr := feedbackRepo.Insert(r.Context(), ArtifactFeedback{
+				ArtifactType:  "note",
+				ArtifactID:    noteID,
+				Rating:        "down",
+				Signal:        "edited",
+				PreviousValue: &prev,
+				UserID:        userID,
+			}); fbErr != nil {
+				loggerFromRequest(r).Warn("implicit edit feedback insert failed", "error", fbErr)
+			}
+		}
+	}
+
 	updated, err := serviceDeps.GetNoteRepo().GetByID(r.Context(), noteID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -227,5 +250,24 @@ func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+
+	// Implicit signal: deleting an auto note records a thumbs-down with the deleted summary.
+	// artifact_id will dangle (note row gone) — expected by design; previous_value carries the content.
+	if n.Source == "auto" {
+		if feedbackRepo := serviceDeps.GetFeedbackRepo(); feedbackRepo != nil {
+			prev := n.Summary
+			if _, fbErr := feedbackRepo.Insert(r.Context(), ArtifactFeedback{
+				ArtifactType:  "note",
+				ArtifactID:    noteID,
+				Rating:        "down",
+				Signal:        "deleted",
+				PreviousValue: &prev,
+				UserID:        userID,
+			}); fbErr != nil {
+				loggerFromRequest(r).Warn("implicit delete feedback insert failed", "error", fbErr)
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }

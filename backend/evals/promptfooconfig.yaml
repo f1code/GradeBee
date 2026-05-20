@@ -1,0 +1,143 @@
+description: GradeBee LLM evaluation harness
+
+# Provider definitions — the real Go backend serves extraction and report generation.
+# Run `make eval` which starts the server with EVAL_TOKEN before invoking promptfoo.
+providers:
+  - id: gradebee-extract
+    config:
+      url: http://localhost:8080/eval/extract
+      method: POST
+      headers:
+        X-Eval-Token: "{{env.EVAL_TOKEN}}"
+        Content-Type: application/json
+      body: "{{body}}"
+
+  - id: gradebee-report
+    config:
+      url: http://localhost:8080/eval/generate-report
+      method: POST
+      headers:
+        X-Eval-Token: "{{env.EVAL_TOKEN}}"
+        Content-Type: application/json
+      body: "{{body}}"
+
+# Default options: use a stronger judge model for llm-rubric assertions.
+defaultTest:
+  options:
+    provider:
+      id: openai:chat:gpt-5
+      config:
+        temperature: 0
+
+# ============================================================
+# Extraction fixtures
+# ============================================================
+tests:
+  - description: "extraction: preserves teacher voice (no paraphrasing)"
+    provider: gradebee-extract
+    vars:
+      body:
+        transcript: "file://fixtures/extraction/voice_preservation/transcript.txt"
+        classes: "file://fixtures/extraction/voice_preservation/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/voice_preservation/expected.json
+          metric: voice_preservation
+
+  - description: "extraction: identifies correct students across two classes"
+    provider: gradebee-extract
+    vars:
+      body:
+        transcript: "file://fixtures/extraction/multi_class/transcript.txt"
+        classes: "file://fixtures/extraction/multi_class/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/multi_class/expected.json
+          metric: precision_recall
+
+  - description: "extraction: applies group observation only to relevant class"
+    provider: gradebee-extract
+    vars:
+      body:
+        transcript: "file://fixtures/extraction/group_observation/transcript.txt"
+        classes: "file://fixtures/extraction/group_observation/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/group_observation/expected.json
+          metric: precision_recall
+
+  # ============================================================
+  # Report fixtures
+  # ============================================================
+  - description: "report: tone and style match examples"
+    provider: gradebee-report
+    vars:
+      body:
+        student_name: "Alice Chen"
+        class: "Grade 3A"
+        start_date: "2026-01-01"
+        end_date: "2026-03-31"
+        notes: "file://fixtures/reports/tone_match/notes.json"
+        examples: "file://fixtures/reports/tone_match/examples.json"
+        instructions: ""
+    assert:
+      - type: llm-rubric
+        value: |
+          The report card should match the warm, encouraging tone of the provided examples.
+          It must be grounded only in the facts present in the source notes (no fabricated
+          observations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:
+          - tone: matches warmth and vocabulary of examples
+          - grounding: every statement traceable to notes
+          - length: appropriate (1-2 paragraphs)
+          - structure: clear narrative, not a bullet list
+
+  - description: "report: handles long note list and produces concise output"
+    provider: gradebee-report
+    vars:
+      body:
+        student_name: "Marcus Webb"
+        class: "Grade 4B"
+        start_date: "2026-01-01"
+        end_date: "2026-06-30"
+        notes: "file://fixtures/reports/long_notes/notes.json"
+        examples: []
+        instructions: "Keep it to 2 paragraphs."
+    assert:
+      - type: llm-rubric
+        value: |
+          The report should synthesize the notes into at most 2 paragraphs.
+          It must not invent observations beyond what is in the notes.
+          Score 1-5 on:
+          - grounding: all facts from notes only
+          - brevity: adheres to the 2-paragraph instruction
+          - coherence: reads as a cohesive narrative
+
+  - description: "report: regeneration with feedback improves specified aspect"
+    provider: gradebee-report
+    vars:
+      body:
+        student_name: "Priya Sharma"
+        class: "Grade 2C"
+        start_date: "2026-01-01"
+        end_date: "2026-03-31"
+        notes: "file://fixtures/reports/regen_with_feedback/notes.json"
+        examples: []
+        instructions: "file://fixtures/reports/regen_with_feedback/instructions.txt"
+    assert:
+      - type: llm-rubric
+        value: |
+          The report should be shorter than 100 words as instructed.
+          It must focus on the student's strengths.
+          Score 1-5 on:
+          - brevity: under 100 words
+          - positive_focus: emphasises strengths not weaknesses
+          - grounding: all facts from notes only

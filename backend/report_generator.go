@@ -91,11 +91,15 @@ func (g *gptReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	}
 
 	// 4. Save report to DB.
+	modelVersion := ProductionModelName
+	promptHash := ReportPromptHash
 	rpt := &Report{
-		StudentID: req.StudentID,
-		StartDate: req.StartDate,
-		EndDate:   req.EndDate,
-		HTML:      html,
+		StudentID:    req.StudentID,
+		StartDate:    req.StartDate,
+		EndDate:      req.EndDate,
+		HTML:         html,
+		ModelVersion: &modelVersion,
+		PromptHash:   &promptHash,
 	}
 	if req.Instructions != "" {
 		rpt.Instructions = &req.Instructions
@@ -132,11 +136,15 @@ func (g *gptReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	}
 
 	// 4. Save as a new report (new row, preserves history).
+	modelVersion := ProductionModelName
+	promptHash := ReportPromptHash
 	rpt := &Report{
-		StudentID: req.StudentID,
-		StartDate: req.StartDate,
-		EndDate:   req.EndDate,
-		HTML:      html,
+		StudentID:    req.StudentID,
+		StartDate:    req.StartDate,
+		EndDate:      req.EndDate,
+		HTML:         html,
+		ModelVersion: &modelVersion,
+		PromptHash:   &promptHash,
 	}
 	if req.Instructions != "" {
 		rpt.Instructions = &req.Instructions

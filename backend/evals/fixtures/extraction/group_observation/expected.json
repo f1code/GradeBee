@@ -1,0 +1,15 @@
+{
+  "expected_students": [
+    {
+      "name": "Olivia Chen",
+      "class": "Class B",
+      "must_quote_substrings": ["finished early", "fractions worksheet"]
+    },
+    {
+      "name": "Marcus Davis",
+      "class": "Class B",
+      "must_quote_substrings": ["not turning in homework", "fractions worksheet"]
+    }
+  ],
+  "must_not_extract": []
+}
