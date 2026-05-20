@@ -8,7 +8,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/getsentry/sentry-go"
 )
@@ -84,12 +83,6 @@ func CaptureFeedback(ctx context.Context, ev FeedbackEvent) {
 		})
 		hub.CaptureMessage("user_feedback")
 	})
-}
-
-// SentryFlush flushes buffered events with a 2-second timeout. Call via defer
-// in main() after InitSentry().
-func SentryFlush() {
-	sentry.Flush(2 * time.Second)
 }
 
 // namePattern matches two or more capitalised words separated by a space —
