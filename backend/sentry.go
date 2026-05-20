@@ -34,10 +34,14 @@ func InitSentry() {
 		release = "dev"
 	}
 
+	environment := os.Getenv("SENTRY_ENVIRONMENT")
+
 	err := sentry.Init(sentry.ClientOptions{
 		Dsn:              dsn,
 		Release:          release,
-		TracesSampleRate: 0.0, // performance tracing disabled
+		Environment:      environment,
+		EnableLogs:       true, // route structured logs to Sentry Logs
+		TracesSampleRate: 0.0,  // performance tracing disabled
 		BeforeSend:       scrubBeforeSend,
 	})
 	if err != nil {
@@ -46,7 +50,7 @@ func InitSentry() {
 	}
 
 	sentryInitialised = true
-	slog.Info("sentry: initialised", "release", release)
+	slog.Info("sentry: initialised", "release", release, "environment", environment)
 }
 
 // feedbackEvent holds the fields for an explicit user-feedback event (e.g.
