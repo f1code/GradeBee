@@ -15,6 +15,7 @@ vi.mock('../../api', () => ({
   deleteReportExample: vi.fn(),
   regenerateReport: vi.fn(),
   deleteReport: vi.fn(),
+  listClassNames: vi.fn().mockResolvedValue({ classNames: [] }),
 }))
 
 const stableGetToken = vi.fn().mockResolvedValue('tok')

@@ -8,6 +8,7 @@ vi.mock('@clerk/react', () => ({
 
 vi.mock('../../api', () => ({
   createClass: vi.fn(),
+  listClassNames: vi.fn().mockResolvedValue({ classNames: [] }),
 }))
 
 const mockCreateClass = createClass as ReturnType<typeof vi.fn>
@@ -49,7 +50,7 @@ describe('AddClassForm', () => {
     fireEvent.click(screen.getByTestId('add-class-submit'))
 
     await waitFor(() => {
-      expect(mockCreateClass).toHaveBeenCalledWith('Math', expect.any(Function))
+      expect(mockCreateClass).toHaveBeenCalledWith('Math', '', expect.any(Function))
     })
     expect(onCreated).toHaveBeenCalledWith(cls)
   })

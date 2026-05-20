@@ -9,7 +9,7 @@ vi.mock('@clerk/react', () => ({
 vi.mock('../../api', () => ({
   listReportExamples: vi.fn().mockResolvedValue({
     examples: [
-      { id: '1', name: 'Report.jpg', content: 'Student showed great improvement in math.', status: 'ready' },
+      { id: '1', name: 'Report.jpg', content: 'Student showed great improvement in math.', status: 'ready', classNames: ['Math'] },
     ],
   }),
   uploadReportExample: vi.fn(),
@@ -17,6 +17,7 @@ vi.mock('../../api', () => ({
   deleteReportExample: vi.fn(),
   importExampleFromDrive: vi.fn(),
   getGoogleToken: vi.fn(),
+  listClassNames: vi.fn().mockResolvedValue({ classNames: [] }),
 }))
 
 vi.mock('../../hooks/useDrivePicker', () => ({
