@@ -97,6 +97,7 @@
         ALLOWED_ORIGIN={{ app_allowed_origin }}
         LOG_LEVEL={{ app_log_level }}
         LOG_FORMAT={{ app_log_format }}
+        SENTRY_ENVIRONMENT={{ app_environment }}
       changed_when: true
       no_log: true
 
