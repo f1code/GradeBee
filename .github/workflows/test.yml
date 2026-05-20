@@ -29,6 +29,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install poppler-utils
+        run: sudo apt-get install -y poppler-utils
+
       - name: Backend unit tests
         working-directory: backend
         run: make test
