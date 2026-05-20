@@ -254,6 +254,14 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "students/") && !strings.Contains(strings.TrimPrefix(path, "students/"), "/") && r.Method == http.MethodDelete:
 		authHandler(handleDeleteStudent).ServeHTTP(rec, r)
 
+	// Aliases under student
+	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/aliases") && r.Method == http.MethodGet:
+		authHandler(handleListAliases).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/aliases") && r.Method == http.MethodPost:
+		authHandler(handleAddAlias).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "students/") && strings.Contains(path, "/aliases/") && r.Method == http.MethodDelete:
+		authHandler(handleRemoveAlias).ServeHTTP(rec, r)
+
 	// Notes under student
 	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/notes") && r.Method == http.MethodGet:
 		authHandler(handleListNotes).ServeHTTP(rec, r)

@@ -448,8 +448,9 @@ export default function StudentList() {
                                           onCancel={() => setEditingStudentId(null)}
                                         />
                                       ) : (
-                                        <ItemRow
+                                         <ItemRow
                                           name={s.name}
+                                          subtitle={s.aliases && s.aliases.length > 0 ? `aka ${s.aliases.join(', ')}` : undefined}
                                           expanded={expandedStudentId === s.id}
                                           onToggle={() => setExpandedStudentId(expandedStudentId === s.id ? null : s.id)}
                                           onDelete={() => handleDeleteStudent(s.id, cls.id)}

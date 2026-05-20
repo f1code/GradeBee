@@ -4,6 +4,7 @@ import { ChevronIcon, TrashIcon } from './Icons'
 
 interface ItemRowProps {
   name: string
+  subtitle?: string
   expanded: boolean
   onToggle: () => void
   onDelete: () => void
@@ -14,6 +15,7 @@ interface ItemRowProps {
 
 export default function ItemRow({
   name,
+  subtitle,
   expanded,
   onToggle,
   onDelete,
@@ -73,6 +75,7 @@ export default function ItemRow({
           className={`item-row-name${expanded ? ' item-row-name-active' : ''}`}
         >
           {name}
+          {subtitle && <span className="item-row-subtitle">{subtitle}</span>}
           {badge}
           <ChevronIcon open={expanded} />
         </span>
