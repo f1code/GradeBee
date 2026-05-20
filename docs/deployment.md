@@ -25,7 +25,7 @@ into the container by Dokku.
 
 ## Cloud Resource Setup (one-time, Terraform)
 
-The S3 backup bucket, IAM service account, and Cockpit token are managed by Terraform
+The S3 backup bucket and IAM service account are managed by Terraform
 in the `terraform/` directory. Run this once before provisioning the server:
 
 ```bash
@@ -36,8 +36,6 @@ After apply, read the outputs needed for `ansible/secrets.yml`:
 
 ```bash
 cd terraform
-terraform output -raw cockpit_token
-terraform output -raw cockpit_logs_push_url
 terraform output -raw backup_s3_access_key
 terraform output -raw backup_s3_secret_key
 terraform output    backup_bucket_name   # for backup_s3_bucket: s3://<name>
@@ -57,7 +55,7 @@ Provisioning is split into two playbooks with different lifecycles:
 
 | Playbook | Make target | When to run |
 |---|---|---|
-| `ansible/provision-server.yml` | `make infra-server` | Once per VPS: apt, Dokku, Alloy, GHCR login, AWS CLI for backups |
+| `ansible/provision-server.yml` | `make infra-server` | Once per VPS: apt, Dokku, GHCR login, AWS CLI for backups |
 | `ansible/provision-app.yml` | `make infra-app` | Once per environment: create app, set config vars, deploy image, TLS, backup cron |
 | `ansible/provision.yml` | `make infra-provision` | Convenience wrapper: runs server + app in order (first-time setup) |
 
@@ -76,8 +74,6 @@ Create `ansible/secrets.yml` (gitignored — plain text is fine):
 # Server-level secrets (provision-server.yml)
 ghcr_token: "ghp_xxx"
 ghcr_user: "my-gh-user"
-grafana_loki_url: "https://logs.cockpit.fr-par.scaleway.com/loki/api/v1/push"
-cockpit_token: "xxx"
 backup_s3_bucket: "s3://gradebee-backups"
 backup_s3_endpoint: "https://s3.fr-par.scw.cloud"
 backup_s3_region: "fr-par"
@@ -89,6 +85,10 @@ deploy_ssh_pubkey: "ssh-ed25519 AAAA..."
 clerk_secret_key: "sk_live_xxx"
 openai_api_key: "sk-xxx"
 letsencrypt_email: "you@example.com"
+# Sentry cron monitor URL for the backup job (optional; leave empty to disable).
+# Format: https://<ingest-host>/api/<project-id>/cron/gradebee-backup/<public-key>/
+# Construct from your Sentry project DSN. Set per-environment in the app secrets file.
+sentry_crons_url: ""
 ```
 
 ### 3. Run the playbook
@@ -106,7 +106,7 @@ make infra
 For targeted re-runs:
 
 ```bash
-make infra-server      # re-run server setup (e.g. update Alloy config)
+make infra-server      # re-run server setup (e.g. update AWS CLI config)
 make infra-app         # re-deploy app, update config vars, or redeploy image
 ```
 
@@ -128,11 +128,9 @@ automatically. Override individual values by adding them to `secrets.yml` or pas
 
 1. **System prep** — package upgrades, base dependencies, NTP
 2. **Dokku install** — downloads and runs the official unattended installer (also installs Docker)
-3. **Grafana Alloy** — imports GPG key via `gpg --dearmor`, adds APT repo, installs, deploys
-   config template (Scaleway Cockpit `X-Token` auth), enables service
-4. **AWS CLI config** — writes `/root/.aws/config` + `/root/.aws/credentials` (shared by all per-app backup scripts)
-5. **Let's Encrypt plugin** — installs `dokku-letsencrypt`, enables auto-renewal cron
-6. **GHCR login** — `docker login ghcr.io` (host-scoped; all apps benefit)
+3. **AWS CLI config** — writes `/root/.aws/config` + `/root/.aws/credentials` (shared by all per-app backup scripts)
+4. **Let's Encrypt plugin** — installs `dokku-letsencrypt`, enables auto-renewal cron
+5. **GHCR login** — `docker login ghcr.io` (host-scoped; all apps benefit)
 
 **`provision-app.yml`** (app-level, run once per environment):
 
@@ -141,7 +139,7 @@ automatically. Override individual values by adding them to `secrets.yml` or pas
 3. **Config vars** — sets all app environment variables via `dokku config:set`
 4. **Initial deploy** — runs `dokku git:from-image` to pull the image from GHCR and start the app
 5. **TLS** — sets Let's Encrypt contact email, runs `dokku letsencrypt:enable`
-6. **Backup cron** — deploys `backup-db.sh` to `/opt/{{ app_name }}/scripts/`, installs a 6-hourly cron named `{{ app_name }}-db-backup`
+6. **Backup cron** — deploys `backup-db.sh` to `/opt/{{ app_name }}/scripts/`, installs a 6-hourly cron named `{{ app_name }}-db-backup`. If `sentry_crons_url` is set in `secrets.yml`, the script sends check-ins to the Sentry Cron Monitor so you get alerted on missed or failed backups.
 
 > **Prerequisite for deploy and TLS:** push the Docker image to GHCR and ensure the domain
 > is resolving to the server before running `make infra-app` or `make infra-provision`.
@@ -241,6 +239,9 @@ There are two distinct sets of variables:
 | `ALLOWED_ORIGIN` | No (`vars.yml`) | CORS origin (default `*`; in prod the SPA is same-origin so CORS is unused) |
 | `LOG_LEVEL` | No (`vars.yml`) | `DEBUG`/`INFO`/`WARN`/`ERROR` (default `INFO`) |
 | `LOG_FORMAT` | No (`vars.yml`) | `json` for JSON logs, else text |
+| `SENTRY_DSN` | No | Sentry DSN; baked into Docker image via `VITE_SENTRY_DSN` build-arg |
+| `SENTRY_RELEASE` | No | Release tag; baked in via `VITE_APP_VERSION` build-arg (git SHA in CI) |
+| `SENTRY_ENVIRONMENT` | No | Environment tag in Sentry (e.g. `production`); set via `dokku config:set` |
 
 To change a value after initial provisioning, update `secrets.yml` or `vars.yml` and re-run
 `make infra-app`, or set it directly: `dokku config:set gradebee KEY=VALUE`.

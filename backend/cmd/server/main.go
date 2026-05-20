@@ -26,6 +26,9 @@ func main() {
 	// Initialise Sentry error reporting (no-op if SENTRY_DSN is unset).
 	handler.InitSentry()
 	defer sentry.Flush(2 * time.Second)
+	// Wire the package logger; must come after InitSentry so the sentryslog
+	// handler can attach to the already-configured Sentry client.
+	handler.InitLogger()
 
 	// --migrate-only: run DB migrations and exit (used by Dokku predeploy hook).
 	migrateOnly := len(os.Args) > 1 && os.Args[1] == "--migrate-only"

@@ -1,7 +1,13 @@
 // logger.go initialises and exposes a package-level structured logger built on
 // top of the standard library's log/slog. Log level and format (text or JSON)
-// are controlled via LOG_LEVEL and LOG_FORMAT environment variables. A
-// request-scoped logger can be attached to a context and retrieved via
+// are controlled via LOG_LEVEL and LOG_FORMAT environment variables.
+//
+// When SENTRY_DSN is set, InitLogger wires a sentryslog handler alongside the
+// stdout handler so that all structured log records are forwarded to Sentry
+// Logs. Error/Fatal records are also captured as Sentry events (Issues) by
+// default sentryslog behaviour.
+//
+// A request-scoped logger can be attached to a context and retrieved via
 // loggerFromContext / loggerFromRequest.
 package handler
 
@@ -11,6 +17,8 @@ import (
 	"net/http"
 	"os"
 	"sync"
+
+	sentryslog "github.com/getsentry/sentry-go/slog"
 )
 
 type contextKey int
@@ -38,6 +46,34 @@ var (
 )
 
 func init() {
+	InitLogger()
+}
+
+// InitLogger wires the package logger. It is called once by init() (stdout
+// only) and again by main() after InitSentry() so the sentryslog handler can
+// attach to the already-configured Sentry client. Safe to call multiple times.
+func InitLogger() {
+	stdoutH := buildStdoutHandler()
+
+	var h slog.Handler
+	if os.Getenv("SENTRY_DSN") != "" {
+		// sentryslog defaults: Error/Fatal records are sent as Sentry events
+		// (Issues) in addition to structured log entries; Debug/Info/Warn are
+		// sent as structured log entries only.
+		sentryH := sentryslog.Option{}.NewSentryHandler(context.Background())
+		h = slog.NewMultiHandler(stdoutH, sentryH)
+	} else {
+		h = stdoutH
+	}
+
+	logMu.Lock()
+	log = slog.New(h)
+	logMu.Unlock()
+	slog.SetDefault(log)
+}
+
+// buildStdoutHandler constructs the stdout slog handler from environment vars.
+func buildStdoutHandler() slog.Handler {
 	level := slog.LevelInfo
 	if s := os.Getenv("LOG_LEVEL"); s != "" {
 		switch s {
@@ -54,17 +90,10 @@ func init() {
 		}
 	}
 
-	var handler slog.Handler
 	if os.Getenv("LOG_FORMAT") == "json" {
-		handler = slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
+		return slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})
 	}
-
-	logMu.Lock()
-	log = slog.New(handler)
-	logMu.Unlock()
-	slog.SetDefault(log)
+	return slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level})
 }
 
 // getLogger returns the package logger. Safe for concurrent use.

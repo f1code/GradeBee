@@ -23,7 +23,7 @@ ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY \
 RUN pnpm build
 
 # Stage 2: build Go binary with embedded frontend
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26-alpine AS builder
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
 COPY backend/ ./backend/
