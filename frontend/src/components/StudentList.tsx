@@ -15,6 +15,7 @@ import {
 import AddClassForm from './AddClassForm'
 import AddStudentForm from './AddStudentForm'
 import StudentDetail from './StudentDetail'
+import InlineError from './InlineError'
 
 import { HexBullet, ChevronIcon, PencilIcon, TrashIcon } from './Icons'
 import ItemRow from './ItemRow'
@@ -424,9 +425,11 @@ export default function StudentList() {
                             </div>
                           </div>
                         ) : isFailed ? (
-                          <div className="class-students-error" data-testid={`class-error-${cls.id}`}>
-                            <span>Failed to load students.</span>
-                            <button className="btn-sm btn-secondary" onClick={() => retryLoadStudents(cls.id)}>Retry</button>
+                          <div data-testid={`class-error-${cls.id}`}>
+                            <InlineError>
+                              Failed to load students.{' '}
+                              <button className="btn-sm btn-secondary" onClick={() => retryLoadStudents(cls.id)}>Retry</button>
+                            </InlineError>
                           </div>
                         ) : (
                           <>

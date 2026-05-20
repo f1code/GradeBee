@@ -79,6 +79,37 @@
 - Don't use flat borders where a card shadow works better.
 - Don't overuse the bee/honeycomb motifs — they should feel like accents, not wallpaper.
 
+### Error Patterns
+
+Three variants for communicating errors to users:
+
+#### `<InlineError>` (inline, non-blocking)
+
+Use for errors scoped to a specific form field or panel (alias conflict, add-student duplicate, load failure, etc.).
+
+```tsx
+<InlineError title='"Katie"' onDismiss={() => setError(null)}>
+  is already used by Katherine in this class.
+</InlineError>
+```
+
+Props:
+- `title?` — bolded key value (user's input verbatim, e.g. `"Katie"`). Appears before children.
+- `severity?` — `'error'` (default) | `'warning'` | `'info'`. Controls border/bg color.
+- `onDismiss?` — if provided, renders a ✕ dismiss button.
+- `children` — explanatory message text.
+
+Severity colors:
+- `error`: `--error-red` tinted border + bg
+- `warning`: `--honey` / `--honey-dark` tinted
+- `info`: `--ink-muted` tinted
+
+**Bold-key convention:** when an error involves a specific value the user typed, put that value verbatim in `title` (quoted). Put the conflicting entity's name in the body text.
+
+#### `.flash-error` (transient sticky toast)
+
+Use for global/navigation-level errors that appear and auto-dismiss or require an action unrelated to a specific field. Rendered as a sticky banner at the bottom of a list/panel. Uses `--error-red` background. Do **not** use for field-level errors — use `<InlineError>` instead.
+
 ## Responsive
 
 ### Breakpoints

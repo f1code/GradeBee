@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
-import { addAlias, removeAlias, type AliasResponse } from '../api'
+import { addAlias, removeAlias, AliasConflictError, type AliasResponse } from '../api'
+import InlineError from './InlineError'
 
 interface StudentAliasesProps {
   studentId: number
@@ -17,19 +18,26 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
   const [saving, setSaving] = useState(false)
   const [removingId, setRemovingId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [conflictStudentName, setConflictStudentName] = useState<string | null>(null)
 
   async function handleAdd() {
     const trimmed = input.trim()
     if (!trimmed) return
     setSaving(true)
     setError(null)
+    setConflictStudentName(null)
     try {
       const a = await addAlias(studentId, trimmed, getToken)
       setAliases(prev => [...prev, a])
       setInput('')
       setAdding(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add alias')
+      if (err instanceof AliasConflictError) {
+        setConflictStudentName(err.conflictStudentName || null)
+        setError(err.message)
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to add alias')
+      }
     } finally {
       setSaving(false)
     }
@@ -38,6 +46,7 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
   async function handleRemove(aliasId: number) {
     setRemovingId(aliasId)
     setError(null)
+    setConflictStudentName(null)
     try {
       await removeAlias(studentId, aliasId, getToken)
       setAliases(prev => prev.filter(a => a.id !== aliasId))
@@ -50,7 +59,12 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
-    if (e.key === 'Escape') { setAdding(false); setInput(''); setError(null) }
+    if (e.key === 'Escape') { setAdding(false); setInput(''); setError(null); setConflictStudentName(null) }
+  }
+
+  function handleDismissError() {
+    setError(null)
+    setConflictStudentName(null)
   }
 
   return (
@@ -102,14 +116,14 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
             >{saving ? '…' : '✓'}</button>
             <button
               className="alias-add-cancel"
-              onClick={() => { setAdding(false); setInput(''); setError(null) }}
+              onClick={() => { setAdding(false); setInput(''); handleDismissError() }}
               aria-label="Cancel"
             >✕</button>
           </span>
         ) : (
           <button
             className="alias-add-pill"
-            onClick={() => { setAdding(true); setError(null) }}
+            onClick={() => { setAdding(true); handleDismissError() }}
             aria-label="Add alias"
           >+ alias</button>
         )}
@@ -117,15 +131,20 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
 
       <AnimatePresence>
         {error && (
-          <motion.span
-            className="alias-error"
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
           >
-            {error}
-          </motion.span>
+            {conflictStudentName ? (
+              <InlineError title={`"${input.trim()}"`} onDismiss={handleDismissError}>
+                is already used by {conflictStudentName} in this class. Aliases must be unique per class (case-insensitive).
+              </InlineError>
+            ) : (
+              <InlineError onDismiss={handleDismissError}>{error}</InlineError>
+            )}
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

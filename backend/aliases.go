@@ -81,8 +81,18 @@ func handleAddAlias(w http.ResponseWriter, r *http.Request) {
 
 	a, err := serviceDeps.GetStudentRepo().AddAlias(r.Context(), studentID, strings.TrimSpace(req.Alias))
 	if err != nil {
-		if errors.Is(err, ErrDuplicate) {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": "alias already in use in this class"})
+		var dupErr *ErrDuplicateAlias
+		if errors.As(err, &dupErr) {
+			details := map[string]string{}
+			if dupErr.ConflictStudentName != "" {
+				details["conflictStudentName"] = dupErr.ConflictStudentName
+			}
+			writeAPIError(w, r, &apiError{
+				Status:  http.StatusConflict,
+				Code:    "alias_conflict",
+				Message: "Alias already in use in this class.",
+				Details: details,
+			})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

@@ -210,9 +210,9 @@ func (r *StudentRepo) BelongsToUser(ctx context.Context, studentID int64, userID
 
 // --- Alias methods ---
 
-// AddAlias adds an alias for a student. Returns ErrDuplicate if the alias
-// already exists in the same class (case-insensitive, checked across both
-// students.name and student_aliases.alias).
+// AddAlias adds an alias for a student. Returns *ErrDuplicateAlias (with the
+// conflicting student's canonical name) if the alias collides with another
+// student's name or alias in the same class (case-insensitive).
 func (r *StudentRepo) AddAlias(ctx context.Context, studentID int64, alias string) (StudentAlias, error) {
 	// Fetch the class_id for this student.
 	s, err := r.GetByID(ctx, studentID)
@@ -221,15 +221,16 @@ func (r *StudentRepo) AddAlias(ctx context.Context, studentID int64, alias strin
 	}
 
 	// Check collision with canonical names in the same class.
-	var collision int
+	var conflictName string
 	err = r.db.QueryRowContext(ctx,
-		"SELECT 1 FROM students WHERE class_id = ? AND name = ? COLLATE NOCASE AND id != ? LIMIT 1",
-		s.ClassID, alias, studentID).Scan(&collision)
+		"SELECT name FROM students WHERE class_id = ? AND name = ? COLLATE NOCASE AND id != ? LIMIT 1",
+		s.ClassID, alias, studentID).Scan(&conflictName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return StudentAlias{}, fmt.Errorf("add alias: check name collision: %w", err)
 	}
 	if err == nil {
-		return StudentAlias{}, fmt.Errorf("add alias %q: %w", alias, ErrDuplicate)
+		// alias matches another student's canonical name
+		return StudentAlias{}, &ErrDuplicateAlias{ConflictStudentName: conflictName}
 	}
 
 	var a StudentAlias
@@ -241,7 +242,17 @@ func (r *StudentRepo) AddAlias(ctx context.Context, studentID int64, alias strin
 	).Scan(&a.ID, &a.StudentID, &a.ClassID, &a.Alias, &a.CreatedAt)
 	if err != nil {
 		if isDuplicateErr(err) {
-			return StudentAlias{}, fmt.Errorf("add alias %q: %w", alias, ErrDuplicate)
+			// alias matches an existing alias — look up who owns it (best-effort; empty name is acceptable)
+			var ownerName string
+			if scanErr := r.db.QueryRowContext(ctx, `
+				SELECT s.name FROM student_aliases sa
+				JOIN students s ON s.id = sa.student_id
+				WHERE sa.class_id = ? AND sa.alias = ? COLLATE NOCASE
+				LIMIT 1`,
+				s.ClassID, alias).Scan(&ownerName); scanErr != nil {
+				ownerName = ""
+			}
+			return StudentAlias{}, &ErrDuplicateAlias{ConflictStudentName: ownerName}
 		}
 		return StudentAlias{}, fmt.Errorf("add alias: %w", err)
 	}
