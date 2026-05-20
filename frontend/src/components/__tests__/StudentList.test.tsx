@@ -22,6 +22,7 @@ vi.mock('../../api', () => ({
   createStudent: vi.fn(),
   renameStudent: vi.fn(),
   deleteStudent: vi.fn(),
+  listClassNames: vi.fn().mockResolvedValue({ classNames: [] }),
 }))
 
 const mockListClasses = listClasses as ReturnType<typeof vi.fn>
@@ -43,7 +44,7 @@ describe('StudentList', () => {
   it('renders class groups after fetch', async () => {
     mockListClasses.mockResolvedValueOnce({
       classes: [
-        { id: 1, name: 'Math 101', studentCount: 2 },
+        { id: 1, name: 'Math 101', className: 'Math 101', groupName: '', studentCount: 2 },
       ],
     })
 
@@ -83,9 +84,9 @@ describe('StudentList', () => {
   it('expands newly created class and shows add-student form', async () => {
     const user = userEvent.setup()
     mockListClasses.mockResolvedValueOnce({
-      classes: [{ id: 1, name: 'Math 101', studentCount: 2 }],
+      classes: [{ id: 1, name: 'Math 101', className: 'Math 101', groupName: '', studentCount: 2 }],
     })
-    mockCreateClass.mockResolvedValueOnce({ id: 5, name: 'Science', studentCount: 0 })
+    mockCreateClass.mockResolvedValueOnce({ id: 5, name: 'Science', className: 'Science', groupName: '', studentCount: 0 })
 
     render(<StudentList />)
 

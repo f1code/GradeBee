@@ -14,7 +14,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@clerk/react": "6.2.1",
+    "@clerk/react": "6.6.6",
     "@sentry/react": "^10.53.1",
     "dompurify": "^3.3.3",
     "motion": "^12.38.0",
