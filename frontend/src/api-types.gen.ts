@@ -537,8 +537,8 @@ non-error feedback events from server-side code paths.
 //////////
 // source: students.go
 /*
-students.go handles the GET /students endpoint and CRUD handlers for
-classes and students. Student data is stored in SQLite.
+students.go handles CRUD handlers for classes and students.
+Student data is stored in SQLite.
 */
 
 /**
@@ -552,22 +552,6 @@ export interface ListClassesResponse {
  */
 export interface ListStudentsResponse {
   students: Student[];
-}
-/**
- * Response types for the students API.
- */
-export interface StudentsResponse {
-  classes: ClassGroupResponse[];
-}
-export interface ClassGroupResponse {
-  id: number /* int64 */;
-  name: string;
-  studentCount: number /* int */;
-  students: StudentResponse[];
-}
-export interface StudentResponse {
-  id: number /* int64 */;
-  name: string;
 }
 /**
  * Internal types used by the extractor and roster (no IDs needed).
