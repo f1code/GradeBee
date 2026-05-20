@@ -1,0 +1,47 @@
+name: Test
+
+on:
+  workflow_call:
+
+jobs:
+  test:
+    name: Backend & Frontend tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install poppler-utils
+        run: sudo apt-get install -y poppler-utils
+
+      - name: Backend unit tests
+        working-directory: backend
+        run: make test
+
+      - name: Install tygo (for check-types)
+        run: go install github.com/gzuidhof/tygo@v0.2.21
+
+      - name: Check generated TypeScript types
+        working-directory: backend
+        run: make check-types
+
+      - name: Frontend unit tests
+        run: pnpm -F frontend test --run
