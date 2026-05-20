@@ -76,7 +76,7 @@ function App() {
                 <li>📄 Generate report cards that match your writing style</li>
               </ul>
               <SignInButton mode="modal">
-                <button className="sign-in-btn" data-testid="sign-in-button">Sign in with Google</button>
+                <button className="sign-in-btn" data-testid="sign-in-button">Sign in</button>
               </SignInButton>
             </motion.div>
           </div>
