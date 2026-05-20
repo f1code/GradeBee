@@ -52,7 +52,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: dokku
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: CLERK_SECRET_KEY,OPENAI_API_KEY
+          envs: CLERK_SECRET_KEY,OPENAI_API_KEY,LETSENCRYPT_EMAIL
           script: |
             set -euo pipefail
             APP_NAME="gradebee-pr-${{ github.event.number }}"
