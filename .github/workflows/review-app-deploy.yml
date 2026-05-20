@@ -77,6 +77,6 @@ jobs:
               UPLOADS_DIR="/data/uploads"
 
             # Deploy the PR image (predeploy script in app.json runs migrations automatically)
-            dokku git:from-image "$APP_NAME" "$IMAGE"
+            dokku git:from-image --force "$APP_NAME" "$IMAGE"
             dokku letsencrypt:set ${APP_NAME} email $LETSENCRYPT_EMAIL
             dokku letsencrypt:active ${APP_NAME} || dokku letsencrypt:enable ${APP_NAME}
