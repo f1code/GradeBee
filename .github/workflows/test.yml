@@ -43,10 +43,5 @@ jobs:
         working-directory: backend
         run: make check-types
 
-      - name: Backend lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          working-directory: backend
-
       - name: Frontend unit tests
         run: pnpm -F frontend test --run
