@@ -457,11 +457,29 @@ button:active,
   color: var(--honey-dark);
 }
 
+.item-row-name-text {
+  display: inline;
+  vertical-align: middle;
+}
+
 .item-row-subtitle {
+  display: inline;
+  margin-left: 0.5rem;
+}
+
+.aka-label {
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+  font-style: normal;
+  margin-right: 0.25rem;
+}
+
+.aka-names {
   font-size: 0.78rem;
   color: var(--ink-muted);
-  font-style: italic;
-  margin-left: 0.4rem;
+  font-style: normal;
   font-weight: 400;
 }
 

@@ -211,7 +211,40 @@ func TestRemoveAlias_WrongStudent(t *testing.T) {
 	require.Len(t, aliases, 1)
 }
 
-// TestFindByNameAndClass_AliasNotFoundInDifferentClass verifies cross-class isolation.
+// TestCreateStudent_CollidesWithAlias checks that a new student name can't match an existing alias.
+func TestCreateStudent_CollidesWithAlias(t *testing.T) {
+	ctx, r := testDBAndRepos(t)
+
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
+	require.NoError(t, err)
+	s, err := r.students.Create(ctx, c.ID, "Alexander")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
+	require.NoError(t, err)
+
+	// Creating a new student named "Alex" should fail — Alex is already an alias
+	_, err = r.students.Create(ctx, c.ID, "Alex")
+	assert.True(t, errors.Is(err, ErrDuplicate), "new student name should collide with existing alias, got: %v", err)
+}
+
+// TestRenameStudent_CollidesWithAlias checks that renaming a student can't produce a name matching another student's alias.
+func TestRenameStudent_CollidesWithAlias(t *testing.T) {
+	ctx, r := testDBAndRepos(t)
+
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
+	require.NoError(t, err)
+	s1, err := r.students.Create(ctx, c.ID, "Alexander")
+	require.NoError(t, err)
+	s2, err := r.students.Create(ctx, c.ID, "Bob")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, s1.ID, "Alex")
+	require.NoError(t, err)
+
+	// Renaming Bob to "Alex" should fail — Alex is already an alias for Alexander
+	err = r.students.Rename(ctx, s2.ID, "Alex")
+	assert.True(t, errors.Is(err, ErrDuplicate), "rename should collide with existing alias, got: %v", err)
+}
+
 func TestFindByNameAndClass_AliasNotFoundInDifferentClass(t *testing.T) {
 	ctx := context.Background()
 	db, err := OpenDB(":memory:")

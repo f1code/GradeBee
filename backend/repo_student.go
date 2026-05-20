@@ -89,8 +89,20 @@ func (r *StudentRepo) GetByID(ctx context.Context, id int64) (Student, error) {
 
 // Create inserts a new student into a class.
 func (r *StudentRepo) Create(ctx context.Context, classID int64, name string) (Student, error) {
+	// Check collision with existing aliases in the same class.
+	var collision int
+	err := r.db.QueryRowContext(ctx,
+		"SELECT 1 FROM student_aliases WHERE class_id = ? AND alias = ? COLLATE NOCASE LIMIT 1",
+		classID, name).Scan(&collision)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return Student{}, fmt.Errorf("create student: check alias collision: %w", err)
+	}
+	if err == nil {
+		return Student{}, fmt.Errorf("create student %q: %w", name, ErrDuplicate)
+	}
+
 	var s Student
-	err := r.db.QueryRowContext(ctx, `
+	err = r.db.QueryRowContext(ctx, `
 		INSERT INTO students (class_id, name) VALUES (?, ?)
 		RETURNING id, class_id, name, created_at`,
 		classID, name,
@@ -107,6 +119,23 @@ func (r *StudentRepo) Create(ctx context.Context, classID int64, name string) (S
 
 // Rename updates a student's name.
 func (r *StudentRepo) Rename(ctx context.Context, id int64, name string) error {
+	s, err := r.GetByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("rename student: %w", err)
+	}
+
+	// Check collision with existing aliases in the same class (excluding this student's own aliases).
+	var collision int
+	err = r.db.QueryRowContext(ctx,
+		"SELECT 1 FROM student_aliases WHERE class_id = ? AND alias = ? COLLATE NOCASE AND student_id != ? LIMIT 1",
+		s.ClassID, name, id).Scan(&collision)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("rename student: check alias collision: %w", err)
+	}
+	if err == nil {
+		return fmt.Errorf("rename student: %w", ErrDuplicate)
+	}
+
 	res, err := r.db.ExecContext(ctx,
 		"UPDATE students SET name = ? WHERE id = ?", name, id)
 	if err != nil {
