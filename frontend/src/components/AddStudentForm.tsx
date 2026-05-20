@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@clerk/react'
 import { createStudent, type StudentItem } from '../api'
+import InlineError from './InlineError'
 
 interface AddStudentFormProps {
   classId: number
@@ -56,7 +57,13 @@ export default function AddStudentForm({ classId, onCreated }: AddStudentFormPro
           {submitting ? '…' : 'Add'}
         </button>
       </form>
-      {error && <p className="add-form-error" data-testid="add-student-error">{error}</p>}
+      {error && (
+        <div data-testid="add-student-error">
+          <InlineError onDismiss={() => setError(null)}>
+            {error}
+          </InlineError>
+        </div>
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion } from 'motion/react'
 import { createClass, listClassNames, type ClassItem } from '../api'
+import InlineError from './InlineError'
 
 interface AddClassFormProps {
   onCreated: (cls: ClassItem) => void
@@ -129,7 +130,13 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
           )}
         </div>
       </form>
-      {error && <p className="add-form-error" data-testid="add-class-error">{error}</p>}
+      {error && (
+        <div data-testid="add-class-error">
+          <InlineError onDismiss={() => setError(null)}>
+            {error}
+          </InlineError>
+        </div>
+      )}
     </motion.div>
   )
 }

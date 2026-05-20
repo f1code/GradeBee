@@ -9,6 +9,7 @@ import NotesList from './NotesList'
 import NoteEditor from './NoteEditor'
 import ReportHistory from './ReportHistory'
 import StudentAliases from './StudentAliases'
+import InlineError from './InlineError'
 
 interface StudentDetailProps {
   studentId: number
@@ -142,14 +143,12 @@ export default function StudentDetail({ studentId, studentName, className, onCol
       <AnimatePresence>
         {error && (
           <motion.div
-            className="student-detail-error"
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <span>{error}</span>
-            <button className="icon-btn" onClick={() => setError(null)} aria-label="Dismiss">✕</button>
+            <InlineError onDismiss={() => setError(null)}>{error}</InlineError>
           </motion.div>
         )}
       </AnimatePresence>

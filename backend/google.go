@@ -17,8 +17,9 @@ import (
 type apiError struct {
 	Status  int
 	Err     error
-	Code    string // machine-readable error code, e.g. "no_spreadsheet"
-	Message string // human-readable message
+	Code    string            // machine-readable error code, e.g. "no_spreadsheet"
+	Message string            // human-readable message
+	Details map[string]string // optional structured details (forward-compat)
 }
 
 func (e *apiError) Error() string {
@@ -36,17 +37,25 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, err *apiError) {
 	}
 	log.Warn("api error", "status", err.Status, "code", err.Code, "message", err.Message, "error", err.Err)
 
-	resp := map[string]string{}
+	type errorResponse struct {
+		Error   string            `json:"error"`
+		Message string            `json:"message,omitempty"`
+		Details map[string]string `json:"details,omitempty"`
+	}
+	resp := errorResponse{}
 	switch {
 	case err.Code != "":
-		resp["error"] = err.Code
+		resp.Error = err.Code
 	case err.Err != nil:
-		resp["error"] = err.Err.Error()
+		resp.Error = err.Err.Error()
 	default:
-		resp["error"] = "unknown error"
+		resp.Error = "unknown error"
 	}
 	if err.Message != "" {
-		resp["message"] = err.Message
+		resp.Message = err.Message
+	}
+	if len(err.Details) > 0 {
+		resp.Details = err.Details
 	}
 	writeJSON(w, err.Status, resp)
 }

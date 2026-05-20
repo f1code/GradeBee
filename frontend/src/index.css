@@ -2546,8 +2546,61 @@ button:active,
 }
 
 /* ============================================
-   Notes List
+   Inline Error Card
    ============================================ */
+
+.inline-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin-top: 0.4rem;
+}
+
+.inline-error-error {
+  background: rgba(197, 48, 48, 0.06);
+  border: 1px solid rgba(197, 48, 48, 0.25);
+  color: var(--error-red);
+}
+
+.inline-error-warning {
+  background: rgba(232, 163, 23, 0.08);
+  border: 1px solid rgba(232, 163, 23, 0.35);
+  color: var(--honey-dark);
+}
+
+.inline-error-info {
+  background: rgba(122, 107, 93, 0.07);
+  border: 1px solid rgba(122, 107, 93, 0.2);
+  color: var(--ink-muted);
+}
+
+.inline-error-icon {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.inline-error-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-error-title {
+  font-weight: 600;
+}
+
+.inline-error-dismiss {
+  flex-shrink: 0;
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  padding: 0;
+  min-height: auto;
+}
 
 .notes-list {
   display: flex;

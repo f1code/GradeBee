@@ -29,6 +29,19 @@ export type {
  */
 export type UploadJob = VoiceNoteJob
 
+/**
+ * Thrown by addAlias when the server returns a 409 alias conflict.
+ * Contains the canonical name of the student who already owns the alias.
+ */
+export class AliasConflictError extends Error {
+  conflictStudentName: string
+  constructor(message: string, conflictStudentName: string) {
+    super(message)
+    this.name = 'AliasConflictError'
+    this.conflictStudentName = conflictStudentName
+  }
+}
+
 const apiUrl = import.meta.env.VITE_API_URL
 
 // --- Class CRUD ---
@@ -500,7 +513,13 @@ export async function addAlias(
     body: JSON.stringify({ alias }),
   })
   const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Failed to add alias')
+  if (!resp.ok) {
+    if (resp.status === 409) {
+      const conflictStudentName: string = body.details?.conflictStudentName ?? ''
+      throw new AliasConflictError(body.message || body.error || 'Alias already in use', conflictStudentName)
+    }
+    throw new Error(body.error || 'Failed to add alias')
+  }
   return body
 }
 

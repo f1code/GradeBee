@@ -202,6 +202,19 @@ export interface ClassWithCount extends Class {
 }
 
 //////////
+// source: repo_errors.go
+
+/**
+ * ErrDuplicateAlias is returned by AddAlias when the alias collides with an
+ * existing student name or alias in the same class. ConflictStudentName holds
+ * the canonical name of the student who owns the conflicting value, so the
+ * handler can include it in the 409 response.
+ */
+export interface ErrDuplicateAlias {
+  ConflictStudentName: string;
+}
+
+//////////
 // source: repo_example.go
 
 /**

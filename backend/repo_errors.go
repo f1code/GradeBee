@@ -14,6 +14,22 @@ var (
 	ErrDuplicate = errors.New("duplicate")
 )
 
+// ErrDuplicateAlias is returned by AddAlias when the alias collides with an
+// existing student name or alias in the same class. ConflictStudentName holds
+// the canonical name of the student who owns the conflicting value, so the
+// handler can include it in the 409 response.
+type ErrDuplicateAlias struct {
+	ConflictStudentName string
+}
+
+func (e *ErrDuplicateAlias) Error() string { return "alias already in use in this class" }
+
+// Is satisfies errors.Is for target *ErrDuplicateAlias.
+func (e *ErrDuplicateAlias) Is(target error) bool {
+	_, ok := target.(*ErrDuplicateAlias)
+	return ok
+}
+
 // isDuplicateErr checks if a SQLite error is a UNIQUE constraint violation.
 func isDuplicateErr(err error) bool {
 	if err == nil {

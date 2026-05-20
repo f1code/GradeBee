@@ -39,7 +39,8 @@ func TestStudentAliasRepo_AddRemoveList(t *testing.T) {
 	assert.Empty(t, aliases)
 }
 
-// TestStudentAliasRepo_DuplicateAlias checks that duplicate aliases are rejected.
+// TestStudentAliasRepo_DuplicateAlias checks that duplicate aliases are rejected
+// and the error carries the owner's name.
 func TestStudentAliasRepo_DuplicateAlias(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
@@ -51,9 +52,11 @@ func TestStudentAliasRepo_DuplicateAlias(t *testing.T) {
 	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
 	require.NoError(t, err)
 
-	// Same alias again → ErrDuplicate
+	// Same alias again → *ErrDuplicateAlias with the owner's name
 	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
-	assert.True(t, errors.Is(err, ErrDuplicate), "expected ErrDuplicate, got: %v", err)
+	var dupErr *ErrDuplicateAlias
+	require.ErrorAs(t, err, &dupErr, "expected *ErrDuplicateAlias, got: %v", err)
+	assert.Equal(t, "Alexander", dupErr.ConflictStudentName)
 }
 
 // TestStudentAliasRepo_DuplicateCaseInsensitive checks that duplicate check is case-insensitive.
@@ -68,12 +71,15 @@ func TestStudentAliasRepo_DuplicateCaseInsensitive(t *testing.T) {
 	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
 	require.NoError(t, err)
 
-	// Same alias, different case → ErrDuplicate
+	// Same alias, different case → *ErrDuplicateAlias
 	_, err = r.students.AddAlias(ctx, s.ID, "ALEX")
-	assert.True(t, errors.Is(err, ErrDuplicate), "expected ErrDuplicate for case variant, got: %v", err)
+	var dupErr *ErrDuplicateAlias
+	require.ErrorAs(t, err, &dupErr, "expected *ErrDuplicateAlias for case variant, got: %v", err)
+	assert.Equal(t, "Alexander", dupErr.ConflictStudentName)
 }
 
-// TestStudentAliasRepo_AliasCollidesWithName checks that an alias can't match another student's canonical name.
+// TestStudentAliasRepo_AliasCollidesWithName checks that an alias can't match another student's canonical name,
+// and that the error includes that student's name.
 func TestStudentAliasRepo_AliasCollidesWithName(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
@@ -86,7 +92,9 @@ func TestStudentAliasRepo_AliasCollidesWithName(t *testing.T) {
 
 	// Adding "Alex" as alias for Alexander should fail — Alex is a student name in the same class
 	_, err = r.students.AddAlias(ctx, s1.ID, "Alex")
-	assert.True(t, errors.Is(err, ErrDuplicate), "alias should collide with existing student name, got: %v", err)
+	var dupErr *ErrDuplicateAlias
+	require.ErrorAs(t, err, &dupErr, "alias should collide with existing student name, got: %v", err)
+	assert.Equal(t, "Alex", dupErr.ConflictStudentName)
 }
 
 // TestFindByNameAndClass_MatchesAlias verifies that FindByNameAndClass resolves
