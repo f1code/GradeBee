@@ -300,22 +300,7 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 
 ## Observability / Sentry
 
-**SDK:** `github.com/getsentry/sentry-go` v0.46.2 + `github.com/getsentry/sentry-go/http` sub-package.
-
-**Initialisation:** `InitSentry()` in `backend/sentry.go` is called from `cmd/server/main.go` at startup (before the HTTP server starts). It reads `SENTRY_DSN` and `SENTRY_RELEASE` from the environment. If `SENTRY_DSN` is empty the function is a no-op — Sentry remains inactive and no error is returned. `sentry.Flush(2s)` is deferred in `main()`.
-
-**HTTP middleware:** `sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle(...)` wraps the top-level `http.HandlerFunc(handler.Handle)` in `main.go`. This auto-captures panics and attaches request context to every event. `Repanic: true` ensures the server's default panic recovery still fires after Sentry has captured the event.
-
-**User tagging:** `debugAuthMiddleware` (in `handler.go`) sets `sentry.User{ID: decoded.Subject}` on the request-scoped hub after successful JWT decode, so all events from authenticated requests are correlated to the Clerk user ID.
-
-**Feedback events:** `CaptureFeedback(ctx, FeedbackEvent{...})` in `backend/sentry.go` sends a `CaptureMessage("user_feedback")` event with tags and extra context. Intended for explicit thumbs-down / report-card feedback (task #19). No-op if Sentry is uninitialised.
-
-**PII scrubbing (`BeforeSend`):**
-- Request body, query string, and cookies are cleared.
-- `Authorization` and `Cookie` headers are removed.
-- Exception values and stack-frame variables are scanned for name-shaped strings (two or more capitalised words, heuristic) and replaced with `[REDACTED]`.
-
-**DSN delivery:** `VITE_SENTRY_DSN` is passed as a Docker build-arg in CI and promoted to a runtime environment variable in Dockerfile Stage 3 (`ENV SENTRY_DSN=$VITE_SENTRY_DSN`). The release tag uses the same pattern via `VITE_APP_VERSION` → `ENV SENTRY_RELEASE`.
+`github.com/getsentry/sentry-go` v0.46.2. `InitSentry()` (`sentry.go`) reads `SENTRY_DSN` / `SENTRY_RELEASE` at startup — no-op if DSN is empty. `sentryhttp` middleware wraps the top-level handler in `main.go` (auto-captures panics; `Repanic: true`). Authenticated requests are tagged with the Clerk user ID. `BeforeSend` scrubs request bodies, query strings, cookies, auth headers, and name-shaped strings from exception values. `captureFeedback()` is available for non-error feedback events (task #19). DSN and release are baked into the Docker image via `VITE_SENTRY_DSN` / `VITE_APP_VERSION` build-args → `ENV SENTRY_DSN` / `ENV SENTRY_RELEASE` in Stage 3.
 
 ## Testing
 
