@@ -11,6 +11,31 @@ S3_BUCKET="{{ backup_s3_bucket }}"
 S3_PREFIX="{{ app_name }}/db"
 BACKUP_RETENTION=30  # number of backups to keep
 
+# --- Sentry Cron Monitor ---
+# SENTRY_CRONS_URL format: https://<ingest-host>/api/<project-id>/cron/gradebee-backup/<public-key>/
+# Set in ansible/secrets.yml. Leave empty to disable (e.g. staging).
+SENTRY_CRONS_URL="{{ sentry_crons_url | default('') }}"
+
+sentry_checkin() {
+  local status="$1"
+  if [ -n "${SENTRY_CRONS_URL}" ]; then
+    curl -sf "${SENTRY_CRONS_URL}?status=${status}" \
+      -o /dev/null --max-time 5 || true
+  fi
+}
+
+# Notify Sentry the job is starting; upsert the monitor config on first run.
+if [ -n "${SENTRY_CRONS_URL}" ]; then
+  curl -sf "${SENTRY_CRONS_URL}" \
+    -X POST -H 'Content-Type: application/json' \
+    --max-time 5 \
+    -d '{"monitor_config":{"schedule":{"type":"crontab","value":"0 */6 * * *"},"checkin_margin":30,"max_runtime":10,"timezone":"UTC"},"status":"in_progress"}' \
+    -o /dev/null || true
+fi
+
+# On any error, notify Sentry and exit non-zero.
+trap 'sentry_checkin error' ERR
+
 # --- Timestamp ---
 TIMESTAMP=$(date -u +%Y%m%dT%H%M%Sz)
 TMPFILE="/tmp/{{ app_name }}-${TIMESTAMP}.db"
@@ -42,3 +67,6 @@ if [ "$COUNT" -gt "$BACKUP_RETENTION" ]; then
 fi
 
 echo "[${TIMESTAMP}] Backup complete."
+
+# Notify Sentry success.
+sentry_checkin ok
