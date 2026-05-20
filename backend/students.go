@@ -1,5 +1,5 @@
-// students.go handles the GET /students endpoint and CRUD handlers for
-// classes and students. Student data is stored in SQLite.
+// students.go handles CRUD handlers for classes and students.
+// Student data is stored in SQLite.
 package handler
 
 import (
@@ -19,26 +19,9 @@ type ListStudentsResponse struct {
 	Students []Student `json:"students"`
 }
 
-// Response types for the students API.
-type StudentsResponse struct {
-	Classes []ClassGroupResponse `json:"classes"`
-}
-
-type ClassGroupResponse struct {
-	ID           int64             `json:"id"`
-	Name         string            `json:"name"`
-	StudentCount int               `json:"studentCount"`
-	Students     []StudentResponse `json:"students"`
-}
-
-type StudentResponse struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
-
 // Internal types used by the extractor and roster (no IDs needed).
 type ClassGroup struct {
-	Name     string    `json:"name"`
+	Name     string         `json:"name"`
 	Students []ClassStudent `json:"students"`
 }
 
@@ -46,57 +29,6 @@ type ClassStudent struct {
 	Name    string   `json:"name"`
 	Aliases []string `json:"aliases,omitempty"`
 }
-
-func handleGetStudents(w http.ResponseWriter, r *http.Request) {
-	log := loggerFromRequest(r)
-
-	userID, err := userIDFromRequest(r)
-	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	ctx := r.Context()
-	classRepo := serviceDeps.GetClassRepo()
-	studentRepo := serviceDeps.GetStudentRepo()
-
-	classes, err := classRepo.List(ctx, userID)
-	if err != nil {
-		log.Error("get students failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-
-	resp := StudentsResponse{Classes: make([]ClassGroupResponse, 0, len(classes))}
-	for _, c := range classes {
-		students, err := studentRepo.List(ctx, c.ID)
-		if err != nil {
-			log.Error("get students failed", "error", err)
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return
-		}
-		cg := ClassGroupResponse{
-			ID:           c.ID,
-			Name:         c.Name,
-			StudentCount: c.StudentCount,
-			Students:     make([]StudentResponse, len(students)),
-		}
-		for j, s := range students {
-			cg.Students[j] = StudentResponse{ID: s.ID, Name: s.Name}
-		}
-		resp.Classes = append(resp.Classes, cg)
-	}
-
-	log.Info("get students completed", "user_id", userID, "class_count", len(resp.Classes))
-	writeJSON(w, http.StatusOK, resp)
-}
-
-// --- Class CRUD ---
 
 func handleListClasses(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)

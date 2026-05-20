@@ -80,12 +80,12 @@ func TestHandle_Root_ServesSPA(t *testing.T) {
 	assert.Contains(t, rec.Header().Get("Content-Type"), "text/html")
 }
 
-func TestHandle_GetStudents_NoAuth(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/students", http.NoBody)
+func TestHandle_ProtectedEndpoint_NoAuth(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/classes", http.NoBody)
 	req.Header.Set("Authorization", "Bearer invalid-token")
 	rec := httptest.NewRecorder()
 
 	Handle(rec, req)
 
-	assert.Equal(t, http.StatusUnauthorized, rec.Code, "GET /api/students no auth: unexpected status")
+	assert.Equal(t, http.StatusUnauthorized, rec.Code, "GET /api/classes no auth: unexpected status")
 }

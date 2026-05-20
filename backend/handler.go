@@ -247,8 +247,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		authHandler(handleCreateStudent).ServeHTTP(rec, r)
 
 	// Students by ID
-	case path == "students" && r.Method == http.MethodGet:
-		authHandler(handleGetStudents).ServeHTTP(rec, r)
 	case strings.HasPrefix(path, "students/") && !strings.Contains(strings.TrimPrefix(path, "students/"), "/") && r.Method == http.MethodPut:
 		authHandler(handleUpdateStudent).ServeHTTP(rec, r)
 	case strings.HasPrefix(path, "students/") && !strings.Contains(strings.TrimPrefix(path, "students/"), "/") && r.Method == http.MethodDelete:
