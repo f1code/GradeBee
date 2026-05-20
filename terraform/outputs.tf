@@ -15,17 +15,6 @@ output "backup_bucket_name" {
   value       = scaleway_object_bucket.gradebee_backups.name
 }
 
-output "cockpit_logs_push_url" {
-  description = "Cockpit Loki push URL for Alloy"
-  value       = "https://logs.cockpit.fr-par.scw.cloud/loki/api/v1/push"
-}
-
-output "cockpit_token" {
-  description = "Cockpit push token for Alloy"
-  value       = scaleway_cockpit_token.alloy.secret_key
-  sensitive   = true
-}
-
 output "vps_ip" {
   description = "Public IP of the GradeBee VPS"
   value       = scaleway_instance_ip.public.address

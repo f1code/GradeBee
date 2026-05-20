@@ -273,7 +273,7 @@ All CRUD endpoints verify resource ownership:
 | `report_prompt.go` | GPT prompt construction for report generation (requests HTML output) |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
-| `logger.go` | slog-based structured logging, request-scoped via context |
+| `logger.go` | Dual stdout+Sentry structured logging via `log/slog`; `InitLogger()` wires `slog.NewMultiHandler` when `SENTRY_DSN` is set; request-scoped logger via context |
 | `job_queue.go` | `Keyed` constraint, `JobQueue[T]` generic interface for async job queues |
 | `job_queue_mem.go` | `MemQueue[T]` — generic in-memory `JobQueue` implementation with worker pool |
 | `voice_note_job.go` | `VoiceNoteJob` type, job status constants, `NoteLink` |
@@ -300,7 +300,11 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 
 ## Observability / Sentry
 
-`github.com/getsentry/sentry-go` v0.46.2. `InitSentry()` (`sentry.go`) reads `SENTRY_DSN` / `SENTRY_RELEASE` at startup — no-op if DSN is empty. `sentryhttp` middleware wraps the top-level handler in `main.go` (auto-captures panics; `Repanic: true`). Authenticated requests are tagged with the Clerk user ID. `BeforeSend` scrubs request bodies, query strings, cookies, auth headers, and name-shaped strings from exception values. `captureFeedback()` is available for non-error feedback events (task #19). DSN and release are baked into the Docker image via `VITE_SENTRY_DSN` / `VITE_APP_VERSION` build-args → `ENV SENTRY_DSN` / `ENV SENTRY_RELEASE` in Stage 3.
+`github.com/getsentry/sentry-go` v0.46.2. `InitSentry()` (`sentry.go`) reads `SENTRY_DSN` / `SENTRY_RELEASE` / `SENTRY_ENVIRONMENT` at startup — no-op if DSN is empty. `sentryhttp` middleware wraps the top-level handler in `main.go` (auto-captures panics; `Repanic: true`). Authenticated requests are tagged with the Clerk user ID. `BeforeSend` scrubs request bodies, query strings, cookies, auth headers, and name-shaped strings from exception values. `captureFeedback()` is available for non-error feedback events (task #19). DSN and release are baked into the Docker image via `VITE_SENTRY_DSN` / `VITE_APP_VERSION` build-args → `ENV SENTRY_DSN` / `ENV SENTRY_RELEASE` in Stage 3.
+
+### Structured Logs
+
+`InitLogger()` (`logger.go`) must be called after `InitSentry()`. When `SENTRY_DSN` is set it builds a `slog.NewMultiHandler` combining the stdout handler with a `sentryslog` handler (`github.com/getsentry/sentry-go/slog`). All `log.Info/Warn/Error` call sites are unchanged. Default `sentryslog` behaviour: `Debug`/`Info`/`Warn` → Sentry structured log entry only; `Error`/`Fatal` → structured log entry **and** a Sentry event (Issue).
 
 ## Testing
 
@@ -323,3 +327,4 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 | `LOG_LEVEL` | No | DEBUG/INFO/WARN/ERROR/off |
 | `SENTRY_DSN` | No | Sentry DSN; baked into Docker image via `VITE_SENTRY_DSN` build-arg |
 | `SENTRY_RELEASE` | No | Release tag in Sentry; baked in via `VITE_APP_VERSION` build-arg (git SHA in prod) |
+| `SENTRY_ENVIRONMENT` | No | Environment tag in Sentry (e.g. `production`, `staging`); set via `dokku config:set` |

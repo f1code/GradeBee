@@ -13,10 +13,7 @@
 # Required variables (in secrets.yml):
 #   ghcr_token           - GitHub PAT with read:packages for docker login ghcr.io
 #   ghcr_user            - GitHub username / org owning the GHCR packages
-#   grafana_loki_url     - Loki push URL (Scaleway Cockpit endpoint)
-#   cockpit_token        - Scaleway Cockpit token (sent as X-Token header to Loki)
 #   backup_s3_bucket     - S3 bucket URL (e.g. s3://gradebee-backups)
-#   backup_s3_endpoint   - S3-compatible endpoint URL
 #   backup_s3_region     - S3 region
 #   backup_s3_access_key - S3 access key ID
 #   backup_s3_secret_key - S3 secret access key
@@ -99,68 +96,7 @@
       changed_when: true
 
     # ------------------------------------------------------------------
-    # 3. Grafana Alloy installation & configuration
-    # ------------------------------------------------------------------
-
-    - name: Create APT keyrings directory
-      ansible.builtin.file:
-        path: /etc/apt/keyrings
-        state: directory
-        mode: "0755"
-
-    - name: Download Grafana GPG key (armored)
-      ansible.builtin.get_url:
-        url: https://apt.grafana.com/gpg.key
-        dest: /tmp/grafana-gpg.key
-        mode: "0644"
-
-    - name: Dearmor Grafana GPG key into keyring
-      ansible.builtin.command: >
-        gpg --dearmor -o /etc/apt/keyrings/grafana.gpg /tmp/grafana-gpg.key
-      args:
-        creates: /etc/apt/keyrings/grafana.gpg
-
-    - name: Add Grafana APT repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/etc/apt/keyrings/grafana.gpg] https://apt.grafana.com stable main"
-        filename: grafana
-        state: present
-
-    - name: Install Grafana Alloy
-      ansible.builtin.apt:
-        name: alloy
-        state: present
-        update_cache: true
-
-    - name: Deploy Alloy configuration
-      ansible.builtin.template:
-        src: templates/alloy-config.alloy.j2
-        dest: /etc/alloy/config.alloy
-        owner: root
-        group: alloy
-        mode: "0640"
-      notify: Restart Alloy
-
-    # Flush handlers immediately so Alloy starts with the correct config,
-    # not the package-default config that was written at install time.
-    - name: Flush handlers to apply Alloy config before starting service
-      ansible.builtin.meta: flush_handlers
-
-    - name: Add alloy user to docker group (for container log scraping)
-      ansible.builtin.user:
-        name: alloy
-        groups: docker
-        append: true
-
-    - name: Enable and start Alloy service
-      ansible.builtin.systemd:
-        name: alloy
-        enabled: true
-        state: started
-        daemon_reload: true
-
-    # ------------------------------------------------------------------
-    # 4. Host-level backup prerequisites
+    # 3. Host-level backup prerequisites
     # AWS CLI config + credentials shared by all per-app backup scripts.
     # ------------------------------------------------------------------
 
@@ -210,7 +146,7 @@
       no_log: true
 
     # ------------------------------------------------------------------
-    # 5. Let's Encrypt plugin — install + auto-renewal cron (server-level)
+    # 4. Let's Encrypt plugin — install + auto-renewal cron (server-level)
     # Each app enables its own cert via letsencrypt:enable (in provision-app.yml).
     # ------------------------------------------------------------------
 
@@ -229,7 +165,7 @@
       changed_when: false
 
     # ------------------------------------------------------------------
-    # 6. Docker login to GHCR (host-scoped; all apps benefit)
+    # 5. Docker login to GHCR (host-scoped; all apps benefit)
     # ------------------------------------------------------------------
 
     - name: Authenticate Docker with GHCR
@@ -243,7 +179,7 @@
       no_log: true
 
     # ------------------------------------------------------------------
-    # 7. Deploy SSH key
+    # 6. Deploy SSH key
     # Shared across all apps on this server; only needs to run once per host.
     # ------------------------------------------------------------------
 
@@ -270,8 +206,3 @@
         group: dokku
         mode: "0600"
 
-  handlers:
-    - name: Restart Alloy
-      ansible.builtin.systemd:
-        name: alloy
-        state: restarted
