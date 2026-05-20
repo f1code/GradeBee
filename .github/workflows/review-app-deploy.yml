@@ -42,9 +42,10 @@ jobs:
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
-          username: root
+          username: dokku
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: CLERK_SECRET_KEY,OPENAI_API_KEY
           script: |
@@ -72,3 +73,5 @@ jobs:
 
             # Deploy the PR image (predeploy script in app.json runs migrations automatically)
             dokku git:from-image "$APP_NAME" "$IMAGE"
+            dokku letsencrypt:set ${APP_NAME} email $LETSENCRYPT_EMAIL
+            dokku letsencrypt:active ${APP_NAME} || dokku letsencrypt:enable ${APP_NAME}

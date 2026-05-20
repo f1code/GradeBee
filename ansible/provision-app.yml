@@ -1,5 +1,5 @@
 ---
-# Ansible playbook: app-level setup — parameterised by app_name and ghcr_image.
+# Ansible playbook: app-level setup — parameterised by app_name.
 # Runs once per environment (prod, staging, etc.) on the same host.
 #
 # Usage (run from the repo root):
@@ -9,23 +9,19 @@
 # For additional environments, supply a per-env secrets file and override vars:
 #   ansible-playbook -i ansible/inventory ansible/provision-app.yml \
 #     -e @ansible/secrets.staging.yml \
-#     -e app_name=gradebee-staging \
-#     -e ghcr_image=ghcr.io/nicogaller/gradebee:staging
+#     -e app_name=gradebee-staging
 #
 # Or via Make:
 #   make infra-app
-#   make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/.../gradebee:staging
+#   make infra-app app_name=gradebee-staging
 #
 # Non-secret vars live in ansible/vars.yml and are loaded automatically.
 #
 # Prerequisite: provision-server.yml must have run at least once on this host.
 # This playbook assumes /root/.aws/ is already configured for S3 backup.
+# Deployment of the app and letsencrypt enablement are done within CI workflow.
 #
 # Required variables (in secrets.yml):
-#   deploy_ssh_pubkey    - SSH public key injected into dokku's authorized_keys for git push deploys
-#   clerk_secret_key     - Clerk backend API key (set as Dokku config var)
-#   openai_api_key       - OpenAI API key (set as Dokku config var)
-#   letsencrypt_email    - Contact email for Let's Encrypt certificate
 #   backup_s3_bucket     - S3 bucket URL (e.g. s3://gradebee-backups)
 
 - name: Provision Dokku app (app-level setup)
@@ -89,41 +85,12 @@
       changed_when: true
 
     # ------------------------------------------------------------------
-    # 3. Deploy SSH key
-    # ------------------------------------------------------------------
-
-    - name: Ensure dokku user authorized_keys directory exists
-      ansible.builtin.file:
-        path: /home/dokku/.ssh
-        state: directory
-        owner: dokku
-        group: dokku
-        mode: "0700"
-
-    - name: Inject deployment SSH public key into dokku authorized_keys
-      ansible.builtin.authorized_key:
-        user: dokku
-        key: "{{ deploy_ssh_pubkey }}"
-        state: present
-        manage_dir: false
-        path: /home/dokku/.ssh/authorized_keys
-
-    - name: Ensure /home/dokku/.ssh/authorized_keys has correct permissions
-      ansible.builtin.file:
-        path: /home/dokku/.ssh/authorized_keys
-        owner: dokku
-        group: dokku
-        mode: "0600"
-
-    # ------------------------------------------------------------------
-    # 4. Dokku application environment variables
+    # 3. Dokku application environment variables
     # ------------------------------------------------------------------
 
     - name: Set Dokku app environment variables
       ansible.builtin.command: >
         dokku config:set --no-restart {{ app_name }}
-        CLERK_SECRET_KEY={{ clerk_secret_key }}
-        OPENAI_API_KEY={{ openai_api_key }}
         DB_PATH={{ app_db_path }}
         UPLOADS_DIR={{ app_uploads_dir }}
         UPLOAD_RETENTION_HOURS={{ app_upload_retention_hours }}
@@ -134,33 +101,7 @@
       no_log: true
 
     # ------------------------------------------------------------------
-    # 5. Initial app deployment
-    # ------------------------------------------------------------------
-    # Deploys the image from GHCR. Triggers the predeploy hook
-    # (/gradebee --migrate-only) before routing traffic.
-    # Re-running is safe — it simply redeploys the same image.
-
-    - name: Deploy app image from GHCR
-      ansible.builtin.command: "dokku git:from-image {{ app_name }} {{ ghcr_image }}"
-      changed_when: true
-
-    # ------------------------------------------------------------------
-    # 6. TLS — Let's Encrypt per-app cert
-    # ------------------------------------------------------------------
-    # Requires the domain to resolve to this server and the app to be
-    # deployed (HTTP challenge on port 80). Safe to re-run on an already-
-    # enabled app.
-
-    - name: Set Let's Encrypt contact email for app
-      ansible.builtin.command: "dokku letsencrypt:set {{ app_name }} email {{ letsencrypt_email }}"
-      changed_when: true
-
-    - name: Enable Let's Encrypt TLS for app
-      ansible.builtin.command: "dokku letsencrypt:enable {{ app_name }}"
-      changed_when: true
-
-    # ------------------------------------------------------------------
-    # 7. Per-app backup: script, log file, and cron job
+    # 5. Per-app backup: script, log file, and cron job
     # Relies on /root/.aws/ already being configured by provision-server.yml.
     # ------------------------------------------------------------------
 
@@ -190,8 +131,6 @@
         modification_time: preserve
         access_time: preserve
 
-    # RPO note: 6-hourly matches the original cloud-init cadence; daily (03:00) was an
-    # unintentional regression. See docs/deployment.md for retention policy.
     # Cron name includes app_name to avoid collisions across environments.
     - name: Install 6-hourly backup cron job
       ansible.builtin.cron:
@@ -201,13 +140,3 @@
         user: root
         job: "{{ scripts_dir }}/backup-db.sh >> {{ backup_log }} 2>&1"
         state: present
-
-    # Migration note: if this playbook is applied to a host that previously used
-    # the Terraform/Docker Compose layout, the live SQLite database is at
-    # /opt/gradebee/data/gradebee.db. The new layout stores it at
-    # /data/{{ app_name }}/{{ app_name }}.db on the host (mounted as /data/{{ app_name }}.db
-    # inside the container). Before running the playbook on such a host, copy the database:
-    #   mkdir -p /data/{{ app_name }}
-    #   cp /opt/gradebee/data/gradebee.db /data/{{ app_name }}/{{ app_name }}.db
-    # The backup script targets /data/{{ app_name }}/{{ app_name }}.db exclusively; old data
-    # will not be backed up until the manual migration is done.

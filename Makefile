@@ -22,6 +22,7 @@ build-frontend:
 
 # Build the production Docker image locally.
 # Pass VITE_CLERK_PUBLISHABLE_KEY=... at minimum.
+# (this is normally done from CI workflow)
 build:
 	docker build \
 		--build-arg VITE_CLERK_PUBLISHABLE_KEY=$(VITE_CLERK_PUBLISHABLE_KEY) \
@@ -53,12 +54,13 @@ infra-server:
 		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
 		-e @ansible/secrets.yml
 
-# Provision a single app environment (create app, config vars, deploy image, TLS, backup cron).
+# Provision a single app environment (create app, config vars, backup cron).
 # Override app_name for additional environments:
-#   make infra-app app_name=gradebee-staging ghcr_image=ghcr.io/.../gradebee:staging
+#   make infra-app app_name=gradebee-staging
+# This doesn't actually deploy the app, that's done from the CI workflow
 infra-app:
 	ansible-playbook -i ansible/inventory ansible/provision-app.yml \
-		$(foreach v,app_name ghcr_image dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
+		$(foreach v,app_name dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
 		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
 		-e @ansible/secrets.yml
 
@@ -67,12 +69,11 @@ infra-app:
 # ansible-vault, add --vault-password-file ~/.ansible/vault-pass to this command.
 infra-provision:
 	ansible-playbook -i ansible/inventory ansible/provision.yml \
-		$(foreach v,app_name ghcr_image dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
+		$(foreach v,app_name dokku_domain,$(if $($(v)),-e "$(v)=$($(v))")) \
 		$(if $(ANSIBLE_EXTRA_VARS),-e "$(ANSIBLE_EXTRA_VARS)") \
 		-e @ansible/secrets.yml
 
 # Run both steps in order (full first-time setup).
-# Prerequisite: push the Docker image to GHCR first (see docs/deployment.md).
 infra: infra-up infra-provision
 
 # --- Test ---
