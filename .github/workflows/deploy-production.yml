@@ -36,6 +36,7 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/gradebee:${{ github.sha }}
           build-args: |
+            VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
             VITE_CLERK_PUBLISHABLE_KEY=${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
             VITE_APP_VERSION=${{ github.sha }}

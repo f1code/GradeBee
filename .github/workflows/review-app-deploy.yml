@@ -39,6 +39,7 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}-${{ github.sha }}
           build-args: |
             VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+            VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
             VITE_APP_VERSION=pr-${{ github.event.number }}
 
