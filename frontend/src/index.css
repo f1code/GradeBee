@@ -457,6 +457,32 @@ button:active,
   color: var(--honey-dark);
 }
 
+.item-row-name-text {
+  display: inline;
+  vertical-align: middle;
+}
+
+.item-row-subtitle {
+  display: inline;
+  margin-left: 0.5rem;
+}
+
+.aka-label {
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+  font-style: normal;
+  margin-right: 0.25rem;
+}
+
+.aka-names {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  font-style: normal;
+  font-weight: 400;
+}
+
 .item-row-actions {
   display: flex;
   align-items: center;
@@ -2327,9 +2353,10 @@ button:active,
 
 .student-detail-info {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 0.5rem;
   min-width: 0;
+  flex: 1;
 }
 
 .student-detail-name {
@@ -2377,6 +2404,145 @@ button:active,
 
 .student-detail-error-state p {
   margin-bottom: 0.5rem;
+}
+
+/* ============================================
+   Student Aliases
+   ============================================ */
+
+.student-detail-info-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.student-aliases {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.student-aliases-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.alias-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: var(--honey-light);
+  border: 1px solid var(--comb);
+  border-radius: 99px;
+  padding: 0.1rem 0.5rem 0.1rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.alias-chip-text {
+  font-style: italic;
+}
+
+.alias-chip-removing {
+  color: var(--ink-muted);
+  padding: 0 0.15rem;
+}
+
+.alias-chip-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-muted);
+  padding: 0 0.1rem;
+  font-size: 0.7rem;
+  line-height: 1;
+  min-height: auto;
+  box-shadow: none;
+  transition: color 0.15s;
+}
+
+.alias-chip-remove:hover {
+  color: var(--error-red);
+  background: none;
+  transform: none;
+  box-shadow: none;
+}
+
+.alias-chip-remove:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.alias-add-pill {
+  background: none;
+  border: 1px dashed var(--ink-muted);
+  border-radius: 99px;
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+  padding: 0.1rem 0.6rem;
+  cursor: pointer;
+  min-height: auto;
+  box-shadow: none;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.alias-add-pill:hover {
+  color: var(--honey-dark);
+  border-color: var(--honey-dark);
+  background: none;
+  transform: none;
+  box-shadow: none;
+}
+
+.alias-add-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: var(--honey-light);
+  border: 1px solid var(--honey);
+  border-radius: 99px;
+  padding: 0.1rem 0.35rem 0.1rem 0.6rem;
+}
+
+.alias-add-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.78rem;
+  color: var(--ink);
+  width: 7rem;
+  font-family: var(--font-body);
+  min-height: auto;
+  box-shadow: none;
+}
+
+.alias-add-confirm,
+.alias-add-cancel {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-muted);
+  padding: 0.1rem 0.2rem;
+  font-size: 0.75rem;
+  min-height: auto;
+  box-shadow: none;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.alias-add-confirm:hover { color: var(--success-green); background: none; transform: none; box-shadow: none; }
+.alias-add-cancel:hover  { color: var(--error-red);    background: none; transform: none; box-shadow: none; }
+.alias-add-confirm:disabled { opacity: 0.4; cursor: default; }
+
+.alias-error {
+  font-size: 0.78rem;
+  color: var(--error-red);
+  margin-top: 0.1rem;
 }
 
 /* ============================================

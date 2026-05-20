@@ -8,6 +8,7 @@ import type {
   GenerateReportsHTTPResponse as GenerateReportsResponse,
   VoiceNoteJob,
   JobListResponse,
+  AliasResponse,
 } from './api-types.gen'
 
 export type {
@@ -20,6 +21,7 @@ export type {
   GenerateReportsResponse,
   VoiceNoteJob,
   JobListResponse,
+  AliasResponse,
 }
 
 /**
@@ -465,6 +467,56 @@ export async function deleteReport(
   if (!resp.ok) {
     const body = await resp.json().catch(() => ({}))
     throw new Error(body.error || 'Failed to delete report')
+  }
+}
+
+// --- Aliases ---
+
+export async function listAliases(
+  studentId: number,
+  getToken: () => Promise<string | null>
+): Promise<{ aliases: AliasResponse[] }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${studentId}/aliases`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to list aliases')
+  return body
+}
+
+export async function addAlias(
+  studentId: number,
+  alias: string,
+  getToken: () => Promise<string | null>
+): Promise<AliasResponse> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${studentId}/aliases`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ alias }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to add alias')
+  return body
+}
+
+export async function removeAlias(
+  studentId: number,
+  aliasId: number,
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${studentId}/aliases/${aliasId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to remove alias')
   }
 }
 

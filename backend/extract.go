@@ -116,13 +116,18 @@ Student Roster:
 `)
 	for _, c := range classes {
 		for _, s := range c.Students {
-			sb.WriteString(fmt.Sprintf("- %s (class %s)\n", s.Name, c.Name))
+			if len(s.Aliases) > 0 {
+				sb.WriteString(fmt.Sprintf("- %s (aka %s) (class %s)\n", s.Name, strings.Join(s.Aliases, ", "), c.Name))
+			} else {
+				sb.WriteString(fmt.Sprintf("- %s (class %s)\n", s.Name, c.Name))
+			}
 		}
 	}
 
 	sb.WriteString(`
 Rules:
 - Match mentioned names against the roster even if pronunciation differs slightly
+- Some roster entries include "(aka ...)" aliases — if a teacher uses an alias, match it to the canonical name and return the canonical name in the "name" field
 - Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.
 - If confidence < 0.7, include up to 3 closest roster matches in "candidates"
 - A student is "individually mentioned" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like "everyone", "all students", "the class" do NOT count as individual mentions.
