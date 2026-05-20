@@ -124,7 +124,7 @@ func handleRemoveAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := serviceDeps.GetStudentRepo().RemoveAlias(r.Context(), aliasID); err != nil {
+	if err := serviceDeps.GetStudentRepo().RemoveAlias(r.Context(), studentID, aliasID); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "alias not found"})
 			return

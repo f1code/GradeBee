@@ -33,7 +33,7 @@ func TestStudentAliasRepo_AddRemoveList(t *testing.T) {
 	assert.Equal(t, "Alex", aliases[0].Alias)
 
 	// Remove
-	require.NoError(t, r.students.RemoveAlias(ctx, a.ID))
+	require.NoError(t, r.students.RemoveAlias(ctx, s.ID, a.ID))
 	aliases, err = r.students.ListAliases(ctx, s.ID)
 	require.NoError(t, err)
 	assert.Empty(t, aliases)
@@ -161,8 +161,8 @@ func TestAliasDeleteCascadesWithStudent(t *testing.T) {
 
 	require.NoError(t, r.students.Delete(ctx, s.ID))
 
-	// The alias should be gone
-	err = r.students.RemoveAlias(ctx, a.ID)
+	// The alias should be gone — RemoveAlias with original student ID should return ErrNotFound
+	err = r.students.RemoveAlias(ctx, s.ID, a.ID)
 	assert.True(t, errors.Is(err, ErrNotFound), "alias should be cascade-deleted, got: %v", err)
 }
 
@@ -185,6 +185,30 @@ func TestBuildExtractionPrompt_AliasesIncluded(t *testing.T) {
 		"prompt missing no-alias line, got: %s", prompt)
 	assert.True(t, strings.Contains(prompt, "return the canonical name"),
 		"prompt missing alias instruction, got: %s", prompt)
+}
+
+// TestRemoveAlias_WrongStudent verifies alias ID is scoped to the student.
+func TestRemoveAlias_WrongStudent(t *testing.T) {
+	ctx, r := testDBAndRepos(t)
+
+	c, err := r.classes.Create(ctx, "user1", "Math", "")
+	require.NoError(t, err)
+	s1, err := r.students.Create(ctx, c.ID, "Alexander")
+	require.NoError(t, err)
+	s2, err := r.students.Create(ctx, c.ID, "Katherine")
+	require.NoError(t, err)
+
+	a, err := r.students.AddAlias(ctx, s1.ID, "Alex")
+	require.NoError(t, err)
+
+	// Try to remove Alex's alias but pass s2's ID — should fail
+	err = r.students.RemoveAlias(ctx, s2.ID, a.ID)
+	assert.True(t, errors.Is(err, ErrNotFound), "should not delete alias belonging to another student, got: %v", err)
+
+	// Original alias still exists
+	aliases, err := r.students.ListAliases(ctx, s1.ID)
+	require.NoError(t, err)
+	require.Len(t, aliases, 1)
 }
 
 // TestFindByNameAndClass_AliasNotFoundInDifferentClass verifies cross-class isolation.

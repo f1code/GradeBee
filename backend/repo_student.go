@@ -219,10 +219,10 @@ func (r *StudentRepo) AddAlias(ctx context.Context, studentID int64, alias strin
 	return a, nil
 }
 
-// RemoveAlias deletes an alias by ID. Returns ErrNotFound if not found.
-func (r *StudentRepo) RemoveAlias(ctx context.Context, aliasID int64) error {
+// RemoveAlias deletes an alias by ID, verifying it belongs to studentID. Returns ErrNotFound if not found.
+func (r *StudentRepo) RemoveAlias(ctx context.Context, studentID, aliasID int64) error {
 	res, err := r.db.ExecContext(ctx,
-		"DELETE FROM student_aliases WHERE id = ?", aliasID)
+		"DELETE FROM student_aliases WHERE id = ? AND student_id = ?", aliasID, studentID)
 	if err != nil {
 		return fmt.Errorf("remove alias: %w", err)
 	}
