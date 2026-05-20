@@ -36,7 +36,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}
+          tags: ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}-${{ github.sha }}
           build-args: |
             VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
@@ -56,7 +56,7 @@ jobs:
           script: |
             set -euo pipefail
             APP_NAME="gradebee-pr-${{ github.event.number }}"
-            IMAGE="ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}"
+            IMAGE="ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}-${{ github.sha }}"
 
             # Create app if it does not already exist
             if ! dokku apps:exists "$APP_NAME" 2>/dev/null; then
@@ -77,6 +77,6 @@ jobs:
               UPLOADS_DIR="/data/uploads"
 
             # Deploy the PR image (predeploy script in app.json runs migrations automatically)
-            dokku git:from-image --force "$APP_NAME" "$IMAGE"
+            dokku git:from-image "$APP_NAME" "$IMAGE"
             dokku letsencrypt:set ${APP_NAME} email $LETSENCRYPT_EMAIL
             dokku letsencrypt:active ${APP_NAME} || dokku letsencrypt:enable ${APP_NAME}
