@@ -59,7 +59,109 @@
         state: started
 
     # ------------------------------------------------------------------
-    # 2. Dokku installation
+    # 2. Security hardening
+    # Run before Dokku so the firewall is in place before any services start.
+    # ------------------------------------------------------------------
+
+    - name: Install security packages (fail2ban, ufw, unattended-upgrades)
+      ansible.builtin.apt:
+        name:
+          - fail2ban
+          - ufw
+          - unattended-upgrades
+        state: present
+
+    # --- ufw firewall ---------------------------------------------------
+    # Docker manages its own iptables chains (DOCKER / FORWARD); ufw rules
+    # on INPUT do not interfere with container traffic — safe for Dokku.
+
+    - name: ufw — set default incoming policy to deny
+      community.general.ufw:
+        direction: incoming
+        policy: deny
+
+    - name: ufw — set default outgoing policy to allow
+      community.general.ufw:
+        direction: outgoing
+        policy: allow
+
+    - name: ufw — allow SSH (22/tcp)
+      community.general.ufw:
+        rule: allow
+        port: "22"
+        proto: tcp
+
+    - name: ufw — allow HTTP (80/tcp)
+      community.general.ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+    - name: ufw — allow HTTPS (443/tcp)
+      community.general.ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+
+    - name: ufw — enable firewall
+      community.general.ufw:
+        state: enabled
+
+    # --- fail2ban -------------------------------------------------------
+
+    - name: Drop fail2ban sshd jail config
+      ansible.builtin.copy:
+        dest: /etc/fail2ban/jail.d/sshd.local
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [sshd]
+          enabled  = true
+          port     = ssh
+          maxretry = 5
+          bantime  = 1h
+          findtime = 10m
+      notify: Restart fail2ban
+
+    - name: Ensure fail2ban is enabled and running
+      ansible.builtin.systemd:
+        name: fail2ban
+        enabled: true
+        state: started
+
+    # --- SSH hardening --------------------------------------------------
+
+    - name: SSH — disable password authentication
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?\s*PasswordAuthentication'
+        line: 'PasswordAuthentication no'
+        validate: 'sshd -t -f %s'
+      notify: Restart sshd
+
+    - name: SSH — disable root login entirely
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?\s*PermitRootLogin'
+        line: 'PermitRootLogin no'
+        validate: 'sshd -t -f %s'
+      notify: Restart sshd
+
+    # --- unattended-upgrades --------------------------------------------
+
+    - name: Enable unattended security upgrades
+      ansible.builtin.copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+
+    # ------------------------------------------------------------------
+    # 3. Dokku installation
     # NOTE: The Dokku bootstrap script also installs Docker as a dependency.
     # ------------------------------------------------------------------
 
@@ -96,7 +198,7 @@
       changed_when: true
 
     # ------------------------------------------------------------------
-    # 3. Host-level backup prerequisites
+    # 4. Host-level backup prerequisites
     # AWS CLI config + credentials shared by all per-app backup scripts.
     # ------------------------------------------------------------------
 
@@ -146,7 +248,7 @@
       no_log: true
 
     # ------------------------------------------------------------------
-    # 4. Let's Encrypt plugin — install + auto-renewal cron (server-level)
+    # 5. Let's Encrypt plugin — install + auto-renewal cron (server-level)
     # Each app enables its own cert via letsencrypt:enable (in provision-app.yml).
     # ------------------------------------------------------------------
 
@@ -165,7 +267,7 @@
       changed_when: false
 
     # ------------------------------------------------------------------
-    # 5. Docker login to GHCR (host-scoped; all apps benefit)
+    # 6. Docker login to GHCR (host-scoped; all apps benefit)
     # ------------------------------------------------------------------
 
     - name: Authenticate Docker with GHCR
@@ -179,7 +281,7 @@
       no_log: true
 
     # ------------------------------------------------------------------
-    # 6. Deploy SSH key
+    # 7. Deploy SSH key
     # Shared across all apps on this server; only needs to run once per host.
     # ------------------------------------------------------------------
 
@@ -205,4 +307,16 @@
         owner: dokku
         group: dokku
         mode: "0600"
+
+  handlers:
+
+    - name: Restart fail2ban
+      ansible.builtin.systemd:
+        name: fail2ban
+        state: restarted
+
+    - name: Restart sshd
+      ansible.builtin.systemd:
+        name: ssh
+        state: restarted
 
