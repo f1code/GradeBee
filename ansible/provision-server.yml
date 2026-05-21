@@ -131,20 +131,20 @@
         state: started
 
     # --- SSH hardening --------------------------------------------------
+    # Use a drop-in under /etc/ssh/sshd_config.d/ rather than editing the
+    # main sshd_config. Modern Ubuntu sshd_config has
+    # `Include /etc/ssh/sshd_config.d/*.conf` near the top, so drop-ins win
+    # over later directives in the main file and survive package upgrades.
 
-    - name: SSH — disable password authentication
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?\s*PasswordAuthentication'
-        line: 'PasswordAuthentication no'
-        validate: 'sshd -t -f %s'
-      notify: Restart sshd
-
-    - name: SSH — disable root login entirely
-      ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config
-        regexp: '^#?\s*PermitRootLogin'
-        line: 'PermitRootLogin no'
+    - name: SSH — install hardening drop-in
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/10-hardening.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          PasswordAuthentication no
+          PermitRootLogin no
         validate: 'sshd -t -f %s'
       notify: Restart sshd
 
@@ -159,6 +159,11 @@
         content: |
           APT::Periodic::Update-Package-Lists "1";
           APT::Periodic::Unattended-Upgrade "1";
+
+    # Apply security handlers (sshd/fail2ban restarts) immediately so the
+    # hardening is in effect even if a later Dokku task fails mid-run.
+    - name: Flush handlers after security hardening
+      ansible.builtin.meta: flush_handlers
 
     # ------------------------------------------------------------------
     # 3. Dokku installation
