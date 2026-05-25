@@ -29,7 +29,7 @@ bin/eval-cli:
 	go build -o bin/eval-cli ./cmd/eval-cli
 
 eval: bin/eval-cli
-	@cd evals && npx --yes promptfoo@latest eval \
+	@cd evals && pnpm exec promptfoo eval \
 	  --config promptfooconfig.yaml \
 	  --output results/$$(date +%Y%m%d-%H%M%S).json
 	@echo

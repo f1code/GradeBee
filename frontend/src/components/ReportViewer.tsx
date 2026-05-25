@@ -3,6 +3,7 @@ import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import DOMPurify from 'dompurify'
 import { regenerateReport, deleteReport, submitFeedback } from '../api'
+import { ThumbUpIcon, ThumbDownIcon } from './Icons'
 
 interface ReportViewerProps {
   reportId: number
@@ -245,7 +246,7 @@ export default function ReportViewer({
               disabled={thumbSubmitting}
               onClick={() => handleThumb('up')}
             >
-              👍
+              <ThumbUpIcon />
             </button>
             <button
               className={`icon-btn report-thumb-btn${thumbRating === 'down' ? ' report-thumb-active' : ''}`}
@@ -254,7 +255,7 @@ export default function ReportViewer({
               disabled={thumbSubmitting}
               onClick={() => handleThumb('down')}
             >
-              👎
+              <ThumbDownIcon />
             </button>
           </>
         )}

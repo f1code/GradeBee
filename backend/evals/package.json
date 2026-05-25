@@ -1,0 +1,7 @@
+{
+  "name": "gradebee-evals",
+  "private": true,
+  "devDependencies": {
+    "promptfoo": "0.121.12"
+  }
+}

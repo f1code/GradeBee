@@ -3,7 +3,7 @@ import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import type { Note } from '../api'
 import { submitFeedback } from '../api'
-import { PencilIcon, TrashIcon } from './Icons'
+import { PencilIcon, TrashIcon, ThumbUpIcon, ThumbDownIcon } from './Icons'
 import NoteEditor from './NoteEditor'
 
 interface NotesListProps {
@@ -192,7 +192,7 @@ function NoteCard({
                 onClick={() => handleThumb('up')}
                 title="Accurate"
               >
-                👍
+                <ThumbUpIcon />
               </button>
               <button
                 className={`icon-btn note-thumb-btn${thumbRating === 'down' ? ' note-thumb-active' : ''}`}
@@ -202,7 +202,7 @@ function NoteCard({
                 onClick={() => handleThumb('down')}
                 title="Inaccurate"
               >
-                👎
+                <ThumbDownIcon />
               </button>
             </>
           )}
