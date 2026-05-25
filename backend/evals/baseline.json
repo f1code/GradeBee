@@ -1,8 +1,8 @@
 {
-  "evalId": "eval-Cny-2026-05-25T06:48:44",
+  "evalId": "eval-la5-2026-05-25T07:03:55",
   "results": {
     "version": 3,
-    "timestamp": "2026-05-25T06:48:44.592Z",
+    "timestamp": "2026-05-25T07:03:55.271Z",
     "prompts": [
       {
         "raw": "../bin/eval-cli",
@@ -10,12 +10,12 @@
         "id": "a6bd6fe741aa94ba370b20f3ce79e471e59b9c041c4ba8a29746d18f5ce5818f",
         "provider": "gradebee-extract",
         "metrics": {
-          "score": 2.5,
-          "testPassCount": 0,
-          "testFailCount": 3,
+          "score": 3,
+          "testPassCount": 3,
+          "testFailCount": 0,
           "testErrorCount": 0,
-          "assertPassCount": 3,
-          "assertFailCount": 3,
+          "assertPassCount": 6,
+          "assertFailCount": 0,
           "totalLatencyMs": 6741,
           "tokenUsage": {
             "prompt": 0,
@@ -102,11 +102,10 @@
     "results": [
       {
         "cost": 0,
-        "error": "precision=0.00 (0/2); recall=1.00 (0/0)",
         "gradingResult": {
-          "pass": false,
-          "score": 0.8333333333333333,
-          "reason": "precision=0.00 (0/2); recall=1.00 (0/0)",
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
           "namedScores": {},
           "tokensUsed": {
             "total": 0,
@@ -125,9 +124,9 @@
               }
             },
             {
-              "pass": false,
-              "score": 0.6666666666666666,
-              "reason": "precision=0.00 (0/2); recall=1.00 (0/0)",
+              "pass": true,
+              "score": 1,
+              "reason": "precision=1.00 (2/2); recall=1.00 (2/2)",
               "assertion": {
                 "type": "javascript",
                 "value": "file://scoring/extraction.js",
@@ -139,7 +138,7 @@
             }
           ]
         },
-        "id": "8c9818a3-02b7-45be-937f-6e85749ab9fd",
+        "id": "bb536a17-8903-4acd-8a38-fa3189b0be68",
         "latencyMs": 2178,
         "namedScores": {},
         "prompt": {
@@ -224,8 +223,8 @@
             }
           }
         },
-        "score": 0.8333333333333333,
-        "success": false,
+        "score": 1,
+        "success": true,
         "testCase": {
           "description": "extraction: preserves teacher voice (no paraphrasing)",
           "providers": [
@@ -298,15 +297,14 @@
           },
           "_promptfooFileMetadata": {}
         },
-        "failureReason": 1
+        "failureReason": 0
       },
       {
         "cost": 0,
-        "error": "precision=0.00 (0/3); recall=1.00 (0/0)",
         "gradingResult": {
-          "pass": false,
-          "score": 0.8333333333333333,
-          "reason": "precision=0.00 (0/3); recall=1.00 (0/0)",
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
           "namedScores": {},
           "tokensUsed": {
             "total": 0,
@@ -325,9 +323,9 @@
               }
             },
             {
-              "pass": false,
-              "score": 0.6666666666666666,
-              "reason": "precision=0.00 (0/3); recall=1.00 (0/0)",
+              "pass": true,
+              "score": 1,
+              "reason": "precision=1.00 (3/3); recall=1.00 (3/3)",
               "assertion": {
                 "type": "javascript",
                 "value": "file://scoring/extraction.js",
@@ -339,7 +337,7 @@
             }
           ]
         },
-        "id": "3a3e486a-ae20-4a72-b74a-ed423b43adba",
+        "id": "ba12deca-34c6-415c-83aa-48de48966da8",
         "latencyMs": 2350,
         "namedScores": {},
         "prompt": {
@@ -431,8 +429,8 @@
             }
           }
         },
-        "score": 0.8333333333333333,
-        "success": false,
+        "score": 1,
+        "success": true,
         "testCase": {
           "description": "extraction: identifies correct students across two classes",
           "providers": [
@@ -505,15 +503,14 @@
           },
           "_promptfooFileMetadata": {}
         },
-        "failureReason": 1
+        "failureReason": 0
       },
       {
         "cost": 0,
-        "error": "precision=0.00 (0/2); recall=1.00 (0/0)",
         "gradingResult": {
-          "pass": false,
-          "score": 0.8333333333333333,
-          "reason": "precision=0.00 (0/2); recall=1.00 (0/0)",
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
           "namedScores": {},
           "tokensUsed": {
             "total": 0,
@@ -532,9 +529,9 @@
               }
             },
             {
-              "pass": false,
-              "score": 0.6666666666666666,
-              "reason": "precision=0.00 (0/2); recall=1.00 (0/0)",
+              "pass": true,
+              "score": 1,
+              "reason": "precision=1.00 (2/2); recall=1.00 (2/2)",
               "assertion": {
                 "type": "javascript",
                 "value": "file://scoring/extraction.js",
@@ -546,7 +543,7 @@
             }
           ]
         },
-        "id": "49f6f736-97df-431f-89b0-446fd3f59884",
+        "id": "40cff088-bf76-476c-88dd-4dade7c60e04",
         "latencyMs": 2213,
         "namedScores": {},
         "prompt": {
@@ -631,8 +628,8 @@
             }
           }
         },
-        "score": 0.8333333333333333,
-        "success": false,
+        "score": 1,
+        "success": true,
         "testCase": {
           "description": "extraction: applies group observation only to relevant class",
           "providers": [
@@ -705,7 +702,7 @@
           },
           "_promptfooFileMetadata": {}
         },
-        "failureReason": 1
+        "failureReason": 0
       },
       {
         "cost": 0,
@@ -779,7 +776,7 @@
             }
           ]
         },
-        "id": "232ee816-f652-4c63-84fc-5b647007554d",
+        "id": "a8c51664-5f6b-4476-8d91-edc968c2d471",
         "latencyMs": 6195,
         "namedScores": {},
         "prompt": {
@@ -992,7 +989,7 @@
             }
           ]
         },
-        "id": "d2b598c4-d230-4063-9291-c40b586e352c",
+        "id": "45c36eb8-f359-4c0e-bf39-7d25a99bbdf0",
         "latencyMs": 2734,
         "namedScores": {},
         "prompt": {
@@ -1205,7 +1202,7 @@
             }
           ]
         },
-        "id": "6072ab17-8b3e-42e2-87b9-f4284839940c",
+        "id": "5bfa8642-2281-49f2-8743-a6c2090db31d",
         "latencyMs": 1506,
         "namedScores": {},
         "prompt": {
@@ -1349,8 +1346,8 @@
       }
     ],
     "stats": {
-      "successes": 2,
-      "failures": 4,
+      "successes": 5,
+      "failures": 1,
       "errors": 0,
       "tokenUsage": {
         "prompt": 0,
@@ -1380,8 +1377,8 @@
           }
         }
       },
-      "durationMs": 182,
-      "evaluationDurationMs": 182
+      "durationMs": 149,
+      "evaluationDurationMs": 149
     }
   },
   "config": {
@@ -1622,7 +1619,7 @@
       "metadata": {}
     },
     "outputPath": [
-      "results/20260525-084842.json"
+      "results/20260525-090353.json"
     ],
     "extensions": [],
     "metadata": {},
@@ -1634,8 +1631,8 @@
     "nodeVersion": "v24.13.0",
     "platform": "darwin",
     "arch": "arm64",
-    "exportedAt": "2026-05-25T06:48:44.877Z",
-    "evaluationCreatedAt": "2026-05-25T06:48:44.592Z"
+    "exportedAt": "2026-05-25T07:03:55.528Z",
+    "evaluationCreatedAt": "2026-05-25T07:03:55.271Z"
   },
   "vars": [
     "task",
