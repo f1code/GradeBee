@@ -1,13 +1,60 @@
 description: GradeBee LLM evaluation harness
 
-# Provider definitions — promptfoo invokes the eval-cli binary directly via exec.
-# Run `make eval` which builds bin/eval-cli then runs promptfoo.
-# No server, no token, no port. See backend/cmd/eval-cli for the implementation.
-providers:
-  - id: "exec:../bin/eval-cli extract"
-    label: gradebee-extract
+# Prompts — exec-prompt functions that shell out to eval-cli for prompt building.
+# promptfoo passes a single JSON arg: {"vars":{...},"config":{"task":"..."}}
+# The binary returns a messages array: [{"role":"system","content":"..."}, ...]
+prompts:
+  - label: extract-prompt
+    raw: exec:../bin/eval-cli
+    config:
+      task: build-extract-prompt
+  - label: report-prompt
+    raw: exec:../bin/eval-cli
+    config:
+      task: build-report-prompt
 
-  - id: "exec:../bin/eval-cli generate-report"
+# Providers — native OpenAI provider; promptfoo owns the LLM call.
+# Extraction uses structured output (json_schema); report uses plain chat.
+# To test a different model, change the id: fields below.
+providers:
+  - id: openai:chat:gpt-5.4-mini
+    label: gradebee-extract
+    config:
+      response_format:
+        type: json_schema
+        json_schema:
+          # Schema mirrors extractResponseSchema() in backend/extract.go.
+          # If ExtractResponse changes, update this block to match.
+          name: extract_response
+          strict: true
+          schema:
+            type: object
+            properties:
+              students:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:        { type: string }
+                    class:       { type: string }
+                    quoted_text: { type: string }
+                    confidence:  { type: number }
+                    candidates:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:  { type: string }
+                          class: { type: string }
+                        required: [name, class]
+                        additionalProperties: false
+                  required: [name, class, quoted_text, confidence, candidates]
+                  additionalProperties: false
+              date: { type: string }
+            required: [students, date]
+            additionalProperties: false
+
+  - id: openai:chat:gpt-5.4-mini
     label: gradebee-report
 
 # Default options: use a stronger judge model for llm-rubric assertions.
@@ -23,7 +70,9 @@ defaultTest:
 # ============================================================
 tests:
   - description: "extraction: preserves teacher voice (no paraphrasing)"
-    provider: "exec:../bin/eval-cli extract"
+    providers:
+      - gradebee-extract
+    prompt: extract-prompt
     vars:
       transcript: "file://fixtures/extraction/voice_preservation/transcript.txt"
       classes: "file://fixtures/extraction/voice_preservation/classes.json"
@@ -36,7 +85,9 @@ tests:
           metric: voice_preservation
 
   - description: "extraction: identifies correct students across two classes"
-    provider: "exec:../bin/eval-cli extract"
+    providers:
+      - gradebee-extract
+    prompt: extract-prompt
     vars:
       transcript: "file://fixtures/extraction/multi_class/transcript.txt"
       classes: "file://fixtures/extraction/multi_class/classes.json"
@@ -49,7 +100,9 @@ tests:
           metric: precision_recall
 
   - description: "extraction: applies group observation only to relevant class"
-    provider: "exec:../bin/eval-cli extract"
+    providers:
+      - gradebee-extract
+    prompt: extract-prompt
     vars:
       transcript: "file://fixtures/extraction/group_observation/transcript.txt"
       classes: "file://fixtures/extraction/group_observation/classes.json"
@@ -65,7 +118,9 @@ tests:
   # Report fixtures
   # ============================================================
   - description: "report: tone and style match examples"
-    provider: "exec:../bin/eval-cli generate-report"
+    providers:
+      - gradebee-report
+    prompt: report-prompt
     vars:
       student_name: "Alice Chen"
       class: "Grade 3A"
@@ -84,7 +139,9 @@ tests:
           - structure: clear narrative, not a bullet list
 
   - description: "report: handles long note list and produces concise output"
-    provider: "exec:../bin/eval-cli generate-report"
+    providers:
+      - gradebee-report
+    prompt: report-prompt
     vars:
       student_name: "Marcus Webb"
       class: "Grade 4B"
@@ -102,7 +159,9 @@ tests:
           - coherence: reads as a cohesive narrative
 
   - description: "report: regeneration with feedback improves specified aspect"
-    provider: "exec:../bin/eval-cli generate-report"
+    providers:
+      - gradebee-report
+    prompt: report-prompt
     vars:
       student_name: "Priya Sharma"
       class: "Grade 2C"
