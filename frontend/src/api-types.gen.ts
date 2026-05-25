@@ -48,27 +48,6 @@ export interface DriveFile {
 export type DriveClient = any;
 
 //////////
-// source: eval_endpoint.go
-/*
-eval_endpoint.go exposes lightweight HTTP endpoints that the promptfoo eval
-harness can call to exercise the real Go prompt-building paths.
-
-# Security
-
-The endpoints are registered in cmd/server/main.go ONLY when the EVAL_TOKEN
-environment variable is non-empty. Every request must include a matching
-X-Eval-Token header; the middleware refuses with 404 (not 401) to avoid
-advertising the endpoint's existence to an attacker.
-
-EVAL_TOKEN must NEVER be set in production. The startup code in
-cmd/server/main.go logs a warning when the var is set so operators notice if
-it leaks. A panic is raised when APP_ENV=prod and EVAL_TOKEN is non-empty.
-
-The handlers do NOT write to the database — evaluation is read-only.
-*/
-
-
-//////////
 // source: extract.go
 /*
 extract.go defines the Extractor interface and its OpenAI GPT implementation.
