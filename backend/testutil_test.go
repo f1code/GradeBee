@@ -38,31 +38,32 @@ func (s *stubTranscriber) Transcribe(_ context.Context, _ string, _ io.Reader, p
 
 // mockDepsAll satisfies deps with configurable returns for all methods.
 type mockDepsAll struct {
-	roster         Roster
-	transcriber    Transcriber
-	transErr       error
-	extractor      Extractor
-	extractErr     error
-	noteCreator    NoteCreator
+	roster              Roster
+	transcriber         Transcriber
+	transErr            error
+	extractor           Extractor
+	extractErr          error
+	noteCreator         NoteCreator
 	exampleStore        ExampleStore
 	exampleExtractor    ExampleExtractor
 	exampleExtractorErr error
-	reportGen      ReportGenerator
-	reportGenErr   error
-	voiceNoteQueue    JobQueue[VoiceNoteJob]
-	voiceNoteQueueErr error
-	extractionQueue    JobQueue[ExtractionJob]
-	extractionQueueErr error
-	driveClient    DriveClient
-	driveClientErr error
-	db             *sql.DB
-	classRepo      *ClassRepo
-	studentRepo    *StudentRepo
-	noteRepo       *NoteRepo
-	reportRepo     *ReportRepo
-	exampleRepo    *ReportExampleRepo
-	voiceNoteRepo  *VoiceNoteRepo
-	uploadsDir     string
+	reportGen           ReportGenerator
+	reportGenErr        error
+	voiceNoteQueue      JobQueue[VoiceNoteJob]
+	voiceNoteQueueErr   error
+	extractionQueue     JobQueue[ExtractionJob]
+	extractionQueueErr  error
+	driveClient         DriveClient
+	driveClientErr      error
+	db                  *sql.DB
+	classRepo           *ClassRepo
+	studentRepo         *StudentRepo
+	noteRepo            *NoteRepo
+	reportRepo          *ReportRepo
+	exampleRepo         *ReportExampleRepo
+	voiceNoteRepo       *VoiceNoteRepo
+	feedbackRepo        *ArtifactFeedbackRepo
+	uploadsDir          string
 }
 
 func (m *mockDepsAll) GetTranscriber() (Transcriber, error) {
@@ -135,7 +136,8 @@ func (m *mockDepsAll) GetStudentRepo() *StudentRepo           { return m.student
 func (m *mockDepsAll) GetNoteRepo() *NoteRepo                 { return m.noteRepo }
 func (m *mockDepsAll) GetReportRepo() *ReportRepo             { return m.reportRepo }
 func (m *mockDepsAll) GetExampleRepo() *ReportExampleRepo     { return m.exampleRepo }
-func (m *mockDepsAll) GetVoiceNoteRepo() *VoiceNoteRepo             { return m.voiceNoteRepo }
+func (m *mockDepsAll) GetVoiceNoteRepo() *VoiceNoteRepo       { return m.voiceNoteRepo }
+func (m *mockDepsAll) GetFeedbackRepo() *ArtifactFeedbackRepo { return m.feedbackRepo }
 func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploadsDir }
 
 // stubExtractor implements Extractor for tests.

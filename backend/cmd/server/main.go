@@ -99,9 +99,12 @@ func main() {
 		port = "8080"
 	}
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handler.Handle)
+
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle(http.HandlerFunc(handler.Handle)),
+		Handler: sentryhttp.New(sentryhttp.Options{Repanic: true}).Handle(mux),
 	}
 
 	// Graceful shutdown on SIGINT/SIGTERM.

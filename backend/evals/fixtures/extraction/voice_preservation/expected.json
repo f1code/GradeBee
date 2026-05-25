@@ -1,0 +1,15 @@
+{
+  "expected_students": [
+    {
+      "name": "Emma Torres",
+      "class": "Class A",
+      "must_quote_substrings": ["did great in math today", "multiplication tables"]
+    },
+    {
+      "name": "Ryan Mitchell",
+      "class": "Class A",
+      "must_quote_substrings": ["struggling with the reading comprehension", "main idea"]
+    }
+  ],
+  "must_not_extract": []
+}

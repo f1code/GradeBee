@@ -42,18 +42,21 @@ type deps interface {
 	GetVoiceNoteRepo() *VoiceNoteRepo
 	// GetUploadsDir returns the local directory for audio file storage.
 	GetUploadsDir() string
+	// GetFeedbackRepo returns the ArtifactFeedbackRepo.
+	GetFeedbackRepo() *ArtifactFeedbackRepo
 }
 
 // prodDeps is the real implementation backed by SQLite repos.
 type prodDeps struct {
-	db          *sql.DB
-	classRepo   *ClassRepo
-	studentRepo *StudentRepo
-	noteRepo    *NoteRepo
-	reportRepo  *ReportRepo
-	exampleRepo *ReportExampleRepo
-	voiceNoteRepo *VoiceNoteRepo
-	uploadsDir  string
+	db             *sql.DB
+	classRepo      *ClassRepo
+	studentRepo    *StudentRepo
+	noteRepo       *NoteRepo
+	reportRepo     *ReportRepo
+	exampleRepo    *ReportExampleRepo
+	voiceNoteRepo  *VoiceNoteRepo
+	feedbackRepo   *ArtifactFeedbackRepo
+	uploadsDir     string
 }
 
 func (p *prodDeps) GetTranscriber() (Transcriber, error) {
@@ -106,14 +109,15 @@ func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (DriveClie
 	return &googleDriveClient{svc: svc}, nil
 }
 
-func (p *prodDeps) GetDB() *sql.DB                        { return p.db }
-func (p *prodDeps) GetClassRepo() *ClassRepo               { return p.classRepo }
-func (p *prodDeps) GetStudentRepo() *StudentRepo           { return p.studentRepo }
-func (p *prodDeps) GetNoteRepo() *NoteRepo                 { return p.noteRepo }
-func (p *prodDeps) GetReportRepo() *ReportRepo             { return p.reportRepo }
-func (p *prodDeps) GetExampleRepo() *ReportExampleRepo     { return p.exampleRepo }
-func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo             { return p.voiceNoteRepo }
-func (p *prodDeps) GetUploadsDir() string                  { return p.uploadsDir }
+func (p *prodDeps) GetDB() *sql.DB                              { return p.db }
+func (p *prodDeps) GetClassRepo() *ClassRepo                    { return p.classRepo }
+func (p *prodDeps) GetStudentRepo() *StudentRepo                { return p.studentRepo }
+func (p *prodDeps) GetNoteRepo() *NoteRepo                      { return p.noteRepo }
+func (p *prodDeps) GetReportRepo() *ReportRepo                  { return p.reportRepo }
+func (p *prodDeps) GetExampleRepo() *ReportExampleRepo          { return p.exampleRepo }
+func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo            { return p.voiceNoteRepo }
+func (p *prodDeps) GetFeedbackRepo() *ArtifactFeedbackRepo      { return p.feedbackRepo }
+func (p *prodDeps) GetUploadsDir() string                       { return p.uploadsDir }
 
 // Voice note queue singleton, initialised at startup via InitVoiceNoteQueue.
 var voiceNoteQueueInstance JobQueue[VoiceNoteJob]
@@ -135,14 +139,15 @@ func InitVoiceNoteQueue(d deps, workers int) *MemQueue[VoiceNoteJob] {
 // and uploads directory.
 func NewProdDeps(db *sql.DB, uploadsDir string) deps {
 	d := &prodDeps{
-		db:          db,
-		classRepo:   &ClassRepo{db: db},
-		studentRepo: &StudentRepo{db: db},
-		noteRepo:    &NoteRepo{db: db},
-		reportRepo:  &ReportRepo{db: db},
-		exampleRepo: &ReportExampleRepo{db: db},
+		db:            db,
+		classRepo:     &ClassRepo{db: db},
+		studentRepo:   &StudentRepo{db: db},
+		noteRepo:      &NoteRepo{db: db},
+		reportRepo:    &ReportRepo{db: db},
+		exampleRepo:   &ReportExampleRepo{db: db},
 		voiceNoteRepo: &VoiceNoteRepo{db: db},
-		uploadsDir:  uploadsDir,
+		feedbackRepo:  &ArtifactFeedbackRepo{db: db},
+		uploadsDir:    uploadsDir,
 	}
 	serviceDeps = d
 	return d

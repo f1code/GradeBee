@@ -539,6 +539,32 @@ export async function removeAlias(
   }
 }
 
+// --- Artifact Feedback ---
+
+export async function submitFeedback(
+  req: {
+    artifact_type: 'report' | 'note'
+    artifact_id: number
+    rating: 'up' | 'down'
+    comment?: string
+  },
+  getToken: () => Promise<string | null>
+): Promise<{ id: number; created_at: string }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/feedback`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(req),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to submit feedback')
+  return body
+}
+
+
 // --- Google Token / Drive Import ---
 
 export async function getGoogleToken(

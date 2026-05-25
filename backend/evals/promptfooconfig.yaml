@@ -1,0 +1,260 @@
+description: GradeBee LLM evaluation harness
+
+# Single prompt function — dispatches to build-extract-prompt or build-report-prompt
+# via vars.task (set per-test below). Using a single entry avoids promptfoo
+# cross-evaluating every prompt against every provider.
+prompts:
+  - label: gradebee-prompt
+    raw: exec:../bin/eval-cli
+
+# Providers — native OpenAI provider; promptfoo owns the LLM call.
+# Extraction uses structured output (json_schema); report uses plain chat.
+# To test a different model, change the id: fields below.
+providers:
+  - id: openai:chat:gpt-5.4-mini
+    label: gradebee-extract
+    config:
+      response_format:
+        type: json_schema
+        json_schema:
+          # Schema mirrors extractResponseSchema() in backend/extract.go.
+          # If ExtractResponse changes, update this block to match.
+          name: extract_response
+          strict: true
+          schema:
+            type: object
+            properties:
+              students:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:        { type: string }
+                    class:       { type: string }
+                    quoted_text: { type: string }
+                    confidence:  { type: number }
+                    candidates:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:  { type: string }
+                          class: { type: string }
+                        required: [name, class]
+                        additionalProperties: false
+                  required: [name, class, quoted_text, confidence, candidates]
+                  additionalProperties: false
+              date: { type: string }
+            required: [students, date]
+            additionalProperties: false
+
+  - id: openai:chat:gpt-5.4-mini
+    label: gradebee-report
+
+# Default options: use a stronger judge model for llm-rubric assertions.
+defaultTest:
+  options:
+    provider:
+      id: openai:chat:gpt-5
+      config:
+        temperature: 0
+
+# ============================================================
+# Extraction fixtures
+# ============================================================
+tests:
+  - description: "extraction: preserves teacher voice (no paraphrasing)"
+    providers:
+      - gradebee-extract
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/voice_preservation/transcript.txt"
+      classes: "file://fixtures/extraction/voice_preservation/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/voice_preservation/expected.json
+          metric: voice_preservation
+
+  - description: "extraction: identifies correct students across two classes"
+    providers:
+      - gradebee-extract
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/multi_class/transcript.txt"
+      classes: "file://fixtures/extraction/multi_class/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/multi_class/expected.json
+          metric: precision_recall
+
+  - description: "extraction: fuzzy name matching (Inaia→Inaya, Liana→Lina)"
+    providers:
+      - gradebee-extract
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/fuzzy_name_matching/transcript.txt"
+      classes: "file://fixtures/extraction/fuzzy_name_matching/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/fuzzy_name_matching/expected.json
+          metric: precision_recall
+
+  - description: "extraction: applies group observation only to relevant class"
+    providers:
+      - gradebee-extract
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/group_observation/transcript.txt"
+      classes: "file://fixtures/extraction/group_observation/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/group_observation/expected.json
+          metric: precision_recall
+
+  # ============================================================
+  # Report fixtures
+  # ============================================================
+  - description: "report: mousy-level structured format with real examples and character-limit instructions"
+    providers:
+      - gradebee-report
+    vars:
+      task: build-report-prompt
+      student_name: "Lucas"
+      class: "Linda-Thursday@17:25"
+      notes: "file://fixtures/reports/mousy_with_instructions/notes.json"
+      examples: "file://fixtures/reports/mousy_with_instructions/examples.json"
+      instructions: "file://fixtures/reports/mousy_with_instructions/instructions.txt"
+      reference: "file://fixtures/reports/mousy_with_instructions/reference.html"
+    assert:
+      - type: llm-rubric
+        value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Style examples (the report's tone and vocabulary should match these):
+          {{examples}}
+
+          Instructions given to the model:
+          {{instructions}}
+
+          Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
+          {{reference}}
+
+          The report must follow the three-section structure (Participation/Motivation, Learning
+          process, Behaviour) plus a Final comment, as shown in the examples. Each section should
+          include an Assessment rating and a Comment paragraph. Character count per paragraph
+          should be between 310 and 400 as instructed. The tone should be warm and encouraging,
+          matching the examples. All observations must be grounded in the source notes. Score 1-5 on:
+          - structure: three sections + final comment, each with Assessment and Comment
+          - grounding: every statement traceable to notes (no invented observations)
+          - tone: warm, encouraging, matches examples
+          - length: each comment paragraph (not the Data header) 310-400 characters as instructed
+
+  - description: "report: oliver-level class with real style examples, no extra instructions"
+    providers:
+      - gradebee-report
+    vars:
+      task: build-report-prompt
+      student_name: "Sophie"
+      class: "Marcia-Wed@14:10"
+      notes: "file://fixtures/reports/oliver_with_examples/notes.json"
+      examples: "file://fixtures/reports/oliver_with_examples/examples.json"
+      instructions: ""
+      reference: "file://fixtures/reports/oliver_with_examples/reference.html"
+    assert:
+      - type: llm-rubric
+        value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Style examples (the report's tone and vocabulary should match these):
+          {{examples}}
+
+          Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
+          {{reference}}
+
+          The report must follow the three-section structure (Participation/Motivation, Learning
+          process, Behaviour) plus a Final comment, as shown in the examples. Each section should
+          include an Assessment rating and a Comment paragraph. The tone should be warm and
+          encouraging. All observations must be grounded in the source notes. Score 1-5 on:
+          - structure: three sections + final comment, each with Assessment and Comment
+          - grounding: every statement traceable to notes (no invented observations); must not
+            invent Marks, test scores, absences counts, or audio-frequency fields not in the notes
+          - tone: warm, encouraging, matches examples
+
+  - description: "report: sam-level with many notes including absences and mixed behaviour"
+    providers:
+      - gradebee-report
+    vars:
+      task: build-report-prompt
+      student_name: "Thomas"
+      class: "Sam Saturday"
+      notes: "file://fixtures/reports/many_notes_sam/notes.json"
+      examples: "file://fixtures/reports/many_notes_sam/examples.json"
+      instructions: ""
+      reference: "file://fixtures/reports/many_notes_sam/reference.html"
+    assert:
+      - type: llm-rubric
+        value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Style examples (the report's tone and vocabulary should match these):
+          {{examples}}
+
+          Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
+          {{reference}}
+
+          The report must follow the three-section structure (Participation/Motivation, Learning
+          process, Behaviour) plus a Final comment, as shown in the examples. The notes include
+          absences and mixed behaviour — the report should handle these accurately without
+          inventing positive observations. Score 1-5 on:
+          - structure: three sections + final comment, each with Assessment and Comment
+          - grounding: every statement traceable to notes (no invented observations)
+          - absences: absent sessions noted correctly, not fabricated into positive observations
+          - tone: warm but honest, matches examples
+
+  - description: "report: fairy-tales level with behaviour/work/performance structure"
+    providers:
+      - gradebee-report
+    vars:
+      task: build-report-prompt
+      student_name: "Emma"
+      class: "Fairy Tales 2 Tuesday & Friday"
+      notes: "file://fixtures/reports/fairy_tales/notes.json"
+      examples: "file://fixtures/reports/fairy_tales/examples.json"
+      instructions: ""
+      reference: "file://fixtures/reports/fairy_tales/reference.html"
+    assert:
+      - type: llm-rubric
+        value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Style examples (the report's tone and vocabulary should match these):
+          {{examples}}
+
+          Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
+          {{reference}}
+
+          The report must follow the three-section structure (Behaviour, Work, Performance)
+          plus Marks and a Final comment, as shown in the examples. Each section should include
+          an Assessment rating and a Comment paragraph. All observations must be grounded in
+          the source notes. Score 1-5 on:
+          - structure: three sections (Behaviour/Work/Performance) + Marks + Final comment
+          - grounding: every statement traceable to notes (no invented observations)
+          - tone: constructive and honest, matches examples
+          - balance: weaknesses (pronunciation errors, reliance on French, avoiding speaking)
+            acknowledged alongside strengths

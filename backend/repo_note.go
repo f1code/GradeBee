@@ -12,20 +12,22 @@ type NoteRepo struct{ db *sql.DB }
 
 // Note represents a row in the notes table.
 type Note struct {
-	ID         int64   `json:"id"`
-	StudentID  int64   `json:"studentId"`
-	Date       string  `json:"date"`
-	Summary    string  `json:"summary"`
-	Transcript *string `json:"transcript"`
-	Source     string  `json:"source"`
-	CreatedAt  string  `json:"createdAt"`
-	UpdatedAt  string  `json:"updatedAt"`
+	ID           int64   `json:"id"`
+	StudentID    int64   `json:"studentId"`
+	Date         string  `json:"date"`
+	Summary      string  `json:"summary"`
+	Transcript   *string `json:"transcript"`
+	Source       string  `json:"source"`
+	ModelVersion *string `json:"modelVersion,omitempty"`
+	PromptHash   *string `json:"promptHash,omitempty"`
+	CreatedAt    string  `json:"createdAt"`
+	UpdatedAt    string  `json:"updatedAt"`
 }
 
 // List returns all notes for a student, newest first.
 func (r *NoteRepo) List(ctx context.Context, studentID int64) ([]Note, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, student_id, date, summary, transcript, source, created_at, updated_at
+		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, created_at, updated_at
 		FROM notes WHERE student_id = ?
 		ORDER BY date DESC, created_at DESC`, studentID)
 	if err != nil {
@@ -36,7 +38,7 @@ func (r *NoteRepo) List(ctx context.Context, studentID int64) ([]Note, error) {
 	var result []Note
 	for rows.Next() {
 		var n Note
-		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.CreatedAt, &n.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan note: %w", err)
 		}
 		result = append(result, n)
@@ -48,9 +50,9 @@ func (r *NoteRepo) List(ctx context.Context, studentID int64) ([]Note, error) {
 func (r *NoteRepo) GetByID(ctx context.Context, id int64) (Note, error) {
 	var n Note
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, student_id, date, summary, transcript, source, created_at, updated_at
+		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, created_at, updated_at
 		FROM notes WHERE id = ?`, id,
-	).Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.CreatedAt, &n.UpdatedAt)
+	).Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.CreatedAt, &n.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return Note{}, ErrNotFound
 	}
@@ -64,10 +66,10 @@ func (r *NoteRepo) GetByID(ctx context.Context, id int64) (Note, error) {
 // passed Note are populated on return.
 func (r *NoteRepo) Create(ctx context.Context, n *Note) error {
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO notes (student_id, date, summary, transcript, source)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO notes (student_id, date, summary, transcript, source, model_version, prompt_hash)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at, updated_at`,
-		n.StudentID, n.Date, n.Summary, n.Transcript, n.Source,
+		n.StudentID, n.Date, n.Summary, n.Transcript, n.Source, n.ModelVersion, n.PromptHash,
 	).Scan(&n.ID, &n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create note: %w", err)
@@ -111,7 +113,7 @@ func (r *NoteRepo) ListForStudents(ctx context.Context, studentIDs []int64, star
 	args = append(args, startDate, endDate)
 
 	query := fmt.Sprintf(`
-		SELECT id, student_id, date, summary, transcript, source, created_at, updated_at
+		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, created_at, updated_at
 		FROM notes
 		WHERE student_id IN (%s) AND date BETWEEN ? AND ?
 		ORDER BY student_id, date DESC`,
@@ -126,7 +128,7 @@ func (r *NoteRepo) ListForStudents(ctx context.Context, studentIDs []int64, star
 	var result []Note
 	for rows.Next() {
 		var n Note
-		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.CreatedAt, &n.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan note: %w", err)
 		}
 		result = append(result, n)

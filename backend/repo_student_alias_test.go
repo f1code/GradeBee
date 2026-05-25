@@ -185,7 +185,7 @@ func TestBuildExtractionPrompt_AliasesIncluded(t *testing.T) {
 			},
 		},
 	}
-	prompt := buildExtractionPrompt(classes)
+	prompt := BuildExtractionPrompt(classes)
 
 	assert.True(t, strings.Contains(prompt, "Alexander (aka Alex, Xander)"),
 		"prompt missing alias line, got: %s", prompt)

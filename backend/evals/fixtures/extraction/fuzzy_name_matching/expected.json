@@ -1,0 +1,30 @@
+{
+  "expected_students": [
+    {
+      "name": "Théo",
+      "class": "Marcia-Wed@14:10",
+      "must_quote_substrings": ["very good participation and motivation", "/making (?:the )?full sentences/"]
+    },
+    {
+      "name": "Inaya",
+      "class": "Marcia-Wed@14:10",
+      "must_quote_substrings": ["repeating everything in full structures"]
+    },
+    {
+      "name": "Camille",
+      "class": "Marcia-Wed@14:10",
+      "must_quote_substrings": ["repeating in full structures", "easily knowing what to take to what area"]
+    },
+    {
+      "name": "Lina",
+      "class": "Marcia-Wed@14:10",
+      "must_quote_substrings": ["/Lina.*did well/"]
+    },
+    {
+      "name": "Lucie",
+      "class": "Marcia-Wed@14:10",
+      "must_quote_substrings": ["/Lucie.*did well/"]
+    }
+  ],
+  "must_not_extract": ["Margot", "Romain"]
+}

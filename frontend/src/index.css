@@ -3145,6 +3145,35 @@ button:active,
   align-items: center;
 }
 
+/* Active state for thumb buttons */
+.note-thumb-btn.note-thumb-active,
+.report-thumb-btn.report-thumb-active {
+  color: var(--honey);
+}
+
+/* Report-card thumbs row: keep label + buttons on one line */
+.report-thumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: nowrap;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--comb);
+}
+
+.report-thumbs-label {
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  margin-right: 0.25rem;
+}
+
+.report-thumbs-done {
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
 /* ============================================
    Report Result Cards (Generation)
    ============================================ */

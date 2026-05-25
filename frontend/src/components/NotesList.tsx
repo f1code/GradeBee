@@ -1,7 +1,9 @@
 import { useState } from 'react'
+import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import type { Note } from '../api'
-import { PencilIcon, TrashIcon } from './Icons'
+import { submitFeedback } from '../api'
+import { PencilIcon, TrashIcon, ThumbUpIcon, ThumbDownIcon } from './Icons'
 import NoteEditor from './NoteEditor'
 
 interface NotesListProps {
@@ -99,9 +101,54 @@ function NoteCard({
   onSaveEdit: (summary: string) => Promise<void>
   onCancelEdit: () => void
 }) {
+  const { getToken } = useAuth()
   const [expanded, setExpanded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [savingEdit, setSavingEdit] = useState(false)
+
+  // Thumbs feedback (auto notes only)
+  const [thumbRating, setThumbRating] = useState<'up' | 'down' | null>(null)
+  const [showThumbComment, setShowThumbComment] = useState(false)
+  const [thumbComment, setThumbComment] = useState('')
+  const [thumbSubmitting, setThumbSubmitting] = useState(false)
+  const [thumbDone, setThumbDone] = useState(false)
+
+  async function handleThumb(rating: 'up' | 'down') {
+    if (thumbSubmitting || thumbDone) return
+    if (rating === 'down') {
+      setThumbRating('down')
+      setShowThumbComment(true)
+      return
+    }
+    setThumbSubmitting(true)
+    try {
+      await submitFeedback({ artifact_type: 'note', artifact_id: note.id, rating: 'up' }, getToken)
+      setThumbRating('up')
+      setThumbDone(true)
+    } catch {
+      // Best-effort; don't block the UI
+    } finally {
+      setThumbSubmitting(false)
+    }
+  }
+
+  async function handleThumbDownSubmit() {
+    setThumbSubmitting(true)
+    try {
+      await submitFeedback({
+        artifact_type: 'note',
+        artifact_id: note.id,
+        rating: 'down',
+        comment: thumbComment.trim() || undefined,
+      }, getToken)
+      setThumbDone(true)
+      setShowThumbComment(false)
+    } catch {
+      // Best-effort
+    } finally {
+      setThumbSubmitting(false)
+    }
+  }
 
   async function handleSaveEdit(data: { summary: string }) {
     setSavingEdit(true)
@@ -134,6 +181,31 @@ function NoteCard({
           {note.source === 'auto' ? 'Auto' : 'Manual'}
         </span>
         <div className="note-card-actions">
+          {/* Thumbs feedback — only for auto-extracted notes */}
+          {note.source === 'auto' && !thumbDone && (
+            <>
+              <button
+                className={`icon-btn note-thumb-btn${thumbRating === 'up' ? ' note-thumb-active' : ''}`}
+                aria-label="This note is accurate"
+                data-testid={`thumb-up-note-${note.id}`}
+                disabled={thumbSubmitting}
+                onClick={() => handleThumb('up')}
+                title="Accurate"
+              >
+                <ThumbUpIcon />
+              </button>
+              <button
+                className={`icon-btn note-thumb-btn${thumbRating === 'down' ? ' note-thumb-active' : ''}`}
+                aria-label="This note is inaccurate"
+                data-testid={`thumb-down-note-${note.id}`}
+                disabled={thumbSubmitting}
+                onClick={() => handleThumb('down')}
+                title="Inaccurate"
+              >
+                <ThumbDownIcon />
+              </button>
+            </>
+          )}
           <button className="icon-btn" onClick={onEdit} aria-label="Edit note" data-testid={`edit-note-${note.id}`}>
             <PencilIcon />
           </button>
@@ -144,6 +216,44 @@ function NoteCard({
       </div>
 
       <NoteSummary summary={note.summary} />
+
+      {/* Thumbs-down comment (auto notes only) */}
+      <AnimatePresence>
+        {showThumbComment && !thumbDone && (
+          <motion.div
+            className="note-thumb-comment"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <textarea
+              value={thumbComment}
+              onChange={e => setThumbComment(e.target.value)}
+              placeholder="What was wrong? (optional)"
+              rows={2}
+              className="report-regenerate-textarea"
+              data-testid={`thumb-down-comment-note-${note.id}`}
+            />
+            <div className="report-regenerate-actions">
+              <button
+                className="btn-sm"
+                onClick={handleThumbDownSubmit}
+                disabled={thumbSubmitting}
+                data-testid={`thumb-down-submit-note-${note.id}`}
+              >
+                {thumbSubmitting ? 'Saving…' : 'Submit'}
+              </button>
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => { setShowThumbComment(false); setThumbRating(null) }}
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Transcript toggle (auto notes only) */}
       {note.source === 'auto' && note.transcript && (
