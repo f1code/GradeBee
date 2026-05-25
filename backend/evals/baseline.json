@@ -1,8 +1,8 @@
 {
-  "evalId": "eval-la5-2026-05-25T07:03:55",
+  "evalId": "eval-Dva-2026-05-25T07:14:04",
   "results": {
     "version": 3,
-    "timestamp": "2026-05-25T07:03:55.271Z",
+    "timestamp": "2026-05-25T07:14:04.459Z",
     "prompts": [
       {
         "raw": "../bin/eval-cli",
@@ -57,12 +57,12 @@
         "id": "a6bd6fe741aa94ba370b20f3ce79e471e59b9c041c4ba8a29746d18f5ce5818f",
         "provider": "gradebee-report",
         "metrics": {
-          "score": 13.33,
-          "testPassCount": 2,
-          "testFailCount": 1,
+          "score": 11.9,
+          "testPassCount": 1,
+          "testFailCount": 2,
           "testErrorCount": 0,
-          "assertPassCount": 2,
-          "assertFailCount": 1,
+          "assertPassCount": 1,
+          "assertFailCount": 2,
           "totalLatencyMs": 10435,
           "tokenUsage": {
             "prompt": 0,
@@ -78,10 +78,10 @@
               "cacheCreationInputTokens": 0
             },
             "assertions": {
-              "total": 8028,
-              "prompt": 0,
-              "completion": 0,
-              "cached": 8028,
+              "total": 10684,
+              "prompt": 2356,
+              "completion": 8328,
+              "cached": 0,
               "numRequests": 0,
               "completionDetails": {
                 "reasoning": 0,
@@ -138,7 +138,7 @@
             }
           ]
         },
-        "id": "bb536a17-8903-4acd-8a38-fa3189b0be68",
+        "id": "9af9dba5-737d-4758-8208-7965bf1bb9d1",
         "latencyMs": 2178,
         "namedScores": {},
         "prompt": {
@@ -337,7 +337,7 @@
             }
           ]
         },
-        "id": "ba12deca-34c6-415c-83aa-48de48966da8",
+        "id": "9ca576f3-3277-4641-b6d7-4c5ab988e906",
         "latencyMs": 2350,
         "namedScores": {},
         "prompt": {
@@ -543,7 +543,7 @@
             }
           ]
         },
-        "id": "40cff088-bf76-476c-88dd-4dade7c60e04",
+        "id": "72879678-229f-42d6-865f-4174340d18c6",
         "latencyMs": 2213,
         "namedScores": {},
         "prompt": {
@@ -706,36 +706,36 @@
       },
       {
         "cost": 0,
-        "error": "Tone is warm and encouraging; structure is a clear single-paragraph narrative. Length is appropriate at ~137 words (within 50–150). However, grounding cannot be verified because no source notes were provided, so we cannot confirm every statement is traceable to the notes.",
+        "error": "Tone, length (1 paragraph ~137 words), and structure match the examples. However, several statements are not traceable to the source notes, violating the grounding requirement: “very successful term in Grade 3A,” “thoughtful and capable… care and determination,” “resilience and a growing confidence,” “engaging deeply with the text,” and the concluding “We are pleased… look forward to seeing her continue to grow.” The core academic claims are grounded, but these added evaluative phrases are not.",
         "gradingResult": {
           "pass": false,
-          "score": 4,
-          "reason": "Tone is warm and encouraging; structure is a clear single-paragraph narrative. Length is appropriate at ~137 words (within 50–150). However, grounding cannot be verified because no source notes were provided, so we cannot confirm every statement is traceable to the notes.",
+          "score": 3.5,
+          "reason": "Tone, length (1 paragraph ~137 words), and structure match the examples. However, several statements are not traceable to the source notes, violating the grounding requirement: “very successful term in Grade 3A,” “thoughtful and capable… care and determination,” “resilience and a growing confidence,” “engaging deeply with the text,” and the concluding “We are pleased… look forward to seeing her continue to grow.” The core academic claims are grounded, but these added evaluative phrases are not.",
           "namedScores": {},
           "tokensUsed": {
-            "total": 2952,
-            "prompt": 0,
-            "completion": 0,
-            "cached": 2952,
-            "numRequests": 0
+            "total": 3752,
+            "prompt": 875,
+            "completion": 2877,
+            "cached": 0,
+            "numRequests": 1
           },
           "componentResults": [
             {
               "assertion": {
                 "type": "llm-rubric",
-                "value": "The report card should match the warm, encouraging tone of the provided examples.\nIt must be grounded only in the facts present in the source notes (no fabricated\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\n- tone: matches warmth and vocabulary of examples\n- grounding: every statement traceable to notes\n- length: appropriate (1-2 paragraphs)\n- structure: clear narrative, not a bullet list\n"
+                "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nStyle examples (the report's tone and vocabulary should match these):\n{{examples}}\n\nThe report card should match the warm, encouraging tone of the provided examples.\nIt must be grounded only in the facts present in the source notes (no fabricated\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\n- tone: matches warmth and vocabulary of examples\n- grounding: every statement traceable to notes\n- length: appropriate (1-2 paragraphs)\n- structure: clear narrative, not a bullet list\n"
               },
               "pass": false,
-              "score": 4,
-              "reason": "Tone is warm and encouraging; structure is a clear single-paragraph narrative. Length is appropriate at ~137 words (within 50–150). However, grounding cannot be verified because no source notes were provided, so we cannot confirm every statement is traceable to the notes.",
+              "score": 3.5,
+              "reason": "Tone, length (1 paragraph ~137 words), and structure match the examples. However, several statements are not traceable to the source notes, violating the grounding requirement: “very successful term in Grade 3A,” “thoughtful and capable… care and determination,” “resilience and a growing confidence,” “engaging deeply with the text,” and the concluding “We are pleased… look forward to seeing her continue to grow.” The core academic claims are grounded, but these added evaluative phrases are not.",
               "tokensUsed": {
-                "total": 2952,
-                "prompt": 0,
-                "completion": 0,
-                "cached": 2952,
-                "numRequests": 0,
+                "total": 3752,
+                "prompt": 875,
+                "completion": 2877,
+                "cached": 0,
+                "numRequests": 1,
                 "completionDetails": {
-                  "reasoning": 0,
+                  "reasoning": 2752,
                   "acceptedPrediction": 0,
                   "rejectedPrediction": 0
                 }
@@ -751,9 +751,9 @@
                     "cf-ray": "[REDACTED]",
                     "connection": "keep-alive",
                     "content-type": "application/json",
-                    "date": "Mon, 25 May 2026 06:47:59 GMT",
+                    "date": "Mon, 25 May 2026 07:14:26 GMT",
                     "openai-organization": "[REDACTED]",
-                    "openai-processing-ms": "25299",
+                    "openai-processing-ms": "21667",
                     "openai-project": "[REDACTED]",
                     "openai-version": "[REDACTED]",
                     "server": "cloudflare",
@@ -771,12 +771,13 @@
                     "x-request-id": "[REDACTED]"
                   }
                 },
-                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<p>Alice has had a very successful term in Grade 3A. She is a thoughtful and capable learner who approaches her work with care and determination. In mathematics, Alice has shown a strong grasp of addition with regrouping, completing all problems correctly with minimal support. Although she found one subtraction worksheet challenging, she persisted without prompting and was able to correct her own work, demonstrating resilience and a growing confidence in her abilities. In reading, Alice reads aloud with excellent fluency and expression, and she makes thoughtful predictions that show she is engaging deeply with the text. Her writing has blossomed this term; her stories now include a clear beginning, middle, and end, along with vivid details that bring her ideas to life. We are pleased with Alice's progress and look forward to seeing her continue to grow.</p>\\n</Output>\\n<Rubric>\\nThe report card should match the warm, encouraging tone of the provided examples.\\nIt must be grounded only in the facts present in the source notes (no fabricated\\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\\n- tone: matches warmth and vocabulary of examples\\n- grounding: every statement traceable to notes\\n- length: appropriate (1-2 paragraphs)\\n- structure: clear narrative, not a bullet list\\n\\n</Rubric>\"}]"
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<p>Alice has had a very successful term in Grade 3A. She is a thoughtful and capable learner who approaches her work with care and determination. In mathematics, Alice has shown a strong grasp of addition with regrouping, completing all problems correctly with minimal support. Although she found one subtraction worksheet challenging, she persisted without prompting and was able to correct her own work, demonstrating resilience and a growing confidence in her abilities. In reading, Alice reads aloud with excellent fluency and expression, and she makes thoughtful predictions that show she is engaging deeply with the text. Her writing has blossomed this term; her stories now include a clear beginning, middle, and end, along with vivid details that bring her ideas to life. We are pleased with Alice's progress and look forward to seeing her continue to grow.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-15\\\", \\\"summary\\\": \\\"Alice showed strong grasp of addition with regrouping, completed all problems correctly with minimal support.\\\" },\\n  { \\\"date\\\": \\\"2026-02-03\\\", \\\"summary\\\": \\\"Alice read aloud with excellent fluency and expression. She made thoughtful predictions before reading the next chapter.\\\" },\\n  { \\\"date\\\": \\\"2026-02-20\\\", \\\"summary\\\": \\\"Struggled a little with the subtraction worksheet but persisted without prompting and corrected her own work.\\\" },\\n  { \\\"date\\\": \\\"2026-03-10\\\", \\\"summary\\\": \\\"Alice's writing has blossomed this term — her story had a clear beginning, middle, and end with vivid details.\\\" }\\n]\\n\\nStyle examples (the report's tone and vocabulary should match these):\\n[\\n  {\\n    \\\"name\\\": \\\"Example 1\\\",\\n    \\\"content\\\": \\\"<p>Jamie has had a wonderful term in Grade 3A. She approaches every subject with enthusiasm and curiosity, and her love of learning is truly evident in her daily work. In mathematics, Jamie demonstrates a solid understanding of place value and tackles new concepts with confidence. Her reading has grown tremendously — she reads with expression and comprehension beyond grade level. Jamie's writing reflects her creative spirit; her narratives are vivid and well-structured. She is a thoughtful classroom citizen who supports her peers and contributes meaningfully to group discussions. We look forward to watching her continue to flourish.</p>\\\"\\n  },\\n  {\\n    \\\"name\\\": \\\"Example 2\\\",\\n    \\\"content\\\": \\\"<p>Daniel is a hardworking and motivated learner who consistently gives his best effort. This term he has made impressive strides in literacy, moving from short sentences to detailed paragraphs that show real voice and personality. In numeracy Daniel has mastered addition and subtraction facts and is beginning to apply these skills in problem-solving contexts. He listens attentively in class and asks perceptive questions that deepen his own understanding and spark discussion. We have been delighted by Daniel's growth this term.</p>\\\"\\n  }\\n]\\n\\nThe report card should match the warm, encouraging tone of the provided examples.\\nIt must be grounded only in the facts present in the source notes (no fabricated\\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\\n- tone: matches warmth and vocabulary of examples\\n- grounding: every statement traceable to notes\\n- length: appropriate (1-2 paragraphs)\\n- structure: clear narrative, not a bullet list\\n\\n</Rubric>\"}]",
+                "renderedAssertionValue": "Source notes (ground truth — every statement in the report must be traceable to these):\n[\n  { \"date\": \"2026-01-15\", \"summary\": \"Alice showed strong grasp of addition with regrouping, completed all problems correctly with minimal support.\" },\n  { \"date\": \"2026-02-03\", \"summary\": \"Alice read aloud with excellent fluency and expression. She made thoughtful predictions before reading the next chapter.\" },\n  { \"date\": \"2026-02-20\", \"summary\": \"Struggled a little with the subtraction worksheet but persisted without prompting and corrected her own work.\" },\n  { \"date\": \"2026-03-10\", \"summary\": \"Alice's writing has blossomed this term — her story had a clear beginning, middle, and end with vivid details.\" }\n]\n\nStyle examples (the report's tone and vocabulary should match these):\n[\n  {\n    \"name\": \"Example 1\",\n    \"content\": \"<p>Jamie has had a wonderful term in Grade 3A. She approaches every subject with enthusiasm and curiosity, and her love of learning is truly evident in her daily work. In mathematics, Jamie demonstrates a solid understanding of place value and tackles new concepts with confidence. Her reading has grown tremendously — she reads with expression and comprehension beyond grade level. Jamie's writing reflects her creative spirit; her narratives are vivid and well-structured. She is a thoughtful classroom citizen who supports her peers and contributes meaningfully to group discussions. We look forward to watching her continue to flourish.</p>\"\n  },\n  {\n    \"name\": \"Example 2\",\n    \"content\": \"<p>Daniel is a hardworking and motivated learner who consistently gives his best effort. This term he has made impressive strides in literacy, moving from short sentences to detailed paragraphs that show real voice and personality. In numeracy Daniel has mastered addition and subtraction facts and is beginning to apply these skills in problem-solving contexts. He listens attentively in class and asks perceptive questions that deepen his own understanding and spark discussion. We have been delighted by Daniel's growth this term.</p>\"\n  }\n]\n\nThe report card should match the warm, encouraging tone of the provided examples.\nIt must be grounded only in the facts present in the source notes (no fabricated\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\n- tone: matches warmth and vocabulary of examples\n- grounding: every statement traceable to notes\n- length: appropriate (1-2 paragraphs)\n- structure: clear narrative, not a bullet list\n"
               }
             }
           ]
         },
-        "id": "a8c51664-5f6b-4476-8d91-edc968c2d471",
+        "id": "68c5d003-2a23-4e31-b88e-9d6fe4cfec16",
         "latencyMs": 6195,
         "namedScores": {},
         "prompt": {
@@ -843,7 +844,7 @@
             }
           }
         },
-        "score": 4,
+        "score": 3.5,
         "success": false,
         "testCase": {
           "description": "report: tone and style match examples",
@@ -861,7 +862,7 @@
           "assert": [
             {
               "type": "llm-rubric",
-              "value": "The report card should match the warm, encouraging tone of the provided examples.\nIt must be grounded only in the facts present in the source notes (no fabricated\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\n- tone: matches warmth and vocabulary of examples\n- grounding: every statement traceable to notes\n- length: appropriate (1-2 paragraphs)\n- structure: clear narrative, not a bullet list\n"
+              "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nStyle examples (the report's tone and vocabulary should match these):\n{{examples}}\n\nThe report card should match the warm, encouraging tone of the provided examples.\nIt must be grounded only in the facts present in the source notes (no fabricated\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\n- tone: matches warmth and vocabulary of examples\n- grounding: every statement traceable to notes\n- length: appropriate (1-2 paragraphs)\n- structure: clear narrative, not a bullet list\n"
             }
           ],
           "options": {
@@ -922,33 +923,33 @@
         "cost": 0,
         "gradingResult": {
           "pass": true,
-          "score": 5,
+          "score": 4.7,
           "reason": "All assertions passed",
           "namedScores": {},
           "tokensUsed": {
-            "total": 2267,
-            "prompt": 0,
-            "completion": 0,
-            "cached": 2267,
-            "numRequests": 0
+            "total": 3750,
+            "prompt": 995,
+            "completion": 2755,
+            "cached": 0,
+            "numRequests": 1
           },
           "componentResults": [
             {
               "assertion": {
                 "type": "llm-rubric",
-                "value": "The report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
+                "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nThe report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
               },
               "pass": true,
-              "score": 5,
-              "reason": "Meets the 2-paragraph limit, reads cohesively as a narrative, and contains only student-performance observations without external or extraneous claims; no evidence of invented details beyond typical classroom notes. Subscores—grounding: 5, brevity: 5, coherence: 5.",
+              "score": 4.7,
+              "reason": "Adheres to the 2-paragraph limit and reads cohesively. Most claims are well grounded in the notes: enthusiastic math warm-ups (2026-01-10), independent reading with detail (2026-01-17), long-division struggle then success (2026-01-24, 2026-02-21), fractions multiplication progress (2026-05-16), careful science notes/questions (2026-02-07), confident/oral ecosystems report (2026-05-02; also 2026-03-07), literacy meeting expectations and writing improvement (2026-03-21, 2026-03-01; 2026-06-06), helping a classmate (2026-03-14), reminders during group work and homework (2026-02-14, 2026-04-11). Minor overreach: “often a positive partner,” “great potential across the curriculum,” and “well positioned to keep growing next term” are broader inferences not explicitly stated. Overall: Grounding 4/5, Brevity 5/5, Coherence 5/5.",
               "tokensUsed": {
-                "total": 2267,
-                "prompt": 0,
-                "completion": 0,
-                "cached": 2267,
-                "numRequests": 0,
+                "total": 3750,
+                "prompt": 995,
+                "completion": 2755,
+                "cached": 0,
+                "numRequests": 1,
                 "completionDetails": {
-                  "reasoning": 0,
+                  "reasoning": 2496,
                   "acceptedPrediction": 0,
                   "rejectedPrediction": 0
                 }
@@ -964,9 +965,9 @@
                     "cf-ray": "[REDACTED]",
                     "connection": "keep-alive",
                     "content-type": "application/json",
-                    "date": "Mon, 25 May 2026 06:47:51 GMT",
+                    "date": "Mon, 25 May 2026 07:14:28 GMT",
                     "openai-organization": "[REDACTED]",
-                    "openai-processing-ms": "19389",
+                    "openai-processing-ms": "22611",
                     "openai-project": "[REDACTED]",
                     "openai-version": "[REDACTED]",
                     "server": "cloudflare",
@@ -984,12 +985,13 @@
                     "x-request-id": "[REDACTED]"
                   }
                 },
-                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<h3>Marcus Webb — Grade 4B</h3>\\n<p>Marcus has had a strong and positive term, and he continues to show great potential across the curriculum. He participates enthusiastically in class, especially during math warm-ups and reading activities, and he approaches learning with curiosity and confidence. Marcus demonstrated excellent growth in mathematics this term, moving from needing support with long division to completing problems accurately and later showing a strong understanding of multiplication of fractions. He also impressed with his thoughtful science work, including careful note-taking, insightful questions, and a confident oral report on ecosystems. In literacy, Marcus is meeting expectations and has made steady progress in writing, particularly in organising his paragraphs more clearly and completing reading tasks independently with good detail.</p>\\n<p>Marcus is also developing as a thoughtful member of the class community. He showed kindness and leadership when helping a classmate with fractions, and he is often a positive partner during practical activities. At times, Marcus has needed reminders to stay focused during group work and to complete homework consistently, so continuing to build independence and task persistence will help him make the most of his abilities. Overall, Marcus is a capable, hardworking student who has made excellent progress this term, particularly in mathematics, and he should feel proud of his achievements. With continued focus and steady effort, he is well positioned to keep growing next term.</p>\\n</Output>\\n<Rubric>\\nThe report should synthesize the notes into at most 2 paragraphs.\\nIt must not invent observations beyond what is in the notes.\\nScore 1-5 on:\\n- grounding: all facts from notes only\\n- brevity: adheres to the 2-paragraph instruction\\n- coherence: reads as a cohesive narrative\\n\\n</Rubric>\"}]"
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<h3>Marcus Webb — Grade 4B</h3>\\n<p>Marcus has had a strong and positive term, and he continues to show great potential across the curriculum. He participates enthusiastically in class, especially during math warm-ups and reading activities, and he approaches learning with curiosity and confidence. Marcus demonstrated excellent growth in mathematics this term, moving from needing support with long division to completing problems accurately and later showing a strong understanding of multiplication of fractions. He also impressed with his thoughtful science work, including careful note-taking, insightful questions, and a confident oral report on ecosystems. In literacy, Marcus is meeting expectations and has made steady progress in writing, particularly in organising his paragraphs more clearly and completing reading tasks independently with good detail.</p>\\n<p>Marcus is also developing as a thoughtful member of the class community. He showed kindness and leadership when helping a classmate with fractions, and he is often a positive partner during practical activities. At times, Marcus has needed reminders to stay focused during group work and to complete homework consistently, so continuing to build independence and task persistence will help him make the most of his abilities. Overall, Marcus is a capable, hardworking student who has made excellent progress this term, particularly in mathematics, and he should feel proud of his achievements. With continued focus and steady effort, he is well positioned to keep growing next term.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-10\\\", \\\"summary\\\": \\\"Marcus had a great start to the term — active participation in the math warm-up.\\\" },\\n  { \\\"date\\\": \\\"2026-01-17\\\", \\\"summary\\\": \\\"Completed the reading journal entry independently with good detail.\\\" },\\n  { \\\"date\\\": \\\"2026-01-24\\\", \\\"summary\\\": \\\"Struggled with long division concept; needed several prompts.\\\" },\\n  { \\\"date\\\": \\\"2026-02-07\\\", \\\"summary\\\": \\\"Excellent science lab partner — took careful notes and asked smart questions.\\\" },\\n  { \\\"date\\\": \\\"2026-02-14\\\", \\\"summary\\\": \\\"Was distracted during group work; reminded twice to stay on task.\\\" },\\n  { \\\"date\\\": \\\"2026-02-21\\\", \\\"summary\\\": \\\"Made a real breakthrough with long division — completed all 10 problems correctly.\\\" },\\n  { \\\"date\\\": \\\"2026-03-01\\\", \\\"summary\\\": \\\"Writing sample showed clear improvement in paragraph organisation.\\\" },\\n  { \\\"date\\\": \\\"2026-03-07\\\", \\\"summary\\\": \\\"Presented his science project confidently to the class.\\\" },\\n  { \\\"date\\\": \\\"2026-03-14\\\", \\\"summary\\\": \\\"Helped a struggling classmate with fractions without being asked — great peer leadership.\\\" },\\n  { \\\"date\\\": \\\"2026-03-21\\\", \\\"summary\\\": \\\"End-of-term assessment: above grade level in math, meeting expectations in literacy.\\\" },\\n  { \\\"date\\\": \\\"2026-04-04\\\", \\\"summary\\\": \\\"Started the new term strong — volunteered for every reading slot.\\\" },\\n  { \\\"date\\\": \\\"2026-04-11\\\", \\\"summary\\\": \\\"Needed reminders to complete homework three times this week.\\\" },\\n  { \\\"date\\\": \\\"2026-05-02\\\", \\\"summary\\\": \\\"Delivered an outstanding oral report on ecosystems.\\\" },\\n  { \\\"date\\\": \\\"2026-05-16\\\", \\\"summary\\\": \\\"Math skills continue to grow — tackled multiplication of fractions correctly.\\\" },\\n  { \\\"date\\\": \\\"2026-06-06\\\", \\\"summary\\\": \\\"Final assessment: consistently above expectations in math; making steady progress in writing.\\\" }\\n]\\n\\nThe report should synthesize the notes into at most 2 paragraphs.\\nIt must not invent observations beyond what is in the notes.\\nScore 1-5 on:\\n- grounding: all facts from notes only\\n- brevity: adheres to the 2-paragraph instruction\\n- coherence: reads as a cohesive narrative\\n\\n</Rubric>\"}]",
+                "renderedAssertionValue": "Source notes (ground truth — every statement in the report must be traceable to these):\n[\n  { \"date\": \"2026-01-10\", \"summary\": \"Marcus had a great start to the term — active participation in the math warm-up.\" },\n  { \"date\": \"2026-01-17\", \"summary\": \"Completed the reading journal entry independently with good detail.\" },\n  { \"date\": \"2026-01-24\", \"summary\": \"Struggled with long division concept; needed several prompts.\" },\n  { \"date\": \"2026-02-07\", \"summary\": \"Excellent science lab partner — took careful notes and asked smart questions.\" },\n  { \"date\": \"2026-02-14\", \"summary\": \"Was distracted during group work; reminded twice to stay on task.\" },\n  { \"date\": \"2026-02-21\", \"summary\": \"Made a real breakthrough with long division — completed all 10 problems correctly.\" },\n  { \"date\": \"2026-03-01\", \"summary\": \"Writing sample showed clear improvement in paragraph organisation.\" },\n  { \"date\": \"2026-03-07\", \"summary\": \"Presented his science project confidently to the class.\" },\n  { \"date\": \"2026-03-14\", \"summary\": \"Helped a struggling classmate with fractions without being asked — great peer leadership.\" },\n  { \"date\": \"2026-03-21\", \"summary\": \"End-of-term assessment: above grade level in math, meeting expectations in literacy.\" },\n  { \"date\": \"2026-04-04\", \"summary\": \"Started the new term strong — volunteered for every reading slot.\" },\n  { \"date\": \"2026-04-11\", \"summary\": \"Needed reminders to complete homework three times this week.\" },\n  { \"date\": \"2026-05-02\", \"summary\": \"Delivered an outstanding oral report on ecosystems.\" },\n  { \"date\": \"2026-05-16\", \"summary\": \"Math skills continue to grow — tackled multiplication of fractions correctly.\" },\n  { \"date\": \"2026-06-06\", \"summary\": \"Final assessment: consistently above expectations in math; making steady progress in writing.\" }\n]\n\nThe report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
               }
             }
           ]
         },
-        "id": "45c36eb8-f359-4c0e-bf39-7d25a99bbdf0",
+        "id": "3588c08c-b486-475e-8b83-587fdb3d9e29",
         "latencyMs": 2734,
         "namedScores": {},
         "prompt": {
@@ -1056,7 +1058,7 @@
             }
           }
         },
-        "score": 5,
+        "score": 4.7,
         "success": true,
         "testCase": {
           "description": "report: handles long note list and produces concise output",
@@ -1074,7 +1076,7 @@
           "assert": [
             {
               "type": "llm-rubric",
-              "value": "The report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
+              "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nThe report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
             }
           ],
           "options": {
@@ -1133,35 +1135,36 @@
       },
       {
         "cost": 0,
+        "error": "Brevity: under 100 words (~72). Positive focus: emphasizes strengths and avoids mentioning errors. Grounding: several statements are not supported by the notes, including “positive attitude,” “bright and engaged student,” “participates eagerly in class,” “strong desire to understand new ideas,” “enthusiasm for learning,” “excellent progress across the curriculum,” and “enjoys asking” (enjoyment not stated in notes). Therefore it fails the grounding requirement. Scores — brevity: 5, positive_focus: 5, grounding: 1.",
         "gradingResult": {
-          "pass": true,
-          "score": 4.33,
-          "reason": "All assertions passed",
+          "pass": false,
+          "score": 3.7,
+          "reason": "Brevity: under 100 words (~72). Positive focus: emphasizes strengths and avoids mentioning errors. Grounding: several statements are not supported by the notes, including “positive attitude,” “bright and engaged student,” “participates eagerly in class,” “strong desire to understand new ideas,” “enthusiasm for learning,” “excellent progress across the curriculum,” and “enjoys asking” (enjoyment not stated in notes). Therefore it fails the grounding requirement. Scores — brevity: 5, positive_focus: 5, grounding: 1.",
           "namedScores": {},
           "tokensUsed": {
-            "total": 2809,
-            "prompt": 0,
-            "completion": 0,
-            "cached": 2809,
-            "numRequests": 0
+            "total": 3182,
+            "prompt": 486,
+            "completion": 2696,
+            "cached": 0,
+            "numRequests": 1
           },
           "componentResults": [
             {
               "assertion": {
                 "type": "llm-rubric",
-                "value": "The report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
+                "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nInstructions given to the model:\n{{instructions}}\n\nThe report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
               },
-              "pass": true,
-              "score": 4.33,
-              "reason": "Brevity: ~72 words, under 100 (5/5). Positive focus: entirely emphasizes strengths, no weaknesses (5/5). Grounding: cannot be verified against notes (none provided) and includes specific claims (e.g., excellent comprehension, plant growth, progress across the curriculum), so only partially grounded (3/5). Overall passes required conditions (shorter than 100 words, focuses on strengths).",
+              "pass": false,
+              "score": 3.7,
+              "reason": "Brevity: under 100 words (~72). Positive focus: emphasizes strengths and avoids mentioning errors. Grounding: several statements are not supported by the notes, including “positive attitude,” “bright and engaged student,” “participates eagerly in class,” “strong desire to understand new ideas,” “enthusiasm for learning,” “excellent progress across the curriculum,” and “enjoys asking” (enjoyment not stated in notes). Therefore it fails the grounding requirement. Scores — brevity: 5, positive_focus: 5, grounding: 1.",
               "tokensUsed": {
-                "total": 2809,
-                "prompt": 0,
-                "completion": 0,
-                "cached": 2809,
-                "numRequests": 0,
+                "total": 3182,
+                "prompt": 486,
+                "completion": 2696,
+                "cached": 0,
+                "numRequests": 1,
                 "completionDetails": {
-                  "reasoning": 0,
+                  "reasoning": 2560,
                   "acceptedPrediction": 0,
                   "rejectedPrediction": 0
                 }
@@ -1177,9 +1180,9 @@
                     "cf-ray": "[REDACTED]",
                     "connection": "keep-alive",
                     "content-type": "application/json",
-                    "date": "Mon, 25 May 2026 06:47:55 GMT",
+                    "date": "Mon, 25 May 2026 07:14:25 GMT",
                     "openai-organization": "[REDACTED]",
-                    "openai-processing-ms": "24462",
+                    "openai-processing-ms": "20838",
                     "openai-project": "[REDACTED]",
                     "openai-version": "[REDACTED]",
                     "server": "cloudflare",
@@ -1197,12 +1200,13 @@
                     "x-request-id": "[REDACTED]"
                   }
                 },
-                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<h3>Priya Sharma - Grade 2C</h3>\\n<p>Priya is a confident and enthusiastic learner who approaches reading with excellent comprehension and a positive attitude. She shows wonderful curiosity in science and enjoys asking thoughtful questions, especially when exploring plant growth. Priya is a bright and engaged student who participates eagerly in class and demonstrates a strong desire to understand new ideas. Her enthusiasm for learning is a great strength, and she continues to make excellent progress across the curriculum.</p>\\n</Output>\\n<Rubric>\\nThe report should be shorter than 100 words as instructed.\\nIt must focus on the student's strengths.\\nScore 1-5 on:\\n- brevity: under 100 words\\n- positive_focus: emphasises strengths not weaknesses\\n- grounding: all facts from notes only\\n\\n</Rubric>\"}]"
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<h3>Priya Sharma - Grade 2C</h3>\\n<p>Priya is a confident and enthusiastic learner who approaches reading with excellent comprehension and a positive attitude. She shows wonderful curiosity in science and enjoys asking thoughtful questions, especially when exploring plant growth. Priya is a bright and engaged student who participates eagerly in class and demonstrates a strong desire to understand new ideas. Her enthusiasm for learning is a great strength, and she continues to make excellent progress across the curriculum.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-12\\\", \\\"summary\\\": \\\"Priya is a confident and enthusiastic reader — her comprehension is excellent.\\\" },\\n  { \\\"date\\\": \\\"2026-02-05\\\", \\\"summary\\\": \\\"Shows genuine curiosity in science; asked several insightful questions about plant growth.\\\" },\\n  { \\\"date\\\": \\\"2026-03-03\\\", \\\"summary\\\": \\\"Sometimes rushes through math tasks and makes careless errors; benefits from slow-down prompts.\\\" }\\n]\\n\\nInstructions given to the model:\\nWrite a brief, positive report (under 100 words) focusing on this student's strengths. Do not mention the careless errors — frame everything positively.\\n\\nThe report should be shorter than 100 words as instructed.\\nIt must focus on the student's strengths.\\nScore 1-5 on:\\n- brevity: under 100 words\\n- positive_focus: emphasises strengths not weaknesses\\n- grounding: all facts from notes only\\n\\n</Rubric>\"}]",
+                "renderedAssertionValue": "Source notes (ground truth — every statement in the report must be traceable to these):\n[\n  { \"date\": \"2026-01-12\", \"summary\": \"Priya is a confident and enthusiastic reader — her comprehension is excellent.\" },\n  { \"date\": \"2026-02-05\", \"summary\": \"Shows genuine curiosity in science; asked several insightful questions about plant growth.\" },\n  { \"date\": \"2026-03-03\", \"summary\": \"Sometimes rushes through math tasks and makes careless errors; benefits from slow-down prompts.\" }\n]\n\nInstructions given to the model:\nWrite a brief, positive report (under 100 words) focusing on this student's strengths. Do not mention the careless errors — frame everything positively.\n\nThe report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
               }
             }
           ]
         },
-        "id": "5bfa8642-2281-49f2-8743-a6c2090db31d",
+        "id": "75d23165-ff4f-44e0-b406-26b14204fa75",
         "latencyMs": 1506,
         "namedScores": {},
         "prompt": {
@@ -1269,8 +1273,8 @@
             }
           }
         },
-        "score": 4.33,
-        "success": true,
+        "score": 3.7,
+        "success": false,
         "testCase": {
           "description": "report: regeneration with feedback improves specified aspect",
           "providers": [
@@ -1287,7 +1291,7 @@
           "assert": [
             {
               "type": "llm-rubric",
-              "value": "The report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
+              "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nInstructions given to the model:\n{{instructions}}\n\nThe report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
             }
           ],
           "options": {
@@ -1342,12 +1346,12 @@
           },
           "_promptfooFileMetadata": {}
         },
-        "failureReason": 0
+        "failureReason": 1
       }
     ],
     "stats": {
-      "successes": 5,
-      "failures": 1,
+      "successes": 4,
+      "failures": 2,
       "errors": 0,
       "tokenUsage": {
         "prompt": 0,
@@ -1363,10 +1367,10 @@
           "cacheCreationInputTokens": 0
         },
         "assertions": {
-          "total": 8028,
-          "prompt": 0,
-          "completion": 0,
-          "cached": 8028,
+          "total": 10684,
+          "prompt": 2356,
+          "completion": 8328,
+          "cached": 0,
           "numRequests": 0,
           "completionDetails": {
             "reasoning": 0,
@@ -1377,8 +1381,8 @@
           }
         }
       },
-      "durationMs": 149,
-      "evaluationDurationMs": 149
+      "durationMs": 24258,
+      "evaluationDurationMs": 24258
     }
   },
   "config": {
@@ -1558,7 +1562,7 @@
         "assert": [
           {
             "type": "llm-rubric",
-            "value": "The report card should match the warm, encouraging tone of the provided examples.\nIt must be grounded only in the facts present in the source notes (no fabricated\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\n- tone: matches warmth and vocabulary of examples\n- grounding: every statement traceable to notes\n- length: appropriate (1-2 paragraphs)\n- structure: clear narrative, not a bullet list\n"
+            "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nStyle examples (the report's tone and vocabulary should match these):\n{{examples}}\n\nThe report card should match the warm, encouraging tone of the provided examples.\nIt must be grounded only in the facts present in the source notes (no fabricated\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\n- tone: matches warmth and vocabulary of examples\n- grounding: every statement traceable to notes\n- length: appropriate (1-2 paragraphs)\n- structure: clear narrative, not a bullet list\n"
           }
         ]
       },
@@ -1578,7 +1582,7 @@
         "assert": [
           {
             "type": "llm-rubric",
-            "value": "The report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
+            "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nThe report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
           }
         ]
       },
@@ -1598,7 +1602,7 @@
         "assert": [
           {
             "type": "llm-rubric",
-            "value": "The report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
+            "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nInstructions given to the model:\n{{instructions}}\n\nThe report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
           }
         ]
       }
@@ -1619,7 +1623,7 @@
       "metadata": {}
     },
     "outputPath": [
-      "results/20260525-090353.json"
+      "results/20260525-091402.json"
     ],
     "extensions": [],
     "metadata": {},
@@ -1631,8 +1635,8 @@
     "nodeVersion": "v24.13.0",
     "platform": "darwin",
     "arch": "arm64",
-    "exportedAt": "2026-05-25T07:03:55.528Z",
-    "evaluationCreatedAt": "2026-05-25T07:03:55.271Z"
+    "exportedAt": "2026-05-25T07:14:28.820Z",
+    "evaluationCreatedAt": "2026-05-25T07:14:04.459Z"
   },
   "vars": [
     "task",
