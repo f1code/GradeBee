@@ -25,7 +25,24 @@
  */
 module.exports = async (output, context) => {
   const config = context.config || {};
-  const expected = config.expected;
+  let expected = config.expected;
+
+  // promptfoo does not auto-resolve file:// references in assertion config blocks.
+  // Load and parse the file manually when the value is a file:// path.
+  if (typeof expected === 'string' && expected.startsWith('file://')) {
+    const path = require('path');
+    const fs = require('fs');
+    const filePath = path.resolve(__dirname, '..', expected.slice('file://'.length));
+    try {
+      expected = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    } catch (e) {
+      return { pass: false, score: 0, reason: `Could not load expected fixture ${filePath}: ${e.message}` };
+    }
+  } else if (typeof expected === 'string') {
+    try { expected = JSON.parse(expected); } catch (e) {
+      return { pass: false, score: 0, reason: `Could not parse expected fixture: ${e.message}` };
+    }
+  }
 
   if (!expected) {
     return {
