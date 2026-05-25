@@ -52,18 +52,24 @@ type RegenerateReportRequest struct {
 // gptReportGenerator implements ReportGenerator using GPT + DB.
 type gptReportGenerator struct {
 	client      *openai.Client
+	model       string // defaults to ProductionModelName
 	noteRepo    *NoteRepo
 	reportRepo  *ReportRepo
 	exampleRepo *ReportExampleRepo
 }
 
 func newDBReportGenerator(nr *NoteRepo, rr *ReportRepo, er *ReportExampleRepo) (*gptReportGenerator, error) {
+	return newDBReportGeneratorWithModel(ProductionModelName, nr, rr, er)
+}
+
+func newDBReportGeneratorWithModel(model string, nr *NoteRepo, rr *ReportRepo, er *ReportExampleRepo) (*gptReportGenerator, error) {
 	key := os.Getenv("OPENAI_API_KEY")
 	if key == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY not set")
 	}
 	return &gptReportGenerator{
 		client:      openai.NewClient(key),
+		model:       model,
 		noteRepo:    nr,
 		reportRepo:  rr,
 		exampleRepo: er,
@@ -84,14 +90,14 @@ func (g *gptReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	}
 
 	// 3. Build prompt and call GPT.
-	prompt := buildReportPrompt(req.Student, req.Class, req.StartDate, req.EndDate, notes, examples, req.Instructions, "")
+	prompt := BuildReportPrompt(req.Student, req.Class, notes, examples, req.Instructions, "")
 	html, err := g.callGPT(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
 
 	// 4. Save report to DB.
-	modelVersion := ProductionModelName
+	modelVersion := g.model
 	promptHash := ReportPromptHash
 	rpt := &Report{
 		StudentID:    req.StudentID,
@@ -129,14 +135,14 @@ func (g *gptReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	}
 
 	// 3. Build prompt with feedback and call GPT.
-	prompt := buildReportPrompt(req.Student, req.Class, req.StartDate, req.EndDate, notes, examples, req.Instructions, req.Feedback)
+	prompt := BuildReportPrompt(req.Student, req.Class, notes, examples, req.Instructions, req.Feedback)
 	html, err := g.callGPT(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
 
 	// 4. Save as a new report (new row, preserves history).
-	modelVersion := ProductionModelName
+	modelVersion := g.model
 	promptHash := ReportPromptHash
 	rpt := &Report{
 		StudentID:    req.StudentID,
@@ -176,8 +182,15 @@ func (g *gptReportGenerator) loadExamples(ctx context.Context, userID, className
 }
 
 func (g *gptReportGenerator) callGPT(ctx context.Context, prompt string) (string, error) {
-	resp, err := g.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: ProductionModelName,
+	return GenerateReportHTML(ctx, g.client, g.model, prompt)
+}
+
+// GenerateReportHTML calls the OpenAI chat completion API with the given
+// system prompt and returns the generated text. Shared by gptReportGenerator
+// (production) and cmd/eval-cli (evaluation harness).
+func GenerateReportHTML(ctx context.Context, client *openai.Client, model, prompt string) (string, error) {
+	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model: model,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: prompt},
 			{Role: openai.ChatMessageRoleUser, Content: "Generate the report card now."},

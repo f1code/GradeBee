@@ -6,7 +6,9 @@ import (
 	"strings"
 )
 
-func buildReportPrompt(student, class, startDate, endDate string, notes []Note, examples []ReportExample, instructions, feedback string) string {
+// BuildReportPrompt builds the GPT system prompt for report card generation.
+// Exported for use by cmd/eval-cli.
+func BuildReportPrompt(student, class string, notes []Note, examples []ReportExample, instructions, feedback string) string {
 	var sb strings.Builder
 
 	sb.WriteString(reportPromptBase)
@@ -31,8 +33,7 @@ func buildReportPrompt(student, class, startDate, endDate string, notes []Note, 
 
 	// Student notes
 	sb.WriteString(reportNotesHeader)
-	sb.WriteString(fmt.Sprintf("Student: %s, Class: %s\n", student, class))
-	sb.WriteString(fmt.Sprintf("Period: %s to %s\n\n", startDate, endDate))
+	sb.WriteString(fmt.Sprintf("Student: %s, Class: %s\n\n", student, class))
 
 	for _, n := range notes {
 		sb.WriteString(fmt.Sprintf("- %s: %s\n", n.Date, n.Summary))

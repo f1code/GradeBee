@@ -340,7 +340,7 @@ Repo-level errors:
 | `SENTRY_DSN` | No | Sentry DSN; baked into Docker image via `VITE_SENTRY_DSN` build-arg |
 | `SENTRY_RELEASE` | No | Release tag in Sentry; baked in via `VITE_APP_VERSION` build-arg (git SHA in prod) |
 | `SENTRY_ENVIRONMENT` | No | Environment tag in Sentry (e.g. `production`, `staging`); set via `dokku config:set` |
-| `EVAL_TOKEN` | No | Enables eval endpoints for `make eval` — **never set in production** |
+| `EVAL_MODEL` | No | Override OpenAI model for `make eval` (defaults to `ProductionModelName`) |
 
 ---
 
@@ -389,16 +389,24 @@ cd backend && make eval-baseline   # runs eval then copies latest result to base
 
 `backend/evals/baseline.json` is a single committed file overwritten by `make eval-baseline`. The PR diff is the audit trail — deliberately accepting new scores.
 
-### Eval HTTP endpoints (gated by EVAL_TOKEN)
+### How it works
 
-`eval_endpoint.go` registers two routes when `EVAL_TOKEN` is set:
+`make eval` builds `bin/eval-cli` (from `cmd/eval-cli/`), then invokes promptfoo. For each test case, promptfoo calls the binary via the exec provider, passing fixture vars as a JSON context argument. The binary calls `BuildReportPrompt` / `GenerateReportHTML` / `NewGPTExtractorWithModel` directly — same code paths as production, no HTTP server, no token, no port.
 
-| Route | Handler | Purpose |
+Debug a single case:
+```bash
+echo '{"vars":{"student_name":"Alice","class":"3A","notes":[],"examples":[],"instructions":""}}' \
+  | xargs -0 ./bin/eval-cli generate-report '' '{}'
+```
+
+### Eval CLI (`cmd/eval-cli`)
+
+| Subcommand | Reads from `context.vars` | Calls |
 |---|---|---|
-| `POST /eval/extract` | `HandleEvalExtract` | Calls real extraction logic, no DB writes |
-| `POST /eval/generate-report` | `HandleEvalGenerateReport` | Calls real report builder + GPT, no DB writes |
+| `extract` | `transcript`, `classes` | `NewGPTExtractorWithModel` → `Extract` |
+| `generate-report` | `student_name`, `class`, `notes`, `examples`, `instructions` | `BuildReportPrompt` → `GenerateReportHTML` |
 
-Both require `X-Eval-Token: <EVAL_TOKEN>` header. Missing/wrong token → 404 (not 401).
+Set `EVAL_MODEL` env var to test an alternate model without changing production code.
 
 ---
 

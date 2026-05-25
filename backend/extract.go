@@ -49,21 +49,28 @@ type StudentCandidate struct {
 // gptExtractor uses OpenAI GPT to extract student mentions from transcripts.
 type gptExtractor struct {
 	client *openai.Client
+	model  string // defaults to ProductionModelName
 }
 
 func newGPTExtractor() (*gptExtractor, error) {
+	return NewGPTExtractorWithModel(ProductionModelName)
+}
+
+// NewGPTExtractorWithModel creates a gptExtractor with a specific model.
+// Used by cmd/eval-cli to test with alternate models.
+func NewGPTExtractorWithModel(model string) (*gptExtractor, error) {
 	key := os.Getenv("OPENAI_API_KEY")
 	if key == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY not set")
 	}
-	return &gptExtractor{client: openai.NewClient(key)}, nil
+	return &gptExtractor{client: openai.NewClient(key), model: model}, nil
 }
 
 func (e *gptExtractor) Extract(ctx context.Context, req ExtractRequest) (*ExtractResponse, error) {
 	systemPrompt := buildExtractionPrompt(req.Classes)
 
 	resp, err := e.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: ProductionModelName,
+		Model: e.model,
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
 			{Role: openai.ChatMessageRoleUser, Content: req.Transcript},
