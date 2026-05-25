@@ -1,3 +1,6 @@
+-include ../.env
+export
+
 .PHONY: lint test dev generate check-types eval eval-baseline bin/eval-cli
 
 lint:
@@ -29,12 +32,12 @@ bin/eval-cli:
 	go build -o bin/eval-cli ./cmd/eval-cli
 
 eval: bin/eval-cli
-	@cd evals && pnpm exec promptfoo eval \
+	-cd evals && pnpm exec promptfoo eval \
 	  --config promptfooconfig.yaml \
 	  --output results/$$(date +%Y%m%d-%H%M%S).json
 	@echo
 	@echo '=== Diff vs baseline ==='
-	@node evals/scripts/diff-baseline.js evals/baseline.json $$(ls -t evals/results/*.json | head -1)
+	node evals/scripts/diff-baseline.js evals/baseline.json $$(ls -t evals/results/*.json | head -1)
 
 # Update the pinned baseline to the most recent eval run.
 # Run this after a deliberate prompt or model change and commit the result.

@@ -1,8 +1,8 @@
 {
-  "evalId": "eval-Dva-2026-05-25T07:14:04",
+  "evalId": "eval-cNQ-2026-05-25T09:20:11",
   "results": {
     "version": 3,
-    "timestamp": "2026-05-25T07:14:04.459Z",
+    "timestamp": "2026-05-25T09:20:11.898Z",
     "prompts": [
       {
         "raw": "../bin/eval-cli",
@@ -10,19 +10,19 @@
         "id": "a6bd6fe741aa94ba370b20f3ce79e471e59b9c041c4ba8a29746d18f5ce5818f",
         "provider": "gradebee-extract",
         "metrics": {
-          "score": 3,
-          "testPassCount": 3,
+          "score": 4,
+          "testPassCount": 4,
           "testFailCount": 0,
           "testErrorCount": 0,
-          "assertPassCount": 6,
+          "assertPassCount": 8,
           "assertFailCount": 0,
-          "totalLatencyMs": 6741,
+          "totalLatencyMs": 18736,
           "tokenUsage": {
             "prompt": 0,
             "completion": 0,
-            "cached": 2783,
-            "total": 2783,
-            "numRequests": 3,
+            "cached": 4083,
+            "total": 4083,
+            "numRequests": 4,
             "completionDetails": {
               "reasoning": 0,
               "acceptedPrediction": 0,
@@ -57,18 +57,18 @@
         "id": "a6bd6fe741aa94ba370b20f3ce79e471e59b9c041c4ba8a29746d18f5ce5818f",
         "provider": "gradebee-report",
         "metrics": {
-          "score": 11.9,
-          "testPassCount": 1,
-          "testFailCount": 2,
+          "score": 10.5,
+          "testPassCount": 0,
+          "testFailCount": 3,
           "testErrorCount": 0,
-          "assertPassCount": 1,
-          "assertFailCount": 2,
-          "totalLatencyMs": 10435,
+          "assertPassCount": 0,
+          "assertFailCount": 3,
+          "totalLatencyMs": 8996,
           "tokenUsage": {
             "prompt": 0,
             "completion": 0,
-            "cached": 1689,
-            "total": 1689,
+            "cached": 1623,
+            "total": 1623,
             "numRequests": 3,
             "completionDetails": {
               "reasoning": 0,
@@ -78,10 +78,10 @@
               "cacheCreationInputTokens": 0
             },
             "assertions": {
-              "total": 10684,
-              "prompt": 2356,
-              "completion": 8328,
-              "cached": 0,
+              "total": 11397,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 11397,
               "numRequests": 0,
               "completionDetails": {
                 "reasoning": 0,
@@ -138,8 +138,8 @@
             }
           ]
         },
-        "id": "9af9dba5-737d-4758-8208-7965bf1bb9d1",
-        "latencyMs": 2178,
+        "id": "1dda1309-f260-46da-99f9-94bb791471c8",
+        "latencyMs": 2317,
         "namedScores": {},
         "prompt": {
           "raw": "[{\"content\":\"You are a teaching assistant analyzing a teacher's audio transcript about student observations.\\n\\nYour task:\\n1. Identify which students are mentioned in the transcript\\n2. Match each mentioned name to the student roster below (handle phonetic/partial matches)\\n3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty\\n4. Write a 1-3 sentence summary per student capturing what the teacher said about them\\n   - Clean up speech artifacts (false starts, filler words, repetitions) into clear sentences\\n   - Preserve the teacher's voice, tone, and specific observations — do NOT add details or opinions not present in the transcript\\n   - Keep the teacher's vocabulary and perspective (first person if they used it)\\n   - Combine multiple mentions of the same student into a cohesive note\\n\\nStudent Roster:\\n- Emma Torres (class Class A)\\n- Ryan Mitchell (class Class A)\\n- Lila Patel (class Class A)\\n\\nRules:\\n- Match mentioned names against the roster even if pronunciation differs slightly\\n- Some roster entries include \\\"(aka ...)\\\" aliases — if a teacher uses an alias, match it to the canonical name and return the canonical name in the \\\"name\\\" field\\n- Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.\\n- If confidence < 0.7, include up to 3 closest roster matches in \\\"candidates\\\"\\n- A student is \\\"individually mentioned\\\" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like \\\"everyone\\\", \\\"all students\\\", \\\"the class\\\" do NOT count as individual mentions.\\n- Do NOT create entries for students who are never individually mentioned by name. If a student is only covered by group-level observations (e.g. \\\"the class was loud\\\") but never called out by name, they must NOT appear in the output.\\n- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations from the transcript. Always include the group-level context even if the student also has individual observations.\\n- If the transcript contains group references like \\\"everyone\\\", \\\"all students\\\", or \\\"the class\\\", apply those observations only to students in the class being discussed, not to ALL classes. Use context clues (class name mentions, prior student mentions) to determine which class is meant.\\n- For multi-student transcripts, produce a separate entry per student with relevant passages\\n- If a mentioned student cannot be matched to any roster entry, do not include them in the output\\n- If no students are clearly mentioned, return an empty students array\\n- The \\\"class\\\" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.\\n- IMPORTANT: Clean up speech into readable sentences, but do NOT invent observations or editorialize. Stay faithful to what the teacher actually said.\\n\",\"role\":\"system\"},{\"content\":\"Um, so today I wanted to talk about Emma. She, uh, she did great in math today, really got the hang of the multiplication tables we've been working on. And then, let's see... I also wanted to mention Ryan. Ryan was, he was really struggling with the reading comprehension exercise, couldn't quite get the main idea from the passage. Yeah, that's, that's about it for today.\",\"role\":\"user\"}]",
@@ -184,7 +184,7 @@
             "total": 905
           },
           "cached": true,
-          "latencyMs": 2178,
+          "latencyMs": 2317,
           "finishReason": "stop",
           "cost": 0,
           "guardrails": {
@@ -201,9 +201,9 @@
                 "cf-ray": "[REDACTED]",
                 "connection": "keep-alive",
                 "content-type": "application/json",
-                "date": "Mon, 25 May 2026 06:47:29 GMT",
+                "date": "Mon, 25 May 2026 09:02:40 GMT",
                 "openai-organization": "[REDACTED]",
-                "openai-processing-ms": "878",
+                "openai-processing-ms": "1026",
                 "openai-project": "[REDACTED]",
                 "openai-version": "[REDACTED]",
                 "server": "cloudflare",
@@ -275,9 +275,9 @@
               "cf-ray": "[REDACTED]",
               "connection": "keep-alive",
               "content-type": "application/json",
-              "date": "Mon, 25 May 2026 06:47:29 GMT",
+              "date": "Mon, 25 May 2026 09:02:40 GMT",
               "openai-organization": "[REDACTED]",
-              "openai-processing-ms": "878",
+              "openai-processing-ms": "1026",
               "openai-project": "[REDACTED]",
               "openai-version": "[REDACTED]",
               "server": "cloudflare",
@@ -337,8 +337,8 @@
             }
           ]
         },
-        "id": "9ca576f3-3277-4641-b6d7-4c5ab988e906",
-        "latencyMs": 2350,
+        "id": "c969e6a5-187d-4fcd-9ba7-c65bd068cfd5",
+        "latencyMs": 10979,
         "namedScores": {},
         "prompt": {
           "raw": "[{\"content\":\"You are a teaching assistant analyzing a teacher's audio transcript about student observations.\\n\\nYour task:\\n1. Identify which students are mentioned in the transcript\\n2. Match each mentioned name to the student roster below (handle phonetic/partial matches)\\n3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty\\n4. Write a 1-3 sentence summary per student capturing what the teacher said about them\\n   - Clean up speech artifacts (false starts, filler words, repetitions) into clear sentences\\n   - Preserve the teacher's voice, tone, and specific observations — do NOT add details or opinions not present in the transcript\\n   - Keep the teacher's vocabulary and perspective (first person if they used it)\\n   - Combine multiple mentions of the same student into a cohesive note\\n\\nStudent Roster:\\n- Noah Jensen (class Class A)\\n- Mia Clark (class Class A)\\n- Sophie Nguyen (class Class B)\\n- Jacob Williams (class Class B)\\n- Ava Roberts (class Class B)\\n\\nRules:\\n- Match mentioned names against the roster even if pronunciation differs slightly\\n- Some roster entries include \\\"(aka ...)\\\" aliases — if a teacher uses an alias, match it to the canonical name and return the canonical name in the \\\"name\\\" field\\n- Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.\\n- If confidence < 0.7, include up to 3 closest roster matches in \\\"candidates\\\"\\n- A student is \\\"individually mentioned\\\" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like \\\"everyone\\\", \\\"all students\\\", \\\"the class\\\" do NOT count as individual mentions.\\n- Do NOT create entries for students who are never individually mentioned by name. If a student is only covered by group-level observations (e.g. \\\"the class was loud\\\") but never called out by name, they must NOT appear in the output.\\n- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations from the transcript. Always include the group-level context even if the student also has individual observations.\\n- If the transcript contains group references like \\\"everyone\\\", \\\"all students\\\", or \\\"the class\\\", apply those observations only to students in the class being discussed, not to ALL classes. Use context clues (class name mentions, prior student mentions) to determine which class is meant.\\n- For multi-student transcripts, produce a separate entry per student with relevant passages\\n- If a mentioned student cannot be matched to any roster entry, do not include them in the output\\n- If no students are clearly mentioned, return an empty students array\\n- The \\\"class\\\" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.\\n- IMPORTANT: Clean up speech into readable sentences, but do NOT invent observations or editorialize. Stay faithful to what the teacher actually said.\\n\",\"role\":\"system\"},{\"content\":\"Okay recording this quick note. For Class A, I wanted to mention Noah — he's been showing real improvement in his writing, particularly with sentence structure, was really proud of his paragraph today. For Class B, Sophie had a great day with the science experiment, she asked really thoughtful questions about why the water changed color. Also for Class B, Jacob was off task for most of the morning unfortunately, kept getting up and disturbing others.\",\"role\":\"user\"}]",
@@ -365,32 +365,32 @@
                 "name": "Noah Jensen",
                 "class": "Class A",
                 "quoted_text": "Noah has been showing real improvement in his writing, particularly with sentence structure. I was really proud of his paragraph today.",
-                "confidence": 0.98,
+                "confidence": 0.99,
                 "candidates": []
               },
               {
                 "name": "Sophie Nguyen",
                 "class": "Class B",
                 "quoted_text": "Sophie had a great day with the science experiment. She asked really thoughtful questions about why the water changed color.",
-                "confidence": 0.98,
+                "confidence": 0.99,
                 "candidates": []
               },
               {
                 "name": "Jacob Williams",
                 "class": "Class B",
-                "quoted_text": "Jacob was off task for most of the morning, unfortunately, and kept getting up and disturbing others.",
-                "confidence": 0.98,
+                "quoted_text": "Jacob was off task for most of the morning. He kept getting up and disturbing others.",
+                "confidence": 0.99,
                 "candidates": []
               }
             ],
             "date": ""
           },
           "tokenUsage": {
-            "cached": 964,
-            "total": 964
+            "cached": 962,
+            "total": 962
           },
           "cached": true,
-          "latencyMs": 2350,
+          "latencyMs": 10979,
           "finishReason": "stop",
           "cost": 0,
           "guardrails": {
@@ -407,9 +407,9 @@
                 "cf-ray": "[REDACTED]",
                 "connection": "keep-alive",
                 "content-type": "application/json",
-                "date": "Mon, 25 May 2026 06:47:29 GMT",
+                "date": "Mon, 25 May 2026 09:02:48 GMT",
                 "openai-organization": "[REDACTED]",
-                "openai-processing-ms": "1160",
+                "openai-processing-ms": "5993",
                 "openai-project": "[REDACTED]",
                 "openai-version": "[REDACTED]",
                 "server": "cloudflare",
@@ -481,9 +481,229 @@
               "cf-ray": "[REDACTED]",
               "connection": "keep-alive",
               "content-type": "application/json",
-              "date": "Mon, 25 May 2026 06:47:29 GMT",
+              "date": "Mon, 25 May 2026 09:02:48 GMT",
               "openai-organization": "[REDACTED]",
-              "openai-processing-ms": "1160",
+              "openai-processing-ms": "5993",
+              "openai-project": "[REDACTED]",
+              "openai-version": "[REDACTED]",
+              "server": "cloudflare",
+              "set-cookie": "[REDACTED]",
+              "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+              "transfer-encoding": "chunked",
+              "x-content-type-options": "nosniff",
+              "x-openai-proxy-wasm": "[REDACTED]",
+              "x-ratelimit-limit-requests": "[REDACTED]",
+              "x-ratelimit-limit-tokens": "[REDACTED]",
+              "x-ratelimit-remaining-requests": "[REDACTED]",
+              "x-ratelimit-remaining-tokens": "[REDACTED]",
+              "x-ratelimit-reset-requests": "[REDACTED]",
+              "x-ratelimit-reset-tokens": "[REDACTED]",
+              "x-request-id": "[REDACTED]"
+            }
+          },
+          "_promptfooFileMetadata": {}
+        },
+        "failureReason": 0
+      },
+      {
+        "cost": 0,
+        "gradingResult": {
+          "pass": true,
+          "score": 1,
+          "reason": "All assertions passed",
+          "namedScores": {},
+          "tokensUsed": {
+            "total": 0,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "numRequests": 0
+          },
+          "componentResults": [
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "Assertion passed",
+              "assertion": {
+                "type": "is-json"
+              }
+            },
+            {
+              "pass": true,
+              "score": 1,
+              "reason": "precision=1.00 (5/5); recall=1.00 (5/5)",
+              "assertion": {
+                "type": "javascript",
+                "value": "file://scoring/extraction.js",
+                "config": {
+                  "expected": "file://fixtures/extraction/fuzzy_name_matching/expected.json",
+                  "metric": "precision_recall"
+                }
+              }
+            }
+          ]
+        },
+        "id": "a50e9d78-3362-42f4-a6df-1bfe57f2dfd6",
+        "latencyMs": 2951,
+        "namedScores": {},
+        "prompt": {
+          "raw": "[{\"content\":\"You are a teaching assistant analyzing a teacher's audio transcript about student observations.\\n\\nYour task:\\n1. Identify which students are mentioned in the transcript\\n2. Match each mentioned name to the student roster below (handle phonetic/partial matches)\\n3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty\\n4. Write a 1-3 sentence summary per student capturing what the teacher said about them\\n   - Clean up speech artifacts (false starts, filler words, repetitions) into clear sentences\\n   - Preserve the teacher's voice, tone, and specific observations — do NOT add details or opinions not present in the transcript\\n   - Keep the teacher's vocabulary and perspective (first person if they used it)\\n   - Combine multiple mentions of the same student into a cohesive note\\n\\nStudent Roster:\\n- Camille (class Marcia-Wed@14:10)\\n- Inaya (class Marcia-Wed@14:10)\\n- Lina (class Marcia-Wed@14:10)\\n- Lucie (class Marcia-Wed@14:10)\\n- Margot (class Marcia-Wed@14:10)\\n- Romain (class Marcia-Wed@14:10)\\n- Théo (class Marcia-Wed@14:10)\\n\\nRules:\\n- Match mentioned names against the roster even if pronunciation differs slightly\\n- Some roster entries include \\\"(aka ...)\\\" aliases — if a teacher uses an alias, match it to the canonical name and return the canonical name in the \\\"name\\\" field\\n- Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.\\n- If confidence < 0.7, include up to 3 closest roster matches in \\\"candidates\\\"\\n- A student is \\\"individually mentioned\\\" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like \\\"everyone\\\", \\\"all students\\\", \\\"the class\\\" do NOT count as individual mentions.\\n- Do NOT create entries for students who are never individually mentioned by name. If a student is only covered by group-level observations (e.g. \\\"the class was loud\\\") but never called out by name, they must NOT appear in the output.\\n- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations from the transcript. Always include the group-level context even if the student also has individual observations.\\n- If the transcript contains group references like \\\"everyone\\\", \\\"all students\\\", or \\\"the class\\\", apply those observations only to students in the class being discussed, not to ALL classes. Use context clues (class name mentions, prior student mentions) to determine which class is meant.\\n- For multi-student transcripts, produce a separate entry per student with relevant passages\\n- If a mentioned student cannot be matched to any roster entry, do not include them in the output\\n- If no students are clearly mentioned, return an empty students array\\n- The \\\"class\\\" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.\\n- IMPORTANT: Clean up speech into readable sentences, but do NOT invent observations or editorialize. Stay faithful to what the teacher actually said.\\n\",\"role\":\"system\"},{\"content\":\"Wednesday, Marcia, 1410. Théo had very good participation and motivation learning. He was doing all right. He was doing good with making the full sentences. Yes, I can. No, I can't. Inaia did very good. Excellent. She was repeating everything in full structures. So was Camille, was repeating in full structures, was easily knowing what to take to what area. Liana and Lucie did well. They did well with Marcia's playing, Marcia's jumping, and then all the kids did well with what the animals could and couldn't do. Yes, they can. No, they can't.\",\"role\":\"user\"}]",
+          "label": "gradebee-prompt",
+          "config": {
+            "provider": {
+              "id": "openai:chat:gpt-5",
+              "config": {
+                "temperature": 0
+              }
+            }
+          }
+        },
+        "promptId": "a6bd6fe741aa94ba370b20f3ce79e471e59b9c041c4ba8a29746d18f5ce5818f",
+        "promptIdx": 0,
+        "provider": {
+          "id": "openai:chat:gpt-5.4-mini",
+          "label": "gradebee-extract"
+        },
+        "response": {
+          "output": {
+            "students": [
+              {
+                "name": "Théo",
+                "class": "Marcia-Wed@14:10",
+                "quoted_text": "Théo had very good participation and motivation in learning. He was doing all right and was good at making full sentences: “Yes, I can. No, I can't.” The class did well with what the animals could and couldn't do: “Yes, they can. No, they can't.”",
+                "confidence": 0.99,
+                "candidates": []
+              },
+              {
+                "name": "Inaya",
+                "class": "Marcia-Wed@14:10",
+                "quoted_text": "Inaya did very good. Excellent. She was repeating everything in full structures. The class did well with what the animals could and couldn't do: “Yes, they can. No, they can't.”",
+                "confidence": 0.95,
+                "candidates": []
+              },
+              {
+                "name": "Camille",
+                "class": "Marcia-Wed@14:10",
+                "quoted_text": "Camille was repeating in full structures and was easily knowing what to take to what area. The class did well with what the animals could and couldn't do: “Yes, they can. No, they can't.”",
+                "confidence": 0.95,
+                "candidates": []
+              },
+              {
+                "name": "Lina",
+                "class": "Marcia-Wed@14:10",
+                "quoted_text": "Lina did well. She did well with Marcia's playing and Marcia's jumping, and the class did well with what the animals could and couldn't do: “Yes, they can. No, they can't.”",
+                "confidence": 0.8,
+                "candidates": []
+              },
+              {
+                "name": "Lucie",
+                "class": "Marcia-Wed@14:10",
+                "quoted_text": "Lucie did well. She did well with Marcia's playing and Marcia's jumping, and the class did well with what the animals could and couldn't do: “Yes, they can. No, they can't.”",
+                "confidence": 0.99,
+                "candidates": []
+              }
+            ],
+            "date": "Wednesday"
+          },
+          "tokenUsage": {
+            "cached": 1302,
+            "total": 1302
+          },
+          "cached": true,
+          "latencyMs": 2951,
+          "finishReason": "stop",
+          "cost": 0,
+          "guardrails": {
+            "flagged": false
+          },
+          "metadata": {
+            "http": {
+              "status": 200,
+              "statusText": "OK",
+              "headers": {
+                "access-control-expose-headers": "X-Request-ID,CF-Ray,CF-Ray",
+                "alt-svc": "h3=\":443\"; ma=86400",
+                "cf-cache-status": "[REDACTED]",
+                "cf-ray": "[REDACTED]",
+                "connection": "keep-alive",
+                "content-type": "application/json",
+                "date": "Mon, 25 May 2026 09:20:04 GMT",
+                "openai-organization": "[REDACTED]",
+                "openai-processing-ms": "2349",
+                "openai-project": "[REDACTED]",
+                "openai-version": "[REDACTED]",
+                "server": "cloudflare",
+                "set-cookie": "[REDACTED]",
+                "strict-transport-security": "max-age=31536000; includeSubDomains; preload",
+                "transfer-encoding": "chunked",
+                "x-content-type-options": "nosniff",
+                "x-openai-proxy-wasm": "[REDACTED]",
+                "x-ratelimit-limit-requests": "[REDACTED]",
+                "x-ratelimit-limit-tokens": "[REDACTED]",
+                "x-ratelimit-remaining-requests": "[REDACTED]",
+                "x-ratelimit-remaining-tokens": "[REDACTED]",
+                "x-ratelimit-reset-requests": "[REDACTED]",
+                "x-ratelimit-reset-tokens": "[REDACTED]",
+                "x-request-id": "[REDACTED]"
+              }
+            }
+          }
+        },
+        "score": 1,
+        "success": true,
+        "testCase": {
+          "description": "extraction: fuzzy name matching (Inaia→Inaya, Liana→Lina)",
+          "providers": [
+            "gradebee-extract"
+          ],
+          "vars": {
+            "task": "build-extract-prompt",
+            "transcript": "file://fixtures/extraction/fuzzy_name_matching/transcript.txt",
+            "classes": "file://fixtures/extraction/fuzzy_name_matching/classes.json"
+          },
+          "assert": [
+            {
+              "type": "is-json"
+            },
+            {
+              "type": "javascript",
+              "value": "file://scoring/extraction.js",
+              "config": {
+                "expected": "file://fixtures/extraction/fuzzy_name_matching/expected.json",
+                "metric": "precision_recall"
+              }
+            }
+          ],
+          "options": {
+            "provider": {
+              "id": "openai:chat:gpt-5",
+              "config": {
+                "temperature": 0
+              }
+            }
+          },
+          "metadata": {}
+        },
+        "testIdx": 2,
+        "vars": {
+          "task": "build-extract-prompt",
+          "transcript": "file://fixtures/extraction/fuzzy_name_matching/transcript.txt",
+          "classes": "file://fixtures/extraction/fuzzy_name_matching/classes.json"
+        },
+        "metadata": {
+          "http": {
+            "status": 200,
+            "statusText": "OK",
+            "headers": {
+              "access-control-expose-headers": "X-Request-ID,CF-Ray,CF-Ray",
+              "alt-svc": "h3=\":443\"; ma=86400",
+              "cf-cache-status": "[REDACTED]",
+              "cf-ray": "[REDACTED]",
+              "connection": "keep-alive",
+              "content-type": "application/json",
+              "date": "Mon, 25 May 2026 09:20:04 GMT",
+              "openai-organization": "[REDACTED]",
+              "openai-processing-ms": "2349",
               "openai-project": "[REDACTED]",
               "openai-version": "[REDACTED]",
               "server": "cloudflare",
@@ -543,8 +763,8 @@
             }
           ]
         },
-        "id": "72879678-229f-42d6-865f-4174340d18c6",
-        "latencyMs": 2213,
+        "id": "02c82cd3-ad0c-4a48-b43f-063795bebaa0",
+        "latencyMs": 2489,
         "namedScores": {},
         "prompt": {
           "raw": "[{\"content\":\"You are a teaching assistant analyzing a teacher's audio transcript about student observations.\\n\\nYour task:\\n1. Identify which students are mentioned in the transcript\\n2. Match each mentioned name to the student roster below (handle phonetic/partial matches)\\n3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty\\n4. Write a 1-3 sentence summary per student capturing what the teacher said about them\\n   - Clean up speech artifacts (false starts, filler words, repetitions) into clear sentences\\n   - Preserve the teacher's voice, tone, and specific observations — do NOT add details or opinions not present in the transcript\\n   - Keep the teacher's vocabulary and perspective (first person if they used it)\\n   - Combine multiple mentions of the same student into a cohesive note\\n\\nStudent Roster:\\n- Lucas Green (class Class A)\\n- Isabelle Brown (class Class A)\\n- Olivia Chen (class Class B)\\n- Marcus Davis (class Class B)\\n- Zoe Taylor (class Class B)\\n\\nRules:\\n- Match mentioned names against the roster even if pronunciation differs slightly\\n- Some roster entries include \\\"(aka ...)\\\" aliases — if a teacher uses an alias, match it to the canonical name and return the canonical name in the \\\"name\\\" field\\n- Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.\\n- If confidence < 0.7, include up to 3 closest roster matches in \\\"candidates\\\"\\n- A student is \\\"individually mentioned\\\" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like \\\"everyone\\\", \\\"all students\\\", \\\"the class\\\" do NOT count as individual mentions.\\n- Do NOT create entries for students who are never individually mentioned by name. If a student is only covered by group-level observations (e.g. \\\"the class was loud\\\") but never called out by name, they must NOT appear in the output.\\n- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations from the transcript. Always include the group-level context even if the student also has individual observations.\\n- If the transcript contains group references like \\\"everyone\\\", \\\"all students\\\", or \\\"the class\\\", apply those observations only to students in the class being discussed, not to ALL classes. Use context clues (class name mentions, prior student mentions) to determine which class is meant.\\n- For multi-student transcripts, produce a separate entry per student with relevant passages\\n- If a mentioned student cannot be matched to any roster entry, do not include them in the output\\n- If no students are clearly mentioned, return an empty students array\\n- The \\\"class\\\" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.\\n- IMPORTANT: Clean up speech into readable sentences, but do NOT invent observations or editorialize. Stay faithful to what the teacher actually said.\\n\",\"role\":\"system\"},{\"content\":\"Quick note about Class B from this afternoon. The whole class really struggled with the fractions worksheet today, I think we need to revisit that next week. Specifically though, Olivia did really well — she finished early and helped a neighbor. Marcus still not turning in homework, third time this week.\",\"role\":\"user\"}]",
@@ -570,15 +790,15 @@
               {
                 "name": "Olivia Chen",
                 "class": "Class B",
-                "quoted_text": "The whole class really struggled with the fractions worksheet today, so I think we need to revisit that next week. Olivia did really well — she finished early and helped a neighbor.",
-                "confidence": 0.98,
+                "quoted_text": "The whole class really struggled with the fractions worksheet today, and I think we need to revisit that next week. Olivia did really well — she finished early and helped a neighbor.",
+                "confidence": 0.99,
                 "candidates": []
               },
               {
                 "name": "Marcus Davis",
                 "class": "Class B",
-                "quoted_text": "The whole class really struggled with the fractions worksheet today, so I think we need to revisit that next week. Marcus is still not turning in homework, the third time this week.",
-                "confidence": 0.98,
+                "quoted_text": "The whole class really struggled with the fractions worksheet today, and I think we need to revisit that next week. Marcus is still not turning in homework, the third time this week.",
+                "confidence": 0.99,
                 "candidates": []
               }
             ],
@@ -589,7 +809,7 @@
             "total": 914
           },
           "cached": true,
-          "latencyMs": 2213,
+          "latencyMs": 2489,
           "finishReason": "stop",
           "cost": 0,
           "guardrails": {
@@ -606,9 +826,9 @@
                 "cf-ray": "[REDACTED]",
                 "connection": "keep-alive",
                 "content-type": "application/json",
-                "date": "Mon, 25 May 2026 06:47:29 GMT",
+                "date": "Mon, 25 May 2026 09:02:40 GMT",
                 "openai-organization": "[REDACTED]",
-                "openai-processing-ms": "1181",
+                "openai-processing-ms": "1023",
                 "openai-project": "[REDACTED]",
                 "openai-version": "[REDACTED]",
                 "server": "cloudflare",
@@ -663,7 +883,7 @@
           },
           "metadata": {}
         },
-        "testIdx": 2,
+        "testIdx": 3,
         "vars": {
           "task": "build-extract-prompt",
           "transcript": "file://fixtures/extraction/group_observation/transcript.txt",
@@ -680,9 +900,9 @@
               "cf-ray": "[REDACTED]",
               "connection": "keep-alive",
               "content-type": "application/json",
-              "date": "Mon, 25 May 2026 06:47:29 GMT",
+              "date": "Mon, 25 May 2026 09:02:40 GMT",
               "openai-organization": "[REDACTED]",
-              "openai-processing-ms": "1181",
+              "openai-processing-ms": "1023",
               "openai-project": "[REDACTED]",
               "openai-version": "[REDACTED]",
               "server": "cloudflare",
@@ -706,18 +926,18 @@
       },
       {
         "cost": 0,
-        "error": "Tone, length (1 paragraph ~137 words), and structure match the examples. However, several statements are not traceable to the source notes, violating the grounding requirement: “very successful term in Grade 3A,” “thoughtful and capable… care and determination,” “resilience and a growing confidence,” “engaging deeply with the text,” and the concluding “We are pleased… look forward to seeing her continue to grow.” The core academic claims are grounded, but these added evaluative phrases are not.",
+        "error": "Tone, length, and structure match the examples (warm, 1 paragraph, clear narrative). Most content is grounded in the notes: addition with regrouping success, initial subtraction struggle with perseverance, fluent expressive reading with predictions, and writing with clear structure and vivid details. However, several statements are not traceable to the source notes: “very successful term,” “strong growth across the curriculum,” “conscientious,” and “confidence continue to grow.” These introduce observations not explicitly supported by the notes, violating the grounding requirement.",
         "gradingResult": {
           "pass": false,
           "score": 3.5,
-          "reason": "Tone, length (1 paragraph ~137 words), and structure match the examples. However, several statements are not traceable to the source notes, violating the grounding requirement: “very successful term in Grade 3A,” “thoughtful and capable… care and determination,” “resilience and a growing confidence,” “engaging deeply with the text,” and the concluding “We are pleased… look forward to seeing her continue to grow.” The core academic claims are grounded, but these added evaluative phrases are not.",
+          "reason": "Tone, length, and structure match the examples (warm, 1 paragraph, clear narrative). Most content is grounded in the notes: addition with regrouping success, initial subtraction struggle with perseverance, fluent expressive reading with predictions, and writing with clear structure and vivid details. However, several statements are not traceable to the source notes: “very successful term,” “strong growth across the curriculum,” “conscientious,” and “confidence continue to grow.” These introduce observations not explicitly supported by the notes, violating the grounding requirement.",
           "namedScores": {},
           "tokensUsed": {
-            "total": 3752,
-            "prompt": 875,
-            "completion": 2877,
-            "cached": 0,
-            "numRequests": 1
+            "total": 3181,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 3181,
+            "numRequests": 0
           },
           "componentResults": [
             {
@@ -727,15 +947,15 @@
               },
               "pass": false,
               "score": 3.5,
-              "reason": "Tone, length (1 paragraph ~137 words), and structure match the examples. However, several statements are not traceable to the source notes, violating the grounding requirement: “very successful term in Grade 3A,” “thoughtful and capable… care and determination,” “resilience and a growing confidence,” “engaging deeply with the text,” and the concluding “We are pleased… look forward to seeing her continue to grow.” The core academic claims are grounded, but these added evaluative phrases are not.",
+              "reason": "Tone, length, and structure match the examples (warm, 1 paragraph, clear narrative). Most content is grounded in the notes: addition with regrouping success, initial subtraction struggle with perseverance, fluent expressive reading with predictions, and writing with clear structure and vivid details. However, several statements are not traceable to the source notes: “very successful term,” “strong growth across the curriculum,” “conscientious,” and “confidence continue to grow.” These introduce observations not explicitly supported by the notes, violating the grounding requirement.",
               "tokensUsed": {
-                "total": 3752,
-                "prompt": 875,
-                "completion": 2877,
-                "cached": 0,
-                "numRequests": 1,
+                "total": 3181,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 3181,
+                "numRequests": 0,
                 "completionDetails": {
-                  "reasoning": 2752,
+                  "reasoning": 0,
                   "acceptedPrediction": 0,
                   "rejectedPrediction": 0
                 }
@@ -751,9 +971,9 @@
                     "cf-ray": "[REDACTED]",
                     "connection": "keep-alive",
                     "content-type": "application/json",
-                    "date": "Mon, 25 May 2026 07:14:26 GMT",
+                    "date": "Mon, 25 May 2026 09:03:06 GMT",
                     "openai-organization": "[REDACTED]",
-                    "openai-processing-ms": "21667",
+                    "openai-processing-ms": "25052",
                     "openai-project": "[REDACTED]",
                     "openai-version": "[REDACTED]",
                     "server": "cloudflare",
@@ -771,14 +991,14 @@
                     "x-request-id": "[REDACTED]"
                   }
                 },
-                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<p>Alice has had a very successful term in Grade 3A. She is a thoughtful and capable learner who approaches her work with care and determination. In mathematics, Alice has shown a strong grasp of addition with regrouping, completing all problems correctly with minimal support. Although she found one subtraction worksheet challenging, she persisted without prompting and was able to correct her own work, demonstrating resilience and a growing confidence in her abilities. In reading, Alice reads aloud with excellent fluency and expression, and she makes thoughtful predictions that show she is engaging deeply with the text. Her writing has blossomed this term; her stories now include a clear beginning, middle, and end, along with vivid details that bring her ideas to life. We are pleased with Alice's progress and look forward to seeing her continue to grow.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-15\\\", \\\"summary\\\": \\\"Alice showed strong grasp of addition with regrouping, completed all problems correctly with minimal support.\\\" },\\n  { \\\"date\\\": \\\"2026-02-03\\\", \\\"summary\\\": \\\"Alice read aloud with excellent fluency and expression. She made thoughtful predictions before reading the next chapter.\\\" },\\n  { \\\"date\\\": \\\"2026-02-20\\\", \\\"summary\\\": \\\"Struggled a little with the subtraction worksheet but persisted without prompting and corrected her own work.\\\" },\\n  { \\\"date\\\": \\\"2026-03-10\\\", \\\"summary\\\": \\\"Alice's writing has blossomed this term — her story had a clear beginning, middle, and end with vivid details.\\\" }\\n]\\n\\nStyle examples (the report's tone and vocabulary should match these):\\n[\\n  {\\n    \\\"name\\\": \\\"Example 1\\\",\\n    \\\"content\\\": \\\"<p>Jamie has had a wonderful term in Grade 3A. She approaches every subject with enthusiasm and curiosity, and her love of learning is truly evident in her daily work. In mathematics, Jamie demonstrates a solid understanding of place value and tackles new concepts with confidence. Her reading has grown tremendously — she reads with expression and comprehension beyond grade level. Jamie's writing reflects her creative spirit; her narratives are vivid and well-structured. She is a thoughtful classroom citizen who supports her peers and contributes meaningfully to group discussions. We look forward to watching her continue to flourish.</p>\\\"\\n  },\\n  {\\n    \\\"name\\\": \\\"Example 2\\\",\\n    \\\"content\\\": \\\"<p>Daniel is a hardworking and motivated learner who consistently gives his best effort. This term he has made impressive strides in literacy, moving from short sentences to detailed paragraphs that show real voice and personality. In numeracy Daniel has mastered addition and subtraction facts and is beginning to apply these skills in problem-solving contexts. He listens attentively in class and asks perceptive questions that deepen his own understanding and spark discussion. We have been delighted by Daniel's growth this term.</p>\\\"\\n  }\\n]\\n\\nThe report card should match the warm, encouraging tone of the provided examples.\\nIt must be grounded only in the facts present in the source notes (no fabricated\\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\\n- tone: matches warmth and vocabulary of examples\\n- grounding: every statement traceable to notes\\n- length: appropriate (1-2 paragraphs)\\n- structure: clear narrative, not a bullet list\\n\\n</Rubric>\"}]",
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<p>Alice has had a very successful term in Grade 3A and continues to demonstrate strong growth across the curriculum. In mathematics, she showed a solid grasp of addition with regrouping and completed all problems correctly with minimal support. When working on subtraction, Alice encountered some challenges at first, but she persevered without prompting and was able to correct her own work, showing determination and a positive attitude toward learning. In literacy, Alice read aloud with excellent fluency and expression, and she made thoughtful predictions as she moved through the text. Her writing has blossomed this term; her story was well-organized with a clear beginning, middle, and end, and included vivid details that brought her ideas to life. Alice is a conscientious and resilient learner, and it has been a pleasure to watch her confidence continue to grow.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-15\\\", \\\"summary\\\": \\\"Alice showed strong grasp of addition with regrouping, completed all problems correctly with minimal support.\\\" },\\n  { \\\"date\\\": \\\"2026-02-03\\\", \\\"summary\\\": \\\"Alice read aloud with excellent fluency and expression. She made thoughtful predictions before reading the next chapter.\\\" },\\n  { \\\"date\\\": \\\"2026-02-20\\\", \\\"summary\\\": \\\"Struggled a little with the subtraction worksheet but persisted without prompting and corrected her own work.\\\" },\\n  { \\\"date\\\": \\\"2026-03-10\\\", \\\"summary\\\": \\\"Alice's writing has blossomed this term — her story had a clear beginning, middle, and end with vivid details.\\\" }\\n]\\n\\nStyle examples (the report's tone and vocabulary should match these):\\n[\\n  {\\n    \\\"name\\\": \\\"Example 1\\\",\\n    \\\"content\\\": \\\"<p>Jamie has had a wonderful term in Grade 3A. She approaches every subject with enthusiasm and curiosity, and her love of learning is truly evident in her daily work. In mathematics, Jamie demonstrates a solid understanding of place value and tackles new concepts with confidence. Her reading has grown tremendously — she reads with expression and comprehension beyond grade level. Jamie's writing reflects her creative spirit; her narratives are vivid and well-structured. She is a thoughtful classroom citizen who supports her peers and contributes meaningfully to group discussions. We look forward to watching her continue to flourish.</p>\\\"\\n  },\\n  {\\n    \\\"name\\\": \\\"Example 2\\\",\\n    \\\"content\\\": \\\"<p>Daniel is a hardworking and motivated learner who consistently gives his best effort. This term he has made impressive strides in literacy, moving from short sentences to detailed paragraphs that show real voice and personality. In numeracy Daniel has mastered addition and subtraction facts and is beginning to apply these skills in problem-solving contexts. He listens attentively in class and asks perceptive questions that deepen his own understanding and spark discussion. We have been delighted by Daniel's growth this term.</p>\\\"\\n  }\\n]\\n\\nThe report card should match the warm, encouraging tone of the provided examples.\\nIt must be grounded only in the facts present in the source notes (no fabricated\\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\\n- tone: matches warmth and vocabulary of examples\\n- grounding: every statement traceable to notes\\n- length: appropriate (1-2 paragraphs)\\n- structure: clear narrative, not a bullet list\\n\\n</Rubric>\"}]",
                 "renderedAssertionValue": "Source notes (ground truth — every statement in the report must be traceable to these):\n[\n  { \"date\": \"2026-01-15\", \"summary\": \"Alice showed strong grasp of addition with regrouping, completed all problems correctly with minimal support.\" },\n  { \"date\": \"2026-02-03\", \"summary\": \"Alice read aloud with excellent fluency and expression. She made thoughtful predictions before reading the next chapter.\" },\n  { \"date\": \"2026-02-20\", \"summary\": \"Struggled a little with the subtraction worksheet but persisted without prompting and corrected her own work.\" },\n  { \"date\": \"2026-03-10\", \"summary\": \"Alice's writing has blossomed this term — her story had a clear beginning, middle, and end with vivid details.\" }\n]\n\nStyle examples (the report's tone and vocabulary should match these):\n[\n  {\n    \"name\": \"Example 1\",\n    \"content\": \"<p>Jamie has had a wonderful term in Grade 3A. She approaches every subject with enthusiasm and curiosity, and her love of learning is truly evident in her daily work. In mathematics, Jamie demonstrates a solid understanding of place value and tackles new concepts with confidence. Her reading has grown tremendously — she reads with expression and comprehension beyond grade level. Jamie's writing reflects her creative spirit; her narratives are vivid and well-structured. She is a thoughtful classroom citizen who supports her peers and contributes meaningfully to group discussions. We look forward to watching her continue to flourish.</p>\"\n  },\n  {\n    \"name\": \"Example 2\",\n    \"content\": \"<p>Daniel is a hardworking and motivated learner who consistently gives his best effort. This term he has made impressive strides in literacy, moving from short sentences to detailed paragraphs that show real voice and personality. In numeracy Daniel has mastered addition and subtraction facts and is beginning to apply these skills in problem-solving contexts. He listens attentively in class and asks perceptive questions that deepen his own understanding and spark discussion. We have been delighted by Daniel's growth this term.</p>\"\n  }\n]\n\nThe report card should match the warm, encouraging tone of the provided examples.\nIt must be grounded only in the facts present in the source notes (no fabricated\nobservations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:\n- tone: matches warmth and vocabulary of examples\n- grounding: every statement traceable to notes\n- length: appropriate (1-2 paragraphs)\n- structure: clear narrative, not a bullet list\n"
               }
             }
           ]
         },
-        "id": "68c5d003-2a23-4e31-b88e-9d6fe4cfec16",
-        "latencyMs": 6195,
+        "id": "b11f2d84-5172-413d-a45b-c9543b52c428",
+        "latencyMs": 2900,
         "namedScores": {},
         "prompt": {
           "raw": "[{\"content\":\"You are a report card writer for a school teacher.\\n\\n## Style & Layout Guide\\nThe following are example report cards. Match their tone, voice, vocabulary,\\nsection structure, and approximate length.\\n\\n### Example 1: Example 1\\n<p>Jamie has had a wonderful term in Grade 3A. She approaches every subject with enthusiasm and curiosity, and her love of learning is truly evident in her daily work. In mathematics, Jamie demonstrates a solid understanding of place value and tackles new concepts with confidence. Her reading has grown tremendously — she reads with expression and comprehension beyond grade level. Jamie's writing reflects her creative spirit; her narratives are vivid and well-structured. She is a thoughtful classroom citizen who supports her peers and contributes meaningfully to group discussions. We look forward to watching her continue to flourish.</p>\\n\\n### Example 2: Example 2\\n<p>Daniel is a hardworking and motivated learner who consistently gives his best effort. This term he has made impressive strides in literacy, moving from short sentences to detailed paragraphs that show real voice and personality. In numeracy Daniel has mastered addition and subtraction facts and is beginning to apply these skills in problem-solving contexts. He listens attentively in class and asks perceptive questions that deepen his own understanding and spark discussion. We have been delighted by Daniel's growth this term.</p>\\n\\n## Student Notes\\nStudent: Alice Chen, Class: Grade 3A\\n\\n- 2026-01-15: Alice showed strong grasp of addition with regrouping, completed all problems correctly with minimal support.\\n- 2026-02-03: Alice read aloud with excellent fluency and expression. She made thoughtful predictions before reading the next chapter.\\n- 2026-02-20: Struggled a little with the subtraction worksheet but persisted without prompting and corrected her own work.\\n- 2026-03-10: Alice's writing has blossomed this term — her story had a clear beginning, middle, and end with vivid details.\\n\\n## Task\\nWrite a report card narrative for this student based on the notes above.\\nOutput the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\\nDo not include <html>, <head>, or <body> wrapper tags — just the content HTML.\\nFollow the style and layout of the examples provided.\\n\",\"role\":\"user\"}]",
@@ -799,13 +1019,13 @@
           "label": "gradebee-report"
         },
         "response": {
-          "output": "<p>Alice has had a very successful term in Grade 3A. She is a thoughtful and capable learner who approaches her work with care and determination. In mathematics, Alice has shown a strong grasp of addition with regrouping, completing all problems correctly with minimal support. Although she found one subtraction worksheet challenging, she persisted without prompting and was able to correct her own work, demonstrating resilience and a growing confidence in her abilities. In reading, Alice reads aloud with excellent fluency and expression, and she makes thoughtful predictions that show she is engaging deeply with the text. Her writing has blossomed this term; her stories now include a clear beginning, middle, and end, along with vivid details that bring her ideas to life. We are pleased with Alice's progress and look forward to seeing her continue to grow.</p>",
+          "output": "<p>Alice has had a very successful term in Grade 3A and continues to demonstrate strong growth across the curriculum. In mathematics, she showed a solid grasp of addition with regrouping and completed all problems correctly with minimal support. When working on subtraction, Alice encountered some challenges at first, but she persevered without prompting and was able to correct her own work, showing determination and a positive attitude toward learning. In literacy, Alice read aloud with excellent fluency and expression, and she made thoughtful predictions as she moved through the text. Her writing has blossomed this term; her story was well-organized with a clear beginning, middle, and end, and included vivid details that brought her ideas to life. Alice is a conscientious and resilient learner, and it has been a pleasure to watch her confidence continue to grow.</p>",
           "tokenUsage": {
-            "cached": 648,
-            "total": 648
+            "cached": 650,
+            "total": 650
           },
           "cached": true,
-          "latencyMs": 6195,
+          "latencyMs": 2900,
           "finishReason": "stop",
           "cost": 0,
           "guardrails": {
@@ -822,9 +1042,9 @@
                 "cf-ray": "[REDACTED]",
                 "connection": "keep-alive",
                 "content-type": "application/json",
-                "date": "Mon, 25 May 2026 06:47:33 GMT",
+                "date": "Mon, 25 May 2026 09:02:40 GMT",
                 "openai-organization": "[REDACTED]",
-                "openai-processing-ms": "5597",
+                "openai-processing-ms": "1605",
                 "openai-project": "[REDACTED]",
                 "openai-version": "[REDACTED]",
                 "server": "cloudflare",
@@ -875,7 +1095,7 @@
           },
           "metadata": {}
         },
-        "testIdx": 3,
+        "testIdx": 4,
         "vars": {
           "task": "build-report-prompt",
           "student_name": "Alice Chen",
@@ -895,9 +1115,9 @@
               "cf-ray": "[REDACTED]",
               "connection": "keep-alive",
               "content-type": "application/json",
-              "date": "Mon, 25 May 2026 06:47:33 GMT",
+              "date": "Mon, 25 May 2026 09:02:40 GMT",
               "openai-organization": "[REDACTED]",
-              "openai-processing-ms": "5597",
+              "openai-processing-ms": "1605",
               "openai-project": "[REDACTED]",
               "openai-version": "[REDACTED]",
               "server": "cloudflare",
@@ -921,17 +1141,18 @@
       },
       {
         "cost": 0,
+        "error": "Brevity: 5/5 (exactly two paragraphs). Coherence: 5/5 (flows well). Grounding: 2/5 due to several statements not supported by notes: begins tasks with confidence; responds well to guidance; capable of excellent work when he applies himself; and careful observation (notes say careful notes, not observation). Most other claims align with notes (math growth from long division to multiplying fractions; independent reading journal; improved paragraph organization; confident presentations; asked smart questions; helped a classmate; needed reminders in group work and for homework). Because it introduces unsupported observations, it fails the grounding requirement.",
         "gradingResult": {
-          "pass": true,
-          "score": 4.7,
-          "reason": "All assertions passed",
+          "pass": false,
+          "score": 4,
+          "reason": "Brevity: 5/5 (exactly two paragraphs). Coherence: 5/5 (flows well). Grounding: 2/5 due to several statements not supported by notes: begins tasks with confidence; responds well to guidance; capable of excellent work when he applies himself; and careful observation (notes say careful notes, not observation). Most other claims align with notes (math growth from long division to multiplying fractions; independent reading journal; improved paragraph organization; confident presentations; asked smart questions; helped a classmate; needed reminders in group work and for homework). Because it introduces unsupported observations, it fails the grounding requirement.",
           "namedScores": {},
           "tokensUsed": {
-            "total": 3750,
-            "prompt": 995,
-            "completion": 2755,
-            "cached": 0,
-            "numRequests": 1
+            "total": 4282,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 4282,
+            "numRequests": 0
           },
           "componentResults": [
             {
@@ -939,17 +1160,17 @@
                 "type": "llm-rubric",
                 "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nThe report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
               },
-              "pass": true,
-              "score": 4.7,
-              "reason": "Adheres to the 2-paragraph limit and reads cohesively. Most claims are well grounded in the notes: enthusiastic math warm-ups (2026-01-10), independent reading with detail (2026-01-17), long-division struggle then success (2026-01-24, 2026-02-21), fractions multiplication progress (2026-05-16), careful science notes/questions (2026-02-07), confident/oral ecosystems report (2026-05-02; also 2026-03-07), literacy meeting expectations and writing improvement (2026-03-21, 2026-03-01; 2026-06-06), helping a classmate (2026-03-14), reminders during group work and homework (2026-02-14, 2026-04-11). Minor overreach: “often a positive partner,” “great potential across the curriculum,” and “well positioned to keep growing next term” are broader inferences not explicitly stated. Overall: Grounding 4/5, Brevity 5/5, Coherence 5/5.",
+              "pass": false,
+              "score": 4,
+              "reason": "Brevity: 5/5 (exactly two paragraphs). Coherence: 5/5 (flows well). Grounding: 2/5 due to several statements not supported by notes: begins tasks with confidence; responds well to guidance; capable of excellent work when he applies himself; and careful observation (notes say careful notes, not observation). Most other claims align with notes (math growth from long division to multiplying fractions; independent reading journal; improved paragraph organization; confident presentations; asked smart questions; helped a classmate; needed reminders in group work and for homework). Because it introduces unsupported observations, it fails the grounding requirement.",
               "tokensUsed": {
-                "total": 3750,
-                "prompt": 995,
-                "completion": 2755,
-                "cached": 0,
-                "numRequests": 1,
+                "total": 4282,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 4282,
+                "numRequests": 0,
                 "completionDetails": {
-                  "reasoning": 2496,
+                  "reasoning": 0,
                   "acceptedPrediction": 0,
                   "rejectedPrediction": 0
                 }
@@ -965,9 +1186,9 @@
                     "cf-ray": "[REDACTED]",
                     "connection": "keep-alive",
                     "content-type": "application/json",
-                    "date": "Mon, 25 May 2026 07:14:28 GMT",
+                    "date": "Mon, 25 May 2026 09:03:15 GMT",
                     "openai-organization": "[REDACTED]",
-                    "openai-processing-ms": "22611",
+                    "openai-processing-ms": "29412",
                     "openai-project": "[REDACTED]",
                     "openai-version": "[REDACTED]",
                     "server": "cloudflare",
@@ -985,14 +1206,14 @@
                     "x-request-id": "[REDACTED]"
                   }
                 },
-                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<h3>Marcus Webb — Grade 4B</h3>\\n<p>Marcus has had a strong and positive term, and he continues to show great potential across the curriculum. He participates enthusiastically in class, especially during math warm-ups and reading activities, and he approaches learning with curiosity and confidence. Marcus demonstrated excellent growth in mathematics this term, moving from needing support with long division to completing problems accurately and later showing a strong understanding of multiplication of fractions. He also impressed with his thoughtful science work, including careful note-taking, insightful questions, and a confident oral report on ecosystems. In literacy, Marcus is meeting expectations and has made steady progress in writing, particularly in organising his paragraphs more clearly and completing reading tasks independently with good detail.</p>\\n<p>Marcus is also developing as a thoughtful member of the class community. He showed kindness and leadership when helping a classmate with fractions, and he is often a positive partner during practical activities. At times, Marcus has needed reminders to stay focused during group work and to complete homework consistently, so continuing to build independence and task persistence will help him make the most of his abilities. Overall, Marcus is a capable, hardworking student who has made excellent progress this term, particularly in mathematics, and he should feel proud of his achievements. With continued focus and steady effort, he is well positioned to keep growing next term.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-10\\\", \\\"summary\\\": \\\"Marcus had a great start to the term — active participation in the math warm-up.\\\" },\\n  { \\\"date\\\": \\\"2026-01-17\\\", \\\"summary\\\": \\\"Completed the reading journal entry independently with good detail.\\\" },\\n  { \\\"date\\\": \\\"2026-01-24\\\", \\\"summary\\\": \\\"Struggled with long division concept; needed several prompts.\\\" },\\n  { \\\"date\\\": \\\"2026-02-07\\\", \\\"summary\\\": \\\"Excellent science lab partner — took careful notes and asked smart questions.\\\" },\\n  { \\\"date\\\": \\\"2026-02-14\\\", \\\"summary\\\": \\\"Was distracted during group work; reminded twice to stay on task.\\\" },\\n  { \\\"date\\\": \\\"2026-02-21\\\", \\\"summary\\\": \\\"Made a real breakthrough with long division — completed all 10 problems correctly.\\\" },\\n  { \\\"date\\\": \\\"2026-03-01\\\", \\\"summary\\\": \\\"Writing sample showed clear improvement in paragraph organisation.\\\" },\\n  { \\\"date\\\": \\\"2026-03-07\\\", \\\"summary\\\": \\\"Presented his science project confidently to the class.\\\" },\\n  { \\\"date\\\": \\\"2026-03-14\\\", \\\"summary\\\": \\\"Helped a struggling classmate with fractions without being asked — great peer leadership.\\\" },\\n  { \\\"date\\\": \\\"2026-03-21\\\", \\\"summary\\\": \\\"End-of-term assessment: above grade level in math, meeting expectations in literacy.\\\" },\\n  { \\\"date\\\": \\\"2026-04-04\\\", \\\"summary\\\": \\\"Started the new term strong — volunteered for every reading slot.\\\" },\\n  { \\\"date\\\": \\\"2026-04-11\\\", \\\"summary\\\": \\\"Needed reminders to complete homework three times this week.\\\" },\\n  { \\\"date\\\": \\\"2026-05-02\\\", \\\"summary\\\": \\\"Delivered an outstanding oral report on ecosystems.\\\" },\\n  { \\\"date\\\": \\\"2026-05-16\\\", \\\"summary\\\": \\\"Math skills continue to grow — tackled multiplication of fractions correctly.\\\" },\\n  { \\\"date\\\": \\\"2026-06-06\\\", \\\"summary\\\": \\\"Final assessment: consistently above expectations in math; making steady progress in writing.\\\" }\\n]\\n\\nThe report should synthesize the notes into at most 2 paragraphs.\\nIt must not invent observations beyond what is in the notes.\\nScore 1-5 on:\\n- grounding: all facts from notes only\\n- brevity: adheres to the 2-paragraph instruction\\n- coherence: reads as a cohesive narrative\\n\\n</Rubric>\"}]",
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<p>Marcus has had a strong and productive term, showing enthusiasm for learning and a willingness to contribute in class. He begins tasks with confidence, participates actively in discussions, and is developing into a thoughtful and responsible learner. Marcus has shown particular strengths in mathematics, where he moved from needing support with long division to mastering it and later applying his skills successfully to more challenging work, including multiplication of fractions. He also continues to demonstrate positive engagement in literacy, completing reading tasks independently and making steady progress in his writing, especially in organising ideas into clearer paragraphs.</p>\\n\\n<p>In science and oral presentations, Marcus has impressed with his careful observation, confident speaking, and ability to ask insightful questions. He is also growing as a supportive class member, showing kindness and leadership when helping others. At times, Marcus needs reminders to stay focused during group work and to complete homework consistently, but he responds well to guidance and is capable of excellent work when he applies himself. Overall, Marcus is making excellent progress and should be very proud of his achievements this term.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-10\\\", \\\"summary\\\": \\\"Marcus had a great start to the term — active participation in the math warm-up.\\\" },\\n  { \\\"date\\\": \\\"2026-01-17\\\", \\\"summary\\\": \\\"Completed the reading journal entry independently with good detail.\\\" },\\n  { \\\"date\\\": \\\"2026-01-24\\\", \\\"summary\\\": \\\"Struggled with long division concept; needed several prompts.\\\" },\\n  { \\\"date\\\": \\\"2026-02-07\\\", \\\"summary\\\": \\\"Excellent science lab partner — took careful notes and asked smart questions.\\\" },\\n  { \\\"date\\\": \\\"2026-02-14\\\", \\\"summary\\\": \\\"Was distracted during group work; reminded twice to stay on task.\\\" },\\n  { \\\"date\\\": \\\"2026-02-21\\\", \\\"summary\\\": \\\"Made a real breakthrough with long division — completed all 10 problems correctly.\\\" },\\n  { \\\"date\\\": \\\"2026-03-01\\\", \\\"summary\\\": \\\"Writing sample showed clear improvement in paragraph organisation.\\\" },\\n  { \\\"date\\\": \\\"2026-03-07\\\", \\\"summary\\\": \\\"Presented his science project confidently to the class.\\\" },\\n  { \\\"date\\\": \\\"2026-03-14\\\", \\\"summary\\\": \\\"Helped a struggling classmate with fractions without being asked — great peer leadership.\\\" },\\n  { \\\"date\\\": \\\"2026-03-21\\\", \\\"summary\\\": \\\"End-of-term assessment: above grade level in math, meeting expectations in literacy.\\\" },\\n  { \\\"date\\\": \\\"2026-04-04\\\", \\\"summary\\\": \\\"Started the new term strong — volunteered for every reading slot.\\\" },\\n  { \\\"date\\\": \\\"2026-04-11\\\", \\\"summary\\\": \\\"Needed reminders to complete homework three times this week.\\\" },\\n  { \\\"date\\\": \\\"2026-05-02\\\", \\\"summary\\\": \\\"Delivered an outstanding oral report on ecosystems.\\\" },\\n  { \\\"date\\\": \\\"2026-05-16\\\", \\\"summary\\\": \\\"Math skills continue to grow — tackled multiplication of fractions correctly.\\\" },\\n  { \\\"date\\\": \\\"2026-06-06\\\", \\\"summary\\\": \\\"Final assessment: consistently above expectations in math; making steady progress in writing.\\\" }\\n]\\n\\nThe report should synthesize the notes into at most 2 paragraphs.\\nIt must not invent observations beyond what is in the notes.\\nScore 1-5 on:\\n- grounding: all facts from notes only\\n- brevity: adheres to the 2-paragraph instruction\\n- coherence: reads as a cohesive narrative\\n\\n</Rubric>\"}]",
                 "renderedAssertionValue": "Source notes (ground truth — every statement in the report must be traceable to these):\n[\n  { \"date\": \"2026-01-10\", \"summary\": \"Marcus had a great start to the term — active participation in the math warm-up.\" },\n  { \"date\": \"2026-01-17\", \"summary\": \"Completed the reading journal entry independently with good detail.\" },\n  { \"date\": \"2026-01-24\", \"summary\": \"Struggled with long division concept; needed several prompts.\" },\n  { \"date\": \"2026-02-07\", \"summary\": \"Excellent science lab partner — took careful notes and asked smart questions.\" },\n  { \"date\": \"2026-02-14\", \"summary\": \"Was distracted during group work; reminded twice to stay on task.\" },\n  { \"date\": \"2026-02-21\", \"summary\": \"Made a real breakthrough with long division — completed all 10 problems correctly.\" },\n  { \"date\": \"2026-03-01\", \"summary\": \"Writing sample showed clear improvement in paragraph organisation.\" },\n  { \"date\": \"2026-03-07\", \"summary\": \"Presented his science project confidently to the class.\" },\n  { \"date\": \"2026-03-14\", \"summary\": \"Helped a struggling classmate with fractions without being asked — great peer leadership.\" },\n  { \"date\": \"2026-03-21\", \"summary\": \"End-of-term assessment: above grade level in math, meeting expectations in literacy.\" },\n  { \"date\": \"2026-04-04\", \"summary\": \"Started the new term strong — volunteered for every reading slot.\" },\n  { \"date\": \"2026-04-11\", \"summary\": \"Needed reminders to complete homework three times this week.\" },\n  { \"date\": \"2026-05-02\", \"summary\": \"Delivered an outstanding oral report on ecosystems.\" },\n  { \"date\": \"2026-05-16\", \"summary\": \"Math skills continue to grow — tackled multiplication of fractions correctly.\" },\n  { \"date\": \"2026-06-06\", \"summary\": \"Final assessment: consistently above expectations in math; making steady progress in writing.\" }\n]\n\nThe report should synthesize the notes into at most 2 paragraphs.\nIt must not invent observations beyond what is in the notes.\nScore 1-5 on:\n- grounding: all facts from notes only\n- brevity: adheres to the 2-paragraph instruction\n- coherence: reads as a cohesive narrative\n"
               }
             }
           ]
         },
-        "id": "3588c08c-b486-475e-8b83-587fdb3d9e29",
-        "latencyMs": 2734,
+        "id": "314f3c7d-2c88-4020-9769-28faf34c15e6",
+        "latencyMs": 4314,
         "namedScores": {},
         "prompt": {
           "raw": "[{\"content\":\"You are a report card writer for a school teacher.\\n\\n## Style & Layout Guide\\nWrite a professional, warm report card narrative.\\n\\n## Additional Instructions\\nKeep it to 2 paragraphs.\\n\\n## Student Notes\\nStudent: Marcus Webb, Class: Grade 4B\\n\\n- 2026-01-10: Marcus had a great start to the term — active participation in the math warm-up.\\n- 2026-01-17: Completed the reading journal entry independently with good detail.\\n- 2026-01-24: Struggled with long division concept; needed several prompts.\\n- 2026-02-07: Excellent science lab partner — took careful notes and asked smart questions.\\n- 2026-02-14: Was distracted during group work; reminded twice to stay on task.\\n- 2026-02-21: Made a real breakthrough with long division — completed all 10 problems correctly.\\n- 2026-03-01: Writing sample showed clear improvement in paragraph organisation.\\n- 2026-03-07: Presented his science project confidently to the class.\\n- 2026-03-14: Helped a struggling classmate with fractions without being asked — great peer leadership.\\n- 2026-03-21: End-of-term assessment: above grade level in math, meeting expectations in literacy.\\n- 2026-04-04: Started the new term strong — volunteered for every reading slot.\\n- 2026-04-11: Needed reminders to complete homework three times this week.\\n- 2026-05-02: Delivered an outstanding oral report on ecosystems.\\n- 2026-05-16: Math skills continue to grow — tackled multiplication of fractions correctly.\\n- 2026-06-06: Final assessment: consistently above expectations in math; making steady progress in writing.\\n\\n## Task\\nWrite a report card narrative for this student based on the notes above.\\nOutput the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\\nDo not include <html>, <head>, or <body> wrapper tags — just the content HTML.\\n\",\"role\":\"user\"}]",
@@ -1013,13 +1234,13 @@
           "label": "gradebee-report"
         },
         "response": {
-          "output": "<h3>Marcus Webb — Grade 4B</h3>\n<p>Marcus has had a strong and positive term, and he continues to show great potential across the curriculum. He participates enthusiastically in class, especially during math warm-ups and reading activities, and he approaches learning with curiosity and confidence. Marcus demonstrated excellent growth in mathematics this term, moving from needing support with long division to completing problems accurately and later showing a strong understanding of multiplication of fractions. He also impressed with his thoughtful science work, including careful note-taking, insightful questions, and a confident oral report on ecosystems. In literacy, Marcus is meeting expectations and has made steady progress in writing, particularly in organising his paragraphs more clearly and completing reading tasks independently with good detail.</p>\n<p>Marcus is also developing as a thoughtful member of the class community. He showed kindness and leadership when helping a classmate with fractions, and he is often a positive partner during practical activities. At times, Marcus has needed reminders to stay focused during group work and to complete homework consistently, so continuing to build independence and task persistence will help him make the most of his abilities. Overall, Marcus is a capable, hardworking student who has made excellent progress this term, particularly in mathematics, and he should feel proud of his achievements. With continued focus and steady effort, he is well positioned to keep growing next term.</p>",
+          "output": "<p>Marcus has had a strong and productive term, showing enthusiasm for learning and a willingness to contribute in class. He begins tasks with confidence, participates actively in discussions, and is developing into a thoughtful and responsible learner. Marcus has shown particular strengths in mathematics, where he moved from needing support with long division to mastering it and later applying his skills successfully to more challenging work, including multiplication of fractions. He also continues to demonstrate positive engagement in literacy, completing reading tasks independently and making steady progress in his writing, especially in organising ideas into clearer paragraphs.</p>\n\n<p>In science and oral presentations, Marcus has impressed with his careful observation, confident speaking, and ability to ask insightful questions. He is also growing as a supportive class member, showing kindness and leadership when helping others. At times, Marcus needs reminders to stay focused during group work and to complete homework consistently, but he responds well to guidance and is capable of excellent work when he applies himself. Overall, Marcus is making excellent progress and should be very proud of his achievements this term.</p>",
           "tokenUsage": {
-            "cached": 722,
-            "total": 722
+            "cached": 658,
+            "total": 658
           },
           "cached": true,
-          "latencyMs": 2734,
+          "latencyMs": 4314,
           "finishReason": "stop",
           "cost": 0,
           "guardrails": {
@@ -1036,9 +1257,9 @@
                 "cf-ray": "[REDACTED]",
                 "connection": "keep-alive",
                 "content-type": "application/json",
-                "date": "Mon, 25 May 2026 06:47:32 GMT",
+                "date": "Mon, 25 May 2026 09:02:44 GMT",
                 "openai-organization": "[REDACTED]",
-                "openai-processing-ms": "2288",
+                "openai-processing-ms": "2624",
                 "openai-project": "[REDACTED]",
                 "openai-version": "[REDACTED]",
                 "server": "cloudflare",
@@ -1058,8 +1279,8 @@
             }
           }
         },
-        "score": 4.7,
-        "success": true,
+        "score": 4,
+        "success": false,
         "testCase": {
           "description": "report: handles long note list and produces concise output",
           "providers": [
@@ -1089,7 +1310,7 @@
           },
           "metadata": {}
         },
-        "testIdx": 4,
+        "testIdx": 5,
         "vars": {
           "task": "build-report-prompt",
           "student_name": "Marcus Webb",
@@ -1109,9 +1330,9 @@
               "cf-ray": "[REDACTED]",
               "connection": "keep-alive",
               "content-type": "application/json",
-              "date": "Mon, 25 May 2026 06:47:32 GMT",
+              "date": "Mon, 25 May 2026 09:02:44 GMT",
               "openai-organization": "[REDACTED]",
-              "openai-processing-ms": "2288",
+              "openai-processing-ms": "2624",
               "openai-project": "[REDACTED]",
               "openai-version": "[REDACTED]",
               "server": "cloudflare",
@@ -1131,22 +1352,22 @@
           },
           "_promptfooFileMetadata": {}
         },
-        "failureReason": 0
+        "failureReason": 1
       },
       {
         "cost": 0,
-        "error": "Brevity: under 100 words (~72). Positive focus: emphasizes strengths and avoids mentioning errors. Grounding: several statements are not supported by the notes, including “positive attitude,” “bright and engaged student,” “participates eagerly in class,” “strong desire to understand new ideas,” “enthusiasm for learning,” “excellent progress across the curriculum,” and “enjoys asking” (enjoyment not stated in notes). Therefore it fails the grounding requirement. Scores — brevity: 5, positive_focus: 5, grounding: 1.",
+        "error": "Brevity: under 100 words. Positive focus: emphasizes strengths and omits weaknesses. Grounding: several claims are not in the source notes (positive attitude toward classwork; enjoys sharing thoughtful ideas; bright and engaged; contributes warmly to discussions; described as a careful learner; generalizing from 'reader' to 'learner'; inclusion of Grade 2C). Only the excellent reading comprehension and curiosity/insightful questions about plant growth are supported. Fails grounding requirement.",
         "gradingResult": {
           "pass": false,
-          "score": 3.7,
-          "reason": "Brevity: under 100 words (~72). Positive focus: emphasizes strengths and avoids mentioning errors. Grounding: several statements are not supported by the notes, including “positive attitude,” “bright and engaged student,” “participates eagerly in class,” “strong desire to understand new ideas,” “enthusiasm for learning,” “excellent progress across the curriculum,” and “enjoys asking” (enjoyment not stated in notes). Therefore it fails the grounding requirement. Scores — brevity: 5, positive_focus: 5, grounding: 1.",
+          "score": 3,
+          "reason": "Brevity: under 100 words. Positive focus: emphasizes strengths and omits weaknesses. Grounding: several claims are not in the source notes (positive attitude toward classwork; enjoys sharing thoughtful ideas; bright and engaged; contributes warmly to discussions; described as a careful learner; generalizing from 'reader' to 'learner'; inclusion of Grade 2C). Only the excellent reading comprehension and curiosity/insightful questions about plant growth are supported. Fails grounding requirement.",
           "namedScores": {},
           "tokensUsed": {
-            "total": 3182,
-            "prompt": 486,
-            "completion": 2696,
-            "cached": 0,
-            "numRequests": 1
+            "total": 3934,
+            "prompt": 0,
+            "completion": 0,
+            "cached": 3934,
+            "numRequests": 0
           },
           "componentResults": [
             {
@@ -1155,16 +1376,16 @@
                 "value": "Source notes (ground truth — every statement in the report must be traceable to these):\n{{notes}}\n\nInstructions given to the model:\n{{instructions}}\n\nThe report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
               },
               "pass": false,
-              "score": 3.7,
-              "reason": "Brevity: under 100 words (~72). Positive focus: emphasizes strengths and avoids mentioning errors. Grounding: several statements are not supported by the notes, including “positive attitude,” “bright and engaged student,” “participates eagerly in class,” “strong desire to understand new ideas,” “enthusiasm for learning,” “excellent progress across the curriculum,” and “enjoys asking” (enjoyment not stated in notes). Therefore it fails the grounding requirement. Scores — brevity: 5, positive_focus: 5, grounding: 1.",
+              "score": 3,
+              "reason": "Brevity: under 100 words. Positive focus: emphasizes strengths and omits weaknesses. Grounding: several claims are not in the source notes (positive attitude toward classwork; enjoys sharing thoughtful ideas; bright and engaged; contributes warmly to discussions; described as a careful learner; generalizing from 'reader' to 'learner'; inclusion of Grade 2C). Only the excellent reading comprehension and curiosity/insightful questions about plant growth are supported. Fails grounding requirement.",
               "tokensUsed": {
-                "total": 3182,
-                "prompt": 486,
-                "completion": 2696,
-                "cached": 0,
-                "numRequests": 1,
+                "total": 3934,
+                "prompt": 0,
+                "completion": 0,
+                "cached": 3934,
+                "numRequests": 0,
                 "completionDetails": {
-                  "reasoning": 2560,
+                  "reasoning": 0,
                   "acceptedPrediction": 0,
                   "rejectedPrediction": 0
                 }
@@ -1180,9 +1401,9 @@
                     "cf-ray": "[REDACTED]",
                     "connection": "keep-alive",
                     "content-type": "application/json",
-                    "date": "Mon, 25 May 2026 07:14:25 GMT",
+                    "date": "Mon, 25 May 2026 09:03:12 GMT",
                     "openai-organization": "[REDACTED]",
-                    "openai-processing-ms": "20838",
+                    "openai-processing-ms": "30361",
                     "openai-project": "[REDACTED]",
                     "openai-version": "[REDACTED]",
                     "server": "cloudflare",
@@ -1200,14 +1421,14 @@
                     "x-request-id": "[REDACTED]"
                   }
                 },
-                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<h3>Priya Sharma - Grade 2C</h3>\\n<p>Priya is a confident and enthusiastic learner who approaches reading with excellent comprehension and a positive attitude. She shows wonderful curiosity in science and enjoys asking thoughtful questions, especially when exploring plant growth. Priya is a bright and engaged student who participates eagerly in class and demonstrates a strong desire to understand new ideas. Her enthusiasm for learning is a great strength, and she continues to make excellent progress across the curriculum.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-12\\\", \\\"summary\\\": \\\"Priya is a confident and enthusiastic reader — her comprehension is excellent.\\\" },\\n  { \\\"date\\\": \\\"2026-02-05\\\", \\\"summary\\\": \\\"Shows genuine curiosity in science; asked several insightful questions about plant growth.\\\" },\\n  { \\\"date\\\": \\\"2026-03-03\\\", \\\"summary\\\": \\\"Sometimes rushes through math tasks and makes careless errors; benefits from slow-down prompts.\\\" }\\n]\\n\\nInstructions given to the model:\\nWrite a brief, positive report (under 100 words) focusing on this student's strengths. Do not mention the careless errors — frame everything positively.\\n\\nThe report should be shorter than 100 words as instructed.\\nIt must focus on the student's strengths.\\nScore 1-5 on:\\n- brevity: under 100 words\\n- positive_focus: emphasises strengths not weaknesses\\n- grounding: all facts from notes only\\n\\n</Rubric>\"}]",
+                "renderedGradingPrompt": "[{\"role\":\"system\",\"content\":\"You are grading output according to a user-specified rubric. If the statement in the rubric is true, then the output passes the test. You respond with a JSON object with this structure: {reason: string, pass: boolean, score: number}\\n\\nExamples:\\n\\n<Output>Hello world</Output>\\n<Rubric>Content contains a greeting</Rubric>\\n{\\\"reason\\\": \\\"the content contains the word 'Hello'\\\", \\\"pass\\\": true, \\\"score\\\": 1.0}\\n\\n<Output>Avast ye swabs, repel the invaders!</Output>\\n<Rubric>Does not speak like a pirate</Rubric>\\n{\\\"reason\\\": \\\"'avast ye' is a common pirate term\\\", \\\"pass\\\": false, \\\"score\\\": 0.0}\"},{\"role\":\"user\",\"content\":\"<Output>\\n<h3>Priya Sharma — Grade 2C</h3>\\n<p>Priya is a confident and enthusiastic learner who approaches classwork with a positive attitude. She demonstrates excellent reading comprehension and enjoys sharing thoughtful ideas about what she reads. In science, Priya shows wonderful curiosity and asks insightful questions, especially when learning about plant growth. She is a bright and engaged student who contributes warmly to classroom discussions and continues to grow as a careful and thoughtful learner.</p>\\n</Output>\\n<Rubric>\\nSource notes (ground truth — every statement in the report must be traceable to these):\\n[\\n  { \\\"date\\\": \\\"2026-01-12\\\", \\\"summary\\\": \\\"Priya is a confident and enthusiastic reader — her comprehension is excellent.\\\" },\\n  { \\\"date\\\": \\\"2026-02-05\\\", \\\"summary\\\": \\\"Shows genuine curiosity in science; asked several insightful questions about plant growth.\\\" },\\n  { \\\"date\\\": \\\"2026-03-03\\\", \\\"summary\\\": \\\"Sometimes rushes through math tasks and makes careless errors; benefits from slow-down prompts.\\\" }\\n]\\n\\nInstructions given to the model:\\nWrite a brief, positive report (under 100 words) focusing on this student's strengths. Do not mention the careless errors — frame everything positively.\\n\\nThe report should be shorter than 100 words as instructed.\\nIt must focus on the student's strengths.\\nScore 1-5 on:\\n- brevity: under 100 words\\n- positive_focus: emphasises strengths not weaknesses\\n- grounding: all facts from notes only\\n\\n</Rubric>\"}]",
                 "renderedAssertionValue": "Source notes (ground truth — every statement in the report must be traceable to these):\n[\n  { \"date\": \"2026-01-12\", \"summary\": \"Priya is a confident and enthusiastic reader — her comprehension is excellent.\" },\n  { \"date\": \"2026-02-05\", \"summary\": \"Shows genuine curiosity in science; asked several insightful questions about plant growth.\" },\n  { \"date\": \"2026-03-03\", \"summary\": \"Sometimes rushes through math tasks and makes careless errors; benefits from slow-down prompts.\" }\n]\n\nInstructions given to the model:\nWrite a brief, positive report (under 100 words) focusing on this student's strengths. Do not mention the careless errors — frame everything positively.\n\nThe report should be shorter than 100 words as instructed.\nIt must focus on the student's strengths.\nScore 1-5 on:\n- brevity: under 100 words\n- positive_focus: emphasises strengths not weaknesses\n- grounding: all facts from notes only\n"
               }
             }
           ]
         },
-        "id": "75d23165-ff4f-44e0-b406-26b14204fa75",
-        "latencyMs": 1506,
+        "id": "804aed29-de7c-49f2-b88f-94d7aeee82a5",
+        "latencyMs": 1782,
         "namedScores": {},
         "prompt": {
           "raw": "[{\"content\":\"You are a report card writer for a school teacher.\\n\\n## Style & Layout Guide\\nWrite a professional, warm report card narrative.\\n\\n## Additional Instructions\\nWrite a brief, positive report (under 100 words) focusing on this student's strengths. Do not mention the careless errors — frame everything positively.\\n\\n## Student Notes\\nStudent: Priya Sharma, Class: Grade 2C\\n\\n- 2026-01-12: Priya is a confident and enthusiastic reader — her comprehension is excellent.\\n- 2026-02-05: Shows genuine curiosity in science; asked several insightful questions about plant growth.\\n- 2026-03-03: Sometimes rushes through math tasks and makes careless errors; benefits from slow-down prompts.\\n\\n## Task\\nWrite a report card narrative for this student based on the notes above.\\nOutput the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\\nDo not include <html>, <head>, or <body> wrapper tags — just the content HTML.\\n\",\"role\":\"user\"}]",
@@ -1228,13 +1449,13 @@
           "label": "gradebee-report"
         },
         "response": {
-          "output": "<h3>Priya Sharma - Grade 2C</h3>\n<p>Priya is a confident and enthusiastic learner who approaches reading with excellent comprehension and a positive attitude. She shows wonderful curiosity in science and enjoys asking thoughtful questions, especially when exploring plant growth. Priya is a bright and engaged student who participates eagerly in class and demonstrates a strong desire to understand new ideas. Her enthusiasm for learning is a great strength, and she continues to make excellent progress across the curriculum.</p>",
+          "output": "<h3>Priya Sharma — Grade 2C</h3>\n<p>Priya is a confident and enthusiastic learner who approaches classwork with a positive attitude. She demonstrates excellent reading comprehension and enjoys sharing thoughtful ideas about what she reads. In science, Priya shows wonderful curiosity and asks insightful questions, especially when learning about plant growth. She is a bright and engaged student who contributes warmly to classroom discussions and continues to grow as a careful and thoughtful learner.</p>",
           "tokenUsage": {
-            "cached": 319,
-            "total": 319
+            "cached": 315,
+            "total": 315
           },
           "cached": true,
-          "latencyMs": 1506,
+          "latencyMs": 1782,
           "finishReason": "stop",
           "cost": 0,
           "guardrails": {
@@ -1251,9 +1472,9 @@
                 "cf-ray": "[REDACTED]",
                 "connection": "keep-alive",
                 "content-type": "application/json",
-                "date": "Mon, 25 May 2026 06:47:30 GMT",
+                "date": "Mon, 25 May 2026 09:02:42 GMT",
                 "openai-organization": "[REDACTED]",
-                "openai-processing-ms": "1247",
+                "openai-processing-ms": "1308",
                 "openai-project": "[REDACTED]",
                 "openai-version": "[REDACTED]",
                 "server": "cloudflare",
@@ -1273,7 +1494,7 @@
             }
           }
         },
-        "score": 3.7,
+        "score": 3,
         "success": false,
         "testCase": {
           "description": "report: regeneration with feedback improves specified aspect",
@@ -1304,7 +1525,7 @@
           },
           "metadata": {}
         },
-        "testIdx": 5,
+        "testIdx": 6,
         "vars": {
           "task": "build-report-prompt",
           "student_name": "Priya Sharma",
@@ -1324,9 +1545,9 @@
               "cf-ray": "[REDACTED]",
               "connection": "keep-alive",
               "content-type": "application/json",
-              "date": "Mon, 25 May 2026 06:47:30 GMT",
+              "date": "Mon, 25 May 2026 09:02:42 GMT",
               "openai-organization": "[REDACTED]",
-              "openai-processing-ms": "1247",
+              "openai-processing-ms": "1308",
               "openai-project": "[REDACTED]",
               "openai-version": "[REDACTED]",
               "server": "cloudflare",
@@ -1351,14 +1572,14 @@
     ],
     "stats": {
       "successes": 4,
-      "failures": 2,
+      "failures": 3,
       "errors": 0,
       "tokenUsage": {
         "prompt": 0,
         "completion": 0,
-        "cached": 4472,
-        "total": 4472,
-        "numRequests": 6,
+        "cached": 5706,
+        "total": 5706,
+        "numRequests": 7,
         "completionDetails": {
           "reasoning": 0,
           "acceptedPrediction": 0,
@@ -1367,10 +1588,10 @@
           "cacheCreationInputTokens": 0
         },
         "assertions": {
-          "total": 10684,
-          "prompt": 2356,
-          "completion": 8328,
-          "cached": 0,
+          "total": 11397,
+          "prompt": 0,
+          "completion": 0,
+          "cached": 11397,
           "numRequests": 0,
           "completionDetails": {
             "reasoning": 0,
@@ -1381,8 +1602,8 @@
           }
         }
       },
-      "durationMs": 24258,
-      "evaluationDurationMs": 24258
+      "durationMs": 187,
+      "evaluationDurationMs": 187
     }
   },
   "config": {
@@ -1523,6 +1744,30 @@
         ]
       },
       {
+        "description": "extraction: fuzzy name matching (Inaia→Inaya, Liana→Lina)",
+        "providers": [
+          "gradebee-extract"
+        ],
+        "vars": {
+          "task": "build-extract-prompt",
+          "transcript": "file://fixtures/extraction/fuzzy_name_matching/transcript.txt",
+          "classes": "file://fixtures/extraction/fuzzy_name_matching/classes.json"
+        },
+        "assert": [
+          {
+            "type": "is-json"
+          },
+          {
+            "type": "javascript",
+            "value": "file://scoring/extraction.js",
+            "config": {
+              "expected": "file://fixtures/extraction/fuzzy_name_matching/expected.json",
+              "metric": "precision_recall"
+            }
+          }
+        ]
+      },
+      {
         "description": "extraction: applies group observation only to relevant class",
         "providers": [
           "gradebee-extract"
@@ -1623,7 +1868,7 @@
       "metadata": {}
     },
     "outputPath": [
-      "results/20260525-091402.json"
+      "results/20260525-112010.json"
     ],
     "extensions": [],
     "metadata": {},
@@ -1635,8 +1880,8 @@
     "nodeVersion": "v24.13.0",
     "platform": "darwin",
     "arch": "arm64",
-    "exportedAt": "2026-05-25T07:14:28.820Z",
-    "evaluationCreatedAt": "2026-05-25T07:14:04.459Z"
+    "exportedAt": "2026-05-25T09:20:12.122Z",
+    "evaluationCreatedAt": "2026-05-25T09:20:11.898Z"
   },
   "vars": [
     "task",

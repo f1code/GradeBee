@@ -93,6 +93,21 @@ tests:
           expected: file://fixtures/extraction/multi_class/expected.json
           metric: precision_recall
 
+  - description: "extraction: fuzzy name matching (Inaia→Inaya, Liana→Lina)"
+    providers:
+      - gradebee-extract
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/fuzzy_name_matching/transcript.txt"
+      classes: "file://fixtures/extraction/fuzzy_name_matching/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/fuzzy_name_matching/expected.json
+          metric: precision_recall
+
   - description: "extraction: applies group observation only to relevant class"
     providers:
       - gradebee-extract

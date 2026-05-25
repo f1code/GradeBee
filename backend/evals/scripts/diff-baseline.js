@@ -86,8 +86,8 @@ for (const desc of allDescs) {
   const c = currIdx[desc];
   const bScore = b ? (b.score ?? b.namedScores?.score ?? 0) : null;
   const cScore = c ? (c.score ?? c.namedScores?.score ?? 0) : null;
-  const bPass  = b ? b.pass : null;
-  const cPass  = c ? c.pass : null;
+  const bPass  = b ? (b.gradingResult != null ? b.gradingResult.pass : b.pass) : null;
+  const cPass  = c ? (c.gradingResult != null ? c.gradingResult.pass : c.pass) : null;
 
   const delta   = (bScore !== null && cScore !== null) ? (cScore - bScore) : null;
   const deltaStr = delta !== null

@@ -97,7 +97,12 @@ module.exports = async (output, context) => {
     if (!ext) continue; // already counted in recall
 
     for (const substring of exp.must_quote_substrings || []) {
-      if (!ext.quoted_text || !ext.quoted_text.includes(substring)) {
+      // Support /pattern/flags regex syntax for tolerant matching
+      const reMatch = substring.match(/^\/(.+)\/([gimsuy]*)$/);
+      const matches = reMatch
+        ? new RegExp(reMatch[1], reMatch[2]).test(ext.quoted_text || '')
+        : (ext.quoted_text || '').includes(substring);
+      if (!matches) {
         voiceScore = 0;
         reasons.push(`FAIL: "${substring}" missing from quoted_text for ${exp.name}`);
       }
