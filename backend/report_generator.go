@@ -182,18 +182,16 @@ func (g *gptReportGenerator) loadExamples(ctx context.Context, userID, className
 }
 
 func (g *gptReportGenerator) callGPT(ctx context.Context, prompt string) (string, error) {
-	return GenerateReportHTML(ctx, g.client, g.model, prompt)
+	return generateReportHTML(ctx, g.client, g.model, prompt)
 }
 
-// GenerateReportHTML calls the OpenAI chat completion API with the given
-// system prompt and returns the generated text. Shared by gptReportGenerator
-// (production) and cmd/eval-cli (evaluation harness).
-func GenerateReportHTML(ctx context.Context, client *openai.Client, model, prompt string) (string, error) {
+// generateReportHTML calls the OpenAI chat completion API with the given
+// system prompt and returns the generated text.
+func generateReportHTML(ctx context.Context, client *openai.Client, model, prompt string) (string, error) {
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: model,
 		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: prompt},
-			{Role: openai.ChatMessageRoleUser, Content: "Generate the report card now."},
+			{Role: openai.ChatMessageRoleUser, Content: prompt},
 		},
 	})
 	if err != nil {

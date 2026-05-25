@@ -1,9 +1,12 @@
 package main
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,44 +26,77 @@ func mustRawMap(m map[string]interface{}) map[string]json.RawMessage {
 	return result
 }
 
+// captureOutput redirects os.Stdout for the duration of f() and returns what was written.
+// Not goroutine-safe — use only in sequential tests.
+func captureOutput(f func() error) (string, error) {
+	r, w, _ := os.Pipe()
+	old := os.Stdout
+	os.Stdout = w
+	err := f()
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String(), err
+}
+
 func TestRun_MissingArgs(t *testing.T) {
 	err := run([]string{"eval-cli"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "usage")
 }
 
-func TestRun_UnknownSubcommand(t *testing.T) {
-	ctx := evalContext{Vars: mustRawMap(map[string]interface{}{})}
-	b, err2 := json.Marshal(ctx)
-	require.NoError(t, err2)
-	err := run([]string{"eval-cli", "unknown", "prompt", "{}", string(b)})
+func TestRun_NonJSONArg(t *testing.T) {
+	err := run([]string{"eval-cli", "unknown"})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown subcommand")
+	assert.Contains(t, err.Error(), "usage")
 }
 
-func TestRunExtract_MissingTranscript(t *testing.T) {
-	_, err := runExtract(context.TODO(), "gpt-test", evalContext{
-		Vars: mustRawMap(map[string]interface{}{
-			"transcript": "",
-			"classes":    []interface{}{},
-		}),
-	})
+func TestRunPromptMode_UnknownTask(t *testing.T) {
+	err := runPromptMode(`{"vars":{},"config":{"task":"bogus"}}`)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown config.task")
+}
+
+func TestRunBuildExtractPrompt(t *testing.T) {
+	ec := evalContext{Vars: mustRawMap(map[string]interface{}{
+		"transcript": "Alice read well today.",
+		"classes":    []interface{}{},
+	})}
+	out, err := captureOutput(func() error { return runBuildExtractPrompt(ec) })
+	require.NoError(t, err)
+	var msgs []map[string]string
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
+	require.Len(t, msgs, 2)
+	assert.Equal(t, "system", msgs[0]["role"])
+	assert.NotEmpty(t, msgs[0]["content"])
+	assert.Equal(t, "user", msgs[1]["role"])
+	assert.Equal(t, "Alice read well today.", msgs[1]["content"])
+}
+
+func TestRunBuildExtractPrompt_MissingTranscript(t *testing.T) {
+	ec := evalContext{Vars: mustRawMap(map[string]interface{}{
+		"transcript": "",
+		"classes":    []interface{}{},
+	})}
+	_, err := captureOutput(func() error { return runBuildExtractPrompt(ec) })
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transcript")
 }
 
-func TestRunGenerateReport_MissingStudentName(t *testing.T) {
-	_, err := runGenerateReport(context.TODO(), "gpt-test", evalContext{
-		Vars: mustRawMap(map[string]interface{}{
-			"student_name": "",
-			"class":        "Grade 3A",
-			"start_date":   "2026-01-01",
-			"end_date":     "2026-03-31",
-			"notes":        []interface{}{},
-			"examples":     []interface{}{},
-			"instructions": "",
-		}),
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "student_name")
+func TestRunBuildReportPrompt(t *testing.T) {
+	ec := evalContext{Vars: mustRawMap(map[string]interface{}{
+		"student_name": "Alice",
+		"class":        "Grade 3A",
+		"notes":        []interface{}{map[string]interface{}{"date": "2026-01-15", "summary": "Strong reader."}},
+		"examples":     []interface{}{},
+		"instructions": "",
+	})}
+	out, err := captureOutput(func() error { return runBuildReportPrompt(ec) })
+	require.NoError(t, err)
+	var msgs []map[string]string
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
+	require.Len(t, msgs, 1)
+	assert.Equal(t, "user", msgs[0]["role"])
+	assert.NotEmpty(t, msgs[0]["content"])
 }

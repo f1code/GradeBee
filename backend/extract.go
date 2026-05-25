@@ -53,12 +53,11 @@ type gptExtractor struct {
 }
 
 func newGPTExtractor() (*gptExtractor, error) {
-	return NewGPTExtractorWithModel(ProductionModelName)
+	return newGPTExtractorWithModel(ProductionModelName)
 }
 
-// NewGPTExtractorWithModel creates a gptExtractor with a specific model.
-// Used by cmd/eval-cli to test with alternate models.
-func NewGPTExtractorWithModel(model string) (*gptExtractor, error) {
+// newGPTExtractorWithModel creates a gptExtractor with a specific model.
+func newGPTExtractorWithModel(model string) (*gptExtractor, error) {
 	key := os.Getenv("OPENAI_API_KEY")
 	if key == "" {
 		return nil, fmt.Errorf("OPENAI_API_KEY not set")
