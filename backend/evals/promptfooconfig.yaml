@@ -124,6 +124,12 @@ tests:
     assert:
       - type: llm-rubric
         value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Style examples (the report's tone and vocabulary should match these):
+          {{examples}}
+
           The report card should match the warm, encouraging tone of the provided examples.
           It must be grounded only in the facts present in the source notes (no fabricated
           observations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:
@@ -145,6 +151,9 @@ tests:
     assert:
       - type: llm-rubric
         value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
           The report should synthesize the notes into at most 2 paragraphs.
           It must not invent observations beyond what is in the notes.
           Score 1-5 on:
@@ -165,6 +174,12 @@ tests:
     assert:
       - type: llm-rubric
         value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Instructions given to the model:
+          {{instructions}}
+
           The report should be shorter than 100 words as instructed.
           It must focus on the student's strengths.
           Score 1-5 on:
