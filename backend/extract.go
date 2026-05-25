@@ -67,7 +67,7 @@ func NewGPTExtractorWithModel(model string) (*gptExtractor, error) {
 }
 
 func (e *gptExtractor) Extract(ctx context.Context, req ExtractRequest) (*ExtractResponse, error) {
-	systemPrompt := buildExtractionPrompt(req.Classes)
+	systemPrompt := BuildExtractionPrompt(req.Classes)
 
 	resp, err := e.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: e.model,
@@ -105,7 +105,7 @@ func (e *gptExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 	return &result, nil
 }
 
-func buildExtractionPrompt(classes []ClassGroup) string {
+func BuildExtractionPrompt(classes []ClassGroup) string {
 	var sb strings.Builder
 	sb.WriteString(extractionPromptPrefix)
 	for _, c := range classes {
