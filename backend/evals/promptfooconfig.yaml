@@ -1,17 +1,11 @@
 description: GradeBee LLM evaluation harness
 
-# Prompts — exec-prompt functions that shell out to eval-cli for prompt building.
-# promptfoo passes a single JSON arg: {"vars":{...},"config":{"task":"..."}}
-# The binary returns a messages array: [{"role":"system","content":"..."}, ...]
+# Single prompt function — dispatches to build-extract-prompt or build-report-prompt
+# via vars.task (set per-test below). Using a single entry avoids promptfoo
+# cross-evaluating every prompt against every provider.
 prompts:
-  - label: extract-prompt
+  - label: gradebee-prompt
     raw: exec:../bin/eval-cli
-    config:
-      task: build-extract-prompt
-  - label: report-prompt
-    raw: exec:../bin/eval-cli
-    config:
-      task: build-report-prompt
 
 # Providers — native OpenAI provider; promptfoo owns the LLM call.
 # Extraction uses structured output (json_schema); report uses plain chat.
@@ -72,8 +66,8 @@ tests:
   - description: "extraction: preserves teacher voice (no paraphrasing)"
     providers:
       - gradebee-extract
-    prompt: extract-prompt
     vars:
+      task: build-extract-prompt
       transcript: "file://fixtures/extraction/voice_preservation/transcript.txt"
       classes: "file://fixtures/extraction/voice_preservation/classes.json"
     assert:
@@ -87,8 +81,8 @@ tests:
   - description: "extraction: identifies correct students across two classes"
     providers:
       - gradebee-extract
-    prompt: extract-prompt
     vars:
+      task: build-extract-prompt
       transcript: "file://fixtures/extraction/multi_class/transcript.txt"
       classes: "file://fixtures/extraction/multi_class/classes.json"
     assert:
@@ -102,8 +96,8 @@ tests:
   - description: "extraction: applies group observation only to relevant class"
     providers:
       - gradebee-extract
-    prompt: extract-prompt
     vars:
+      task: build-extract-prompt
       transcript: "file://fixtures/extraction/group_observation/transcript.txt"
       classes: "file://fixtures/extraction/group_observation/classes.json"
     assert:
@@ -120,8 +114,8 @@ tests:
   - description: "report: tone and style match examples"
     providers:
       - gradebee-report
-    prompt: report-prompt
     vars:
+      task: build-report-prompt
       student_name: "Alice Chen"
       class: "Grade 3A"
       notes: "file://fixtures/reports/tone_match/notes.json"
@@ -141,8 +135,8 @@ tests:
   - description: "report: handles long note list and produces concise output"
     providers:
       - gradebee-report
-    prompt: report-prompt
     vars:
+      task: build-report-prompt
       student_name: "Marcus Webb"
       class: "Grade 4B"
       notes: "file://fixtures/reports/long_notes/notes.json"
@@ -161,8 +155,8 @@ tests:
   - description: "report: regeneration with feedback improves specified aspect"
     providers:
       - gradebee-report
-    prompt: report-prompt
     vars:
+      task: build-report-prompt
       student_name: "Priya Sharma"
       class: "Grade 2C"
       notes: "file://fixtures/reports/regen_with_feedback/notes.json"

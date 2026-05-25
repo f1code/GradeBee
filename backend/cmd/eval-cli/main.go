@@ -52,13 +52,21 @@ func runPromptMode(jsonArg string) error {
 		return fmt.Errorf("parse prompt request: %w", err)
 	}
 	ec := evalContext{Vars: req.Vars}
-	switch req.Config.Task {
+	// Task can come from config.task (promptfoo prompt config) or vars.task
+	// (set directly on the test). vars.task takes precedence, which allows a
+	// single top-level prompt entry to dispatch both extraction and report.
+	task := req.Config.Task
+	var varTask string
+	if err := ec.unmarshalVar("task", &varTask); err == nil && varTask != "" {
+		task = varTask
+	}
+	switch task {
 	case "build-extract-prompt":
 		return runBuildExtractPrompt(ec)
 	case "build-report-prompt":
 		return runBuildReportPrompt(ec)
 	default:
-		return fmt.Errorf("unknown config.task %q", req.Config.Task)
+		return fmt.Errorf("unknown task %q: set vars.task or config.task to build-extract-prompt or build-report-prompt", task)
 	}
 }
 
@@ -116,15 +124,29 @@ type evalContext struct {
 
 // unmarshalVar decodes a named var into v. Missing vars are silently ignored
 // (zero value remains), since optional vars like instructions may be absent.
+// promptfoo's exec-prompt calling convention loads file:// vars as JSON strings
+// (the file content rendered as a string), so we try to unwrap a string value
+// and re-unmarshal before returning an error.
 func (ec *evalContext) unmarshalVar(name string, v interface{}) error {
 	raw, ok := ec.Vars[name]
 	if !ok {
 		return nil
 	}
-	if err := json.Unmarshal(raw, v); err != nil {
-		return fmt.Errorf("parse vars.%s: %w", name, err)
+	// Direct unmarshal — works for inline vars (strings, arrays, objects).
+	if err := json.Unmarshal(raw, v); err == nil {
+		return nil
 	}
-	return nil
+	// If raw is a JSON string (file:// content rendered as a string by promptfoo),
+	// unwrap it and try again.
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		if json.Unmarshal([]byte(s), v) == nil {
+			return nil
+		}
+	}
+	// Return the original error.
+	origErr := json.Unmarshal(raw, v)
+	return fmt.Errorf("parse vars.%s: %w", name, origErr)
 }
 
 // writeJSON encodes v as JSON to stdout.

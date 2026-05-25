@@ -60,7 +60,7 @@ func TestRun_NonJSONArg(t *testing.T) {
 func TestRunPromptMode_UnknownTask(t *testing.T) {
 	err := runPromptMode(`{"vars":{},"config":{"task":"bogus"}}`)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown config.task")
+	assert.Contains(t, err.Error(), "unknown task")
 }
 
 func TestRunBuildExtractPrompt(t *testing.T) {
