@@ -126,16 +126,17 @@ tests:
   # ============================================================
   # Report fixtures
   # ============================================================
-  - description: "report: tone and style match examples"
+  - description: "report: mousy-level structured format with real examples and character-limit instructions"
     providers:
       - gradebee-report
     vars:
       task: build-report-prompt
-      student_name: "Alice Chen"
-      class: "Grade 3A"
-      notes: "file://fixtures/reports/tone_match/notes.json"
-      examples: "file://fixtures/reports/tone_match/examples.json"
-      instructions: ""
+      student_name: "Lucas"
+      class: "Linda-Thursday@17:25"
+      notes: "file://fixtures/reports/mousy_with_instructions/notes.json"
+      examples: "file://fixtures/reports/mousy_with_instructions/examples.json"
+      instructions: "file://fixtures/reports/mousy_with_instructions/instructions.txt"
+      reference: "file://fixtures/reports/mousy_with_instructions/reference.html"
     assert:
       - type: llm-rubric
         value: |
@@ -145,59 +146,115 @@ tests:
           Style examples (the report's tone and vocabulary should match these):
           {{examples}}
 
-          The report card should match the warm, encouraging tone of the provided examples.
-          It must be grounded only in the facts present in the source notes (no fabricated
-          observations). Length should be 1-2 paragraphs (50-150 words). Score 1-5 on:
-          - tone: matches warmth and vocabulary of examples
-          - grounding: every statement traceable to notes
-          - length: appropriate (1-2 paragraphs)
-          - structure: clear narrative, not a bullet list
-
-  - description: "report: handles long note list and produces concise output"
-    providers:
-      - gradebee-report
-    vars:
-      task: build-report-prompt
-      student_name: "Marcus Webb"
-      class: "Grade 4B"
-      notes: "file://fixtures/reports/long_notes/notes.json"
-      examples: []
-      instructions: "Keep it to 2 paragraphs."
-    assert:
-      - type: llm-rubric
-        value: |
-          Source notes (ground truth — every statement in the report must be traceable to these):
-          {{notes}}
-
-          The report should synthesize the notes into at most 2 paragraphs.
-          It must not invent observations beyond what is in the notes.
-          Score 1-5 on:
-          - grounding: all facts from notes only
-          - brevity: adheres to the 2-paragraph instruction
-          - coherence: reads as a cohesive narrative
-
-  - description: "report: regeneration with feedback improves specified aspect"
-    providers:
-      - gradebee-report
-    vars:
-      task: build-report-prompt
-      student_name: "Priya Sharma"
-      class: "Grade 2C"
-      notes: "file://fixtures/reports/regen_with_feedback/notes.json"
-      examples: []
-      instructions: "file://fixtures/reports/regen_with_feedback/instructions.txt"
-    assert:
-      - type: llm-rubric
-        value: |
-          Source notes (ground truth — every statement in the report must be traceable to these):
-          {{notes}}
-
           Instructions given to the model:
           {{instructions}}
 
-          The report should be shorter than 100 words as instructed.
-          It must focus on the student's strengths.
-          Score 1-5 on:
-          - brevity: under 100 words
-          - positive_focus: emphasises strengths not weaknesses
-          - grounding: all facts from notes only
+          Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
+          {{reference}}
+
+          The report must follow the three-section structure (Participation/Motivation, Learning
+          process, Behaviour) plus a Final comment, as shown in the examples. Each section should
+          include an Assessment rating and a Comment paragraph. Character count per paragraph
+          should be between 310 and 400 as instructed. The tone should be warm and encouraging,
+          matching the examples. All observations must be grounded in the source notes. Score 1-5 on:
+          - structure: three sections + final comment, each with Assessment and Comment
+          - grounding: every statement traceable to notes (no invented observations)
+          - tone: warm, encouraging, matches examples
+          - length: each comment paragraph (not the Data header) 310-400 characters as instructed
+
+  - description: "report: oliver-level class with real style examples, no extra instructions"
+    providers:
+      - gradebee-report
+    vars:
+      task: build-report-prompt
+      student_name: "Sophie"
+      class: "Marcia-Wed@14:10"
+      notes: "file://fixtures/reports/oliver_with_examples/notes.json"
+      examples: "file://fixtures/reports/oliver_with_examples/examples.json"
+      instructions: ""
+      reference: "file://fixtures/reports/oliver_with_examples/reference.html"
+    assert:
+      - type: llm-rubric
+        value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Style examples (the report's tone and vocabulary should match these):
+          {{examples}}
+
+          Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
+          {{reference}}
+
+          The report must follow the three-section structure (Participation/Motivation, Learning
+          process, Behaviour) plus a Final comment, as shown in the examples. Each section should
+          include an Assessment rating and a Comment paragraph. The tone should be warm and
+          encouraging. All observations must be grounded in the source notes. Score 1-5 on:
+          - structure: three sections + final comment, each with Assessment and Comment
+          - grounding: every statement traceable to notes (no invented observations); must not
+            invent Marks, test scores, absences counts, or audio-frequency fields not in the notes
+          - tone: warm, encouraging, matches examples
+
+  - description: "report: sam-level with many notes including absences and mixed behaviour"
+    providers:
+      - gradebee-report
+    vars:
+      task: build-report-prompt
+      student_name: "Thomas"
+      class: "Sam Saturday"
+      notes: "file://fixtures/reports/many_notes_sam/notes.json"
+      examples: "file://fixtures/reports/many_notes_sam/examples.json"
+      instructions: ""
+      reference: "file://fixtures/reports/many_notes_sam/reference.html"
+    assert:
+      - type: llm-rubric
+        value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Style examples (the report's tone and vocabulary should match these):
+          {{examples}}
+
+          Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
+          {{reference}}
+
+          The report must follow the three-section structure (Participation/Motivation, Learning
+          process, Behaviour) plus a Final comment, as shown in the examples. The notes include
+          absences and mixed behaviour — the report should handle these accurately without
+          inventing positive observations. Score 1-5 on:
+          - structure: three sections + final comment, each with Assessment and Comment
+          - grounding: every statement traceable to notes (no invented observations)
+          - absences: absent sessions noted correctly, not fabricated into positive observations
+          - tone: warm but honest, matches examples
+
+  - description: "report: fairy-tales level with behaviour/work/performance structure"
+    providers:
+      - gradebee-report
+    vars:
+      task: build-report-prompt
+      student_name: "Emma"
+      class: "Fairy Tales 2 Tuesday & Friday"
+      notes: "file://fixtures/reports/fairy_tales/notes.json"
+      examples: "file://fixtures/reports/fairy_tales/examples.json"
+      instructions: ""
+      reference: "file://fixtures/reports/fairy_tales/reference.html"
+    assert:
+      - type: llm-rubric
+        value: |
+          Source notes (ground truth — every statement in the report must be traceable to these):
+          {{notes}}
+
+          Style examples (the report's tone and vocabulary should match these):
+          {{examples}}
+
+          Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
+          {{reference}}
+
+          The report must follow the three-section structure (Behaviour, Work, Performance)
+          plus Marks and a Final comment, as shown in the examples. Each section should include
+          an Assessment rating and a Comment paragraph. All observations must be grounded in
+          the source notes. Score 1-5 on:
+          - structure: three sections (Behaviour/Work/Performance) + Marks + Final comment
+          - grounding: every statement traceable to notes (no invented observations)
+          - tone: constructive and honest, matches examples
+          - balance: weaknesses (pronunciation errors, reliance on French, avoiding speaking)
+            acknowledged alongside strengths
