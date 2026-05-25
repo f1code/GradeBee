@@ -29,15 +29,20 @@ func mustRawMap(m map[string]interface{}) map[string]json.RawMessage {
 // captureOutput redirects os.Stdout for the duration of f() and returns what was written.
 // Not goroutine-safe — use only in sequential tests.
 func captureOutput(f func() error) (string, error) {
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	if err != nil {
+		panic(fmt.Sprintf("captureOutput: pipe: %v", err))
+	}
 	old := os.Stdout
 	os.Stdout = w
-	err := f()
+	runErr := f()
 	w.Close()
 	os.Stdout = old
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	return buf.String(), err
+	if _, err := io.Copy(&buf, r); err != nil {
+		panic(fmt.Sprintf("captureOutput: copy: %v", err))
+	}
+	return buf.String(), runErr
 }
 
 func TestRun_MissingArgs(t *testing.T) {

@@ -2,22 +2,23 @@
 
 Regression tests for extraction and report-generation quality, powered by [promptfoo](https://promptfoo.dev). On-demand only — not CI-gated.
 
-## Why exec, not HTTP
+## Why promptfoo drives the LLM
 
-The harness originally used an HTTP provider (server + `EVAL_TOKEN` + middleware). That approach added prod-leak surface, a background-process lifecycle in Make, and a duplicated GPT call path. The exec provider replaced it: `make eval` builds a CLI binary and promptfoo invokes it directly. No port, no token, no race condition. See `docs/plans/2026-05-25-eval-harness-switch-to-exec.md` for the full rationale.
+Promptfoo owns the OpenAI call, not eval-cli. This unlocks promptfoo's native response caching (re-runs don't re-hit the model), cost/latency tracking per test, and multi-model comparison by changing the `id:` in `promptfooconfig.yaml`. Prompt construction stays in Go — eval-cli is a pure prompt builder that outputs a messages array; it has no OpenAI client.
+
+Previously the harness used `exec:` providers where eval-cli built the prompt **and** called OpenAI itself. That approach bypassed promptfoo's caching and tracking. See `docs/plans/2026-05-25-eval-harness-switch-to-exec.md` for the earlier exec-provider rationale and `docs/plans/2026-05-25-eval-harness-promptfoo-drives-llm.md` for this change.
 
 ## How it works
 
 1. `make eval` builds `bin/eval-cli` from `cmd/eval-cli/`.
-2. promptfoo reads `promptfooconfig.yaml` and, for each test case, invokes:
+2. promptfoo reads `promptfooconfig.yaml` and, for each test case, calls the exec-prompt function:
    ```
-   bin/eval-cli extract         <prompt> <options_json> <context_json>
-   bin/eval-cli generate-report <prompt> <options_json> <context_json>
+   bin/eval-cli '{"vars":{...},"config":{"task":"build-extract-prompt"}}'
+   bin/eval-cli '{"vars":{...},"config":{"task":"build-report-prompt"}}'
    ```
-3. `context_json` contains `vars` with the fixture data (transcript, notes, etc.).
-4. The binary calls the same Go functions used in production (`BuildReportPrompt`, `GenerateReportHTML`, `NewGPTExtractorWithModel`) and writes `{"output": "..."}` JSON to stdout.
-5. promptfoo scores the output against the assertions and writes a result JSON.
-6. `make eval` prints a diff vs the pinned baseline.
+3. eval-cli outputs a JSON messages array (no LLM call): `[{"role":"system","content":"..."},{"role":"user","content":"..."}]`
+4. promptfoo sends the messages to the native OpenAI provider (with structured output schema for extraction) and scores the response against the assertions.
+5. `make eval` prints a diff vs the pinned baseline.
 
 ## Running
 
@@ -36,8 +37,9 @@ cd backend && make eval-baseline
 
 | Variable | Required | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | Yes | Used by both the eval-cli and the judge model |
-| `EVAL_MODEL` | No | Override the generation model (default: `ProductionModelName`) |
+| `OPENAI_API_KEY` | Yes | Used by promptfoo's native provider and the judge model |
+
+> Model selection lives in `promptfooconfig.yaml` (`providers[].id`). To test a different model, change the `id:` field there.
 
 ## Debugging a single case
 
@@ -45,13 +47,11 @@ cd backend && make eval-baseline
 cd backend
 make bin/eval-cli
 
-# Extract
-./bin/eval-cli extract '' '{}' \
-  '{"vars":{"transcript":"Alice read well today.","classes":[{"name":"Grade 3A","students":["Alice Chen"]}]}}'
+# Build extraction prompt (exec-prompt mode)
+./bin/eval-cli '{"vars":{"transcript":"Alice read well today.","classes":[{"name":"Grade 3A","students":["Alice Chen"]}]},"config":{"task":"build-extract-prompt"}}'
 
-# Generate report
-./bin/eval-cli generate-report '' '{}' \
-  '{"vars":{"student_name":"Alice Chen","class":"Grade 3A","notes":[{"date":"2026-01-15","summary":"Strong reading fluency."}],"examples":[],"instructions":""}}'
+# Build report prompt (exec-prompt mode)
+./bin/eval-cli '{"vars":{"student_name":"Alice Chen","class":"Grade 3A","notes":[{"date":"2026-01-15","summary":"Strong reading fluency."}],"examples":[],"instructions":""},"config":{"task":"build-report-prompt"}}'
 ```
 
 ## Directory layout

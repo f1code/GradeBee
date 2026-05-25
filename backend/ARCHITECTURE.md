@@ -340,7 +340,7 @@ Repo-level errors:
 | `SENTRY_DSN` | No | Sentry DSN; baked into Docker image via `VITE_SENTRY_DSN` build-arg |
 | `SENTRY_RELEASE` | No | Release tag in Sentry; baked in via `VITE_APP_VERSION` build-arg (git SHA in prod) |
 | `SENTRY_ENVIRONMENT` | No | Environment tag in Sentry (e.g. `production`, `staging`); set via `dokku config:set` |
-| `EVAL_MODEL` | No | Override OpenAI model for `make eval` (defaults to `ProductionModelName`) |
+| `EVAL_MODEL` | No | ~~Override OpenAI model for `make eval`~~ — removed; model selection now lives in `promptfooconfig.yaml` (`providers[].id`) |
 
 ---
 
@@ -391,22 +391,23 @@ cd backend && make eval-baseline   # runs eval then copies latest result to base
 
 ### How it works
 
-`make eval` builds `bin/eval-cli` (from `cmd/eval-cli/`), then invokes promptfoo. For each test case, promptfoo calls the binary via the exec provider, passing fixture vars as a JSON context argument. The binary calls `BuildReportPrompt` / `GenerateReportHTML` / `NewGPTExtractorWithModel` directly — same code paths as production, no HTTP server, no token, no port.
+`make eval` builds `bin/eval-cli` (from `cmd/eval-cli/`), then invokes promptfoo. For each test case, promptfoo calls eval-cli as an **exec-prompt function** (passing a single JSON arg), and eval-cli returns a messages array — no LLM call. Promptfoo sends the messages to its native OpenAI provider (with structured output schema for extraction), scores the response, and writes results. Model selection lives entirely in `promptfooconfig.yaml`; `EVAL_MODEL` is no longer read.
 
 Debug a single case:
 ```bash
-echo '{"vars":{"student_name":"Alice","class":"3A","notes":[],"examples":[],"instructions":""}}' \
-  | xargs -0 ./bin/eval-cli generate-report '' '{}'
+cd backend
+make bin/eval-cli
+./bin/eval-cli '{"vars":{"transcript":"Alice","classes":[]},"config":{"task":"build-extract-prompt"}}'
 ```
 
 ### Eval CLI (`cmd/eval-cli`)
 
-| Subcommand | Reads from `context.vars` | Calls |
+| Config task | Reads from `vars` | Builds |
 |---|---|---|
-| `extract` | `transcript`, `classes` | `NewGPTExtractorWithModel` → `Extract` |
-| `generate-report` | `student_name`, `class`, `notes`, `examples`, `instructions` | `BuildReportPrompt` → `GenerateReportHTML` |
+| `build-extract-prompt` | `transcript`, `classes` | `BuildExtractionPrompt` → messages array (system + user) |
+| `build-report-prompt` | `student_name`, `class`, `notes`, `examples`, `instructions` | `BuildReportPrompt` → messages array (user only) |
 
-Set `EVAL_MODEL` env var to test an alternate model without changing production code.
+Model selection and the actual LLM call belong to promptfoo, not eval-cli.
 
 ---
 
