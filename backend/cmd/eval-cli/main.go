@@ -132,21 +132,19 @@ func (ec *evalContext) unmarshalVar(name string, v interface{}) error {
 	if !ok {
 		return nil
 	}
-	// Direct unmarshal — works for inline vars (strings, arrays, objects).
-	if err := json.Unmarshal(raw, v); err == nil {
-		return nil
-	}
-	// If raw is a JSON string (file:// content rendered as a string by promptfoo),
-	// unwrap it and try again.
-	var s string
-	if json.Unmarshal(raw, &s) == nil {
-		if json.Unmarshal([]byte(s), v) == nil {
-			return nil
+	// If raw is a JSON string (file:// vars from promptfoo arrive double-encoded),
+	// unwrap it — but only replace raw when the inner content is itself valid JSON.
+	// This distinguishes "[{...}]" (file:// JSON) from "Alice..." (plain string var).
+	if len(raw) > 0 && raw[0] == '"' {
+		var s string
+		if json.Unmarshal(raw, &s) == nil && json.Valid([]byte(s)) {
+			raw = []byte(s)
 		}
 	}
-	// Return the original error.
-	origErr := json.Unmarshal(raw, v)
-	return fmt.Errorf("parse vars.%s: %w", name, origErr)
+	if err := json.Unmarshal(raw, v); err != nil {
+		return fmt.Errorf("parse vars.%s: %w", name, err)
+	}
+	return nil
 }
 
 // writeJSON encodes v as JSON to stdout.
