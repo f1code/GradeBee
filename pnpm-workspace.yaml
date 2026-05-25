@@ -1,6 +1,14 @@
 packages:
   - '.'
   - 'frontend'
+  - 'backend/evals'
 allowBuilds:
   '@clerk/shared': true
+  '@playwright/browser-chromium': false
+  '@swc/core': false
+  better-sqlite3: true
+  esbuild: false
+  onnxruntime-node: false
+  protobufjs: false
   puppeteer: true
+  sharp: false

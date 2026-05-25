@@ -18,8 +18,12 @@ frontend/dist/
 backend/bin/
 backend/dist/
 
+# LLM eval run results (per-run JSONs; baseline.json is committed, results are not)
+backend/evals/results/
+
 
 node_modules
+__pycache__
 
 # Playwright
 /test-results/
@@ -34,3 +38,4 @@ docs/plans/
 # Ansible secrets (vault-encrypted or plaintext — never commit)
 ansible/secrets.yml
 ansible/inventory
+backend/bin/

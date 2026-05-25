@@ -17,6 +17,8 @@ type Report struct {
 	EndDate      string  `json:"endDate"`
 	HTML         string  `json:"html,omitempty"`
 	Instructions *string `json:"instructions,omitempty"`
+	ModelVersion *string `json:"modelVersion,omitempty"`
+	PromptHash   *string `json:"promptHash,omitempty"`
 	CreatedAt    string  `json:"createdAt"`
 }
 
@@ -55,9 +57,9 @@ func (r *ReportRepo) List(ctx context.Context, studentID int64) ([]ReportSummary
 func (r *ReportRepo) GetByID(ctx context.Context, id int64) (Report, error) {
 	var rpt Report
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, student_id, start_date, end_date, html, instructions, created_at
+		SELECT id, student_id, start_date, end_date, html, instructions, model_version, prompt_hash, created_at
 		FROM reports WHERE id = ?`, id,
-	).Scan(&rpt.ID, &rpt.StudentID, &rpt.StartDate, &rpt.EndDate, &rpt.HTML, &rpt.Instructions, &rpt.CreatedAt)
+	).Scan(&rpt.ID, &rpt.StudentID, &rpt.StartDate, &rpt.EndDate, &rpt.HTML, &rpt.Instructions, &rpt.ModelVersion, &rpt.PromptHash, &rpt.CreatedAt)
 	if err == sql.ErrNoRows {
 		return Report{}, ErrNotFound
 	}
@@ -70,10 +72,10 @@ func (r *ReportRepo) GetByID(ctx context.Context, id int64) (Report, error) {
 // Create inserts a new report.
 func (r *ReportRepo) Create(ctx context.Context, rpt *Report) error {
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO reports (student_id, start_date, end_date, html, instructions)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO reports (student_id, start_date, end_date, html, instructions, model_version, prompt_hash)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at`,
-		rpt.StudentID, rpt.StartDate, rpt.EndDate, rpt.HTML, rpt.Instructions,
+		rpt.StudentID, rpt.StartDate, rpt.EndDate, rpt.HTML, rpt.Instructions, rpt.ModelVersion, rpt.PromptHash,
 	).Scan(&rpt.ID, &rpt.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create report: %w", err)

@@ -11,12 +11,13 @@ import (
 
 // repos is a helper container returned by testDBAndRepos.
 type repos struct {
-	classes  *ClassRepo
-	students *StudentRepo
-	notes    *NoteRepo
-	reports  *ReportRepo
-	examples *ReportExampleRepo
+	classes    *ClassRepo
+	students   *StudentRepo
+	notes      *NoteRepo
+	reports    *ReportRepo
+	examples   *ReportExampleRepo
 	voiceNotes *VoiceNoteRepo
+	feedback   *ArtifactFeedbackRepo
 }
 
 // testDBAndRepos returns an in-memory SQLite with migrations and all repos.
@@ -27,12 +28,13 @@ func testDBAndRepos(t *testing.T) (context.Context, *repos) {
 	require.NoError(t, RunMigrations(db), "run migrations")
 	t.Cleanup(func() { db.Close() })
 	return context.Background(), &repos{
-		classes:  &ClassRepo{db: db},
-		students: &StudentRepo{db: db},
-		notes:    &NoteRepo{db: db},
-		reports:  &ReportRepo{db: db},
-		examples: &ReportExampleRepo{db: db},
+		classes:    &ClassRepo{db: db},
+		students:   &StudentRepo{db: db},
+		notes:      &NoteRepo{db: db},
+		reports:    &ReportRepo{db: db},
+		examples:   &ReportExampleRepo{db: db},
 		voiceNotes: &VoiceNoteRepo{db: db},
+		feedback:   &ArtifactFeedbackRepo{db: db},
 	}
 }
 

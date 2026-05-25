@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import DOMPurify from 'dompurify'
-import { regenerateReport, deleteReport } from '../api'
+import { regenerateReport, deleteReport, submitFeedback } from '../api'
+import { ThumbUpIcon, ThumbDownIcon } from './Icons'
 
 interface ReportViewerProps {
   reportId: number
@@ -25,6 +26,13 @@ export default function ReportViewer({
   const [feedback, setFeedback] = useState('')
   const [regenerating, setRegenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Thumbs feedback state
+  const [thumbRating, setThumbRating] = useState<'up' | 'down' | null>(null)
+  const [showThumbComment, setShowThumbComment] = useState(false)
+  const [thumbComment, setThumbComment] = useState('')
+  const [thumbSubmitting, setThumbSubmitting] = useState(false)
+  const [thumbDone, setThumbDone] = useState(false)
 
   const sanitizedHtml = DOMPurify.sanitize(html)
   const frameRef = useRef<HTMLDivElement | null>(null)
@@ -121,6 +129,44 @@ export default function ReportViewer({
     }
   }
 
+  async function handleThumb(rating: 'up' | 'down') {
+    if (thumbSubmitting || thumbDone) return
+    if (rating === 'down') {
+      setThumbRating('down')
+      setShowThumbComment(true)
+      return
+    }
+    // Thumbs-up: fire immediately
+    setThumbSubmitting(true)
+    try {
+      await submitFeedback({ artifact_type: 'report', artifact_id: reportId, rating: 'up' }, getToken)
+      setThumbRating('up')
+      setThumbDone(true)
+    } catch {
+      setError('Could not save feedback — please try again.')
+    } finally {
+      setThumbSubmitting(false)
+    }
+  }
+
+  async function handleThumbDownSubmit() {
+    setThumbSubmitting(true)
+    try {
+      await submitFeedback({
+        artifact_type: 'report',
+        artifact_id: reportId,
+        rating: 'down',
+        comment: thumbComment.trim() || undefined,
+      }, getToken)
+      setThumbDone(true)
+      setShowThumbComment(false)
+    } catch {
+      setError('Could not save feedback — please try again.')
+    } finally {
+      setThumbSubmitting(false)
+    }
+  }
+
   function handleDelete() {
     if (!confirm(`Delete this report for ${studentName}?`)) return
     deleteReport(reportId, getToken).then(() => {
@@ -183,6 +229,75 @@ export default function ReportViewer({
         className="report-viewer-frame"
         dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       />
+
+      {/* Thumbs feedback — explicit rating below the content, above the regen box.
+          A user can click 👎 + comment AND ALSO click Regenerate: each produces its own
+          feedback row (append-only design). We don't dedupe by intent. */}
+      <div className="report-thumbs" data-testid="report-thumbs">
+        {thumbDone ? (
+          <span className="report-thumbs-done">Thanks for your feedback!</span>
+        ) : (
+          <>
+            <span className="report-thumbs-label">Was this report helpful?</span>
+            <button
+              className={`icon-btn report-thumb-btn${thumbRating === 'up' ? ' report-thumb-active' : ''}`}
+              aria-label="Thumbs up"
+              data-testid="thumb-up"
+              disabled={thumbSubmitting}
+              onClick={() => handleThumb('up')}
+            >
+              <ThumbUpIcon />
+            </button>
+            <button
+              className={`icon-btn report-thumb-btn${thumbRating === 'down' ? ' report-thumb-active' : ''}`}
+              aria-label="Thumbs down"
+              data-testid="thumb-down"
+              disabled={thumbSubmitting}
+              onClick={() => handleThumb('down')}
+            >
+              <ThumbDownIcon />
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Thumbs-down comment box */}
+      <AnimatePresence>
+        {showThumbComment && !thumbDone && (
+          <motion.div
+            className="report-thumb-comment"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <textarea
+              value={thumbComment}
+              onChange={e => setThumbComment(e.target.value)}
+              placeholder="What was wrong? (optional)"
+              rows={2}
+              className="report-regenerate-textarea"
+              data-testid="thumb-down-comment"
+            />
+            <div className="report-regenerate-actions">
+              <button
+                className="btn-sm"
+                onClick={handleThumbDownSubmit}
+                disabled={thumbSubmitting}
+                data-testid="thumb-down-submit"
+              >
+                {thumbSubmitting ? 'Saving…' : 'Submit'}
+              </button>
+              <button
+                className="btn-secondary btn-sm"
+                onClick={() => { setShowThumbComment(false); setThumbRating(null) }}
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Regenerate form */}
       <AnimatePresence>

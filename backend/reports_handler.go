@@ -231,6 +231,26 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("regenerate report completed", "user_id", userID, "report_id", resp.ReportID)
+
+	// Implicit signal: regenerating always records a thumbs-down on the *original* report.
+	// Best-effort: a failure here should not fail the regen response.
+	if feedbackRepo := serviceDeps.GetFeedbackRepo(); feedbackRepo != nil {
+		var feedbackComment *string
+		if req.Feedback != "" {
+			feedbackComment = &req.Feedback
+		}
+		if _, fbErr := feedbackRepo.Insert(ctx, ArtifactFeedback{
+			ArtifactType: "report",
+			ArtifactID:   rpt.ID, // original report, not the new one
+			Rating:       "down",
+			Signal:       "regenerated",
+			Comment:      feedbackComment,
+			UserID:       userID,
+		}); fbErr != nil {
+			log.Warn("implicit regen feedback insert failed", "error", fbErr)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, ReportResult{
 		ID:        resp.ReportID,
 		StudentID: rpt.StudentID,

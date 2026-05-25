@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Class A",
+    "students": [
+      { "name": "Emma Torres" },
+      { "name": "Ryan Mitchell" },
+      { "name": "Lila Patel" }
+    ]
+  }
+]
