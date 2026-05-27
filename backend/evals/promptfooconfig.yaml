@@ -11,6 +11,8 @@ prompts:
 # Extraction uses structured output (json_schema); report uses plain chat.
 # To test a different model, change the id: fields below.
 providers:
+  # - id: mistral:mistral-medium-2508
+  # - id: mistral:mistral-small-2603
   - id: openai:chat:gpt-5.4-mini
     label: gradebee-extract
     config:
