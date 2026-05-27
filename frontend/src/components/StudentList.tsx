@@ -53,6 +53,11 @@ export default function StudentList() {
   const [collapsed, setCollapsed] = useState(isMobile)
   const [expandedStudentId, setExpandedStudentId] = useState<number | null>(null)
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCollapsed(isMobile)
+  }, [isMobile])
+
   function showFlash(msg: string) {
     setFlashError(msg)
     clearTimeout(flashTimer.current)
