@@ -23,8 +23,14 @@ export default function ReportGeneration() {
   const [classes, setClasses] = useState<ClassWithStudents[]>([])
   const [loadingStudents, setLoadingStudents] = useState(true)
   const [selected, setSelected] = useState<Set<number>>(new Set())
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date()
+    d.setMonth(d.getMonth() - 3)
+    return d.toISOString().slice(0, 10)
+  })
+  const [endDate, setEndDate] = useState(
+    () => new Date().toISOString().slice(0, 10)
+  )
   const [instructions, setInstructions] = useState('')
   const [generating, setGenerating] = useState(false)
   const [results, setResults] = useState<ReportResult[]>([])
@@ -53,16 +59,8 @@ export default function ReportGeneration() {
     }
   }, [getToken])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadStudents() }, [loadStudents])
-
-  // Default dates: start of current school term → today
-  useEffect(() => {
-    const now = new Date()
-    setEndDate(now.toISOString().slice(0, 10))
-    const start = new Date(now)
-    start.setMonth(start.getMonth() - 3)
-    setStartDate(start.toISOString().slice(0, 10))
-  }, [])
 
   function toggleStudent(studentId: number) {
     setSelected(prev => {
