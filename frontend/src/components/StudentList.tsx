@@ -54,6 +54,7 @@ export default function StudentList() {
   const [expandedStudentId, setExpandedStudentId] = useState<number | null>(null)
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(isMobile)
   }, [isMobile])
 
@@ -77,6 +78,7 @@ export default function StudentList() {
   }, [getToken])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchClasses()
   }, [fetchClasses])
 

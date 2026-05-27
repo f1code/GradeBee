@@ -51,6 +51,7 @@ export default function StudentDetail({ studentId, studentName, className, onCol
   }, [studentId, getToken])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotes()
   }, [fetchNotes])
 

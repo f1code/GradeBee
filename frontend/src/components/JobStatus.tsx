@@ -81,6 +81,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
           ? POLL_IDLE_MS
           : POLL_EMPTY_MS
       if (interval > 0) {
+        // eslint-disable-next-line react-hooks/immutability
         timerRef.current = setTimeout(poll, interval)
       }
     } catch (err) {
