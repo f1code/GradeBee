@@ -36,7 +36,7 @@ Your task:
 1. Identify which students are mentioned in the transcript
 2. Match each mentioned name to the student roster below (handle phonetic/partial matches)
 3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty
-4. Write a 1-3 sentence summary per student capturing what the teacher said about them
+4. Write a summary per student capturing what the teacher said about them
    - Clean up speech artifacts (false starts, filler words, repetitions) into clear sentences
    - Preserve the teacher's voice, tone, and specific observations — do NOT add details or opinions not present in the transcript
    - Keep the teacher's vocabulary and perspective (first person if they used it)
@@ -55,7 +55,8 @@ Rules:
 - If confidence < 0.7, include up to 3 closest roster matches in "candidates"
 - A student is "individually mentioned" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like "everyone", "all students", "the class" do NOT count as individual mentions.
 - Do NOT create entries for students who are never individually mentioned by name. If a student is only covered by group-level observations (e.g. "the class was loud") but never called out by name, they must NOT appear in the output.
-- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations from the transcript. Always include the group-level context even if the student also has individual observations.
+- For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations from the same transcript/class. This applies to EVERY individually-mentioned student in that class, regardless of where the group observation appears in the transcript (beginning, middle, or end) or which students were named immediately before/after it. Do not attach group observations only to the students mentioned closest to them — propagate them to all named students in the class.
+  Example: Transcript says "Alice did great. Bob was quiet. The whole class struggled with fractions." → BOTH Alice's and Bob's quoted_text must include the fractions observation, not just Bob's.
 - If the transcript contains group references like "everyone", "all students", or "the class", apply those observations only to students in the class being discussed, not to ALL classes. Use context clues (class name mentions, prior student mentions) to determine which class is meant.
 - For multi-student transcripts, produce a separate entry per student with relevant passages
 - If a mentioned student cannot be matched to any roster entry, do not include them in the output
