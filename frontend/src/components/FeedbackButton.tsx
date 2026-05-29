@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import * as Sentry from '@sentry/react'
+import { useDiagnosticsConsent } from '../hooks/useDiagnosticsConsent'
 
 type FeedbackType = 'bug' | 'suggestion'
 
@@ -30,6 +31,7 @@ interface FeedbackButtonProps {
  * not captured in replay DOM snapshots. Audio URLs are backend-only.
  */
 export default function FeedbackButton({ userId, userEmail }: FeedbackButtonProps) {
+  const diagnosticsConsented = useDiagnosticsConsent()
   const [open, setOpen] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -81,6 +83,10 @@ export default function FeedbackButton({ userId, userEmail }: FeedbackButtonProp
     })
     form.appendToDom()
     form.open()
+  }
+
+  if (!diagnosticsConsented) {
+    return null
   }
 
   return (

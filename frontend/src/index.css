@@ -3533,14 +3533,42 @@ button:active,
 /* ── App footer ──────────────────────────────────────────────── */
 
 .app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   padding: 1.5rem 0 1rem;
   font-size: 0.8rem;
 }
 
-.app-footer a {
+.app-footer a,
+.privacy-preferences-link {
   color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.72;
+  text-decoration: none;
+  text-decoration-color: rgba(122, 107, 93, 0.3);
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease,
+    text-decoration-color 0.15s ease;
+}
+
+.app-footer-separator {
+  color: var(--ink-muted);
+  opacity: 0.5;
+}
+
+.app-footer a:hover,
+.privacy-preferences-link:hover {
+  color: var(--honey-dark);
+  opacity: 1;
   text-decoration: underline;
+  text-decoration-color: rgba(196, 136, 15, 0.55);
+  text-underline-offset: 2px;
 }
 
 /* ── Sign-in consent checkbox ────────────────────────────────── */

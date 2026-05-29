@@ -1,0 +1,27 @@
+/* Warm Classroom overrides for vanilla-cookieconsent (#cc-main) */
+#cc-main {
+  --cc-font-family: var(--font-body);
+  --cc-bg: var(--chalk);
+  --cc-primary-color: var(--ink);
+  --cc-secondary-color: var(--ink-muted);
+  --cc-btn-primary-bg: var(--honey);
+  --cc-btn-primary-color: var(--ink);
+  --cc-btn-primary-border-color: var(--honey-dark);
+  --cc-btn-primary-hover-bg: var(--honey-dark);
+  --cc-btn-primary-hover-color: var(--ink);
+  --cc-btn-secondary-bg: var(--chalk);
+  --cc-btn-secondary-color: var(--ink);
+  --cc-btn-secondary-border-color: var(--comb);
+  --cc-btn-secondary-hover-bg: var(--honey-light);
+  --cc-btn-secondary-hover-color: var(--ink);
+  --cc-toggle-on-bg: var(--honey);
+  --cc-link-color: var(--honey-dark);
+  --cc-separator-border-color: var(--comb);
+  --cc-overlay-bg: rgba(44, 24, 16, 0.35);
+}
+
+#cc-main .cm,
+#cc-main .pm {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
