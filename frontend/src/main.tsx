@@ -4,6 +4,7 @@ import { ClerkProvider } from '@clerk/react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import App from './App'
+import PrivacyPage from './components/PrivacyPage'
 import './index.css'
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
@@ -44,6 +45,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <ClerkProvider publishableKey={clerkPubKey}>
       <BrowserRouter>
         <Routes>
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/*" element={<App />} />
         </Routes>
       </BrowserRouter>

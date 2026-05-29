@@ -413,6 +413,7 @@ export interface VoiceNote {
   fileName: string;
   filePath: string;
   processedAt?: string;
+  purgedAt?: string;
   createdAt: string;
 }
 

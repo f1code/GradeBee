@@ -114,7 +114,7 @@ Job status is tracked in-memory (map keyed by `userId/<uploadId>`). The frontend
 
 ### Voice Note Cleanup
 
-`voice_note_cleanup.go` runs a background goroutine that deletes processed audio files from disk and their `voice_notes` rows after a retention period (default 7 days, configurable via `UPLOAD_RETENTION_HOURS`).
+Audio files are deleted from disk **immediately after successful transcription** in `voice_note_process.go`. The `purged_at` column on `voice_notes` records when this happened. The background cleanup goroutine (`voice_note_cleanup.go`) then removes the DB row after the retention period (default 7 days, configurable via `UPLOAD_RETENTION_HOURS`), skipping file deletion for rows already purged.
 
 ### Generic Queue Infrastructure
 
@@ -226,7 +226,7 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 | `notes` | Observation notes per student |
 | `reports` | Generated HTML report cards |
 | `report_examples` | Example report cards for style matching |
-| `voice_notes` | Audio file tracking (file path, processed_at) |
+| `voice_notes` | Audio file tracking (file path, processed_at, purged_at) |
 
 ### Repository Layer
 
@@ -260,7 +260,7 @@ All CRUD endpoints verify resource ownership:
 | `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
 | `repo_example.go` | `ReportExampleRepo` — CRUD for report examples |
-| `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `ListStale` |
+| `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `MarkPurged`, `ListStale` |
 | `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr`; `ErrDuplicateAlias` (carries `ConflictStudentName` for alias 409 responses) |
 | `students.go` | GET /students, class/student CRUD handlers, `classGroup`/`student` types |
 | `aliases.go` | GET/POST/DELETE /students/{id}/aliases — alias CRUD handlers |

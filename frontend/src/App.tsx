@@ -44,6 +44,7 @@ function BeeIcon({ size = 28 }: { size?: number }) {
 function App() {
   const [activeTab, setActiveTab] = useState<'notes' | 'reports'>('notes')
   const [showGuide, setShowGuide] = useState(false)
+  const [consented, setConsented] = useState(() => !!localStorage.getItem('gradebee:consented'))
 
   return (
     <div className="app">
@@ -75,8 +76,23 @@ function App() {
                 <li>🗂️ Notes are created automatically for each student</li>
                 <li>📄 Generate report cards that match your writing style</li>
               </ul>
+              <label className="consent-label">
+                <input
+                  type="checkbox"
+                  checked={consented}
+                  onChange={e => {
+                    setConsented(e.target.checked)
+                    if (e.target.checked) localStorage.setItem('gradebee:consented', '1')
+                    else localStorage.removeItem('gradebee:consented')
+                  }}
+                />
+                <span>
+                  I understand AI is used to process recordings — see our{' '}
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy &amp; AI Disclosure</a>.
+                </span>
+              </label>
               <SignInButton mode="modal">
-                <button className="sign-in-btn" data-testid="sign-in-button">Sign in</button>
+                <button className="sign-in-btn" data-testid="sign-in-button" disabled={!consented}>Sign in</button>
               </SignInButton>
             </motion.div>
           </div>
@@ -146,6 +162,9 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
           userEmail={user.primaryEmailAddress?.emailAddress ?? ''}
         />
       )}
+      <footer className="app-footer">
+        <a href="/privacy">Privacy &amp; AI Disclosure</a>
+      </footer>
     </motion.div>
   )
 }

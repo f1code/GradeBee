@@ -913,7 +913,13 @@ button:active,
   gap: 1rem;
 }
 
-.paste-actions .hint {
+.upload-pii-hint {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  margin: 0.25rem 0 0.5rem;
+}
+
+.audio-upload .hint {
   font-size: 0.85rem;
   color: var(--ink-muted);
   margin: 0;
@@ -2662,6 +2668,12 @@ button:active,
   margin-bottom: 0.35rem;
 }
 
+.note-card-source {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
 .note-source-badge {
   font-family: var(--font-body);
   font-size: 0.7rem;
@@ -3290,8 +3302,42 @@ button:active,
   padding: 0.75rem 1rem 1rem;
 }
 
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  font-size: 0.72rem;
+  font-family: var(--font-body);
+  color: var(--ink-muted);
+  background: var(--comb);
+  border: 1px solid var(--honey-light);
+  border-radius: 4px;
+  padding: 0.1em 0.45em;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.report-ai-label {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.report-review-reminder {
+  background: var(--honey-light);
+  border: 1px solid var(--honey);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin-bottom: 0.75rem;
+}
+
 @media (max-width: 640px) {
-  .report-viewer-frame {
+.report-viewer-frame {
     padding: 1rem;
     border-radius: 0;
     margin: 0 -1rem;
@@ -3440,4 +3486,76 @@ button:active,
     bottom: calc(1rem + env(safe-area-inset-bottom));
     right: 1rem;
   }
+}
+
+/* ── Privacy page ────────────────────────────────────────────── */
+
+.privacy-page {
+  max-width: 680px;
+  margin: 2rem auto;
+  padding: 0 1.5rem 3rem;
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+
+.privacy-page h1 {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 500;
+  margin-bottom: 1.5rem;
+}
+
+.privacy-page h2 {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--ink);
+}
+
+.privacy-page section {
+  border-bottom: 1px solid var(--comb);
+  padding-bottom: 1rem;
+}
+
+.privacy-page a {
+  color: var(--honey-dark);
+}
+
+.privacy-back {
+  display: inline-block;
+  margin-bottom: 1.5rem;
+  color: var(--honey-dark);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+/* ── App footer ──────────────────────────────────────────────── */
+
+.app-footer {
+  text-align: center;
+  padding: 1.5rem 0 1rem;
+  font-size: 0.8rem;
+}
+
+.app-footer a {
+  color: var(--ink-muted);
+  text-decoration: underline;
+}
+
+/* ── Sign-in consent checkbox ────────────────────────────────── */
+
+.consent-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  margin: 0.75rem 0;
+  cursor: pointer;
+}
+
+.consent-label input[type="checkbox"] {
+  margin-top: 0.15em;
+  flex-shrink: 0;
 }
