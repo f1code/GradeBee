@@ -299,13 +299,6 @@ button:active,
   box-shadow: var(--shadow-md);
 }
 
-/* --- Error --- */
-.error {
-  color: var(--error-red);
-  margin-top: 1rem;
-  font-weight: 500;
-}
-
 /* --- Student list --- */
 .student-list {
   margin-top: 0;
@@ -734,12 +727,6 @@ button:active,
   box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
 }
 
-.add-form-error {
-  color: var(--error-red);
-  font-size: 0.85rem;
-  margin: 0.4rem 0 0;
-}
-
 /* --- Students loading state inside class --- */
 
 .class-students-loading {
@@ -987,47 +974,6 @@ button:active,
   padding-left: 1.25rem;
 }
 
-/* Upload done */
-.upload-done {
-  background: var(--chalk);
-  border-radius: var(--radius);
-  padding: 2rem;
-  box-shadow: var(--shadow-md);
-}
-
-.upload-done > p {
-  margin-bottom: 1rem;
-}
-
-.transcript-text {
-  width: 100%;
-  font-family: var(--font-body);
-  font-size: 0.92rem;
-  line-height: 1.65;
-  color: var(--ink);
-  background: var(--parchment);
-  border: 1.5px solid var(--comb);
-  border-radius: var(--radius-sm);
-  padding: 1rem;
-  resize: vertical;
-  box-sizing: border-box;
-  margin-bottom: 1rem;
-  transition: border-color 0.15s ease;
-}
-
-.transcript-text:focus {
-  outline: none;
-  border-color: var(--honey);
-  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
-}
-
-/* --- Utility --- */
-.loading-text {
-  color: var(--ink-muted);
-  text-align: center;
-  padding: 2rem;
-}
-
 /* --- Student list collapse toggle (mobile) --- */
 .student-list-collapse-toggle {
   display: flex;
@@ -1140,7 +1086,6 @@ button:active,
 
   /* Form inputs: prevent iOS zoom */
   .report-instructions textarea,
-  .transcript-text,
   input[type="date"],
   input[type="text"],
   textarea {
@@ -1202,18 +1147,6 @@ button:active,
   padding: 0.6rem 1rem;
   border-radius: var(--radius-sm);
   margin-top: 0.75rem;
-}
-
-/* --- Student fetch error inside class --- */
-
-.class-students-error {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
-  padding: 1rem 1.25rem;
-  color: var(--error-red);
-  font-size: 0.9rem;
 }
 
 /* ============================================
@@ -1358,11 +1291,6 @@ button:active,
   background: var(--chalk);
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(44, 24, 16, 0.06);
-}
-
-.example-name {
-  font-size: 0.9rem;
-  color: var(--ink);
 }
 
 .example-item-wrapper {
@@ -1676,61 +1604,6 @@ button:active,
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.report-result-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.6rem 1rem;
-  background: var(--chalk);
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(44, 24, 16, 0.08);
-}
-
-.report-result-item.skipped {
-  opacity: 1;
-}
-
-.report-result-item.skipped .report-result-name {
-  opacity: 0.55;
-}
-
-.report-result-name {
-  font-weight: 500;
-  color: var(--ink);
-  flex: 1;
-}
-
-.report-result-class {
-  font-weight: 400;
-  color: var(--ink-muted);
-}
-
-.report-result-badge {
-  font-size: 0.75rem;
-  color: var(--ink-muted);
-  background: var(--comb);
-  padding: 0.15rem 0.5rem;
-  border-radius: 6px;
-}
-
-.report-doc-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  color: var(--honey-dark);
-  font-weight: 500;
-  text-decoration: none;
-  font-size: 0.875rem;
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
-  transition: background 0.15s;
-  white-space: nowrap;
-}
-
-.report-doc-link:hover {
-  background: var(--honey-light);
 }
 
 @media (max-width: 480px) {
@@ -2388,20 +2261,6 @@ button:active,
   padding: 1.5rem;
 }
 
-.student-detail-error {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  background: rgba(197, 48, 48, 0.06);
-  border: 1px solid rgba(197, 48, 48, 0.2);
-  border-radius: var(--radius-sm);
-  padding: 0.5rem 0.75rem;
-  margin-bottom: 0.75rem;
-  color: var(--error-red);
-  font-size: 0.85rem;
-}
-
 .student-detail-error-state {
   text-align: center;
   padding: 1rem;
@@ -2544,12 +2403,6 @@ button:active,
 .alias-add-confirm:hover { color: var(--success-green); background: none; transform: none; box-shadow: none; }
 .alias-add-cancel:hover  { color: var(--error-red);    background: none; transform: none; box-shadow: none; }
 .alias-add-confirm:disabled { opacity: 0.4; cursor: default; }
-
-.alias-error {
-  font-size: 0.78rem;
-  color: var(--error-red);
-  margin-top: 0.1rem;
-}
 
 /* ============================================
    Inline Error Card
@@ -3214,6 +3067,17 @@ button:active,
   border-bottom: 1px solid var(--comb);
 }
 
+.report-result-name {
+  font-weight: 500;
+  color: var(--ink);
+  flex: 1;
+}
+
+.report-result-class {
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
 .report-result-card .report-viewer {
   padding: 0.75rem 1rem 1rem;
 }
@@ -3324,16 +3188,6 @@ button:active,
   display: flex;
   align-items: center;
   gap: 0.4em;
-}
-
-.report-review-reminder {
-  background: var(--honey-light);
-  border: 1px solid var(--honey);
-  border-radius: 8px;
-  padding: 0.6rem 0.9rem;
-  font-size: 0.85rem;
-  color: var(--ink);
-  margin-bottom: 0.75rem;
 }
 
 @media (max-width: 640px) {
