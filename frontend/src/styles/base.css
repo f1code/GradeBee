@@ -1,0 +1,53 @@
+/* === GradeBee — Base / Paper-grain Texture / Global Typography === */
+
+
+/* --- Paper-grain texture overlay --- */
+body {
+  margin: 0;
+  min-height: 100vh;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+}
+
+/* --- Global typography --- */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+}
+
+h1 { font-size: 1.75rem; }
+h2 { font-size: 1.4rem; margin-bottom: 0.75rem; }
+h3 { font-size: 1.1rem; }
+
+p {
+  margin: 0.5rem 0;
+  color: var(--ink);
+}
+
+a {
+  color: var(--honey-dark);
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 163, 23, 0.35);
+  text-underline-offset: 2px;
+  transition: color 0.15s ease, text-decoration-color 0.15s ease;
+}
+
+a:hover {
+  color: var(--honey);
+  text-decoration-color: var(--honey);
+}
+

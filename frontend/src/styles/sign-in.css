@@ -1,0 +1,120 @@
+/* === GradeBee — Sign-in Page === */
+
+/* --- Sign-in page --- */
+.sign-in-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 55vh;
+  text-align: center;
+  position: relative;
+}
+
+/* Honeycomb decorative pattern behind sign-in card */
+.sign-in-container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+  height: 420px;
+  opacity: 0.08;
+  z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23E8A317' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
+  border-radius: 50%;
+  mask-image: radial-gradient(circle, black 30%, transparent 70%);
+  -webkit-mask-image: radial-gradient(circle, black 30%, transparent 70%);
+}
+
+.sign-in-card {
+  position: relative;
+  z-index: 1;
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 3rem 2.5rem;
+  box-shadow: var(--shadow-lg);
+  max-width: 480px;
+  width: 100%;
+}
+
+.sign-in-card h2 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.sign-in-card p {
+  color: var(--ink-muted);
+  margin-bottom: 1.5rem;
+  font-size: 1.05rem;
+}
+
+.sign-in-btn {
+  width: 100%;
+  font-size: 1rem;
+  padding: 0.85rem 1.5rem;
+  justify-content: center;
+}
+
+
+/* --- Responsive: sign-in --- */
+@media (max-width: 640px) {
+  .sign-in-card {
+    padding: 2rem 1.5rem;
+  }
+
+  .sign-in-container::before {
+    width: 300px;
+    height: 300px;
+  }
+}
+
+/* --- Sign-in feature list --- */
+/* ============================================
+   Sign-in Feature List
+   ============================================ */
+
+.sign-in-tagline {
+  color: var(--ink-muted);
+  font-size: 1.02rem;
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.75rem;
+  text-align: left;
+}
+
+.feature-list li {
+  color: var(--ink-muted);
+  font-size: 0.95rem;
+  line-height: 2.2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+
+/* --- Sign-in consent checkbox --- */
+/* ── Sign-in consent checkbox ────────────────────────────────── */
+
+.consent-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  margin: 0.75rem 0;
+  cursor: pointer;
+}
+
+.consent-label input[type="checkbox"] {
+  margin-top: 0.15em;
+  flex-shrink: 0;
+}

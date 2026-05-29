@@ -1,0 +1,707 @@
+/* === GradeBee — Roster & Upload (student list, class group, audio upload, job status) === */
+
+/* --- Student list, class group --- */
+/* --- Student list --- */
+.student-list {
+  margin-top: 0;
+}
+
+.student-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 0.75rem;
+}
+
+.student-list-heading {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
+  color: var(--ink);
+  margin: 0;
+}
+
+.class-group {
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 0;
+  box-shadow: var(--shadow-md);
+  margin-bottom: 1.25rem;
+  overflow: hidden;
+}
+
+.class-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.class-group-header:hover {
+  background: var(--honey-light);
+}
+
+.class-group h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.class-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hexagon bullet before class name */
+.hex-bullet {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.class-group .count {
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
+.class-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.class-group ul {
+  list-style: none;
+  padding: 0 1.25rem;
+  margin: 0;
+}
+
+.class-group li {
+  padding: 0.5rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: background 0.12s ease;
+  font-size: 0.95rem;
+}
+
+.class-group li:nth-child(even) {
+  background: rgba(245, 230, 200, 0.3);
+}
+
+.class-group li:hover {
+  background: var(--honey-light);
+}
+
+
+/* --- Audio upload (progress, spinner, error) --- */
+/* --- Audio upload --- */
+.audio-upload {
+  margin-top: 2rem;
+}
+
+.audio-upload h2 {
+  margin-bottom: 1rem;
+}
+
+.drop-zone {
+  border: 2px dashed var(--honey);
+  border-radius: var(--radius);
+  background: var(--comb);
+  padding: 2.5rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.drop-zone:hover {
+  background: var(--honey-light);
+  border-color: var(--honey-dark);
+}
+
+.drop-zone.drag-over {
+  border-style: solid;
+  background: var(--honey-light);
+  box-shadow: 0 0 0 4px rgba(232, 163, 23, 0.15);
+}
+
+.drop-zone-icon {
+  margin-bottom: 0.75rem;
+  opacity: 0.7;
+}
+
+.drop-zone p {
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 0.35rem;
+}
+
+.drop-zone .hint {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  font-weight: 400;
+}
+
+.secondary-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.secondary-actions .btn-secondary {
+  flex: 1;
+  max-width: 12rem;
+  font-size: 0.9rem;
+  padding: 0.55rem 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.paste-area {
+  margin-top: 1rem;
+  overflow: hidden;
+}
+
+.paste-textarea {
+  width: 100%;
+  min-height: 8rem;
+  padding: 0.85rem 1rem;
+  border: 2px solid var(--comb);
+  border-radius: var(--radius);
+  background: var(--chalk);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  resize: vertical;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+}
+
+.paste-textarea:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.15);
+}
+
+.paste-textarea::placeholder {
+  color: var(--ink-muted);
+}
+
+.paste-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  gap: 1rem;
+}
+
+.upload-pii-hint {
+  font-size: 0.8rem;
+  color: var(--ink-muted);
+  margin: 0.25rem 0 0.5rem;
+}
+
+.audio-upload .hint {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.paste-actions button {
+  white-space: nowrap;
+}
+
+/* Upload progress / transcribing states */
+.upload-progress {
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 2rem;
+  text-align: center;
+  box-shadow: var(--shadow-md);
+}
+
+.upload-progress p {
+  color: var(--ink-muted);
+}
+
+.upload-progress strong {
+  color: var(--ink);
+}
+
+/* Honeycomb spinner */
+.honeycomb-spinner {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 1rem;
+}
+
+/* Reset margin when spinner is used inline (job cards, buttons) */
+.job-card-active .honeycomb-spinner,
+.btn-loading .honeycomb-spinner {
+  margin-bottom: 0;
+}
+
+.honeycomb-spinner .hex {
+  width: 12px;
+  height: 12px;
+  background: var(--honey);
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  animation: hexPulse 0.9s ease-in-out infinite;
+}
+
+.honeycomb-spinner .hex:nth-child(2) { animation-delay: 0.15s; }
+.honeycomb-spinner .hex:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes hexPulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+/* Upload error */
+.upload-error {
+  color: var(--error-red);
+  font-weight: 500;
+  margin-top: 0.75rem;
+}
+
+.upload-error-list {
+  margin-top: 0.25rem;
+  padding-left: 1.25rem;
+}
+
+
+/* --- Student-list collapse toggle, mobile upload actions --- */
+/* --- Student list collapse toggle (mobile) --- */
+.student-list-collapse-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+  box-shadow: var(--shadow-sm);
+  min-height: 44px;
+}
+
+.student-list-collapse-toggle:hover {
+  background: var(--honey-light);
+  border-color: var(--honey);
+  transform: none;
+  box-shadow: var(--shadow-sm);
+}
+
+/* --- Mobile upload actions --- */
+.mobile-upload-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mobile-upload-btn {
+  width: 100%;
+  justify-content: center;
+  font-size: 1rem;
+  padding: 0.85rem 1.5rem;
+}
+
+.mobile-upload-actions .hint {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .paste-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .paste-actions .hint {
+    text-align: center;
+  }
+}
+
+
+/* --- Responsive: roster/upload --- */
+@media (max-width: 640px) {
+  .class-group-header {
+    padding: 0.85rem 1rem;
+  }
+
+  /* Touch-friendly student items */
+  .class-group li {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  /* Upload progress tighten */
+  .upload-progress {
+    padding: 1.5rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .class-group h3 {
+    font-size: 0.95rem;
+  }
+
+  .class-group li {
+    font-size: 0.88rem;
+  }
+}
+
+/* --- Upload success toast --- */
+/* --- Upload Success Toast --- */
+
+.upload-success-toast {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(56, 161, 105, 0.08);
+  border: 1px solid rgba(56, 161, 105, 0.25);
+  border-radius: 8px;
+  color: var(--success-green);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  margin-top: 0.75rem;
+}
+
+.upload-success-icon {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+
+/* --- Job status (incl. transcript review) --- */
+/* --- Job Status --- */
+
+.job-status {
+  background: var(--chalk);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 4px rgba(44, 24, 16, 0.06), 0 4px 12px rgba(44, 24, 16, 0.04);
+  margin-bottom: 1.5rem;
+}
+
+.job-status h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.15rem;
+  color: var(--ink);
+  margin: 0 0 0.75rem;
+}
+
+.job-card {
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--comb);
+}
+
+.job-card:last-child {
+  border-bottom: none;
+}
+
+.job-card-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.job-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.job-file-name {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.job-status-label {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
+/* Active */
+.job-card-active .honeycomb-spinner {
+  flex-shrink: 0;
+}
+
+/* Failed */
+.job-failed-icon {
+  color: var(--error-red);
+  font-weight: 700;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.job-error-msg {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--error-red);
+}
+
+.job-section-failed {
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--comb);
+}
+
+.job-retry-btn {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+/* Done */
+.job-done-icon {
+  color: var(--success-green);
+  font-weight: 700;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.job-done-meta {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+}
+
+.job-new-badge {
+  display: inline-block;
+  background: var(--honey);
+  color: var(--ink);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.job-note-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding-left: calc(18px + 0.65rem);
+}
+
+.job-note-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--honey-dark);
+  text-decoration: underline;
+  text-decoration-color: rgba(196, 136, 15, 0.3);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  box-shadow: none;
+  min-height: auto;
+}
+
+.job-note-link:hover {
+  color: var(--honey);
+  background: none;
+  box-shadow: none;
+  text-decoration-color: var(--honey);
+}
+
+/* Transcript review panel */
+.transcript-review {
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--parchment);
+  border-radius: 8px;
+  border: 1px solid var(--comb);
+}
+
+.transcript-review-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .transcript-review-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.transcript-review-heading {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--ink);
+  margin: 0 0 8px 0;
+}
+
+.transcript-review-body {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.transcript-review-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transcript-review-student {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  background: var(--chalk);
+  border-radius: 6px;
+  border: 1px solid var(--comb);
+}
+
+.transcript-review-student-name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.transcript-review-student-class {
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+.text-link {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration-color: transparent;
+  transition: color 0.15s;
+  box-shadow: none;
+}
+
+.text-link:hover {
+  color: var(--honey-dark);
+  background: none;
+  box-shadow: none;
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 163, 23, 0.4);
+  text-underline-offset: 2px;
+}
+
+.job-error {
+  background: rgba(197, 48, 48, 0.06);
+  border: 1px solid rgba(197, 48, 48, 0.2);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.job-error p {
+  color: var(--error-red);
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.job-section-done {
+  margin-top: 0.25rem;
+}
+
+.job-section-done-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.25rem;
+}
+
+.job-section-done-header::before {
+  content: 'Completed';
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+
+.job-dismiss-btn {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0.2rem;
+  margin-left: auto;
+  flex-shrink: 0;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  box-shadow: none;
+}
+.job-card-done:hover .job-dismiss-btn {
+  opacity: 0.5;
+}
+.job-dismiss-btn:hover {
+  opacity: 1 !important;
+  background: var(--comb);
+  box-shadow: none;
+  color: var(--ink);
+}
+

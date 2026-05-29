@@ -127,3 +127,31 @@ Use for global/navigation-level errors that appear and auto-dismiss or require a
 - **Audio upload**: drop zone replaced with prominent stacked action buttons on mobile.
 - **Note confirmation save bar**: sticky at viewport bottom on mobile with safe-area inset padding.
 - **Safe area insets**: `env(safe-area-inset-bottom)` applied to sticky bars and app padding for iPhone home indicator clearance.
+
+## Stylesheet organisation
+
+`frontend/src/index.css` is the **only import** (`main.tsx` imports it). It contains nothing but `@import` statements. Do not add rules there.
+
+All rules live under `frontend/src/styles/`:
+
+| File | Contents |
+|---|---|
+| `tokens.css` | CSS custom properties: colors, shadows, radii, font stacks |
+| `base.css` | Paper-grain texture, `body`, global typography (`h1`–`h4`, `p`, `a`) |
+| `shell.css` | App chrome only: `.app`, header, honeycomb divider, logo, bee-icon, `app-nav`, header-actions, footer |
+| `sign-in.css` | Sign-in page, feature list, consent checkbox |
+| `controls.css` | Buttons, `icon-btn`, `item-row`, cards (incl. `info-box`), forms, `inline-edit`, `delete-confirm`, `flash-error`, `hint-banner`, inline error card |
+| `modals.css` | How It Works modal, student-detail modal shell |
+| `roster-upload.css` | Student list, class group, audio upload, job status, transcript review |
+| `reports.css` | Report examples, generation, viewer, history |
+| `student-detail-notes.css` | Student detail expansion + tabs, student aliases, note editor |
+| `feedback-privacy.css` | Feedback FAB + popover, privacy page |
+
+### Responsive rules
+Each file owns its own `@media` blocks, placed after the base rules they override. There is no global responsive file.
+
+### Flat-button reset list
+`controls.css` contains a selector list that strips button chrome from elements across features (`.toolbar-link`, `.student-detail-tab`, `.report-examples-toggle`, `.how-it-works-trigger`, etc.). When you add a new flat-button-style element anywhere, add its selector to that list in `controls.css`. It is a known cross-file coupling, not a bug.
+
+### Known cascade quirk
+`.report-instructions textarea` has a `font-size: 1rem` rule inside the `@media (max-width: 640px)` block in `controls.css` (inherited from the original global responsive block). This rule is shadowed on mobile by the base `.report-instructions textarea { font-size: 0.95rem }` in `reports.css`, which appears later in the import order. The `1rem` rule is therefore dead on mobile. It is preserved intentionally to keep the cascade identical to the original. Do not remove without auditing `reports.css`.
