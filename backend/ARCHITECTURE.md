@@ -217,7 +217,6 @@ A `LLMProvider` interface abstracts all LLM call sites. Two production implement
 
 Per-task model IDs are configured via `LLM_MODEL_EXTRACTION`, `LLM_MODEL_REPORT`, `LLM_MODEL_VISION`, `LLM_MODEL_TRANSCRIPTION` env vars (provider-specific defaults apply if unset).
 
-Parse-and-retry: `mistralProvider.ChatJSON` retries once on JSON parse failure (configurable via `LLM_JSON_RETRIES_MISTRAL`; OpenAI default is 0).
 
 Context bias: `providerTranscriber` passes class names from the DB roster to `provider.Transcribe(...)`. `openaiProvider` joins them as a Whisper prompt; `mistralProvider` sanitises them (space→`_`, drop commas, dedup, cap 100) and passes via Voxtral's `context_bias` field.
 
@@ -292,7 +291,7 @@ All CRUD endpoints verify resource ownership:
 | `report_example_extractor.go` | Vision extraction of text from image uploads; PDF→JPEG conversion via pdftoppm |
 | `report_example_job.go` | `ExtractionJob` type for async report example extraction |
 | `report_example_process.go` | `processExtraction` pipeline (read file→extract→update DB) |
-| `report_generator.go` | `ReportGenerator` interface + `gptReportGenerator` (HTML output) |
+| `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output) |
 | `report_prompt.go` | GPT prompt construction for report generation (requests HTML output) |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
@@ -353,8 +352,6 @@ Repo-level errors:
 | `LLM_MODEL_REPORT` | No | Report generation model ID |
 | `LLM_MODEL_VISION` | No | Vision model ID |
 | `LLM_MODEL_TRANSCRIPTION` | No | Transcription model ID (default: `voxtral-mini-latest` / `whisper-1`) |
-| `LLM_JSON_RETRIES_MISTRAL` | No | JSON parse retry count for Mistral (default: 1) |
-| `LLM_JSON_RETRIES_OPENAI` | No | JSON parse retry count for OpenAI (default: 0) |
 | `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |
 | `UPLOADS_DIR` | No | Audio upload directory (default `/data/uploads`) |
 | `UPLOAD_RETENTION_HOURS` | No | Hours to keep processed audio (default 168 = 7 days) |

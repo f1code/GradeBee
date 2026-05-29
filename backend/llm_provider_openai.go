@@ -34,24 +34,12 @@ func (p *openaiProvider) Model(task LLMTask) string { return p.models[task] }
 
 func (p *openaiProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (string, error) {
 	model := p.models[LLMTaskExtraction]
-	raw, err := p.chatJSONOnce(ctx, model, req)
-	if err != nil {
-		return "", err
-	}
-	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
-		return "", fmt.Errorf("failed to parse extraction response: %w", parseErr)
-	}
-	return raw, nil
-}
-
-func (p *openaiProvider) chatJSONOnce(ctx context.Context, model string, req ChatJSONRequest) (string, error) {
-	messages := []openai.ChatCompletionMessage{
-		{Role: openai.ChatMessageRoleSystem, Content: req.SystemPrompt},
-		{Role: openai.ChatMessageRoleUser, Content: req.UserPrompt},
-	}
 	resp, err := p.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model:    model,
-		Messages: messages,
+		Model: model,
+		Messages: []openai.ChatCompletionMessage{
+			{Role: openai.ChatMessageRoleSystem, Content: req.SystemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: req.UserPrompt},
+		},
 		ResponseFormat: &openai.ChatCompletionResponseFormat{
 			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
 			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
@@ -67,7 +55,11 @@ func (p *openaiProvider) chatJSONOnce(ctx context.Context, model string, req Cha
 	if len(resp.Choices) == 0 {
 		return "", fmt.Errorf("openai returned no choices")
 	}
-	return resp.Choices[0].Message.Content, nil
+	raw := resp.Choices[0].Message.Content
+	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
+		return "", fmt.Errorf("failed to parse extraction response: %w", parseErr)
+	}
+	return raw, nil
 }
 
 func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (string, error) {
