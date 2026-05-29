@@ -10,7 +10,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"strconv"
 )
 
 // LLMTask identifies a specific use case for a model selection lookup.
@@ -65,7 +64,7 @@ type LLMProvider interface {
 	// Model returns the configured model ID for a given task.
 	Model(task LLMTask) string
 	// ChatJSON calls the provider for a structured JSON response and unmarshals
-	// the result into out. It handles parse-and-retry internally.
+	// the result into out.
 	ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (rawJSON string, err error)
 	// ChatText calls the provider for a free-form text response.
 	ChatText(ctx context.Context, req ChatTextRequest) (string, error)
@@ -115,20 +114,6 @@ func resolveModels(provider string) map[LLMTask]string {
 	return m
 }
 
-// resolveRetries reads the per-provider JSON retry env var. Returns the fallback
-// if the env var is unset or invalid.
-func resolveRetries(envVar string, fallback int) int {
-	v := os.Getenv(envVar)
-	if v == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil || n < 0 {
-		return fallback
-	}
-	return n
-}
-
 // LoadProvider reads LLM_PROVIDER from the environment, validates the active
 // provider's API key, and returns the configured LLMProvider. It is called
 // from NewProdDeps so the binary fails to start on misconfiguration.
@@ -148,19 +133,14 @@ func LoadProvider() (LLMProvider, error) {
 			return nil, fmt.Errorf("LLM_PROVIDER=openai but OPENAI_API_KEY is not set")
 		}
 		baseURL := os.Getenv("OPENAI_BASE_URL")
-		retries := resolveRetries("LLM_JSON_RETRIES_OPENAI", 0)
-		p = newOpenAIProvider(key, baseURL, models, retries)
+		p = newOpenAIProvider(key, baseURL, models)
 	case "mistral":
 		key := os.Getenv("MISTRAL_API_KEY")
 		if key == "" {
 			return nil, fmt.Errorf("LLM_PROVIDER=mistral but MISTRAL_API_KEY is not set")
 		}
 		baseURL := os.Getenv("MISTRAL_BASE_URL")
-		if baseURL == "" {
-			baseURL = "https://api.mistral.ai/v1"
-		}
-		retries := resolveRetries("LLM_JSON_RETRIES_MISTRAL", 1)
-		p = newMistralProvider(key, baseURL, models, retries)
+		p = newMistralProvider(key, baseURL, models)
 	default:
 		return nil, fmt.Errorf("unknown LLM_PROVIDER %q: must be \"openai\" or \"mistral\"", providerName)
 	}

@@ -20,13 +20,12 @@ const mistralDefaultBaseURL = "https://api.mistral.ai/v1"
 // mistralProvider wraps an OpenAI-compat client for chat/vision and the
 // ZaguanLabs SDK for Voxtral transcription.
 type mistralProvider struct {
-	chatClient    *openai.Client
-	audioClient   *mistralSDK.MistralClient
-	models        map[LLMTask]string
-	jsonRetries   int
+	chatClient  *openai.Client
+	audioClient *mistralSDK.MistralClient
+	models      map[LLMTask]string
 }
 
-func newMistralProvider(apiKey, baseURL string, models map[LLMTask]string, retries int) *mistralProvider {
+func newMistralProvider(apiKey, baseURL string, models map[LLMTask]string) *mistralProvider {
 	if baseURL == "" {
 		baseURL = mistralDefaultBaseURL
 	}
@@ -42,7 +41,6 @@ func newMistralProvider(apiKey, baseURL string, models map[LLMTask]string, retri
 		chatClient:  openai.NewClientWithConfig(cfg),
 		audioClient: audioClient,
 		models:      models,
-		jsonRetries: retries,
 	}
 }
 
@@ -52,43 +50,18 @@ func (p *mistralProvider) Model(task LLMTask) string { return p.models[task] }
 
 func (p *mistralProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (string, error) {
 	model := p.models[LLMTaskExtraction]
-	raw, err := p.chatJSONOnce(ctx, model, req.SystemPrompt, req.UserPrompt, req.SchemaName, req.Schema)
-	if err != nil {
-		return "", err
-	}
-	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
-		for i := 0; i < p.jsonRetries; i++ {
-			slog.Info("mistral: JSON parse failed, retrying", "attempt", i+1, "error", parseErr)
-			retryPrompt := req.UserPrompt + "\nYour previous response was not valid JSON for the schema. Return only valid JSON matching the schema."
-			raw, err = p.chatJSONOnce(ctx, model, req.SystemPrompt, retryPrompt, req.SchemaName, req.Schema)
-			if err != nil {
-				return "", err
-			}
-			if parseErr2 := json.Unmarshal([]byte(raw), out); parseErr2 == nil {
-				return raw, nil
-			} else {
-				slog.Error("mistral: JSON parse failed after retry", "attempt", i+1, "error", parseErr2)
-				parseErr = parseErr2
-			}
-		}
-		return "", fmt.Errorf("failed to parse extraction response: %w", parseErr)
-	}
-	return raw, nil
-}
-
-func (p *mistralProvider) chatJSONOnce(ctx context.Context, model, systemPrompt, userPrompt, schemaName string, schema json.RawMessage) (string, error) {
 	resp, err := p.chatClient.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: model,
 		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
-			{Role: openai.ChatMessageRoleUser, Content: userPrompt},
+			{Role: openai.ChatMessageRoleSystem, Content: req.SystemPrompt},
+			{Role: openai.ChatMessageRoleUser, Content: req.UserPrompt},
 		},
 		ResponseFormat: &openai.ChatCompletionResponseFormat{
 			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
 			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-				Name:   schemaName,
+				Name:   req.SchemaName,
 				Strict: true,
-				Schema: schema,
+				Schema: req.Schema,
 			},
 		},
 	})
@@ -98,7 +71,11 @@ func (p *mistralProvider) chatJSONOnce(ctx context.Context, model, systemPrompt,
 	if len(resp.Choices) == 0 {
 		return "", fmt.Errorf("mistral returned no choices")
 	}
-	return resp.Choices[0].Message.Content, nil
+	raw := resp.Choices[0].Message.Content
+	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
+		return "", fmt.Errorf("failed to parse extraction response: %w", parseErr)
+	}
+	return raw, nil
 }
 
 func (p *mistralProvider) ChatText(ctx context.Context, req ChatTextRequest) (string, error) {
@@ -156,19 +133,7 @@ func (p *mistralProvider) Vision(ctx context.Context, req VisionRequest, out any
 		return "", fmt.Errorf("mistral vision returned no choices")
 	}
 	raw := resp.Choices[0].Message.Content
-
-	// Try JSON parse with optional retry.
 	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
-		for i := 0; i < p.jsonRetries; i++ {
-			slog.Info("mistral: vision JSON parse failed, retrying", "attempt", i+1, "error", parseErr)
-			retryPrompt := req.Prompt + "\nYour previous response was not valid JSON for the schema. Return only valid JSON matching the schema."
-			retryReq := req
-			retryReq.Prompt = retryPrompt
-			raw2, err2 := p.Vision(ctx, retryReq, out)
-			if err2 == nil {
-				return raw2, nil
-			}
-		}
 		return "", fmt.Errorf("failed to parse vision response: %w", parseErr)
 	}
 	return raw, nil

@@ -13,20 +13,18 @@ import (
 
 // openaiProvider wraps the sashabaranov go-openai client.
 type openaiProvider struct {
-	client  *openai.Client
-	models  map[LLMTask]string
-	retries int // JSON parse retries (default 0 for OpenAI strict mode)
+	client *openai.Client
+	models map[LLMTask]string
 }
 
-func newOpenAIProvider(apiKey, baseURL string, models map[LLMTask]string, retries int) *openaiProvider {
+func newOpenAIProvider(apiKey, baseURL string, models map[LLMTask]string) *openaiProvider {
 	cfg := openai.DefaultConfig(apiKey)
 	if baseURL != "" {
 		cfg.BaseURL = baseURL
 	}
 	return &openaiProvider{
-		client:  openai.NewClientWithConfig(cfg),
-		models:  models,
-		retries: retries,
+		client: openai.NewClientWithConfig(cfg),
+		models: models,
 	}
 }
 
@@ -41,18 +39,6 @@ func (p *openaiProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out 
 		return "", err
 	}
 	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
-		// retry if configured
-		for i := 0; i < p.retries; i++ {
-			retryReq := req
-			retryReq.UserPrompt = req.UserPrompt + "\nYour previous response was not valid JSON for the schema. Return only valid JSON matching the schema."
-			raw, err = p.chatJSONOnce(ctx, model, retryReq)
-			if err != nil {
-				return "", err
-			}
-			if parseErr2 := json.Unmarshal([]byte(raw), out); parseErr2 == nil {
-				return raw, nil
-			}
-		}
 		return "", fmt.Errorf("failed to parse extraction response: %w", parseErr)
 	}
 	return raw, nil
