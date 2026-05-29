@@ -1,0 +1,216 @@
+/* === GradeBee — App Shell (chrome, header, nav, footer) === */
+
+/* --- App container, header, honeycomb divider, logo, bee-icon --- */
+/* --- Layout --- */
+.app {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 2rem 4rem;
+}
+
+/* --- Header --- */
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.25rem;
+  position: relative;
+}
+
+/* Honeycomb divider under header */
+header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--honey) 0px,
+    var(--honey) 8px,
+    transparent 8px,
+    transparent 12px,
+    var(--honey-light) 12px,
+    var(--honey-light) 20px,
+    transparent 20px,
+    transparent 24px
+  );
+  mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, black 10%, black 90%, transparent);
+  border-radius: 3px;
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.header-logo h1 {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.bee-icon {
+  flex-shrink: 0;
+}
+
+
+/* --- Responsive: shell --- */
+@media (max-width: 640px) {
+  .app {
+    padding: 1.25rem 1rem 3rem;
+    padding-bottom: calc(3rem + env(safe-area-inset-bottom));
+  }
+
+  /* App nav: full-width tabs */
+  .app-nav {
+    width: 100%;
+  }
+
+  .app-nav .toolbar-link {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-logo h1 {
+    font-size: 1.35rem;
+  }
+}
+
+/* --- App navigation --- */
+/* ============================================
+   App Navigation
+   ============================================ */
+
+.app-nav {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.25rem;
+  background: var(--comb);
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.toolbar-link {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  box-shadow: none;
+}
+
+.toolbar-link:hover {
+  color: var(--ink);
+  background: var(--honey-light);
+  box-shadow: none;
+}
+
+.toolbar-link.active {
+  background: var(--chalk);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(44, 24, 16, 0.1);
+}
+
+
+/* --- Header actions --- */
+/* ============================================
+   Header Actions
+   ============================================ */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.how-it-works-trigger {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border-radius: 50%;
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  color: var(--ink-muted);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: none;
+  transition: all 0.15s ease;
+}
+
+.how-it-works-trigger:hover {
+  background: var(--honey-light);
+  border-color: var(--honey);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+
+/* --- App footer --- */
+/* ── App footer ──────────────────────────────────────────────── */
+
+.app-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem 0 1rem;
+  font-size: 0.8rem;
+}
+
+.app-footer a,
+.privacy-preferences-link {
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.72;
+  text-decoration: none;
+  text-decoration-color: rgba(122, 107, 93, 0.3);
+  transition:
+    color 0.15s ease,
+    opacity 0.15s ease,
+    text-decoration-color 0.15s ease;
+}
+
+.app-footer-separator {
+  color: var(--ink-muted);
+  opacity: 0.5;
+}
+
+.app-footer a:hover,
+.privacy-preferences-link:hover {
+  color: var(--honey-dark);
+  opacity: 1;
+  text-decoration: underline;
+  text-decoration-color: rgba(196, 136, 15, 0.55);
+  text-underline-offset: 2px;
+}
+

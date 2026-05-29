@@ -1,0 +1,50 @@
+/* === GradeBee — Color, Shadow, Typography Tokens === */
+
+/* ============================================================
+   GradeBee — "Warm Classroom" Design System
+   ============================================================ */
+
+html {
+  scrollbar-gutter: stable;
+}
+
+/* --- Color tokens --- */
+:root {
+  --honey: #E8A317;
+  --honey-dark: #C4880F;
+  --honey-light: #FFF3D4;
+  --comb: #F5E6C8;
+  --ink: #2C1810;
+  --ink-muted: #7A6B5D;
+  --parchment: #FBF7F0;
+  --chalk: #FFFFFF;
+  --error-red: #C53030;
+  --success-green: #38A169;
+
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
+
+  /* Shadows (warm-toned) */
+  --shadow-sm: 0 1px 3px rgba(44, 24, 16, 0.06);
+  --shadow-md: 0 4px 12px rgba(44, 24, 16, 0.08);
+  --shadow-lg: 0 8px 24px rgba(44, 24, 16, 0.10);
+  --shadow-lift: 0 6px 16px rgba(44, 24, 16, 0.12);
+
+  /* Radii */
+  --radius: 12px;
+  --radius-sm: 8px;
+
+  /* Breakpoints (for reference — used in @media queries) */
+  --bp-sm: 480px;
+  --bp-md: 640px;
+  --bp-lg: 860px;
+
+  -webkit-text-size-adjust: 100%;
+
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--ink);
+  background-color: var(--parchment);
+}

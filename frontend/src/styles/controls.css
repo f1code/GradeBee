@@ -1,0 +1,833 @@
+/* === GradeBee — Controls (buttons, item-row, cards, forms, error primitives, hint-banner) === */
+
+/* --- Buttons --- */
+/* NOTE: This list enumerates flat-button selectors defined across
+   feature stylesheets (roster-upload, reports, student-detail-notes,
+   shell, sign-in, modals). When you add a new flat button anywhere, add its
+   selector here. */
+/* --- Buttons --- */
+button {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  background: var(--honey);
+  color: var(--ink);
+  border: none;
+  padding: 0.5rem 1.4rem;
+  min-height: 44px;
+  box-sizing: border-box;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+button:hover {
+  background: var(--honey-dark);
+}
+
+/* Shared 3D hover/active for button variants */
+button:hover,
+.btn-secondary:hover,
+.btn-danger:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lift);
+}
+
+button:active,
+.btn-secondary:active,
+.btn-danger:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Flat buttons: disable 3D hover/active effects */
+.text-link:hover, .text-link:active,
+.icon-btn:hover, .icon-btn:active,
+.toolbar-link:hover, .toolbar-link:active,
+.student-detail-tab:hover, .student-detail-tab:active,
+.student-list-collapse-toggle:hover, .student-list-collapse-toggle:active,
+.report-examples-toggle:hover, .report-examples-toggle:active,
+.how-it-works-trigger:hover, .how-it-works-trigger:active,
+.how-it-works-close:hover, .how-it-works-close:active,
+.student-modal-close:hover, .student-modal-close:active,
+.hint-banner-close:hover, .hint-banner-close:active,
+.job-note-link:hover, .job-note-link:active,
+.job-dismiss-btn:hover, .job-dismiss-btn:active,
+.note-show-toggle:hover, .note-show-toggle:active,
+.student-detail-back:hover, .student-detail-back:active {
+  transform: none;
+}
+
+.btn-secondary {
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  color: var(--ink);
+  box-shadow: none;
+}
+
+.btn-secondary:hover {
+  background: var(--honey-light);
+  border-color: var(--honey);
+}
+
+
+/* --- Card --- */
+/* --- Cards (reusable) --- */
+.card {
+  background: var(--chalk);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-md);
+}
+
+
+/* --- Item-row pattern, icon-btn, desktop hover rules --- */
+/* --- Expandable row (shared pattern) --- */
+
+.item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.item-row:hover {
+  background: var(--honey-light);
+}
+
+.item-row-name {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  color: var(--ink);
+  text-decoration-color: transparent;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+
+.item-row-name:hover {
+  color: var(--honey-dark);
+  text-decoration: underline;
+  text-decoration-color: rgba(232, 163, 23, 0.4);
+  text-underline-offset: 2px;
+}
+
+.item-row-name:focus-visible {
+  outline: 2px solid var(--honey);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.item-row-name-active {
+  color: var(--honey-dark);
+}
+
+.item-row-name-text {
+  display: inline;
+  vertical-align: middle;
+}
+
+.item-row-subtitle {
+  display: inline;
+  margin-left: 0.5rem;
+}
+
+.aka-label {
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+  font-style: normal;
+  margin-right: 0.25rem;
+}
+
+.aka-names {
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  font-style: normal;
+  font-weight: 400;
+}
+
+.item-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.item-row:hover .item-row-actions {
+  opacity: 1;
+}
+
+/* --- Icon buttons (pencil / trash) --- */
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  padding: 0.35rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: auto;
+  box-shadow: none;
+  transition: color 0.15s, background 0.15s;
+}
+
+.icon-btn:hover {
+  color: var(--ink);
+  background: var(--comb);
+  transform: none;
+  box-shadow: none;
+}
+
+.icon-btn-danger:hover {
+  color: var(--error-red);
+  background: rgba(197, 48, 48, 0.08);
+}
+
+/* Desktop: hide class-level actions until hover */
+@media (min-width: 641px) {
+  .class-actions .icon-btn {
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s, background 0.15s;
+  }
+  .class-group-header:hover .class-actions .icon-btn {
+    opacity: 1;
+  }
+}
+
+
+/* --- Inline edit, delete-confirm, btn-sm --- */
+/* --- Inline edit input --- */
+
+.inline-edit-input {
+  font-family: var(--font-body);
+  font-size: inherit;
+  font-weight: inherit;
+  color: var(--ink);
+  background: var(--chalk);
+  border: 1.5px solid var(--honey);
+  border-radius: 6px;
+  padding: 0.2rem 0.5rem;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+  width: 100%;
+  max-width: 260px;
+}
+
+.inline-class-edit {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-class-edit .inline-edit-input {
+  max-width: 180px;
+}
+
+.inline-class-edit .inline-edit-group {
+  max-width: 140px;
+  font-weight: 400;
+  font-size: 0.9em;
+}
+
+.group-name-text {
+  font-weight: 400;
+  color: var(--ink-muted);
+  font-size: 0.9em;
+}
+
+/* --- Delete confirmation bar --- */
+
+.delete-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: rgba(197, 48, 48, 0.06);
+  border-bottom: 1px solid rgba(197, 48, 48, 0.15);
+  border-radius: 0;
+  padding: 0.85rem 1.25rem;
+  margin: 0;
+  font-size: 0.9rem;
+  overflow: hidden;
+}
+
+.delete-confirm-inline {
+  margin: 0;
+}
+
+.delete-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.btn-danger {
+  background: var(--error-red);
+  color: var(--chalk);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-danger:hover {
+  background: #a12828;
+  color: var(--chalk);
+}
+
+/* --- Small button variant --- */
+
+.btn-sm {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.85rem;
+  min-height: 36px;
+}
+
+
+/* --- Add class form, add student form --- */
+/* --- Add class form --- */
+
+.add-class-form {
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.add-class-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.add-class-field-group .add-class-input {
+  width: 100%;
+}
+
+.add-class-autocomplete-wrapper {
+  position: relative;
+}
+
+.add-class-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem 0;
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.add-class-suggestion-item {
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.add-class-suggestion-item:hover {
+  background: var(--honey-light, rgba(232, 163, 23, 0.08));
+}
+
+.add-class-form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-class-input {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.75rem;
+  min-height: 44px;
+  box-sizing: border-box;
+  transition: border-color 0.15s;
+}
+
+.add-class-input:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+}
+
+/* --- Add student form --- */
+
+.add-student-form {
+  padding: 0.5rem 1.25rem 1rem;
+}
+
+.add-student-form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.add-student-input {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--parchment);
+  border: 1.5px solid var(--comb);
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+  transition: border-color 0.15s;
+}
+
+.add-student-input:focus {
+  outline: none;
+  border-color: var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
+}
+
+
+/* --- Loading / info-box / empty states --- */
+/* --- Students loading state inside class --- */
+
+.class-students-loading {
+  display: flex;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+/* --- Info / empty states --- */
+.info-box {
+  background: var(--chalk);
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius);
+  padding: 2.5rem 2rem;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Decorative hex pattern for empty states */
+.info-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0.04;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66ZM28 100L0 84L0 50L28 34L56 50L56 84L28 100Z' fill='none' stroke='%23E8A317' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
+}
+
+.info-box h2 {
+  position: relative;
+}
+
+.info-box p {
+  color: var(--ink-muted);
+  position: relative;
+}
+
+.info-box a {
+  position: relative;
+}
+
+.info-box button {
+  position: relative;
+  margin-top: 1rem;
+}
+
+.student-list-error {
+  text-align: center;
+  padding: 2.5rem 2rem;
+  background: var(--chalk);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+}
+
+.student-list-error h2 {
+  margin-bottom: 0.5rem;
+}
+
+.student-list-error p {
+  color: var(--ink-muted);
+  margin-bottom: 1rem;
+}
+
+
+/* --- Responsive: controls --- */
+@media (max-width: 640px) {
+  /* Mobile: always show action icons */
+  .item-row-actions {
+    opacity: 1;
+  }
+
+  .class-actions .icon-btn {
+    opacity: 1;
+  }
+
+  /* Form inputs: prevent iOS zoom */
+  /* NOTE: .report-instructions textarea is also listed here (original line 1088).
+     That rule is shadowed by the base .report-instructions textarea rule in
+     reports.css (font-size: 0.95rem wins on mobile). The selector is kept here
+     bug-for-bug to preserve the existing cascade outcome. Do not remove without
+     checking reports.css. */
+  .report-instructions textarea,
+  input[type="date"],
+  input[type="text"],
+  textarea {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .student-list-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .add-class-form-row {
+    flex-direction: column;
+  }
+
+  .add-class-form-row button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .delete-confirm {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  /* iOS zoom prevention */
+  .add-class-input,
+  .add-student-input,
+  .inline-edit-input {
+    font-size: 1rem;
+  }
+}
+
+/* --- Flash error --- */
+/* --- Flash error --- */
+
+.flash-error {
+  position: sticky;
+  bottom: 0;
+  background: var(--error-red);
+  color: var(--chalk);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  margin-top: 0.75rem;
+}
+
+
+/* --- Hint banner --- */
+/* ============================================
+   Hint Banner
+   ============================================ */
+
+.hint-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--honey-light);
+  border-left: 3px solid var(--honey);
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.hint-banner p {
+  flex: 1;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.hint-banner-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--ink-muted);
+  font-size: 1.15rem;
+  cursor: pointer;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  box-shadow: none;
+  min-height: auto;
+  line-height: 1;
+}
+
+.hint-banner-close:hover {
+  background: rgba(44, 24, 16, 0.06);
+  color: var(--ink);
+  transform: none;
+  box-shadow: none;
+}
+
+
+/* --- Inline error card --- */
+/* ============================================
+   Inline Error Card
+   ============================================ */
+
+.inline-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  margin-top: 0.4rem;
+}
+
+.inline-error-error {
+  background: rgba(197, 48, 48, 0.06);
+  border: 1px solid rgba(197, 48, 48, 0.25);
+  color: var(--error-red);
+}
+
+.inline-error-warning {
+  background: rgba(232, 163, 23, 0.08);
+  border: 1px solid rgba(232, 163, 23, 0.35);
+  color: var(--honey-dark);
+}
+
+.inline-error-info {
+  background: rgba(122, 107, 93, 0.07);
+  border: 1px solid rgba(122, 107, 93, 0.2);
+  color: var(--ink-muted);
+}
+
+.inline-error-icon {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.inline-error-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-error-title {
+  font-weight: 600;
+}
+
+.inline-error-dismiss {
+  flex-shrink: 0;
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  padding: 0;
+  min-height: auto;
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.notes-date-group {
+  border-top: 1px solid var(--comb);
+  padding-top: 0.75rem;
+}
+
+.notes-date-group:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.notes-date-heading {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  color: var(--ink-muted);
+  margin: 0 0 0.5rem;
+}
+
+.notes-empty {
+  padding: 1.5rem 1rem;
+}
+
+.notes-empty p {
+  margin: 0;
+}
+
+.note-card {
+  background: var(--parchment);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  transition: background 0.12s;
+}
+
+.note-card:hover {
+  background: var(--honey-light);
+}
+
+.note-card-editing {
+  background: var(--chalk);
+  border: 1.5px solid var(--honey);
+  box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.08);
+}
+
+.note-card-editing:hover {
+  background: var(--chalk);
+}
+
+.note-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.note-card-source {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.note-source-badge {
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 6px;
+  color: var(--ink-muted);
+}
+
+.note-source-auto {
+  background: var(--honey-light);
+}
+
+.note-source-manual {
+  background: var(--comb);
+}
+
+.note-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.note-card:hover .note-card-actions {
+  opacity: 1;
+}
+
+.note-summary {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.note-summary p {
+  margin: 0;
+}
+
+.note-summary-truncated p {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note-show-toggle {
+  background: none;
+  border: none;
+  color: var(--honey-dark);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.15rem 0;
+  cursor: pointer;
+  min-height: auto;
+  box-shadow: none;
+}
+
+.note-show-toggle:hover {
+  color: var(--honey);
+  background: none;
+  text-decoration: underline;
+  transform: none;
+  box-shadow: none;
+}
+
+.note-transcript-section {
+  margin-top: 0.35rem;
+}
+
+
+.note-transcript-block {
+  overflow: hidden;
+}
+
+.note-transcript-text {
+  background: var(--parchment);
+  border: 1px solid var(--comb);
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  margin: 0.35rem 0 0;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
