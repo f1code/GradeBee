@@ -99,6 +99,24 @@ kanban-md create "TITLE" [--status S] [--priority P] [--assignee A] \
 Prints the created task ID and summary. `--claim` immediately claims the task for an agent,
 combining creation and claiming in one step.
 
+For Markdown, multiline text, or anything containing quotes/backticks, pass the body with a
+single-quoted heredoc inside command substitution. Do not cram structured task bodies into one
+escaped shell string.
+
+```bash
+kanban-md create "TITLE" --priority P --tags T1,T2 --body "$(cat <<'EOF'
+## Problem
+
+Describe the issue.
+
+## Acceptance Criteria
+
+- First criterion.
+- Second criterion.
+EOF
+)"
+```
+
 ### show
 
 ```bash
@@ -292,8 +310,17 @@ kanban-md show <ID>
 # Create a task and immediately claim it
 kanban-md create "TITLE" --priority high --tags bug --claim <agent>
 
-# Add a body separately (or use --body inline if short)
-kanban-md edit <ID> --body "Steps to reproduce: ..."
+# Add a Markdown body separately using a heredoc
+kanban-md edit <ID> --body "$(cat <<'EOF'
+## Problem
+
+Describe the issue.
+
+## Acceptance Criteria
+
+- Expected outcome.
+EOF
+)"
 ```
 
 ### Progress note (renews claim, appends without overwriting)
@@ -355,6 +382,7 @@ kanban-md list --compact --status in-progress,review   # all active/parked work
 - **DO** use `kanban-md show ID` (default format) to read task details — it is readable and includes the full body.
 - **DO** pass `--yes` on delete. Without it, the command hangs waiting for stdin.
 - **DO** use `pick --claim <agent> --status todo --move in-progress` rather than list → edit → move — it's atomic and prevents claim races.
+- **DO** pass Markdown or multiline `--body`, `--append-body`, `--note`, and `--block` text with `$(cat <<'EOF' ... EOF)` to avoid broken shell escaping.
 - **DO** use `-a` / `--append-body` with `--claim <agent>` when adding progress notes — this renews the claim and appends without overwriting the body.
 - **DO NOT** use `--json` unless you are piping output to another tool or parsing fields programmatically. Default and `--compact` formats are sufficient for reading.
 - **DO NOT** hardcode status or priority values. Read them from `kanban-md board --compact`.
