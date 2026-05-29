@@ -16,6 +16,7 @@ type VoiceNote struct {
 	FileName    string  `json:"fileName"`
 	FilePath    string  `json:"filePath"`
 	ProcessedAt *string `json:"processedAt,omitempty"`
+	PurgedAt    *string `json:"purgedAt,omitempty"`
 	CreatedAt   string  `json:"createdAt"`
 }
 
@@ -24,9 +25,9 @@ func (r *VoiceNoteRepo) Create(ctx context.Context, userID, fileName, filePath s
 	var v VoiceNote
 	err := r.db.QueryRowContext(ctx, `
 		INSERT INTO voice_notes (user_id, file_name, file_path) VALUES (?, ?, ?)
-		RETURNING id, user_id, file_name, file_path, processed_at, created_at`,
+		RETURNING id, user_id, file_name, file_path, processed_at, purged_at, created_at`,
 		userID, fileName, filePath,
-	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.CreatedAt)
+	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.CreatedAt)
 	if err != nil {
 		return VoiceNote{}, fmt.Errorf("create voice note: %w", err)
 	}
@@ -37,9 +38,9 @@ func (r *VoiceNoteRepo) Create(ctx context.Context, userID, fileName, filePath s
 func (r *VoiceNoteRepo) GetByID(ctx context.Context, id int64) (VoiceNote, error) {
 	var v VoiceNote
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, user_id, file_name, file_path, processed_at, created_at
+		SELECT id, user_id, file_name, file_path, processed_at, purged_at, created_at
 		FROM voice_notes WHERE id = ?`, id,
-	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.CreatedAt)
+	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.CreatedAt)
 	if err == sql.ErrNoRows {
 		return VoiceNote{}, ErrNotFound
 	}
@@ -64,7 +65,7 @@ func (r *VoiceNoteRepo) MarkProcessed(ctx context.Context, id int64) error {
 // Used by the cleanup goroutine to find files safe to delete.
 func (r *VoiceNoteRepo) ListStale(ctx context.Context, olderThan string) ([]VoiceNote, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, user_id, file_name, file_path, processed_at, created_at
+		SELECT id, user_id, file_name, file_path, processed_at, purged_at, created_at
 		FROM voice_notes
 		WHERE processed_at IS NOT NULL AND processed_at < ?`, olderThan)
 	if err != nil {
@@ -75,12 +76,23 @@ func (r *VoiceNoteRepo) ListStale(ctx context.Context, olderThan string) ([]Voic
 	var result []VoiceNote
 	for rows.Next() {
 		var v VoiceNote
-		if err := rows.Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.CreatedAt); err != nil {
+		if err := rows.Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan voice note: %w", err)
 		}
 		result = append(result, v)
 	}
 	return result, rows.Err()
+}
+
+// MarkPurged sets purged_at to now, indicating the audio file has been deleted.
+func (r *VoiceNoteRepo) MarkPurged(ctx context.Context, id int64) error {
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE voice_notes SET purged_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		WHERE id = ?`, id)
+	if err != nil {
+		return fmt.Errorf("mark voice note purged: %w", err)
+	}
+	return rowsAffectedOrNotFound(res)
 }
 
 // Delete removes a voice note record.

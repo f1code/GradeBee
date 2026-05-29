@@ -36,7 +36,7 @@ func cleanProcessedVoiceNotes(ctx context.Context, repo *VoiceNoteRepo, retentio
 	}
 
 	for _, v := range stale {
-		if v.FilePath != "" {
+		if v.FilePath != "" && v.PurgedAt == nil {
 			if err := os.Remove(v.FilePath); err != nil && !os.IsNotExist(err) {
 				slog.Error("voice note cleanup: remove file", "path", v.FilePath, "error", err)
 				continue

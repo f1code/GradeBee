@@ -5,6 +5,7 @@ import type { Note } from '../api'
 import { submitFeedback } from '../api'
 import { PencilIcon, TrashIcon, ThumbUpIcon, ThumbDownIcon } from './Icons'
 import NoteEditor from './NoteEditor'
+import AIBadge from './AIBadge'
 
 interface NotesListProps {
   notes: Note[]
@@ -177,9 +178,12 @@ function NoteCard({
   return (
     <motion.div className="note-card" variants={cardVariants} data-testid={`note-${note.id}`}>
       <div className="note-card-header">
-        <span className={`note-source-badge ${note.source === 'auto' ? 'note-source-auto' : 'note-source-manual'}`}>
-          {note.source === 'auto' ? 'Auto' : 'Manual'}
-        </span>
+        <div className="note-card-source">
+          <span className={`note-source-badge ${note.source === 'auto' ? 'note-source-auto' : 'note-source-manual'}`}>
+            {note.source === 'auto' ? 'Auto' : 'Manual'}
+          </span>
+          {note.source === 'auto' && <AIBadge />}
+        </div>
         <div className="note-card-actions">
           {/* Thumbs feedback — only for auto-extracted notes */}
           {note.source === 'auto' && !thumbDone && (

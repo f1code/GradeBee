@@ -247,6 +247,10 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     >
       <h2>Add Notes</h2>
 
+      <p className="hint">Include class name and group, and use student names or aliases - we'll match them to your roster.</p>
+      <p className="upload-pii-hint">
+        Use first names or initials — avoid full names when possible.
+      </p>
       <AnimatePresence mode="wait">
         {(status === 'idle' || status === 'error') && (
           <motion.div
@@ -355,14 +359,13 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                   <textarea
                     ref={pasteRef}
                     className="paste-textarea"
-                    placeholder="Paste your notes here... Include student names and dates — we'll sort them out."
+                    placeholder="Paste your observations here..."
                     value={pasteText}
                     onChange={e => setPasteText(e.target.value)}
                     rows={6}
                     data-testid="paste-textarea"
                   />
                   <div className="paste-actions">
-                    <p className="hint">Include student names and dates — we'll match them to your roster.</p>
                     <button
                       type="button"
                       onClick={handlePasteSubmit}

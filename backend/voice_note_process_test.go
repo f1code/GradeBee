@@ -103,25 +103,32 @@ func TestProcessJob_TranscribeFail(t *testing.T) {
 }
 
 func TestProcessJob_ExtractFail(t *testing.T) {
+	db := setupTestDB(t)
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
+
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
-	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio"), 0o644))
+
+	// Create a DB row so MarkPurged has a valid ID to write to.
+	vn, err := voiceNoteRepo.Create(t.Context(), "u1", "recording.m4a", audioPath)
+	require.NoError(t, err)
 
 	queue := newStubVoiceNoteQueue()
 	d := &mockDepsAll{
 		transcriber:   &stubTranscriber{result: "some transcript"},
 		roster:        &stubRoster{},
 		extractor:     &stubExtractor{err: io.ErrUnexpectedEOF},
-		voiceNoteRepo: &VoiceNoteRepo{db: nil},
+		voiceNoteRepo: voiceNoteRepo,
 	}
 
 	ctx := context.Background()
-	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: vn.ID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 
-	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
+	err = processVoiceNote(ctx, d, queue, voiceNoteKey("u1", vn.ID))
 	require.Error(t, err)
 
-	got, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
+	got, err := queue.GetJob(ctx, voiceNoteKey("u1", vn.ID))
 	require.NoError(t, err)
 	assert.Equal(t, JobStatusFailed, got.Status)
 }
@@ -308,4 +315,59 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 
 	require.Len(t, nc.calls, 1, "expected 1 note creation call")
 	assert.Equal(t, rawQuote, nc.calls[0].QuotedText, "QuotedText not passed through")
+}
+
+// TestProcessJob_DeletesAudioAfterTranscription verifies that the audio file is
+// deleted from disk and purged_at is set in the DB immediately after transcription.
+func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
+	db := setupTestDB(t)
+	studentRepo := &StudentRepo{db: db}
+	classRepo := &ClassRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
+
+	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
+
+	tmpDir := t.TempDir()
+	audioPath := filepath.Join(tmpDir, "recording.m4a")
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio"), 0o644))
+
+	// Create a voice note row so MarkPurged has a real ID to update.
+	vn, err := voiceNoteRepo.Create(t.Context(), "u1", "recording.m4a", audioPath)
+	require.NoError(t, err)
+
+	queue := newStubVoiceNoteQueue()
+	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
+	d := &mockDepsAll{
+		transcriber: &stubTranscriber{result: "Alice did well"},
+		roster: &stubRoster{
+			classNames: []string{"Math"},
+			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
+		},
+		extractor: &stubExtractor{result: &ExtractResponse{
+			Date:     "2026-04-13",
+			Students: []MatchedStudent{{Name: "Alice", Class: "Math", QuotedText: "did well", Confidence: 0.9}},
+		}},
+		noteCreator:   nc,
+		studentRepo:   studentRepo,
+		voiceNoteRepo: voiceNoteRepo,
+	}
+
+	ctx := context.Background()
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{
+		UserID: "u1", UploadID: vn.ID, FilePath: audioPath,
+		FileName: "recording.m4a", Status: JobStatusQueued, CreatedAt: time.Now(),
+	}))
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", vn.ID)))
+
+	// Audio file must be gone.
+	_, statErr := os.Stat(audioPath)
+	assert.True(t, os.IsNotExist(statErr), "expected audio file to be deleted after transcription")
+
+	// purged_at must be set in DB.
+	got, err := voiceNoteRepo.GetByID(ctx, vn.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, got.PurgedAt, "expected PurgedAt to be set after transcription")
 }

@@ -84,6 +84,20 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			return fail("transcribe", err)
 		}
 		job.Transcript = transcript
+
+		// Delete the audio file immediately after successful transcription —
+		// the raw recording is no longer needed; the transcript is sufficient.
+		if job.FilePath != "" {
+			if removeErr := os.Remove(job.FilePath); removeErr != nil && !os.IsNotExist(removeErr) {
+				log.Warn("process voice note: could not delete audio after transcription",
+					"path", job.FilePath, "error", removeErr)
+			} else {
+				voiceNoteRepo := d.GetVoiceNoteRepo()
+				if purgeErr := voiceNoteRepo.MarkPurged(ctx, uploadID); purgeErr != nil {
+					log.Warn("process voice note: could not mark audio purged", "error", purgeErr)
+				}
+			}
+		}
 	}
 
 	// --- Step 2: Extract ---
