@@ -8,6 +8,7 @@ import ReportGeneration from './components/ReportGeneration'
 import HowItWorks from './components/HowItWorks'
 import HintBanner from './components/HintBanner'
 import FeedbackButton from './components/FeedbackButton'
+import PrivacyPreferencesLink from './components/PrivacyPreferencesLink'
 
 function BeeIcon({ size = 28 }: { size?: number }) {
   return (
@@ -102,6 +103,11 @@ function App() {
         </Show>
       </main>
       {showGuide && <HowItWorks onClose={() => setShowGuide(false)} />}
+      <footer className="app-footer">
+        <a href="/privacy">Privacy &amp; AI Disclosure</a>
+        <span className="app-footer-separator" aria-hidden="true">·</span>
+        <PrivacyPreferencesLink />
+      </footer>
     </div>
   )
 }
@@ -162,9 +168,6 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
           userEmail={user.primaryEmailAddress?.emailAddress ?? ''}
         />
       )}
-      <footer className="app-footer">
-        <a href="/privacy">Privacy &amp; AI Disclosure</a>
-      </footer>
     </motion.div>
   )
 }

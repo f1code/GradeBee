@@ -65,7 +65,7 @@ GradeBee/
    VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
    VITE_API_URL=http://localhost:8080
 
-   # Sentry User Feedback (optional — leave blank to disable)
+   # Sentry diagnostics (optional — leave blank to disable; requires in-app consent)
    VITE_SENTRY_DSN=https://xxx@oXXX.ingest.sentry.io/YYY
    ```
 
@@ -73,6 +73,11 @@ GradeBee/
    > `VITE_*` vars are inlined into the browser bundle at build time. Backend secrets
    > (`CLERK_SECRET_KEY`, `OPENAI_API_KEY`, …) must never appear in the bundle, so they live
    > in the root `.env` only.
+
+### Privacy and diagnostics
+
+- **Clerk (necessary):** Google sign-in and session cookies are required to use GradeBee.
+- **Sentry (optional diagnostics):** When `VITE_SENTRY_DSN` is set, error reporting, in-app feedback, and short session replays load only after you opt in via the privacy banner. Use **Privacy preferences** in the app footer to change your choice later.
 
 2. Install dependencies:
 
