@@ -67,3 +67,12 @@ Files under `docs/analysis/` (e.g. `CODEBASE_ANALYSIS.md`, `ARCHITECTURE_DIAGRAM
 ## LLM
 
 Gpt 5.4-mini is used for extraction + report generation. It is a real model.
+
+## Git Worktrees
+
+Create git worktrees under .worktrees.
+To prepare a worktree for running the application, copy the following files from the main tree:
+
+ - .env
+ - frontend/.env
+ - data/gradebee.db
