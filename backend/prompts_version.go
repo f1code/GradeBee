@@ -118,10 +118,6 @@ var ReportPromptHash string
 // prompt. Stamped when image extraction is instrumented.
 var ExampleExtractionPromptHash string
 
-// ProductionModelName is the OpenAI model used for generation.
-// Keep in sync with the model strings in extract.go and report_generator.go.
-const ProductionModelName = "gpt-5.4-mini"
-
 func init() {
 	// The extraction hash covers both the prefix and suffix (the roster is
 	// dynamic, so we use a sentinel to represent it).

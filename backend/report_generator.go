@@ -1,13 +1,10 @@
 // report_generator.go implements the ReportGenerator interface that creates
-// HTML report cards using GPT and student notes from the database.
+// HTML report cards using an LLMProvider and student notes from the database.
 package handler
 
 import (
 	"context"
 	"fmt"
-	"os"
-
-	openai "github.com/sashabaranov/go-openai"
 )
 
 // GenerateReportRequest is the input for generating a single student report.
@@ -49,34 +46,26 @@ type RegenerateReportRequest struct {
 	Instructions string
 }
 
-// gptReportGenerator implements ReportGenerator using GPT + DB.
-type gptReportGenerator struct {
-	client      *openai.Client
-	model       string // defaults to ProductionModelName
+// llmReportGenerator implements ReportGenerator using an LLMProvider + DB.
+type llmReportGenerator struct {
+	provider    LLMProvider
+	model       string
 	noteRepo    *NoteRepo
 	reportRepo  *ReportRepo
 	exampleRepo *ReportExampleRepo
 }
 
-func newDBReportGenerator(nr *NoteRepo, rr *ReportRepo, er *ReportExampleRepo) (*gptReportGenerator, error) {
-	return newDBReportGeneratorWithModel(ProductionModelName, nr, rr, er)
-}
-
-func newDBReportGeneratorWithModel(model string, nr *NoteRepo, rr *ReportRepo, er *ReportExampleRepo) (*gptReportGenerator, error) {
-	key := os.Getenv("OPENAI_API_KEY")
-	if key == "" {
-		return nil, fmt.Errorf("OPENAI_API_KEY not set")
-	}
-	return &gptReportGenerator{
-		client:      openai.NewClient(key),
-		model:       model,
+func newDBReportGenerator(provider LLMProvider, nr *NoteRepo, rr *ReportRepo, er *ReportExampleRepo) (*llmReportGenerator, error) {
+	return &llmReportGenerator{
+		provider:    provider,
+		model:       provider.Model(LLMTaskReport),
 		noteRepo:    nr,
 		reportRepo:  rr,
 		exampleRepo: er,
 	}, nil
 }
 
-func (g *gptReportGenerator) Generate(ctx context.Context, req GenerateReportRequest) (*GenerateReportResponse, error) {
+func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportRequest) (*GenerateReportResponse, error) {
 	// 1. Query notes for the student in date range.
 	notes, err := g.noteRepo.ListForStudents(ctx, []int64{req.StudentID}, req.StartDate, req.EndDate)
 	if err != nil {
@@ -89,9 +78,9 @@ func (g *gptReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 		return nil, err
 	}
 
-	// 3. Build prompt and call GPT.
+	// 3. Build prompt and call LLM.
 	prompt := BuildReportPrompt(req.Student, req.Class, notes, examples, req.Instructions, "")
-	html, err := g.callGPT(ctx, prompt)
+	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +110,7 @@ func (g *gptReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	}, nil
 }
 
-func (g *gptReportGenerator) Regenerate(ctx context.Context, req RegenerateReportRequest) (*GenerateReportResponse, error) {
+func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateReportRequest) (*GenerateReportResponse, error) {
 	// 1. Query notes.
 	notes, err := g.noteRepo.ListForStudents(ctx, []int64{req.StudentID}, req.StartDate, req.EndDate)
 	if err != nil {
@@ -134,9 +123,9 @@ func (g *gptReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 		return nil, err
 	}
 
-	// 3. Build prompt with feedback and call GPT.
+	// 3. Build prompt with feedback and call LLM.
 	prompt := BuildReportPrompt(req.Student, req.Class, notes, examples, req.Instructions, req.Feedback)
-	html, err := g.callGPT(ctx, prompt)
+	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +155,7 @@ func (g *gptReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	}, nil
 }
 
-func (g *gptReportGenerator) loadExamples(ctx context.Context, userID, className string) ([]ReportExample, error) {
+func (g *llmReportGenerator) loadExamples(ctx context.Context, userID, className string) ([]ReportExample, error) {
 	if userID == "" {
 		return nil, nil
 	}
@@ -181,24 +170,10 @@ func (g *gptReportGenerator) loadExamples(ctx context.Context, userID, className
 	return examples, nil
 }
 
-func (g *gptReportGenerator) callGPT(ctx context.Context, prompt string) (string, error) {
-	return generateReportHTML(ctx, g.client, g.model, prompt)
-}
-
-// generateReportHTML calls the OpenAI chat completion API with the given
-// system prompt and returns the generated text.
-func generateReportHTML(ctx context.Context, client *openai.Client, model, prompt string) (string, error) {
-	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: model,
-		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleUser, Content: prompt},
-		},
-	})
+func (g *llmReportGenerator) callLLM(ctx context.Context, prompt string) (string, error) {
+	text, err := g.provider.ChatText(ctx, ChatTextRequest{UserPrompt: prompt})
 	if err != nil {
-		return "", fmt.Errorf("report: GPT call failed: %w", err)
+		return "", fmt.Errorf("report: LLM call failed: %w", err)
 	}
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("report: GPT returned no choices")
-	}
-	return resp.Choices[0].Message.Content, nil
+	return text, nil
 }

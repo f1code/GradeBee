@@ -26,13 +26,13 @@ func (s *stubRoster) Students(_ context.Context) ([]ClassGroup, error) {
 
 // stubTranscriber implements Transcriber for tests.
 type stubTranscriber struct {
-	result    string
-	err       error
-	gotPrompt string
+	result      string
+	err         error
+	gotBias     []string
 }
 
-func (s *stubTranscriber) Transcribe(_ context.Context, _ string, _ io.Reader, prompt string) (string, error) {
-	s.gotPrompt = prompt
+func (s *stubTranscriber) Transcribe(_ context.Context, _ string, _ io.Reader, contextBias []string) (string, error) {
+	s.gotBias = contextBias
 	return s.result, s.err
 }
 
@@ -144,10 +144,18 @@ func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploads
 type stubExtractor struct {
 	result *ExtractResponse
 	err    error
+	model  string
 }
 
 func (s *stubExtractor) Extract(_ context.Context, _ ExtractRequest) (*ExtractResponse, error) {
 	return s.result, s.err
+}
+
+func (s *stubExtractor) Model() string {
+	if s.model != "" {
+		return s.model
+	}
+	return "stub-model"
 }
 
 // stubNoteCreator implements NoteCreator for tests.
@@ -313,4 +321,15 @@ func (s *stubExampleStore) DeleteExample(_ context.Context, _ string, _ int64) e
 
 func (s *stubExampleStore) UpdateExample(_ context.Context, _ string, id int64, name, content string, classNames []string) (*ReportExample, error) {
 	return &ReportExample{ID: id, Name: name, Content: content, Status: "ready", ClassNames: classNames}, nil
+}
+
+// requireLiveLLM skips the test if the active LLM provider's API key is unset.
+// It returns the configured provider for live tests that need it.
+func requireLiveLLM(t *testing.T) LLMProvider {
+	t.Helper()
+	p, err := LoadProvider()
+	if err != nil {
+		t.Skipf("LLM provider not configured: %v", err)
+	}
+	return p
 }
