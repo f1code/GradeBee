@@ -57,7 +57,7 @@ providers:
 defaultTest:
   options:
     provider:
-      id: openai:chat:gpt-5
+      id: openai:chat:gpt-5.5
       config:
         temperature: 0
 
@@ -268,10 +268,10 @@ tests:
       task: build-report-prompt
       student_name: "Chloé"
       class: "Emma Saturday"
-      notes: "file://fixtures/reports/lina_emma_saturday/notes.json"
-      examples: "file://fixtures/reports/lina_emma_saturday/examples.json"
-      instructions: "file://fixtures/reports/lina_emma_saturday/instructions.txt"
-      reference: "file://fixtures/reports/lina_emma_saturday/reference.html"
+      notes: "file://fixtures/reports/chloe_emma_saturday/notes.json"
+      examples: "file://fixtures/reports/chloe_emma_saturday/examples.json"
+      instructions: "file://fixtures/reports/chloe_emma_saturday/instructions.txt"
+      reference: "file://fixtures/reports/chloe_emma_saturday/reference.html"
     assert:
       - type: llm-rubric
         value: |
@@ -307,10 +307,10 @@ tests:
       task: build-report-prompt
       student_name: "Mila"
       class: "Oliver Thursday"
-      notes: "file://fixtures/reports/dinara_oliver_thu/notes.json"
-      examples: "file://fixtures/reports/dinara_oliver_thu/examples.json"
-      instructions: "file://fixtures/reports/dinara_oliver_thu/instructions.txt"
-      reference: "file://fixtures/reports/dinara_oliver_thu/reference.html"
+      notes: "file://fixtures/reports/mila_oliver_thu/notes.json"
+      examples: "file://fixtures/reports/mila_oliver_thu/examples.json"
+      instructions: "file://fixtures/reports/mila_oliver_thu/instructions.txt"
+      reference: "file://fixtures/reports/mila_oliver_thu/reference.html"
     assert:
       - type: llm-rubric
         value: |
@@ -343,10 +343,10 @@ tests:
       task: build-report-prompt
       student_name: "Camille"
       class: "Oliver-Group 2 Saturday"
-      notes: "file://fixtures/reports/sophia_oliver_group2/notes.json"
-      examples: "file://fixtures/reports/sophia_oliver_group2/examples.json"
-      instructions: "file://fixtures/reports/sophia_oliver_group2/instructions.txt"
-      reference: "file://fixtures/reports/sophia_oliver_group2/reference.html"
+      notes: "file://fixtures/reports/camille_oliver_group2/notes.json"
+      examples: "file://fixtures/reports/camille_oliver_group2/examples.json"
+      instructions: "file://fixtures/reports/camille_oliver_group2/instructions.txt"
+      reference: "file://fixtures/reports/camille_oliver_group2/reference.html"
     assert:
       - type: llm-rubric
         value: |
@@ -379,10 +379,10 @@ tests:
       task: build-report-prompt
       student_name: "Hugo"
       class: "Fairy Tales 2 Tuesday & Friday"
-      notes: "file://fixtures/reports/romain_fairy_tales/notes.json"
-      examples: "file://fixtures/reports/romain_fairy_tales/examples.json"
+      notes: "file://fixtures/reports/hugo_fairy_tales/notes.json"
+      examples: "file://fixtures/reports/hugo_fairy_tales/examples.json"
       instructions: ""
-      reference: "file://fixtures/reports/romain_fairy_tales/reference.html"
+      reference: "file://fixtures/reports/hugo_fairy_tales/reference.html"
     assert:
       - type: llm-rubric
         value: |
