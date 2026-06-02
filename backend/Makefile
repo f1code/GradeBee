@@ -1,7 +1,7 @@
 -include ../.env
 export
 
-.PHONY: lint test dev generate check-types eval eval-baseline bin/eval-cli
+.PHONY: lint test dev generate check-types eval eval-baseline eval-view bin/eval-cli
 
 lint:
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run
@@ -38,6 +38,10 @@ eval: bin/eval-cli
 	@echo
 	@echo '=== Diff vs baseline ==='
 	node evals/scripts/diff-baseline.js evals/baseline.json $$(ls -t evals/results/*.json | head -1)
+
+# Open the promptfoo browser UI to browse eval results.
+eval-view:
+	cd evals && pnpm exec promptfoo view --yes
 
 # Update the pinned baseline to the most recent eval run.
 # Run this after a deliberate prompt or model change and commit the result.
