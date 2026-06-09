@@ -95,7 +95,7 @@ const reportTaskFooter = "## Task\nWrite a report card narrative for this studen
 
 // reportTaskFooterWithExamples appends the examples-follow reminder when
 // examples were provided.
-const reportTaskFooterWithExamples = "Follow the style and layout of the examples provided.\n"
+const reportTaskFooterWithExamples = "Follow the style and layout of the examples provided.  Match the layout as closely as possible, do not add extra bullet points or paragraphs.\n"
 
 // --- Example-extraction prompt template ---
 
