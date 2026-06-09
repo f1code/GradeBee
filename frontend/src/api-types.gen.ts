@@ -288,7 +288,7 @@ changes almost always touch the static text.
  * branching behaviour inside builder functions that hashing the template alone
  * would not catch).  Format: monotonic integer as string.
  */
-export const PromptVersionTag = "1";
+export const PromptVersionTag = "2";
 /**
  * ExampleExtractionPromptTemplate is the static prompt used by the image/PDF
  * example extractor (report_example_extractor.go).
