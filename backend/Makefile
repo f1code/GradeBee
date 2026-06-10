@@ -20,8 +20,9 @@ check-types:
 	git diff --exit-code ../frontend/src/api-types.gen.ts || (echo "Generated types are out of date. Run 'make generate' in backend/" && exit 1)
 
 # Run the promptfoo eval harness against the fixture set.
-# Requires OPENAI_API_KEY in the environment.
-# Optional: EVAL_MODEL overrides the model used for generation (defaults to ProductionModelName).
+# Requires: LLM_PROVIDER + the active provider's API key (OPENAI_API_KEY or MISTRAL_API_KEY).
+# Optional: EVAL_MODEL overrides the model used for generation (defaults to LLM_MODEL_EXTRACTION
+# or the active provider's extraction model default).
 #
 # Steps:
 #   1. Build the eval-cli binary.

@@ -1,10 +1,9 @@
 // report_example_extractor.go extracts text from PDF/image report card examples
-// using GPT Vision (gpt-5.4-mini).
+// using vision via an LLMProvider.
 package handler
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,8 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-
-	openai "github.com/sashabaranov/go-openai"
 )
 
 // ExampleExtractor extracts text content from uploaded report card files.
@@ -21,22 +18,18 @@ type ExampleExtractor interface {
 	ExtractText(ctx context.Context, filename string, data []byte) (string, error)
 }
 
-// gptExampleExtractor uses OpenAI gpt-5.4-mini to extract text via vision.
-type gptExampleExtractor struct {
-	client *openai.Client
+// llmExampleExtractor uses an LLMProvider to extract text via vision.
+type llmExampleExtractor struct {
+	provider LLMProvider
 }
 
-func newGPTExampleExtractor() (*gptExampleExtractor, error) {
-	key := os.Getenv("OPENAI_API_KEY")
-	if key == "" {
-		return nil, fmt.Errorf("OPENAI_API_KEY not set")
-	}
-	return &gptExampleExtractor{client: openai.NewClient(key)}, nil
+func newLLMExampleExtractor(provider LLMProvider) *llmExampleExtractor {
+	return &llmExampleExtractor{provider: provider}
 }
 
 const extractPrompt = `Extract all text from this report card image exactly as written. Preserve the structure and formatting using plain text. If the image does not contain a readable report card or document, set success to false and leave text empty.`
 
-// extractionResult is the structured response from GPT Vision extraction.
+// extractionResult is the structured response from vision extraction.
 type extractionResult struct {
 	Success bool   `json:"success"`
 	Text    string `json:"text"`
@@ -55,7 +48,7 @@ func extractionResponseSchema() json.RawMessage {
 	}`)
 }
 
-func (e *gptExampleExtractor) ExtractText(ctx context.Context, filename string, data []byte) (string, error) {
+func (e *llmExampleExtractor) ExtractText(ctx context.Context, filename string, data []byte) (string, error) {
 	ext := strings.ToLower(filepath.Ext(filename))
 	if ext == ".pdf" {
 		return e.extractFromPDF(ctx, data)
@@ -67,7 +60,7 @@ func (e *gptExampleExtractor) ExtractText(ctx context.Context, filename string, 
 	return e.extractFromImage(ctx, mediaType, data)
 }
 
-func (e *gptExampleExtractor) extractFromPDF(ctx context.Context, data []byte) (string, error) {
+func (e *llmExampleExtractor) extractFromPDF(ctx context.Context, data []byte) (string, error) {
 	images, err := pdfToImages(ctx, data)
 	if err != nil {
 		return "", fmt.Errorf("PDF conversion failed: %w", err)
@@ -104,54 +97,23 @@ func (e *gptExampleExtractor) extractFromPDF(ctx context.Context, data []byte) (
 	return strings.Join(parts, "\n\n---\n\n"), nil
 }
 
-func (e *gptExampleExtractor) extractFromImage(ctx context.Context, mediaType string, data []byte) (string, error) {
-	b64 := base64.StdEncoding.EncodeToString(data)
-	dataURL := fmt.Sprintf("data:%s;base64,%s", mediaType, b64)
-
-	resp, err := e.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-5.4-mini",
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role: openai.ChatMessageRoleUser,
-				MultiContent: []openai.ChatMessagePart{
-					{Type: openai.ChatMessagePartTypeText, Text: extractPrompt},
-					{
-						Type: openai.ChatMessagePartTypeImageURL,
-						ImageURL: &openai.ChatMessageImageURL{
-							URL:    dataURL,
-							Detail: openai.ImageURLDetailHigh,
-						},
-					},
-				},
-			},
-		},
-		MaxCompletionTokens: 4096,
-		ResponseFormat: &openai.ChatCompletionResponseFormat{
-			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-				Name:   "extraction_result",
-				Strict: true,
-				Schema: extractionResponseSchema(),
-			},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("GPT extraction failed: %w", err)
-	}
-
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("GPT returned no choices")
-	}
-
+func (e *llmExampleExtractor) extractFromImage(ctx context.Context, mediaType string, data []byte) (string, error) {
 	var result extractionResult
-	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
-		return "", fmt.Errorf("failed to parse extraction response: %w", err)
+	_, err := e.provider.Vision(ctx, VisionRequest{
+		Prompt:     extractPrompt,
+		MediaType:  mediaType,
+		ImageData:  data,
+		SchemaName: "extraction_result",
+		Schema:     extractionResponseSchema(),
+	}, &result)
+	if err != nil {
+		return "", fmt.Errorf("vision extraction failed: %w", err)
 	}
 	if !result.Success {
-		return "", fmt.Errorf("GPT could not extract text from image (not a readable document)")
+		return "", fmt.Errorf("LLM could not extract text from image (not a readable document)")
 	}
 	if strings.TrimSpace(result.Text) == "" {
-		return "", fmt.Errorf("GPT returned empty extraction")
+		return "", fmt.Errorf("LLM returned empty extraction")
 	}
 	return strings.TrimSpace(result.Text), nil
 }
@@ -201,7 +163,7 @@ func pdfToImages(ctx context.Context, data []byte) ([][]byte, error) {
 // pdfToImagesMediaType is the MIME type of images produced by pdfToImages.
 const pdfToImagesMediaType = "image/jpeg"
 
-// fileExtToMediaType maps file extensions to MIME types for GPT vision.
+// fileExtToMediaType maps file extensions to MIME types for vision.
 func fileExtToMediaType(ext string) string {
 	switch ext {
 	case ".png":
@@ -215,7 +177,7 @@ func fileExtToMediaType(ext string) string {
 	}
 }
 
-// isExtractableFile returns true if the file needs GPT extraction (PDF/image).
+// isExtractableFile returns true if the file needs LLM extraction (PDF/image).
 func isExtractableFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	if ext == ".pdf" {

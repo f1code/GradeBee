@@ -263,19 +263,15 @@ func TestIntegration_UpdateReportExample(t *testing.T) {
 	assert.Equal(t, "updated.txt", result.Name)
 }
 
-// llmExtractor creates a gptExtractor, skipping if OPENAI_API_KEY is not set.
-func llmExtractor(t *testing.T) Extractor {
+// newTestLLMExtractor creates an LLM extractor, skipping if the active provider's API key is not set.
+func newTestLLMExtractor(t *testing.T) Extractor {
 	t.Helper()
-	if os.Getenv("OPENAI_API_KEY") == "" {
-		t.Skip("OPENAI_API_KEY not set, skipping LLM integration test")
-	}
-	e, err := newGPTExtractor()
-	require.NoError(t, err)
-	return e
+	provider := requireLiveLLM(t)
+	return newLLMExtractor(provider)
 }
 
 func TestLLM_SingleStudentCorrectClass(t *testing.T) {
-	ext := llmExtractor(t)
+	ext := newTestLLMExtractor(t)
 	classes := []ClassGroup{
 		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
 		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}, {Name: "Diana Lee"}}},
@@ -292,7 +288,7 @@ func TestLLM_SingleStudentCorrectClass(t *testing.T) {
 }
 
 func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
-	ext := llmExtractor(t)
+	ext := newTestLLMExtractor(t)
 	// Bob appears in both rosters — the LLM must use transcript context to pick the right class.
 	classes := []ClassGroup{
 		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
@@ -315,7 +311,7 @@ func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
 }
 
 func TestLLM_UnknownClassSkipped(t *testing.T) {
-	ext := llmExtractor(t)
+	ext := newTestLLMExtractor(t)
 	classes := []ClassGroup{
 		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
 		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}}},
@@ -336,7 +332,7 @@ func TestLLM_UnknownClassSkipped(t *testing.T) {
 }
 
 func TestLLM_PartialNameMatch(t *testing.T) {
-	ext := llmExtractor(t)
+	ext := newTestLLMExtractor(t)
 	classes := []ClassGroup{
 		{Name: "English 101", Students: []ClassStudent{{Name: "Alexander Hamilton"}, {Name: "Elizabeth Bennet"}}},
 		{Name: "History 201", Students: []ClassStudent{{Name: "Theodore Roosevelt"}}},

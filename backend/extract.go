@@ -1,4 +1,4 @@
-// extract.go defines the Extractor interface and its OpenAI GPT implementation.
+// extract.go defines the Extractor interface and its LLM implementation.
 // The extractor takes a transcript and student roster, returning structured
 // per-student extraction results with fuzzy name matching and confidence scores.
 package handler
@@ -7,16 +7,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 	"time"
-
-	openai "github.com/sashabaranov/go-openai"
 )
 
 // Extractor takes a transcript + student roster and returns structured extraction.
 type Extractor interface {
 	Extract(ctx context.Context, req ExtractRequest) (*ExtractResponse, error)
+	// Model returns the model ID used for extraction (for stamping model_version).
+	Model() string
 }
 
 // ExtractRequest is the input to an extraction call.
@@ -46,54 +45,31 @@ type StudentCandidate struct {
 	Class string `json:"class"`
 }
 
-// gptExtractor uses OpenAI GPT to extract student mentions from transcripts.
-type gptExtractor struct {
-	client *openai.Client
-	model  string // defaults to ProductionModelName
+// llmExtractor uses an LLMProvider to extract student mentions from transcripts.
+type llmExtractor struct {
+	provider LLMProvider
 }
 
-func newGPTExtractor() (*gptExtractor, error) {
-	return newGPTExtractorWithModel(ProductionModelName)
+func newLLMExtractor(provider LLMProvider) *llmExtractor {
+	return &llmExtractor{provider: provider}
 }
 
-// newGPTExtractorWithModel creates a gptExtractor with a specific model.
-func newGPTExtractorWithModel(model string) (*gptExtractor, error) {
-	key := os.Getenv("OPENAI_API_KEY")
-	if key == "" {
-		return nil, fmt.Errorf("OPENAI_API_KEY not set")
-	}
-	return &gptExtractor{client: openai.NewClient(key), model: model}, nil
+func (e *llmExtractor) Model() string {
+	return e.provider.Model(LLMTaskExtraction)
 }
 
-func (e *gptExtractor) Extract(ctx context.Context, req ExtractRequest) (*ExtractResponse, error) {
+func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*ExtractResponse, error) {
 	systemPrompt := BuildExtractionPrompt(req.Classes)
 
-	resp, err := e.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: e.model,
-		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: systemPrompt},
-			{Role: openai.ChatMessageRoleUser, Content: req.Transcript},
-		},
-		ResponseFormat: &openai.ChatCompletionResponseFormat{
-			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-				Name:   "extract_response",
-				Strict: true,
-				Schema: extractResponseSchema(),
-			},
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("openai extraction failed: %w", err)
-	}
-
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("openai returned no choices")
-	}
-
 	var result ExtractResponse
-	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
-		return nil, fmt.Errorf("failed to parse extraction response: %w", err)
+	_, err := e.provider.ChatJSON(ctx, ChatJSONRequest{
+		SystemPrompt: systemPrompt,
+		UserPrompt:   req.Transcript,
+		SchemaName:   "extract_response",
+		Schema:       extractResponseSchema(),
+	}, &result)
+	if err != nil {
+		return nil, fmt.Errorf("extraction failed: %w", err)
 	}
 
 	// Default date to today if not extracted.

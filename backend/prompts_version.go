@@ -24,7 +24,7 @@ import (
 // PromptVersionTag is bumped manually when non-template logic changes (e.g.
 // branching behaviour inside builder functions that hashing the template alone
 // would not catch).  Format: monotonic integer as string.
-const PromptVersionTag = "1"
+const PromptVersionTag = "2"
 
 // --- Extraction prompt templates ---
 
@@ -68,22 +68,28 @@ Rules:
 // --- Report prompt templates ---
 
 // reportPromptBase is the static opening of every report prompt.
-const reportPromptBase = "You are a report card writer for a school teacher.\n\n"
+const reportPromptBase = "You are a report card writer for a school teacher.\n" +
+	"The student notes are the sole source of facts for the report.\n" +
+	"Every observation, data field, and mark must come from the notes — not from any examples.\n\n"
 
 // reportStyleHeader is prefixed before the style-guide examples section.
 const reportStyleHeader = "## Style & Layout Guide\n"
 
 // reportStyleWithExamples is used when example reports are available.
-const reportStyleWithExamples = "The following are example report cards. Match their tone, voice, vocabulary,\nsection structure, and approximate length.\n\n"
+const reportStyleWithExamples = "The following are example report cards. Match their tone, voice, vocabulary,\n" +
+	"section headings, and layout exactly. These examples may differ slightly from the provided\n" +
+	"additional instructions - in that case, the instructions from the user take precedence.\n" +
+	"IMPORTANT: Do not copy specific Data field values, Marks, or observations from the examples —\n" +
+	"only include a Data field or Marks section if that value is present in the student notes.\n\n"
 
 // reportStyleNoExamples is used when no example reports are available.
 const reportStyleNoExamples = "Write a professional, warm report card narrative.\n\n"
 
 // reportInstructionsHeader prefixes the optional additional-instructions block.
-const reportInstructionsHeader = "## Additional Instructions\n"
+const reportInstructionsHeader = "## Important Additional Instructions from User - Takes precedence over any provided example\n\n"
 
 // reportNotesHeader prefixes the student notes section.
-const reportNotesHeader = "## Student Notes\n"
+const reportNotesHeader = "## Student Notes (source of truth — all report content must derive from these)\n"
 
 // reportFeedbackHeader prefixes the feedback-on-previous-draft block.
 const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
@@ -91,11 +97,16 @@ const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
 // reportTaskFooter is the static closing instructions in every report prompt.
 const reportTaskFooter = "## Task\nWrite a report card narrative for this student based on the notes above.\n" +
 	"Output the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\n" +
-	"Do not include <html>, <head>, or <body> wrapper tags — just the content HTML.\n"
+	"Do not include <html>, <head>, or <body> wrapper tags — just the content HTML.\n" +
+	"Only include structured Data fields (Absences, Marks, Frequency of use, etc.) if those\n" +
+	"values are explicitly present in the notes. Do not invent or carry over values from the examples.\n" +
+	"Every statement in the report must be traceable to the notes. Do not invent observations.\n"
 
 // reportTaskFooterWithExamples appends the examples-follow reminder when
 // examples were provided.
-const reportTaskFooterWithExamples = "Follow the style and layout of the examples provided.\n"
+const reportTaskFooterWithExamples = "Follow the tone, section headings, and layout of the examples exactly.\n" +
+	"Do not replicate their specific Data field values, Marks, or observations —\n" +
+	"the report content comes only from the student notes above.\n"
 
 // --- Example-extraction prompt template ---
 
@@ -117,10 +128,6 @@ var ReportPromptHash string
 // ExampleExtractionPromptHash is the short hash of the example-extraction
 // prompt. Stamped when image extraction is instrumented.
 var ExampleExtractionPromptHash string
-
-// ProductionModelName is the OpenAI model used for generation.
-// Keep in sync with the model strings in extract.go and report_generator.go.
-const ProductionModelName = "gpt-5.4-mini"
 
 func init() {
 	// The extraction hash covers both the prefix and suffix (the roster is

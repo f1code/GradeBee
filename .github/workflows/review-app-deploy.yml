@@ -48,12 +48,13 @@ jobs:
         env:
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           LETSENCRYPT_EMAIL: ${{ secrets.LETSENCRYPT_EMAIL }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: dokku
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: CLERK_SECRET_KEY,OPENAI_API_KEY,LETSENCRYPT_EMAIL
+          envs: CLERK_SECRET_KEY,MISTRAL_API_KEY,OPENAI_API_KEY,LETSENCRYPT_EMAIL
           script: |
             set -euo pipefail
             APP_NAME="gradebee-pr-${{ github.event.number }}"
@@ -73,6 +74,7 @@ jobs:
             # isolated from production (/data/gradebee/gradebee.db).
             dokku config:set --no-restart "$APP_NAME" \
               CLERK_SECRET_KEY="$CLERK_SECRET_KEY" \
+              MISTRAL_API_KEY="$MISTRAL_API_KEY" \
               OPENAI_API_KEY="$OPENAI_API_KEY" \
               DB_PATH="/data/${APP_NAME}.db" \
               UPLOADS_DIR="/data/uploads"

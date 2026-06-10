@@ -50,7 +50,7 @@ export type DriveClient = any;
 //////////
 // source: extract.go
 /*
-extract.go defines the Extractor interface and its OpenAI GPT implementation.
+extract.go defines the Extractor interface and its LLM implementation.
 The extractor takes a transcript and student roster, returning structured
 per-student extraction results with fuzzy name matching and confidence scores.
 */
@@ -132,6 +132,85 @@ together routing, CORS headers, request-scoped logging, and response timing.
 
 
 //////////
+// source: llm_provider.go
+/*
+llm_provider.go defines the LLMProvider abstraction that backs all LLM call
+sites (extraction, report generation, vision, transcription). Two production
+implementations exist: openaiProvider and mistralProvider.
+*/
+
+/**
+ * LLMTask identifies a specific use case for a model selection lookup.
+ */
+export type LLMTask = string;
+export const LLMTaskExtraction: LLMTask = "extraction";
+export const LLMTaskReport: LLMTask = "report";
+export const LLMTaskVision: LLMTask = "vision";
+export const LLMTaskTranscription: LLMTask = "transcription";
+/**
+ * ChatJSONRequest is input to a structured-JSON chat call.
+ */
+export interface ChatJSONRequest {
+  SystemPrompt: string;
+  UserPrompt: string;
+  SchemaName: string;
+  Schema: any /* json.RawMessage */;
+}
+/**
+ * ChatTextRequest is input to a free-form text chat call.
+ */
+export interface ChatTextRequest {
+  UserPrompt: string;
+}
+/**
+ * VisionRequest is input to a multimodal vision call.
+ */
+export interface VisionRequest {
+  Prompt: string;
+  MediaType: string; // e.g. "image/jpeg"
+  ImageData: string /* []byte */; // raw image bytes
+  /**
+   * JSON schema for structured output
+   */
+  SchemaName: string;
+  Schema: any /* json.RawMessage */;
+}
+/**
+ * TranscribeRequest is input to an audio transcription call.
+ */
+export interface TranscribeRequest {
+  Filename: string;
+  Audio: any /* io.Reader */;
+  ContextBias: string[];
+}
+/**
+ * TranscribeResponse is the output of a transcription call.
+ */
+export interface TranscribeResponse {
+  Text: string;
+}
+/**
+ * LLMProvider abstracts a single LLM backend (OpenAI or Mistral).
+ */
+export type LLMProvider = any;
+
+//////////
+// source: llm_provider_mistral.go
+/*
+llm_provider_mistral.go implements LLMProvider backed by Mistral.
+Chat and vision use the OpenAI-compatible endpoint via go-openai.
+Transcription uses the ZaguanLabs mistral-go/v2/sdk for Voxtral support.
+*/
+
+
+//////////
+// source: llm_provider_openai.go
+/*
+llm_provider_openai.go implements LLMProvider backed by OpenAI.
+*/
+
+
+//////////
 // source: logger.go
 /*
 logger.go initialises and exposes a package-level structured logger built on
@@ -168,6 +247,7 @@ export interface CreateNoteRequest {
   QuotedText: string; // Extracted passages from transcript
   Transcript: string;
   Date: string; // YYYY-MM-DD
+  ModelVersion: string; // LLM model ID that produced this note (empty = NULL)
 }
 /**
  * CreateNoteResponse contains the created note info.
@@ -208,17 +288,12 @@ changes almost always touch the static text.
  * branching behaviour inside builder functions that hashing the template alone
  * would not catch).  Format: monotonic integer as string.
  */
-export const PromptVersionTag = "1";
+export const PromptVersionTag = "2";
 /**
  * ExampleExtractionPromptTemplate is the static prompt used by the image/PDF
  * example extractor (report_example_extractor.go).
  */
 export const ExampleExtractionPromptTemplate = "Extract all text from this report card image exactly as written. " + "Preserve all paragraphs, headings, and formatting. Do not summarize or paraphrase.";
-/**
- * ProductionModelName is the OpenAI model used for generation.
- * Keep in sync with the model strings in extract.go and report_generator.go.
- */
-export const ProductionModelName = "gpt-5.4-mini";
 
 //////////
 // source: repo_class.go
@@ -430,7 +505,7 @@ report example.
 // source: report_example_extractor.go
 /*
 report_example_extractor.go extracts text from PDF/image report card examples
-using GPT Vision (gpt-5.4-mini).
+using vision via an LLMProvider.
 */
 
 /**
@@ -498,7 +573,7 @@ export interface ListExamplesResponse {
 // source: report_generator.go
 /*
 report_generator.go implements the ReportGenerator interface that creates
-HTML report cards using GPT and student notes from the database.
+HTML report cards using an LLMProvider and student notes from the database.
 */
 
 /**
@@ -670,7 +745,9 @@ that skips transcription and goes straight to extraction.
 // source: transcriber.go
 /*
 transcriber.go defines the Transcriber interface and its production
-implementation backed by the OpenAI Whisper API.
+implementation backed by an LLMProvider. Audio-format normalisation
+(3GP patching, extension fixing) lives here so both Whisper and Voxtral
+benefit without either provider needing to know about audio quirks.
 */
 
 /**

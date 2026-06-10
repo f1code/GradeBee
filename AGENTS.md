@@ -66,7 +66,7 @@ Files under `docs/analysis/` (e.g. `CODEBASE_ANALYSIS.md`, `ARCHITECTURE_DIAGRAM
 
 ## LLM
 
-Gpt 5.4-mini is used for extraction + report generation. It is a real model.
+Mistral (`mistral-medium-2508`) is the default provider for extraction, report generation, and vision. Voxtral (`voxtral-mini-latest`) is the default for transcription. Both OpenAI and Mistral are supported via `LLM_PROVIDER` env var (`openai` / `mistral`). The active provider's API key must be set (`OPENAI_API_KEY` or `MISTRAL_API_KEY`). Provider abstraction lives in `backend/llm_provider*.go`.
 
 ## Git Worktrees
 

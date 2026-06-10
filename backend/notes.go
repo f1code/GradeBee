@@ -16,11 +16,12 @@ type NoteCreator interface {
 
 // CreateNoteRequest is the input for creating a single student note.
 type CreateNoteRequest struct {
-	StudentID   int64
-	StudentName string
-	QuotedText  string  // Extracted passages from transcript
-	Transcript  string
-	Date        string // YYYY-MM-DD
+	StudentID    int64
+	StudentName  string
+	QuotedText   string  // Extracted passages from transcript
+	Transcript   string
+	Date         string // YYYY-MM-DD
+	ModelVersion string // LLM model ID that produced this note (empty = NULL)
 }
 
 // CreateNoteResponse contains the created note info.
@@ -38,15 +39,16 @@ func newDBNoteCreator(nr *NoteRepo) *dbNoteCreator {
 }
 
 func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
-	modelVersion := ProductionModelName
 	promptHash := ExtractionPromptHash
 	n := &Note{
-		StudentID:    req.StudentID,
-		Date:         req.Date,
-		Summary:      req.QuotedText, // Store extracted passages as the note summary
-		Source:       "auto",
-		ModelVersion: &modelVersion,
-		PromptHash:   &promptHash,
+		StudentID:  req.StudentID,
+		Date:       req.Date,
+		Summary:    req.QuotedText, // Store extracted passages as the note summary
+		Source:     "auto",
+		PromptHash: &promptHash,
+	}
+	if req.ModelVersion != "" {
+		n.ModelVersion = &req.ModelVersion
 	}
 	if req.Transcript != "" {
 		n.Transcript = &req.Transcript

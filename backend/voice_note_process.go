@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 )
 
@@ -66,12 +65,12 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		defer audioFile.Close()
 
-		var whisperPrompt string
+		var classNames []string
 		names, err := roster.ClassNames(ctx)
 		if err != nil {
 			log.Warn("process voice note: could not read class names", "error", err)
-		} else if len(names) > 0 {
-			whisperPrompt = "Classes: " + strings.Join(names, ", ")
+		} else {
+			classNames = names
 		}
 
 		transcriber, err := d.GetTranscriber()
@@ -79,7 +78,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			return fail("init transcriber", err)
 		}
 
-		transcript, err = transcriber.Transcribe(ctx, job.FileName, audioFile, whisperPrompt)
+		transcript, err = transcriber.Transcribe(ctx, job.FileName, audioFile, classNames)
 		if err != nil {
 			return fail("transcribe", err)
 		}
@@ -152,11 +151,12 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 
 		result, err := noteCreator.CreateNote(ctx, CreateNoteRequest{
-			StudentID:   studentID,
-			StudentName: student.Name,
-			QuotedText:  student.QuotedText,  // Changed from Summary
-			Transcript:  transcript,
-			Date:        extractResult.Date,
+			StudentID:    studentID,
+			StudentName:  student.Name,
+			QuotedText:   student.QuotedText,  // Changed from Summary
+			Transcript:   transcript,
+			Date:         extractResult.Date,
+			ModelVersion: extractor.Model(),
 		})
 		if err != nil {
 			return fail("create note for "+student.Name, err)

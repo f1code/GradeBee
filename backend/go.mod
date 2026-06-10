@@ -3,6 +3,7 @@ module github.com/nicogaller/gradebee/backend
 go 1.26.3
 
 require (
+	github.com/ZaguanLabs/mistral-go/v2 v2.4.4
 	github.com/clerk/clerk-sdk-go/v2 v2.6.0
 	github.com/getsentry/sentry-go v0.46.2
 	github.com/getsentry/sentry-go/slog v0.46.2
