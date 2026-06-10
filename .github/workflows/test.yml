@@ -30,7 +30,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install poppler-utils
-        run: sudo apt-get install -y poppler-utils
+        run: sudo apt-get update && sudo apt-get install -y poppler-utils
 
       - name: Backend unit tests
         working-directory: backend
