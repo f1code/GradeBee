@@ -1,0 +1,106 @@
+description: GradeBee LLM evaluation harness — Extraction domain
+
+# Single prompt function — dispatches to build-extract-prompt via vars.task.
+prompts:
+  - label: gradebee-prompt
+    raw: exec:../bin/eval-cli
+
+# Provider — native Mistral provider with structured output (json_schema).
+providers:
+  - id: mistral:mistral-small-2603
+    label: gradebee-extract
+    config:
+      response_format:
+        type: json_schema
+        json_schema:
+          # Schema mirrors extractResponseSchema() in backend/extract.go.
+          # If ExtractResponse changes, update this block to match.
+          name: extract_response
+          strict: true
+          schema:
+            type: object
+            properties:
+              students:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    name:        { type: string }
+                    class:       { type: string }
+                    quoted_text: { type: string }
+                    confidence:  { type: number }
+                    candidates:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          name:  { type: string }
+                          class: { type: string }
+                        required: [name, class]
+                        additionalProperties: false
+                  required: [name, class, quoted_text, confidence, candidates]
+                  additionalProperties: false
+              date: { type: string }
+            required: [students, date]
+            additionalProperties: false
+
+# Default options: use a stronger judge model for llm-rubric assertions.
+defaultTest:
+  options:
+    provider:
+      id: openai:chat:gpt-5.5
+      config:
+        temperature: 0
+
+tests:
+  - description: "extraction: preserves teacher voice (no paraphrasing)"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/voice_preservation/transcript.txt"
+      classes: "file://fixtures/extraction/voice_preservation/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/voice_preservation/expected.json
+          metric: voice_preservation
+
+  - description: "extraction: identifies correct students across two classes"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/multi_class/transcript.txt"
+      classes: "file://fixtures/extraction/multi_class/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/multi_class/expected.json
+          metric: precision_recall
+
+  - description: "extraction: fuzzy name matching (Inaia→Inaya, Liana→Lina)"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/fuzzy_name_matching/transcript.txt"
+      classes: "file://fixtures/extraction/fuzzy_name_matching/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/fuzzy_name_matching/expected.json
+          metric: precision_recall
+
+  - description: "extraction: applies group observation only to relevant class"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/group_observation/transcript.txt"
+      classes: "file://fixtures/extraction/group_observation/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/group_observation/expected.json
+          metric: precision_recall
