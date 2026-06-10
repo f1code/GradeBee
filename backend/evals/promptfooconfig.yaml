@@ -11,9 +11,7 @@ prompts:
 # Extraction uses structured output (json_schema); report uses plain chat.
 # To test a different model, change the id: fields below.
 providers:
-  # - id: mistral:mistral-medium-2508
-  # - id: mistral:mistral-small-2603
-  - id: openai:chat:gpt-5.4-mini
+  - id: mistral:mistral-small-2603
     label: gradebee-extract
     config:
       response_format:
@@ -50,8 +48,35 @@ providers:
             required: [students, date]
             additionalProperties: false
 
-  - id: openai:chat:gpt-5.4-mini
+  # ── Report providers ────────────────────────────────────────────────────────
+  # gradebee-report is the canonical (production) provider — used for baseline
+  # diffing and the sole provider stored in baseline.json.
+  - id: mistral:mistral-medium-2508
     label: gradebee-report
+
+  # Comparison / experimental providers:
+  - id: mistral:mistral-medium-3-5
+    label: gradebee-report-1
+  - id: mistral:mistral-small-2603
+    label: gradebee-report-3
+  - id: openai:chat:gpt-5.4-mini
+    label: gradebee-report-openai
+    config:
+      reasoning_effort: 'high'
+  - id: mistral:mistral-small-2603
+    label: gradebee-report-4
+    config:
+      reasoning_effort: 'high'
+      temperature: 0.3
+      max_tokens: 30000
+    transform: |
+      // When reasoning_effort is set, the model returns content blocks as an array
+      // (e.g. [{type:'thinking',...},{type:'text',...}]). Strip thinking blocks
+      // so llm-rubric only sees the final answer text.
+      if (Array.isArray(output)) {
+        return output.filter(b => b.type === 'text').map(b => b.text).join('');
+      }
+      return output;
 
 # Default options: use a stronger judge model for llm-rubric assertions.
 defaultTest:
@@ -131,6 +156,10 @@ tests:
   - description: "report: mousy-level structured format with real examples and character-limit instructions"
     providers:
       - gradebee-report
+      - gradebee-report-1
+      - gradebee-report-openai
+      - gradebee-report-3
+      - gradebee-report-4
     vars:
       task: build-report-prompt
       student_name: "Lucas"
@@ -167,6 +196,8 @@ tests:
   - description: "report: oliver-level class with real style examples, no extra instructions"
     providers:
       - gradebee-report
+      - gradebee-report-1
+      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Sophie"
@@ -199,6 +230,7 @@ tests:
   - description: "report: sam-level with many notes including absences and mixed behaviour"
     providers:
       - gradebee-report
+      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Thomas"
@@ -231,6 +263,8 @@ tests:
   - description: "report: fairy-tales level with behaviour/work/performance structure"
     providers:
       - gradebee-report
+      - gradebee-report-1
+      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Emma"
@@ -264,6 +298,8 @@ tests:
   - description: "report: Emma Saturday class with instructions and multi-note synthesis"
     providers:
       - gradebee-report
+      - gradebee-report-1
+      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Chloé"
@@ -303,6 +339,8 @@ tests:
   - description: "report: Oliver Thursday class with instructions and mood/behaviour challenges"
     providers:
       - gradebee-report
+      - gradebee-report-1
+      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Mila"
@@ -339,6 +377,8 @@ tests:
   - description: "report: Oliver-Group 2 Saturday class with instructions and calm/positive profile"
     providers:
       - gradebee-report
+      - gradebee-report-1
+      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Camille"
@@ -375,6 +415,8 @@ tests:
   - description: "report: Fairy Tales 2 class without instructions — tests consistency within class"
     providers:
       - gradebee-report
+      - gradebee-report-1
+      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Hugo"

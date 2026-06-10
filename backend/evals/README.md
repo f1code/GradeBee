@@ -23,7 +23,8 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
 ## Running
 
 ```bash
-# Prerequisites: OPENAI_API_KEY in env
+# Prerequisites: LLM_PROVIDER + the active provider's API key in env
+# (OPENAI_API_KEY when LLM_PROVIDER=openai; MISTRAL_API_KEY when LLM_PROVIDER=mistral)
 
 # Run eval, print diff vs baseline
 cd backend && make eval
@@ -37,7 +38,9 @@ cd backend && make eval-baseline
 
 | Variable | Required | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | Yes | Used by promptfoo's native provider and the judge model |
+| `OPENAI_API_KEY` | Yes (for OpenAI) | Used by promptfoo's native provider and the judge model |
+| `MISTRAL_API_KEY` | Yes (for Mistral) | Required when `LLM_PROVIDER=mistral` |
+| `LLM_PROVIDER` | No | `"openai"` (default for evals) or `"mistral"`; selects which API key is required |
 
 > Model selection lives in `promptfooconfig.yaml` (`providers[].id`). To test a different model, change the `id:` field there.
 

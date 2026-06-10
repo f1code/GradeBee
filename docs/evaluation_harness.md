@@ -130,8 +130,10 @@ GradeBee collects two categories of feedback on LLM-generated content:
 
 | Var | Used By | Purpose |
 |-----|---------|---------|
-| `OPENAI_API_KEY` | eval-cli, production | OpenAI authentication |
-| `EVAL_MODEL` | eval-cli only | Override model for evaluation (default: `ProductionModelName`) |
+| `OPENAI_API_KEY` | eval-cli, production | Required when `LLM_PROVIDER=openai` |
+| `MISTRAL_API_KEY` | production | Required when `LLM_PROVIDER=mistral` |
+| `LLM_PROVIDER` | production, eval-cli | `"openai"` or `"mistral"` (default `"mistral"`) |
+| `EVAL_MODEL` | eval-cli only | Override model for evaluation (default: active provider's extraction model) |
 
 ## Verification
 

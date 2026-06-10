@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 )
 
 // deps abstracts external service calls for testability.
@@ -57,10 +58,11 @@ type prodDeps struct {
 	voiceNoteRepo  *VoiceNoteRepo
 	feedbackRepo   *ArtifactFeedbackRepo
 	uploadsDir     string
+	provider       LLMProvider
 }
 
 func (p *prodDeps) GetTranscriber() (Transcriber, error) {
-	return newWhisperTranscriber()
+	return newProviderTranscriber(p.provider), nil
 }
 
 func (p *prodDeps) GetRoster(_ context.Context, userID string) Roster {
@@ -68,7 +70,7 @@ func (p *prodDeps) GetRoster(_ context.Context, userID string) Roster {
 }
 
 func (p *prodDeps) GetExtractor() (Extractor, error) {
-	return newGPTExtractor()
+	return newLLMExtractor(p.provider), nil
 }
 
 func (p *prodDeps) GetNoteCreator() NoteCreator {
@@ -80,11 +82,11 @@ func (p *prodDeps) GetExampleStore() ExampleStore {
 }
 
 func (p *prodDeps) GetExampleExtractor() (ExampleExtractor, error) {
-	return newGPTExampleExtractor()
+	return newLLMExampleExtractor(p.provider), nil
 }
 
 func (p *prodDeps) GetReportGenerator() (ReportGenerator, error) {
-	return newDBReportGenerator(p.noteRepo, p.reportRepo, p.exampleRepo)
+	return newDBReportGenerator(p.provider, p.noteRepo, p.reportRepo, p.exampleRepo)
 }
 
 func (p *prodDeps) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
@@ -136,8 +138,14 @@ func InitVoiceNoteQueue(d deps, workers int) *MemQueue[VoiceNoteJob] {
 }
 
 // NewProdDeps creates the production deps with the given database handle
-// and uploads directory.
+// and uploads directory. It calls LoadProvider() and fails fast on
+// misconfiguration.
 func NewProdDeps(db *sql.DB, uploadsDir string) deps {
+	provider, err := LoadProvider()
+	if err != nil {
+		slog.Error("LLM provider misconfigured — cannot start", "error", err)
+		panic(fmt.Sprintf("LLM provider misconfigured: %v", err))
+	}
 	d := &prodDeps{
 		db:            db,
 		classRepo:     &ClassRepo{db: db},
@@ -148,6 +156,7 @@ func NewProdDeps(db *sql.DB, uploadsDir string) deps {
 		voiceNoteRepo: &VoiceNoteRepo{db: db},
 		feedbackRepo:  &ArtifactFeedbackRepo{db: db},
 		uploadsDir:    uploadsDir,
+		provider:      provider,
 	}
 	serviceDeps = d
 	return d

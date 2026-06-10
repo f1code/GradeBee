@@ -202,7 +202,8 @@ Deployments are automated via GitHub Actions (see `.github/workflows/`):
 | `DEPLOY_HOST` | VPS IP address |
 | `DEPLOY_SSH_KEY` | Private key matching the `deploy_ssh_pubkey` in the playbook |
 | `CLERK_SECRET_KEY` | Clerk backend secret key (injected into review apps via `dokku config:set`) |
-| `OPENAI_API_KEY` | OpenAI API key (injected into review apps via `dokku config:set`) |
+| `OPENAI_API_KEY` | OpenAI API key (used when `LLM_PROVIDER=openai`) |
+| `MISTRAL_API_KEY` | Mistral API key (used when `LLM_PROVIDER=mistral`; required for default config) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (passed as Docker build-arg) |
 | `VITE_SENTRY_DSN` | Sentry DSN (optional; passed as Docker build-arg) |
 
@@ -232,7 +233,9 @@ There are two distinct sets of variables:
 | Variable | Secret? | Description |
 |---|---|---|
 | `CLERK_SECRET_KEY` | Yes (`secrets.yml`) | Clerk backend API key |
-| `OPENAI_API_KEY` | Yes (`secrets.yml`) | OpenAI API key (Whisper + GPT) |
+| `LLM_PROVIDER` | No (`vars.yml`) | `"openai"` or `"mistral"` (default `"mistral"`) |
+| `OPENAI_API_KEY` | Yes (`secrets.yml`) | OpenAI API key (used when `LLM_PROVIDER=openai`) |
+| `MISTRAL_API_KEY` | Yes (`secrets.yml`) | Mistral API key (used when `LLM_PROVIDER=mistral`) |
 | `DB_PATH` | No (`vars.yml`) | SQLite path (default `/data/gradebee.db`) |
 | `UPLOADS_DIR` | No (`vars.yml`) | Audio upload directory (default `/data/uploads`) |
 | `UPLOAD_RETENTION_HOURS` | No (`vars.yml`) | Hours to keep processed audio (default 168 = 7 days) |

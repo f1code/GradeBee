@@ -12,10 +12,8 @@ import (
 // TestExtractPreservesTeacherVoice verifies that extracted QuotedText preserves
 // the teacher's original language and emotion, not rewritten summaries.
 func TestExtractPreservesTeacherVoice(t *testing.T) {
-	extractor, err := newGPTExtractor()
-	if err != nil {
-		t.Skipf("OPENAI_API_KEY not set: %v", err)
-	}
+	provider := requireLiveLLM(t)
+	extractor := newLLMExtractor(provider)
 
 	// Example: raw teacher notes with strong emotion
 	transcript := `Thursday. Maxence was impossibly bad today. I'm ready to choke the living 
@@ -62,10 +60,8 @@ Amara was great - very attentive and helpful to other students.`
 // are included for individually mentioned students but do NOT create
 // entries for unmentioned students.
 func TestExtractGroupObservations(t *testing.T) {
-	extractor, err := newGPTExtractor()
-	if err != nil {
-		t.Skipf("OPENAI_API_KEY not set: %v", err)
-	}
+	provider := requireLiveLLM(t)
+	extractor := newLLMExtractor(provider)
 
 	transcript := `Today the class was way too loud and unfocused. Everyone was talking over each other. 
 Specific note: Tommy helped me organize the materials, which was great.`
@@ -108,10 +104,8 @@ Specific note: Tommy helped me organize the materials, which was great.`
 // TestExtractGroupObservationsMultiClass verifies that group-level observations
 // are scoped to the class being discussed, not applied across all classes.
 func TestExtractGroupObservationsMultiClass(t *testing.T) {
-	extractor, err := newGPTExtractor()
-	if err != nil {
-		t.Skipf("OPENAI_API_KEY not set: %v", err)
-	}
+	provider := requireLiveLLM(t)
+	extractor := newLLMExtractor(provider)
 
 	transcript := `Period 1 notes: Tommy was great today, really focused. The whole class was loud though.
 Period 2 notes: Sarah did an amazing presentation on volcanoes.`

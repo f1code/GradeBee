@@ -87,11 +87,11 @@ User uploads audio
         ├─ Idempotency check: skip if job status ≠ "queued"
         │
         ├─ Step 1: Transcribe (status → "transcribing")
-        │    Read audio from local disk → OpenAI Whisper
-        │    Whisper prompt seeded with class names from DB roster
+        │    Read audio from local disk → LLM provider (Voxtral or Whisper)
+        │    Context bias seeded with class names from DB roster
         │
         ├─ Step 2: Extract (status → "extracting")
-        │    Send transcript + student roster to GPT
+        │    Send transcript + student roster to LLM provider
         │    → per-student observations (name, class, quoted_text, confidence)
         │    Note: quoted_text contains verbatim passages from the transcript.
         │    Stored in the notes table `summary` column (legacy name, no migration needed).
@@ -187,12 +187,12 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 |-----------|------|---------------------|---------|
 | `deps` | `deps.go` | `prodDeps` | Top-level DI container |
 | `Roster` | `roster.go` | `dbRoster` | Read student data from DB |
-| `Transcriber` | `transcriber.go` | `whisperTranscriber` | Audio→text via OpenAI Whisper |
-| `Extractor` | `extract.go` | `gptExtractor` | Transcript→student extraction |
+| `Transcriber` | `transcriber.go` | `providerTranscriber` | Audio→text via LLMProvider (Voxtral or Whisper) |
+| `Extractor` | `extract.go` | `llmExtractor` | Transcript→student extraction via LLMProvider |
 | `NoteCreator` | `notes.go` | `dbNoteCreator` | Create notes in SQLite |
 | `ExampleStore` | `report_examples.go` | `dbExampleStore` | CRUD for example report cards |
-| `ExampleExtractor` | `report_example_extractor.go` | `gptExampleExtractor` | GPT Vision text extraction from images; PDF→image via pdftoppm |
-| `ReportGenerator` | `report_generator.go` | `gptReportGenerator` | GPT-based report card generation (HTML output) |
+| `ExampleExtractor` | `report_example_extractor.go` | `llmExampleExtractor` | Vision text extraction from images; PDF→image via pdftoppm |
+| `ReportGenerator` | `report_generator.go` | `llmReportGenerator` | LLM-based report card generation (HTML output) |
 | `JobQueue[VoiceNoteJob]` | `job_queue.go` | `MemQueue[VoiceNoteJob]` | Generic in-memory async job queue with worker pool |
 | `JobQueue[ExtractionJob]` | `job_queue.go` | `MemQueue[ExtractionJob]` | Async report example extraction queue |
 
@@ -207,8 +207,20 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 - OAuth token retrieval: `user.ListOAuthAccessTokens` for `oauth_google`.
 - `userIDFromRequest(r)` extracts user ID from Clerk session claims.
 
-### OpenAI Whisper (`transcriber.go`)
-- `whisperTranscriber` uses `go-openai` client.
+### LLM Provider (`llm_provider*.go`)
+
+A `LLMProvider` interface abstracts all LLM call sites. Two production implementations exist:
+- `openaiProvider` — wraps `go-openai` client against `https://api.openai.com/v1` (chat/vision) and OpenAI Whisper (transcription).
+- `mistralProvider` — wraps `go-openai` client against `https://api.mistral.ai/v1` (chat/vision via OpenAI-compat endpoint) and ZaguanLabs `mistral-go/v2/sdk` for Voxtral transcription.
+
+`LoadProvider()` reads `LLM_PROVIDER` (default `"mistral"`), validates the active provider's API key, logs the selected models, and returns the provider. Called from `NewProdDeps` so the binary fails fast on misconfiguration.
+
+Per-task model IDs are configured via `LLM_MODEL_EXTRACTION`, `LLM_MODEL_REPORT`, `LLM_MODEL_VISION`, `LLM_MODEL_TRANSCRIPTION` env vars (provider-specific defaults apply if unset).
+
+
+Context bias: `providerTranscriber` passes class names from the DB roster to `provider.Transcribe(...)`. `openaiProvider` joins them as a Whisper prompt; `mistralProvider` sanitises them (space→`_`, drop commas, dedup, cap 100) and passes via Voxtral's `context_bias` field.
+
+### Audio format handling (`transcriber.go`, `audio_format.go`)
 - Handles audio format detection and 3GP→MP4 patching (`audio_format.go`).
 
 ## Database
@@ -248,6 +260,9 @@ All CRUD endpoints verify resource ownership:
 | `static.go` | Embeds `static/` (frontend dist, copied at Docker build time) via `embed.FS`; provides `spaHandler()` with SPA fallback and cache-control headers |
 | `handler.go` | Routing, CORS, request logging, `Handle` entrypoint, `userIDFromRequest`, `pathParam` |
 | `deps.go` | DI interface, prod implementations, `serviceDeps` variable |
+| `llm_provider.go` | `LLMProvider` interface, request/response types, `LLMTask` enum, `LoadProvider()` factory |
+| `llm_provider_openai.go` | `openaiProvider` — OpenAI chat/vision via go-openai + Whisper transcription |
+| `llm_provider_mistral.go` | `mistralProvider` — Mistral chat/vision via OpenAI-compat endpoint + Voxtral transcription via ZaguanLabs SDK |
 | `google.go` | `apiError` type, `writeAPIError`, `newDriveReadClient` (Drive-read-only) |
 | `auth.go` | `getGoogleOAuthToken` — Clerk → Google OAuth token |
 | `db.go` | Open SQLite, set PRAGMAs (WAL, busy_timeout, foreign_keys) |
@@ -266,17 +281,17 @@ All CRUD endpoints verify resource ownership:
 | `aliases.go` | GET/POST/DELETE /students/{id}/aliases — alias CRUD handlers |
 | `roster.go` | `Roster` interface + `dbRoster` — DB-backed roster reads |
 | `voice_note_upload.go` | POST /voice-notes/upload — multipart audio → disk + voice_notes table + dispatch job |
-| `transcriber.go` | `Transcriber` interface + `whisperTranscriber` (OpenAI Whisper) |
+| `transcriber.go` | `Transcriber` interface + `providerTranscriber` (delegates to LLMProvider) |
 | `voice_note_drive_import.go` | POST /voice-notes/drive-import — download from Drive → disk + voice_notes table + dispatch job |
 | `google_token.go` | GET /google-token — return user's Google OAuth access token |
-| `extract.go` | `Extractor` interface + GPT implementation for transcript analysis |
+| `extract.go` | `Extractor` interface + `llmExtractor` for transcript analysis |
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers |
 | `report_examples.go` | `ExampleStore` interface + `dbExampleStore` |
 | `report_examples_handler.go` | GET/POST/DELETE /report-examples handlers |
-| `report_example_extractor.go` | GPT Vision extraction of text from image uploads; PDF→JPEG conversion via pdftoppm |
+| `report_example_extractor.go` | Vision extraction of text from image uploads; PDF→JPEG conversion via pdftoppm |
 | `report_example_job.go` | `ExtractionJob` type for async report example extraction |
 | `report_example_process.go` | `processExtraction` pipeline (read file→extract→update DB) |
-| `report_generator.go` | `ReportGenerator` interface + `gptReportGenerator` (HTML output) |
+| `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output) |
 | `report_prompt.go` | GPT prompt construction for report generation (requests HTML output) |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
@@ -330,7 +345,13 @@ Repo-level errors:
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `CLERK_SECRET_KEY` | Yes | Clerk Backend API key |
-| `OPENAI_API_KEY` | Yes | Whisper transcription + GPT |
+| `LLM_PROVIDER` | No | `"openai"` or `"mistral"` (default: `"mistral"`) — selects the LLM backend |
+| `OPENAI_API_KEY` | When `LLM_PROVIDER=openai` | OpenAI API key (chat, vision, Whisper) |
+| `MISTRAL_API_KEY` | When `LLM_PROVIDER=mistral` | Mistral API key (chat, vision, Voxtral) |
+| `LLM_MODEL_EXTRACTION` | No | Extraction model ID (default: `mistral-medium-2508` / `gpt-5.4-mini`) |
+| `LLM_MODEL_REPORT` | No | Report generation model ID |
+| `LLM_MODEL_VISION` | No | Vision model ID |
+| `LLM_MODEL_TRANSCRIPTION` | No | Transcription model ID (default: `voxtral-mini-latest` / `whisper-1`) |
 | `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |
 | `UPLOADS_DIR` | No | Audio upload directory (default `/data/uploads`) |
 | `UPLOAD_RETENTION_HOURS` | No | Hours to keep processed audio (default 168 = 7 days) |
@@ -448,7 +469,7 @@ Only **explicit thumbs-down** events fire a Sentry dual-write (via `captureFeedb
 ### Prompt + model versioning
 
 Every generated `report` row and auto-extracted `note` row is stamped with:
-- `model_version` — the OpenAI model name (`ProductionModelName` const)
+- `model_version` — the LLM model ID that produced the note (e.g. `"mistral-medium-2508"`); raw model ID, no provider prefix; `NULL` for manually-created notes
 - `prompt_hash` — first 12 hex chars of SHA-256(`PromptVersionTag + ":" + template`) from `prompts_version.go`
 
 `NULL` on pre-instrumentation rows. Filter `WHERE prompt_hash IS NOT NULL` when correlating quality.
