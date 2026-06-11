@@ -200,7 +200,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 
 ### Google OAuth (`google.go`)
 - Auth: Clerk JWT → extract user ID → Google OAuth token (used for Drive Picker import).
-- **Note:** Google Drive integration is being removed. Drive import functionality is deprecated.
+- **Note:** Google Drive was replaced by SQLite as the primary data store. Drive Picker import remains active for importing audio files and report examples from a user's own Drive.
 
 ### Clerk (`auth.go`)
 - JWT verification via middleware.
