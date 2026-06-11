@@ -18,9 +18,9 @@ GradeBee helps teachers record voice notes about students and automatically gene
 | Routing        | react-router-dom v7                                    |
 | Authentication | Clerk (Google OAuth)                                   |
 | Backend        | Go 1.24, plain `net/http`                              |
-| Storage        | Scaleway Object Storage                                |
-| AI             | OpenAI Whisper (transcription), Claude (summarization) |
-| Infrastructure | Scaleway (Object Storage + Serverless Functions)       |
+| Storage        | SQLite database, local disk (audio)                    |
+| AI             | Mistral (extraction, vision), Voxtral (transcription) |
+| Infrastructure | VPS + Dokku (single container)                         |
 | IaC            | Terraform                                              |
 
 ## Project Structure
@@ -71,7 +71,7 @@ GradeBee/
 
    > **Why two files?** Vite only reads `.env` from its own project directory (`frontend/`), and
    > `VITE_*` vars are inlined into the browser bundle at build time. Backend secrets
-   > (`CLERK_SECRET_KEY`, `OPENAI_API_KEY`, …) must never appear in the bundle, so they live
+   > (`CLERK_SECRET_KEY`, `MISTRAL_API_KEY`, …) must never appear in the bundle, so they live
    > in the root `.env` only.
 
 ### Privacy and diagnostics
@@ -112,17 +112,6 @@ pnpm run test:e2e:ui
 ```
 
 The `VITE_CLERK_PUBLISHABLE_KEY` (in `frontend/.env`) and `CLERK_SECRET_KEY` (in `.env`) must be set for the Clerk testing token integration to work.
-
-## Implementation Status
-
-The project follows a [phased implementation plan](docs/plans/2026-03-13-phased-implementation.md):
-
-- **Phase 1** -- Auth (done)
-- **Phase 2** -- Student List (done)
-- **Phase 3** -- Voice Upload & Transcription (done)
-- **Phase 4** -- Note Generation (done)
-- **Phase 5** -- Report Card Generation (done)
-- **Phase 6** -- Polish & deployment
 
 ## License
 
