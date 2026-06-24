@@ -11,14 +11,14 @@ export default function PrivacyPage() {
         <h2>How your data is used</h2>
         <p>GradeBee helps teachers create student observation notes and report cards. To do this, we use third-party AI services:</p>
         <ul>
-          <li><strong>OpenAI Whisper</strong> — transcribes your audio recordings to text.</li>
-          <li><strong>OpenAI GPT</strong> — analyses transcripts to extract student observations and generate report card text.</li>
+          <li><strong>Mistral Voxtral</strong> — transcribes your audio recordings to text.</li>
+          <li><strong>Mistral AI</strong> — analyses transcripts to extract student observations and generate report card text.</li>
         </ul>
       </section>
 
       <section>
         <h2>Audio recordings</h2>
-        <p>Audio files you upload are sent to OpenAI Whisper for transcription and then <strong>deleted from our servers immediately</strong>. We do not retain raw recordings. The text transcript is stored so you can review and edit your notes.</p>
+        <p>Audio files you upload are sent to Mistral Voxtral for transcription and then <strong>deleted from our servers immediately</strong>. We do not retain raw recordings. The text transcript is stored so you can review and edit your notes.</p>
       </section>
 
       <section>
@@ -34,9 +34,9 @@ export default function PrivacyPage() {
 
       <section>
         <h2>Data sharing and vendors</h2>
-        <p>Your data is processed by OpenAI under their{' '}
-          <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
-          GradeBee enters into a Data Processing Agreement with OpenAI. We do not sell your data to third parties.
+        <p>Your data is processed by Mistral AI under their{' '}
+          <a href="https://legal.mistral.ai/terms/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
+          GradeBee enters into a Data Processing Agreement with Mistral AI. We do not sell your data to third parties.
         </p>
       </section>
 
