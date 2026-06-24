@@ -33,6 +33,14 @@ Run this before considering Go changes complete.
 
 Follow the design system documented in `frontend/DESIGN.md` for all UI work. Use the established color tokens, typography, and component patterns.
 
+After editing code in `frontend/`, run lint to catch issues:
+
+```bash
+cd frontend && pnpm run lint
+```
+
+Run this before considering Frontend changes complete.
+
 ## Documentation Maintenance
 
 Keeping docs in sync with code is part of "done". Before considering a task complete, check whether any of these triggers apply:
