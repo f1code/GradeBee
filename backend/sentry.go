@@ -80,6 +80,8 @@ func captureFeedback(ctx context.Context, ev feedbackEvent) {
 			scope.SetUser(sentry.User{ID: ev.UserID})
 		}
 		scope.SetTag("rating", ev.Rating)
+		scope.SetTag("feedback", "true")
+		scope.SetLevel(sentry.LevelInfo)
 		scope.SetContext("feedback", map[string]any{
 			"student_id": ev.StudentID,
 			"report_id":  ev.ReportID,
