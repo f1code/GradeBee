@@ -4,9 +4,28 @@ import * as CookieConsent from 'vanilla-cookieconsent'
 import { DIAGNOSTICS_CATEGORY, notifyDiagnosticsConsentChanged } from './diagnosticsConsent'
 import { syncSentryWithConsent } from './sentryConsent'
 
+const consentListeners = new Set<() => void>()
+
+/** Whether the user has made a cookie consent decision (accept all / necessary only / preferences). */
+export function hasCookieConsent(): boolean {
+  return CookieConsent.validConsent()
+}
+
+export function subscribeCookieConsent(listener: () => void): () => void {
+  consentListeners.add(listener)
+  return () => consentListeners.delete(listener)
+}
+
+function notifyCookieConsentChanged(): void {
+  for (const listener of consentListeners) {
+    listener()
+  }
+}
+
 function onConsentChanged(): void {
   void syncSentryWithConsent()
   notifyDiagnosticsConsentChanged()
+  notifyCookieConsentChanged()
 }
 
 export function initCookieConsent(): void {
@@ -65,7 +84,10 @@ export function initCookieConsent(): void {
     },
     onConsent: onConsentChanged,
     onChange: ({ changedCategories }) => {
-      if (changedCategories.includes(DIAGNOSTICS_CATEGORY) || changedCategories.includes('necessary')) {
+      if (
+        changedCategories.includes(DIAGNOSTICS_CATEGORY) ||
+        changedCategories.includes('necessary')
+      ) {
         onConsentChanged()
       }
     },

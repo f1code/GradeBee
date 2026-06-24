@@ -9,6 +9,7 @@ import HowItWorks from './components/HowItWorks'
 import HintBanner from './components/HintBanner'
 import FeedbackButton from './components/FeedbackButton'
 import PrivacyPreferencesLink from './components/PrivacyPreferencesLink'
+import { hasCookieConsent, subscribeCookieConsent } from './consent/cookieConsent'
 
 function BeeIcon({ size = 28 }: { size?: number }) {
   return (
@@ -33,8 +34,24 @@ function BeeIcon({ size = 28 }: { size?: number }) {
       <rect x="10.5" y="14" width="11" height="1.8" rx="0.9" fill="#2C1810" />
       <rect x="10.5" y="17.5" width="11" height="1.8" rx="0.9" fill="#2C1810" />
       {/* Wings */}
-      <ellipse cx="12" cy="12" rx="3" ry="2" fill="#FFF3D4" opacity="0.85" transform="rotate(-20 12 12)" />
-      <ellipse cx="20" cy="12" rx="3" ry="2" fill="#FFF3D4" opacity="0.85" transform="rotate(20 20 12)" />
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="3"
+        ry="2"
+        fill="#FFF3D4"
+        opacity="0.85"
+        transform="rotate(-20 12 12)"
+      />
+      <ellipse
+        cx="20"
+        cy="12"
+        rx="3"
+        ry="2"
+        fill="#FFF3D4"
+        opacity="0.85"
+        transform="rotate(20 20 12)"
+      />
       {/* Eyes */}
       <circle cx="14" cy="13.8" r="0.9" fill="#2C1810" />
       <circle cx="18" cy="13.8" r="0.9" fill="#2C1810" />
@@ -46,6 +63,11 @@ function App() {
   const [activeTab, setActiveTab] = useState<'notes' | 'reports'>('notes')
   const [showGuide, setShowGuide] = useState(false)
   const [consented, setConsented] = useState(() => !!localStorage.getItem('gradebee:consented'))
+  const [cookieConsented, setCookieConsented] = useState(() => hasCookieConsent())
+
+  useEffect(() => {
+    return subscribeCookieConsent(() => setCookieConsented(hasCookieConsent()))
+  }, [])
 
   return (
     <div className="app">
@@ -56,7 +78,13 @@ function App() {
         </div>
         <div className="header-actions">
           <Show when="signed-in">
-            <button className="how-it-works-trigger" onClick={() => setShowGuide(true)} aria-label="How it works">?</button>
+            <button
+              className="how-it-works-trigger"
+              onClick={() => setShowGuide(true)}
+              aria-label="How it works"
+            >
+              ?
+            </button>
             <UserButton />
           </Show>
         </div>
@@ -71,7 +99,10 @@ function App() {
               transition={{ duration: 0.5, ease: 'easeOut' }}
             >
               <h2>Welcome to GradeBee</h2>
-              <p className="sign-in-tagline">Record verbal feedback about your students and GradeBee turns it into polished, structured notes and report cards — ready when you need them.</p>
+              <p className="sign-in-tagline">
+                Record verbal feedback about your students and GradeBee turns it into polished,
+                structured notes and report cards — ready when you need them.
+              </p>
               <ul className="feature-list">
                 <li>🎤 Record or upload audio of your observations</li>
                 <li>🗂️ Notes are created automatically for each student</li>
@@ -89,30 +120,55 @@ function App() {
                 />
                 <span>
                   I understand AI is used to process recordings — see our{' '}
-                  <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy &amp; AI Disclosure</a>.
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer">
+                    Privacy &amp; AI Disclosure
+                  </a>
+                  .
                 </span>
               </label>
+              {!cookieConsented && (
+                <p className="sign-in-hint" data-testid="cookie-consent-hint">
+                  Please review the cookie choices at the bottom of the page before signing in.
+                </p>
+              )}
               <SignInButton mode="modal">
-                <button className="sign-in-btn" data-testid="sign-in-button" disabled={!consented}>Sign in</button>
+                <button
+                  className="sign-in-btn"
+                  data-testid="sign-in-button"
+                  disabled={!consented || !cookieConsented}
+                  aria-disabled={!consented || !cookieConsented}
+                >
+                  Sign in
+                </button>
               </SignInButton>
             </motion.div>
           </div>
         </Show>
         <Show when="signed-in">
-          <SignedInContent activeTab={activeTab} setActiveTab={setActiveTab} setShowGuide={setShowGuide} />
+          <SignedInContent
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            setShowGuide={setShowGuide}
+          />
         </Show>
       </main>
       {showGuide && <HowItWorks onClose={() => setShowGuide(false)} />}
       <footer className="app-footer">
         <a href="/privacy">Privacy &amp; AI Disclosure</a>
-        <span className="app-footer-separator" aria-hidden="true">·</span>
+        <span className="app-footer-separator" aria-hidden="true">
+          ·
+        </span>
         <PrivacyPreferencesLink />
       </footer>
     </div>
   )
 }
 
-function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
+function SignedInContent({
+  activeTab,
+  setActiveTab,
+  setShowGuide,
+}: {
   activeTab: 'notes' | 'reports'
   setActiveTab: (v: 'notes' | 'reports') => void
   setShowGuide: (v: boolean) => void
@@ -129,11 +185,7 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
   }, [setShowGuide])
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
       <nav className="app-nav">
         <button
           className={`toolbar-link ${activeTab === 'notes' ? 'active' : ''}`}
@@ -150,23 +202,24 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
       </nav>
       {activeTab === 'notes' ? (
         <>
-          <HintBanner storageKey="gradebee:hint:notes">Upload audio — GradeBee processes it in the background and creates notes automatically.</HintBanner>
+          <HintBanner storageKey="gradebee:hint:notes">
+            Upload audio — GradeBee processes it in the background and creates notes automatically.
+          </HintBanner>
           <StudentList />
           <JobStatus pollNowRef={jobPollNowRef} />
           <AudioUpload onUploadDone={() => jobPollNowRef.current?.()} />
         </>
       ) : (
         <>
-          <HintBanner storageKey="gradebee:hint:reports">Select students and a date range to generate report cards from your accumulated notes.</HintBanner>
+          <HintBanner storageKey="gradebee:hint:reports">
+            Select students and a date range to generate report cards from your accumulated notes.
+          </HintBanner>
           <ReportGeneration />
         </>
       )}
       {/* Floating feedback button — only shown to authenticated teachers */}
       {user && (
-        <FeedbackButton
-          userId={user.id}
-          userEmail={user.primaryEmailAddress?.emailAddress ?? ''}
-        />
+        <FeedbackButton userId={user.id} userEmail={user.primaryEmailAddress?.emailAddress ?? ''} />
       )}
     </motion.div>
   )
