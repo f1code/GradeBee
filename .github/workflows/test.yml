@@ -2,6 +2,9 @@ name: Test
 
 on:
   workflow_call:
+    secrets:
+      CLERK_SECRET_KEY_TEST:
+        required: true
 
 jobs:
   test:
@@ -45,3 +48,47 @@ jobs:
 
       - name: Frontend unit tests
         run: pnpm -F frontend test --run
+
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create frontend env
+        run: |
+          echo "VITE_API_URL=http://localhost:8080/api" >> frontend/.env
+          echo "VITE_CLERK_PUBLISHABLE_KEY=${{ vars.VITE_CLERK_PUBLISHABLE_KEY_TEST }}" >> frontend/.env
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: pnpm run test:e2e
+        env:
+          CI: true
+          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY_TEST }}
+          CLERK_PUBLISHABLE_KEY: ${{ vars.VITE_CLERK_PUBLISHABLE_KEY_TEST }}
+          DB_PATH: /tmp/gradebee-test.db
+          UPLOADS_DIR: /tmp/gradebee-uploads
+          ALLOWED_ORIGIN: http://localhost:5173
+          MISTRAL_API_KEY: placeholder
