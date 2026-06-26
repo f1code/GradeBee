@@ -45,7 +45,7 @@ beforeEach(() => {
 
 async function renderWithStudents() {
   mockListClasses.mockResolvedValue({
-    classes: [{ id: 1, name: 'Math 101', studentCount: 2 }],
+    classes: [{ id: 1, name: 'Math 101', className: 'Math 101', groupName: '', studentCount: 2 }],
   })
   mockListStudents.mockResolvedValue({
     students: [
@@ -158,7 +158,7 @@ describe('ReportGeneration', () => {
 describe('ReportGeneration — selection-aware blocking', () => {
   async function renderWithClass(className: string, studentName = 'Alice') {
     mockListClasses.mockResolvedValue({
-      classes: [{ id: 1, name: className, studentCount: 1, userId: '', className: '', groupName: '', position: 0, createdAt: '' }],
+      classes: [{ id: 1, name: className, studentCount: 1, userId: '', className: className, groupName: '', position: 0, createdAt: '' }],
     })
     mockListStudents.mockResolvedValue({
       students: [{ id: 10, name: studentName, classId: 1, createdAt: '', aliases: [] }],
@@ -211,8 +211,8 @@ describe('ReportGeneration — selection-aware blocking', () => {
   it('multiple classes: lists each class without examples separately', async () => {
     mockListClasses.mockResolvedValue({
       classes: [
-        { id: 1, name: 'ClassA', studentCount: 1, userId: '', className: '', groupName: '', position: 0, createdAt: '' },
-        { id: 2, name: 'ClassB', studentCount: 1, userId: '', className: '', groupName: '', position: 0, createdAt: '' },
+        { id: 1, name: 'ClassA', studentCount: 1, userId: '', className: 'ClassA', groupName: '', position: 0, createdAt: '' },
+        { id: 2, name: 'ClassB', studentCount: 1, userId: '', className: 'ClassB', groupName: '', position: 0, createdAt: '' },
       ],
     })
     mockListStudents.mockImplementation((_classId: unknown) => {

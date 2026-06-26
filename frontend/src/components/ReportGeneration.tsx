@@ -192,7 +192,7 @@ export default function ReportGeneration() {
     const names = new Set<string>()
     for (const c of classes) {
       for (const s of c.students) {
-        if (selected.has(s.id)) names.add(c.name)
+        if (selected.has(s.id)) names.add(c.className)
       }
     }
     return Array.from(names)
@@ -215,11 +215,11 @@ export default function ReportGeneration() {
     // Classes with selected students but no matching ready example
     const checked = new Set<string>()
     for (const c of classes) {
-      if (c.name && !checked.has(c.name)) {
+      if (c.className && !checked.has(c.className)) {
         const hasSelected = c.students.some(s => selected.has(s.id))
-        if (hasSelected && !classesWithExamples.has(c.name)) {
+        if (hasSelected && !classesWithExamples.has(c.className)) {
           parts.push(`${c.name} (no examples)`)
-          checked.add(c.name)
+          checked.add(c.className)
         }
       }
     }
