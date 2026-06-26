@@ -29,6 +29,11 @@
 - `background: var(--chalk)`, `border-radius: 12px`, warm box-shadow (`--shadow-md`).
 - Used for: class groups, setup panels, upload states, sign-in card.
 
+### Class fields: name vs group
+The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinct purposes — surface this distinction in helper text:
+- **Class name** (required): the class identifier. It also tags report examples for style matching, so reports for a class reuse examples sharing its name.
+- **Group** (optional, e.g. "Period 1"): purely organizational — groups related classes together. Shown as `Class name — Group`. It has no effect on report generation.
+
 ### Buttons
 - Base `<button>` is primary-styled by default: `background: var(--honey)`, `color: var(--ink)`, shadow, 3D hover lift. No class needed.
 - Secondary (`.btn-secondary`): white bg with `--comb` border.

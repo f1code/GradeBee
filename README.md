@@ -5,7 +5,7 @@ GradeBee helps teachers record voice notes about students and automatically gene
 ## How It Works
 
 1. Teacher signs in with Google
-2. Teacher adds classes and student names
+2. Teacher adds classes and student names (each class has a required name plus an optional **group**, e.g. "Period 1", for organizing related classes together)
 3. Teacher uploads voice recordings
 4. The system transcribes audio, extracts student names, and generates structured notes
 5. On demand, the system aggregates notes into report cards per student
