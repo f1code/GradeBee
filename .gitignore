@@ -34,6 +34,7 @@ __pycache__
 kanban/
 .worktrees/
 docs/plans/
+docs/superpowers/
 
 # Ansible secrets (vault-encrypted or plaintext — never commit)
 ansible/secrets.yml

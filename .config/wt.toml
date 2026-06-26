@@ -1,0 +1,10 @@
+# To prepare a worktree for running the application, copy the following files from the main tree:
+#
+#  - .env
+#  - frontend/.env
+#  - data/gradebee.db
+pre-start = """
+cp {{ repo_path }}/.env .
+cp -a {{ repo_path }}/data .
+cp {{ repo_path }}/frontend/.env frontend
+"""
