@@ -119,6 +119,11 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
             data-testid="add-class-group-input"
           />
         </div>
+        <p className="add-class-hint" data-testid="add-class-hint">
+          <strong>Group</strong> is optional and just organizes related classes
+          together (e.g. “Period 1”). The <strong>class name</strong> identifies the
+          class and is used to match report-card examples.
+        </p>
         <div className="add-class-form-row">
           <button type="submit" disabled={submitting || !className.trim()} data-testid="add-class-submit">
             {submitting ? 'Adding…' : 'Add'}
