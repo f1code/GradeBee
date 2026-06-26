@@ -12,6 +12,7 @@ test.describe('Signed-out experience', () => {
   })
 
   test('shows welcome message and sign-in button', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('gradebee:consented', '1'))
     await page.goto('/')
     await expect(page.getByTestId('sign-in-container')).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Welcome to GradeBee' })).toBeVisible()

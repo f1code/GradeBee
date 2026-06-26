@@ -9,14 +9,15 @@ test.describe('Backend API health check', () => {
     expect(await response.json()).toEqual({ status: 'ok' })
   })
 
-  test('GET / returns ok', async ({ request }) => {
+  test('GET / serves SPA', async ({ request }) => {
     const response = await request.get(`${API_URL}/`)
     expect(response.status()).toBe(200)
-    expect(await response.json()).toEqual({ status: 'ok' })
+    const ct = response.headers()['content-type'] ?? ''
+    expect(ct).toContain('text/html')
   })
 
-  test('unknown route returns 404', async ({ request }) => {
-    const response = await request.get(`${API_URL}/nonexistent`)
+  test('unknown API route returns 404', async ({ request }) => {
+    const response = await request.get(`${API_URL}/api/nonexistent`)
     expect(response.status()).toBe(404)
     expect(await response.json()).toEqual({ error: 'not found' })
   })
