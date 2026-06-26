@@ -1,56 +1,14 @@
-description: GradeBee LLM evaluation harness
+description: GradeBee LLM evaluation harness — Report domain
 
-# Single prompt function — dispatches to build-extract-prompt or build-report-prompt
-# via vars.task (set per-test below). Using a single entry avoids promptfoo
-# cross-evaluating every prompt against every provider.
+# Single prompt function — dispatches to build-report-prompt via vars.task.
 prompts:
   - label: gradebee-prompt
     raw: exec:../bin/eval-cli
 
-# Providers — native OpenAI provider; promptfoo owns the LLM call.
-# Extraction uses structured output (json_schema); report uses plain chat.
-# To test a different model, change the id: fields below.
+# Providers — native Mistral/OpenAI providers for report generation.
+# gradebee-report is the canonical (production) provider — used for baseline
+# diffing and the sole provider stored in baseline.json.
 providers:
-  - id: mistral:mistral-small-2603
-    label: gradebee-extract
-    config:
-      response_format:
-        type: json_schema
-        json_schema:
-          # Schema mirrors extractResponseSchema() in backend/extract.go.
-          # If ExtractResponse changes, update this block to match.
-          name: extract_response
-          strict: true
-          schema:
-            type: object
-            properties:
-              students:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    name:        { type: string }
-                    class:       { type: string }
-                    quoted_text: { type: string }
-                    confidence:  { type: number }
-                    candidates:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          name:  { type: string }
-                          class: { type: string }
-                        required: [name, class]
-                        additionalProperties: false
-                  required: [name, class, quoted_text, confidence, candidates]
-                  additionalProperties: false
-              date: { type: string }
-            required: [students, date]
-            additionalProperties: false
-
-  # ── Report providers ────────────────────────────────────────────────────────
-  # gradebee-report is the canonical (production) provider — used for baseline
-  # diffing and the sole provider stored in baseline.json.
   - id: mistral:mistral-medium-2508
     label: gradebee-report
 
@@ -86,80 +44,8 @@ defaultTest:
       config:
         temperature: 0
 
-# ============================================================
-# Extraction fixtures
-# ============================================================
 tests:
-  - description: "extraction: preserves teacher voice (no paraphrasing)"
-    providers:
-      - gradebee-extract
-    vars:
-      task: build-extract-prompt
-      transcript: "file://fixtures/extraction/voice_preservation/transcript.txt"
-      classes: "file://fixtures/extraction/voice_preservation/classes.json"
-    assert:
-      - type: is-json
-      - type: javascript
-        value: file://scoring/extraction.js
-        config:
-          expected: file://fixtures/extraction/voice_preservation/expected.json
-          metric: voice_preservation
-
-  - description: "extraction: identifies correct students across two classes"
-    providers:
-      - gradebee-extract
-    vars:
-      task: build-extract-prompt
-      transcript: "file://fixtures/extraction/multi_class/transcript.txt"
-      classes: "file://fixtures/extraction/multi_class/classes.json"
-    assert:
-      - type: is-json
-      - type: javascript
-        value: file://scoring/extraction.js
-        config:
-          expected: file://fixtures/extraction/multi_class/expected.json
-          metric: precision_recall
-
-  - description: "extraction: fuzzy name matching (Inaia→Inaya, Liana→Lina)"
-    providers:
-      - gradebee-extract
-    vars:
-      task: build-extract-prompt
-      transcript: "file://fixtures/extraction/fuzzy_name_matching/transcript.txt"
-      classes: "file://fixtures/extraction/fuzzy_name_matching/classes.json"
-    assert:
-      - type: is-json
-      - type: javascript
-        value: file://scoring/extraction.js
-        config:
-          expected: file://fixtures/extraction/fuzzy_name_matching/expected.json
-          metric: precision_recall
-
-  - description: "extraction: applies group observation only to relevant class"
-    providers:
-      - gradebee-extract
-    vars:
-      task: build-extract-prompt
-      transcript: "file://fixtures/extraction/group_observation/transcript.txt"
-      classes: "file://fixtures/extraction/group_observation/classes.json"
-    assert:
-      - type: is-json
-      - type: javascript
-        value: file://scoring/extraction.js
-        config:
-          expected: file://fixtures/extraction/group_observation/expected.json
-          metric: precision_recall
-
-  # ============================================================
-  # Report fixtures
-  # ============================================================
   - description: "report: mousy-level structured format with real examples and character-limit instructions"
-    providers:
-      - gradebee-report
-      - gradebee-report-1
-      - gradebee-report-openai
-      - gradebee-report-3
-      - gradebee-report-4
     vars:
       task: build-report-prompt
       student_name: "Lucas"
@@ -194,10 +80,6 @@ tests:
           - length: each comment paragraph (not the Data header) 310-400 characters as instructed
 
   - description: "report: oliver-level class with real style examples, no extra instructions"
-    providers:
-      - gradebee-report
-      - gradebee-report-1
-      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Sophie"
@@ -228,9 +110,6 @@ tests:
           - tone: warm, encouraging, matches examples
 
   - description: "report: sam-level with many notes including absences and mixed behaviour"
-    providers:
-      - gradebee-report
-      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Thomas"
@@ -261,10 +140,6 @@ tests:
           - tone: warm but honest, matches examples
 
   - description: "report: fairy-tales level with behaviour/work/performance structure"
-    providers:
-      - gradebee-report
-      - gradebee-report-1
-      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Emma"
@@ -296,10 +171,6 @@ tests:
             acknowledged alongside strengths
 
   - description: "report: Emma Saturday class with instructions and multi-note synthesis"
-    providers:
-      - gradebee-report
-      - gradebee-report-1
-      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Chloé"
@@ -337,10 +208,6 @@ tests:
           - tone: warm, encouraging, matches Emma-level examples
 
   - description: "report: Oliver Thursday class with instructions and mood/behaviour challenges"
-    providers:
-      - gradebee-report
-      - gradebee-report-1
-      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Mila"
@@ -375,10 +242,6 @@ tests:
           - behaviour: frustration and withdrawal handled constructively, not ignored
 
   - description: "report: Oliver-Group 2 Saturday class with instructions and calm/positive profile"
-    providers:
-      - gradebee-report
-      - gradebee-report-1
-      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Camille"
@@ -413,10 +276,6 @@ tests:
           - accuracy: occasional playful behaviour noted without exaggeration
 
   - description: "report: Fairy Tales 2 class without instructions — tests consistency within class"
-    providers:
-      - gradebee-report
-      - gradebee-report-1
-      - gradebee-report-3
     vars:
       task: build-report-prompt
       student_name: "Hugo"
