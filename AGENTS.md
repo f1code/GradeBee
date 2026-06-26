@@ -52,7 +52,7 @@ Keeping docs in sync with code is part of "done". Before considering a task comp
 | Add a new design token, component pattern, color, or typography rule | `frontend/DESIGN.md` |
 | Add or rename an environment variable | `.env.example` (always) + `README.md` (if user-facing) |
 | Change the tech stack or complete a phase | `README.md` |
-| Complete or supersede an implementation plan | Mark status in the relevant `docs/plans/*.md` |
+| Complete or supersede an implementation plan | Mark status in the relevant `../plans/*.md` |
 | Make a non-trivial architectural decision | Add a doc under `docs/` (consider an ADR-style filename) |
 
 Definition of done for code changes:
@@ -62,6 +62,10 @@ Definition of done for code changes:
 3. **Docs updated** per the table above
 
 If unsure whether a doc update is needed, prefer updating the authoritative doc over leaving it stale.
+
+Agent-generated plans go into ../plans - this is not committed.  When a plan that involved design decisions has
+been implemented, examine the documentation and distill the plan across relevant files, using the table above.  Do not
+include technical implementation details, those stay in the local-only plan.
 
 ## Generated Analysis Files
 
