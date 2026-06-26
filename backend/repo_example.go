@@ -116,28 +116,6 @@ func (r *ReportExampleRepo) GetFilePath(ctx context.Context, userID string, id i
 	return fp, nil
 }
 
-// ListReady returns only 'ready' report examples for a user (for report generation).
-func (r *ReportExampleRepo) ListReady(ctx context.Context, userID string) ([]DBReportExample, error) {
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, user_id, name, content, status, file_path, created_at
-		FROM report_examples WHERE user_id = ? AND status = 'ready'
-		ORDER BY created_at DESC`, userID)
-	if err != nil {
-		return nil, fmt.Errorf("list ready report examples: %w", err)
-	}
-	defer rows.Close()
-
-	var result []DBReportExample
-	for rows.Next() {
-		var e DBReportExample
-		if err := rows.Scan(&e.ID, &e.UserID, &e.Name, &e.Content, &e.Status, &e.FilePath, &e.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan report example: %w", err)
-		}
-		result = append(result, e)
-	}
-	return result, rows.Err()
-}
-
 // SetClassNames replaces the class names for a report example in a transaction.
 func (r *ReportExampleRepo) SetClassNames(ctx context.Context, exampleID int64, classNames []string) error {
 	tx, err := r.db.BeginTx(ctx, nil)
@@ -177,11 +155,8 @@ func (r *ReportExampleRepo) GetClassNames(ctx context.Context, exampleID int64) 
 }
 
 // ListReadyByClassName returns 'ready' examples for a user filtered by class name.
-// If className is empty, all ready examples are returned.
+// An empty className matches no example tags, so it returns no examples.
 func (r *ReportExampleRepo) ListReadyByClassName(ctx context.Context, userID, className string) ([]DBReportExample, error) {
-	if className == "" {
-		return r.ListReady(ctx, userID)
-	}
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT DISTINCT re.id, re.user_id, re.name, re.content, re.status, re.file_path, re.created_at
 		FROM report_examples re
