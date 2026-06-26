@@ -24,7 +24,8 @@ Update this document when the backend is updated.
 After editing Go code in `backend/`, run lint to catch issues:
 
 ```bash
-cd backend && make lint
+make lint
+make test
 ```
 
 Run this before considering Go changes complete.
@@ -33,10 +34,11 @@ Run this before considering Go changes complete.
 
 Follow the design system documented in `frontend/DESIGN.md` for all UI work. Use the established color tokens, typography, and component patterns.
 
-After editing code in `frontend/`, run lint to catch issues:
+After editing code in `frontend/`, run lint and tests to catch issues:
 
 ```bash
-cd frontend && pnpm run lint
+make lint
+make test
 ```
 
 Run this before considering Frontend changes complete.

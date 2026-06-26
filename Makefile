@@ -78,10 +78,15 @@ infra: infra-up infra-provision
 
 # --- Test ---
 
+lint:
+	cd backend && $(MAKE) lint
+	cd frontend && pnpm run lint
+
 test:
 	cd backend && $(MAKE) test
 	cd backend && $(MAKE) check-types
 	pnpm -F frontend test
+	pnpm run test:e2e
 
 clean:
 	rm -rf dist frontend/dist backend/dist
