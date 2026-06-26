@@ -84,6 +84,34 @@ The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinc
 - Don't use flat borders where a card shadow works better.
 - Don't overuse the bee/honeycomb motifs — they should feel like accents, not wallpaper.
 
+### Selectable Chips (toggle pills)
+
+For picking from a small set of options (e.g. assigning classes to an example), use pill-shaped toggle chips instead of bare checkboxes. The native checkbox is visually hidden; the `<label>` is the control.
+
+- Unselected: `--chalk` bg, `1px` `--comb` hairline border, pill radius (`999px`), with a light hollow `--comb` check circle.
+- Selected (`.is-selected`): pale `--honey-light` bg, `--honey` border, bold label, `--honey`-filled check circle with `--ink` tick — noticeable but not saturated.
+- Hover lifts the border to `--honey`; keyboard focus (`:has(input:focus-visible)`) shows an offset dashed `--honey-dark` outline — distinct from the solid selected fill, and suppressed on mouse click.
+- Min height `36px` for touch.
+- CSS: `.class-names-select` (wrap container), `.class-names-option` / `.class-names-option.is-selected`.
+
+### Guided Action Panel
+
+When a multi-step flow needs the user to make a required choice (e.g. "which class is this example for?" after picking files), surface it as a distinct honey-tinted panel rather than inline text:
+
+- `--chalk` bg, soft `--comb` border with a `3px` `--honey` left accent stripe, `12px` radius, `--shadow-sm`. Light overall — the accent stripe carries the "don't miss this" weight.
+- Lead with a posed question in the display font (`.upload-classnames-title`), a one-line `--ink-muted` rationale (`.upload-classnames-help`), then the chosen file(s) as `--parchment` rows.
+- Muted uppercase step label introduces the choice; an `--ink-muted` hint line appears while the requirement is unmet.
+- Pattern classes: `.upload-classnames-panel`, `.upload-classnames-title/help/files/file/steplabel/hint/actions`.
+
+### Selection-Aware Lists
+
+When a parent view has an active selection (e.g. students from a class), list items that match the selection are highlighted with a `--matching` modifier; items that don't match are dimmed with a `--dimmed` modifier. When nothing is selected, no modifier is applied and all items render at full opacity.
+
+- Matching: `outline: 2px solid var(--honey)` at `border-radius: 8px` on the wrapper, drawn with `outline-offset: -2px` (inset) so it isn't clipped by the collapsible container's `overflow: hidden`.
+- Dimmed: `opacity: 0.45` on the wrapper.
+- CSS modifier classes: `<wrapper>--matching`, `<wrapper>--dimmed`.
+- A summary line (`.example-selection-summary`) uses `var(--honey-dark)` at `0.82rem` to show e.g. *N example(s) will guide these reports.*
+
 ### Error Patterns
 
 Three variants for communicating errors to users:

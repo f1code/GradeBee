@@ -1,30 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useAuth } from '@clerk/react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import ItemRow from './ItemRow'
 import { PencilIcon } from './Icons'
-import {
-  listReportExamples,
-  uploadReportExample,
-  updateReportExample,
-  deleteReportExample,
-  importExampleFromDrive,
-  getGoogleToken,
-  listClassNames,
-  type ReportExampleItem,
-} from '../api'
-import { useDrivePicker } from '../hooks/useDrivePicker'
-
-const REPORT_MIME_TYPES = [
-  'application/pdf',
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'text/plain',
-  'text/markdown',
-].join(',')
-
-const POLL_INTERVAL = 3000
+import { type ReportExampleItem } from '../api'
 
 function DriveIcon() {
   return (
@@ -79,33 +57,58 @@ function ClassNamesSelect({ available, selected, onChange }: ClassNamesSelectPro
     }
   }
 
+  if (available.length === 0) {
+    return <p className="class-names-empty">No classes yet — add a class first, then come back to assign it.</p>
+  }
+
   return (
-    <div className="class-names-select">
-      {available.length === 0 ? (
-        <p className="class-names-empty">No classes yet. Add classes first.</p>
-      ) : (
-        available.map(name => (
-          <label key={name} className="class-names-option">
+    <div className="class-names-select" role="group">
+      {available.map(name => {
+        const isSelected = selected.includes(name)
+        return (
+          <label
+            key={name}
+            className={`class-names-option${isSelected ? ' is-selected' : ''}`}
+          >
             <input
               type="checkbox"
-              checked={selected.includes(name)}
+              checked={isSelected}
               onChange={() => toggle(name)}
             />
-            <span>{name}</span>
+            <span className="class-names-option-check" aria-hidden="true">✓</span>
+            <span className="class-names-option-label">{name}</span>
           </label>
-        ))
-      )}
+        )
+      })}
     </div>
   )
 }
 
-export default function ReportExamples() {
-  const { getToken } = useAuth()
-  const [examples, setExamples] = useState<ReportExampleItem[]>([])
-  const [loading, setLoading] = useState(true)
+interface ReportExamplesProps {
+  examples: ReportExampleItem[]
+  loading: boolean
+  error: string | null
+  availableClassNames: string[]
+  selectedClassNames?: string[]
+  onUpload: (files: File[], classNames: string[]) => Promise<void>
+  onDriveImport: () => Promise<void>
+  onUpdate: (id: number, name: string, content: string, classNames: string[]) => Promise<void>
+  onDelete: (id: number) => Promise<void>
+}
+
+export default function ReportExamples({
+  examples,
+  loading,
+  error,
+  availableClassNames,
+  selectedClassNames,
+  onUpload,
+  onDriveImport,
+  onUpdate,
+  onDelete,
+}: ReportExamplesProps) {
   const [uploading, setUploading] = useState(false)
   const [driveImporting, setDriveImporting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [collapsed, setCollapsed] = useState(true)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -114,40 +117,12 @@ export default function ReportExamples() {
   const [editContent, setEditContent] = useState('')
   const [editClassNames, setEditClassNames] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
-  const [availableClassNames, setAvailableClassNames] = useState<string[]>([])
   // Upload class names selection state
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null)
   const [uploadClassNames, setUploadClassNames] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { openPicker } = useDrivePicker()
 
-  const load = useCallback(async () => {
-    try {
-      const { examples } = await listReportExamples(() => getToken())
-      setExamples(examples)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load examples')
-    } finally {
-      setLoading(false)
-    }
-  }, [getToken])
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load() }, [load])
-
-  useEffect(() => {
-    listClassNames(getToken).then(({ classNames }) => setAvailableClassNames(classNames)).catch(() => {})
-  }, [getToken])
-
-  // Poll while any example is still processing.
-  useEffect(() => {
-    const hasProcessing = examples.some(e => e.status === 'processing')
-    if (!hasProcessing) return
-    const timer = setInterval(() => { load() }, POLL_INTERVAL)
-    return () => clearInterval(timer)
-  }, [examples, load])
-
-  async function handleFiles(files: FileList | null) {
+  function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
     // Collect files and show class name picker
     setPendingFiles(Array.from(files))
@@ -157,14 +132,8 @@ export default function ReportExamples() {
   async function confirmUpload() {
     if (!pendingFiles) return
     setUploading(true)
-    setError(null)
     try {
-      for (const file of pendingFiles) {
-        await uploadReportExample(file, uploadClassNames, () => getToken())
-      }
-      await load()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
+      await onUpload(pendingFiles, uploadClassNames)
     } finally {
       setUploading(false)
       setPendingFiles(null)
@@ -173,19 +142,9 @@ export default function ReportExamples() {
   }
 
   async function handleDriveImport() {
-    setError(null)
+    setDriveImporting(true)
     try {
-      const { accessToken } = await getGoogleToken(getToken)
-      const picked = await openPicker(accessToken, {
-        mimeTypes: REPORT_MIME_TYPES,
-        title: 'Select a report card',
-      })
-      if (!picked || picked.length === 0) return
-      setDriveImporting(true)
-      await importExampleFromDrive(picked[0].id, picked[0].name, getToken)
-      await load()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Drive import failed')
+      await onDriveImport()
     } finally {
       setDriveImporting(false)
     }
@@ -205,24 +164,13 @@ export default function ReportExamples() {
   async function saveEdit() {
     if (!editingId) return
     setSaving(true)
-    setError(null)
     try {
-      await updateReportExample(editingId, editName, editContent, editClassNames, () => getToken())
-      await load()
+      await onUpdate(editingId, editName, editContent, editClassNames)
       setEditingId(null)
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Update failed')
+    } catch {
+      // error surfaced by parent via the error prop; keep edit form open
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function handleDelete(id: number) {
-    try {
-      await deleteReportExample(id, () => getToken())
-      setExamples(prev => prev.filter(e => e.id !== id))
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Delete failed')
     }
   }
 
@@ -253,13 +201,28 @@ export default function ReportExamples() {
             {pendingFiles && (
               <div className="upload-classnames-panel">
                 <p className="upload-classnames-title">
-                  Assign class{pendingFiles.length > 1 ? 'es' : ''} for {pendingFiles.length} file{pendingFiles.length > 1 ? 's' : ''}:
+                  Which class {pendingFiles.length > 1 ? 'are these examples' : 'is this example'} for?
                 </p>
+                <p className="upload-classnames-help">
+                  Pick the class{availableClassNames.length > 1 ? 'es' : ''} this should guide — reports for the
+                  selected class{availableClassNames.length > 1 ? 'es' : ''} will follow its writing style.
+                </p>
+                <ul className="upload-classnames-files">
+                  {pendingFiles.map((f, i) => (
+                    <li key={`${f.name}-${i}`} className="upload-classnames-file">{f.name}</li>
+                  ))}
+                </ul>
+                {availableClassNames.length > 0 && (
+                  <p className="upload-classnames-steplabel">Choose a class</p>
+                )}
                 <ClassNamesSelect
                   available={availableClassNames}
                   selected={uploadClassNames}
                   onChange={setUploadClassNames}
                 />
+                {availableClassNames.length > 0 && uploadClassNames.length === 0 && (
+                  <p className="upload-classnames-hint">Select at least one class to continue.</p>
+                )}
                 <div className="upload-classnames-actions">
                   <button
                     className="btn-secondary btn-sm"
@@ -334,18 +297,33 @@ export default function ReportExamples() {
               <p className="example-empty">No examples uploaded yet. Upload example report cards to guide the AI's writing style.</p>
             ) : (
               <div className="example-list">
-                {examples.map((ex) => (
-                  <motion.div
-                    key={ex.id}
-                    className="example-item-wrapper"
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                  >
+                {(() => {
+                  const hasSelection = !!selectedClassNames && selectedClassNames.length > 0
+                  const matchingReadyCount = hasSelection
+                    ? examples.filter(e => e.status === 'ready' && (e.classNames ?? []).some(cn => selectedClassNames!.includes(cn))).length
+                    : 0
+                  return (
+                    <>
+                      {hasSelection && matchingReadyCount > 0 && (
+                        <p className="example-selection-summary" data-testid="example-selection-summary">
+                          {matchingReadyCount} example{matchingReadyCount !== 1 ? 's' : ''} will guide these reports.
+                        </p>
+                      )}
+                      {examples.map((ex) => {
+                        const isMatching = hasSelection && (ex.classNames ?? []).some(cn => selectedClassNames!.includes(cn))
+                        const isDimmed = hasSelection && !isMatching
+                        return (
+                          <motion.div
+                            key={ex.id}
+                            className={`example-item-wrapper${isMatching ? ' example-item-wrapper--matching' : ''}${isDimmed ? ' example-item-wrapper--dimmed' : ''}`}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                          >
                     <ItemRow
                       name={ex.name}
                       expanded={expandedId === ex.id}
                       onToggle={() => setExpandedId(expandedId === ex.id ? null : ex.id)}
-                      onDelete={() => handleDelete(ex.id)}
+                      onDelete={() => onDelete(ex.id)}
                       badge={
                         ex.status === 'processing' ? <ProcessingBadge /> :
                         ex.status === 'failed' ? <FailedBadge /> :
@@ -415,8 +393,12 @@ export default function ReportExamples() {
                         </div>
                       )}
                     </ItemRow>
-                  </motion.div>
-                ))}
+                          </motion.div>
+                        )
+                      })}
+                    </>
+                  )
+                })()}
               </div>
             )}
           </motion.div>

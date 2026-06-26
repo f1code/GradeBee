@@ -1,21 +1,41 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   listClasses,
   listStudents,
   generateReports,
+  listReportExamples,
+  uploadReportExample,
+  updateReportExample,
+  deleteReportExample,
+  importExampleFromDrive,
+  getGoogleToken,
+  listClassNames,
   type ClassItem,
   type StudentItem,
   type ReportResult,
   type GenerateReportsResponse,
+  type ReportExampleItem,
 } from '../api'
+import { useDrivePicker } from '../hooks/useDrivePicker'
 import ReportExamples from './ReportExamples'
 import ReportViewer from './ReportViewer'
 
 interface ClassWithStudents extends ClassItem {
   students: StudentItem[]
 }
+
+const REPORT_MIME_TYPES = [
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'text/plain',
+  'text/markdown',
+].join(',')
+
+const EXAMPLE_POLL_INTERVAL = 3000
 
 export default function ReportGeneration() {
   const { getToken } = useAuth()
@@ -36,6 +56,87 @@ export default function ReportGeneration() {
   const [results, setResults] = useState<ReportResult[]>([])
   const [error, setError] = useState<string | null>(null)
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null)
+
+  // Example report cards state + lifecycle
+  const [examples, setExamples] = useState<ReportExampleItem[]>([])
+  const [examplesLoading, setExamplesLoading] = useState(true)
+  const [examplesError, setExamplesError] = useState<string | null>(null)
+  const [availableClassNames, setAvailableClassNames] = useState<string[]>([])
+  const { openPicker } = useDrivePicker()
+
+  const loadExamples = useCallback(async () => {
+    try {
+      const { examples } = await listReportExamples(() => getToken())
+      setExamples(examples)
+    } catch (e: unknown) {
+      setExamplesError(e instanceof Error ? e.message : 'Failed to load examples')
+    } finally {
+      setExamplesLoading(false)
+    }
+  }, [getToken])
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { loadExamples() }, [loadExamples])
+
+  useEffect(() => {
+    listClassNames(getToken).then(({ classNames }) => setAvailableClassNames(classNames)).catch(() => {})
+  }, [getToken])
+
+  // Poll while any example is still processing.
+  useEffect(() => {
+    const hasProcessing = examples.some(e => e.status === 'processing')
+    if (!hasProcessing) return
+    const timer = setInterval(() => { loadExamples() }, EXAMPLE_POLL_INTERVAL)
+    return () => clearInterval(timer)
+  }, [examples, loadExamples])
+
+  async function handleUploadExamples(files: File[], classNames: string[]) {
+    setExamplesError(null)
+    try {
+      for (const file of files) {
+        await uploadReportExample(file, classNames, () => getToken())
+      }
+      await loadExamples()
+    } catch (e: unknown) {
+      setExamplesError(e instanceof Error ? e.message : 'Upload failed')
+    }
+  }
+
+  async function handleDriveImportExample() {
+    setExamplesError(null)
+    try {
+      const { accessToken } = await getGoogleToken(getToken)
+      const picked = await openPicker(accessToken, {
+        mimeTypes: REPORT_MIME_TYPES,
+        title: 'Select a report card',
+      })
+      if (!picked || picked.length === 0) return
+      await importExampleFromDrive(picked[0].id, picked[0].name, getToken)
+      await loadExamples()
+    } catch (e: unknown) {
+      setExamplesError(e instanceof Error ? e.message : 'Drive import failed')
+    }
+  }
+
+  async function handleUpdateExample(id: number, name: string, content: string, classNames: string[]) {
+    setExamplesError(null)
+    try {
+      await updateReportExample(id, name, content, classNames, () => getToken())
+      await loadExamples()
+    } catch (e: unknown) {
+      setExamplesError(e instanceof Error ? e.message : 'Update failed')
+      throw e
+    }
+  }
+
+  async function handleDeleteExample(id: number) {
+    try {
+      await deleteReportExample(id, () => getToken())
+      setExamples(prev => prev.filter(e => e.id !== id))
+    } catch (e: unknown) {
+      setExamplesError(e instanceof Error ? e.message : 'Delete failed')
+    }
+  }
 
   const loadStudents = useCallback(async () => {
     try {
@@ -85,6 +186,47 @@ export default function ReportGeneration() {
   }
 
   const selectedCount = selected.size
+
+  // Distinct class names of currently-selected students
+  const selectedClassNames = useMemo(() => {
+    const names = new Set<string>()
+    for (const c of classes) {
+      for (const s of c.students) {
+        if (selected.has(s.id)) names.add(c.name)
+      }
+    }
+    return Array.from(names)
+  }, [classes, selected])
+
+  // Block generation when a class has no matching ready example
+  const blockerMessage = useMemo(() => {
+    if (selected.size === 0) return null
+    const readyExamples = examples.filter(e => e.status === 'ready')
+    const classesWithExamples = new Set(readyExamples.flatMap(e => e.classNames ?? []))
+    const parts: string[] = []
+    // Students whose class name is empty
+    for (const c of classes) {
+      if (!c.name) {
+        for (const s of c.students) {
+          if (selected.has(s.id)) parts.push(`${s.name} (no class)`)
+        }
+      }
+    }
+    // Classes with selected students but no matching ready example
+    const checked = new Set<string>()
+    for (const c of classes) {
+      if (c.name && !checked.has(c.name)) {
+        const hasSelected = c.students.some(s => selected.has(s.id))
+        if (hasSelected && !classesWithExamples.has(c.name)) {
+          parts.push(`${c.name} (no examples)`)
+          checked.add(c.name)
+        }
+      }
+    }
+    return parts.length > 0
+      ? `${parts.join(', ')} — assign a class / add examples to continue.`
+      : null
+  }, [classes, selected, examples])
 
   async function handleGenerate() {
     if (selectedCount === 0 || !startDate || !endDate) return
@@ -182,7 +324,17 @@ export default function ReportGeneration() {
       </div>
 
       {/* Example report cards */}
-      <ReportExamples />
+      <ReportExamples
+        examples={examples}
+        loading={examplesLoading}
+        error={examplesError}
+        availableClassNames={availableClassNames}
+        selectedClassNames={selectedClassNames}
+        onUpload={handleUploadExamples}
+        onDriveImport={handleDriveImportExample}
+        onUpdate={handleUpdateExample}
+        onDelete={handleDeleteExample}
+      />
 
       {/* Additional instructions */}
       <div className="report-instructions">
@@ -196,10 +348,13 @@ export default function ReportGeneration() {
       </div>
 
       {/* Generate button */}
+      {blockerMessage && (
+        <p className="report-generate-blocker" data-testid="generate-blocker">{blockerMessage}</p>
+      )}
       <button
         className="report-generate-btn"
         onClick={handleGenerate}
-        disabled={generating || selectedCount === 0 || !startDate || !endDate}
+        disabled={generating || selectedCount === 0 || !startDate || !endDate || !!blockerMessage}
       >
         {generating ? (
           <span className="btn-loading"><span className="honeycomb-spinner honeycomb-spinner-inline"><span className="hex" /><span className="hex" /><span className="hex" /></span> Generating...</span>
