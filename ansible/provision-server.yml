@@ -27,7 +27,7 @@
     - vars.yml
 
   vars:
-    dokku_version: "0.38.5"           # pin to a known-good release; bump deliberately
+    dokku_version: "0.38.20"           # pin to a known-good release; bump deliberately
 
   tasks:
 
