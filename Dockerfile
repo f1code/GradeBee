@@ -38,9 +38,13 @@ RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /gradebee ./cmd/server
 
 # Stage 3: minimal runtime
 FROM alpine:latest
+# 1001 will match dokku
+RUN addgroup -g 1001 appgroup && \
+    adduser -S -u 1001 -G appgroup appuser
 RUN apk add --no-cache bash ca-certificates poppler-utils
 COPY app.json .
 COPY --from=builder /gradebee /gradebee
+USER appuser
 
 # Promote build-time Sentry args into runtime env vars so the Go binary can read them.
 ARG VITE_SENTRY_DSN=
