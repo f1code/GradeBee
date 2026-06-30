@@ -79,8 +79,8 @@ describe('ReportGeneration', () => {
   it('generates reports on submit', async () => {
     mockGenerateReports.mockResolvedValue({
       reports: [
-        { id: 1, student: 'Alice', class: 'Math 101', studentId: 10, html: '<p>Alice report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
-        { id: 2, student: 'Bob', class: 'Math 101', studentId: 11, html: '<p>Bob report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
+        { id: 1, student: 'Alice', className: 'Math 101', studentId: 10, html: '<p>Alice report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
+        { id: 2, student: 'Bob', className: 'Math 101', studentId: 11, html: '<p>Bob report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
       ],
       error: null,
     })

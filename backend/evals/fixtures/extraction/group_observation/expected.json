@@ -2,12 +2,12 @@
   "expected_students": [
     {
       "name": "Olivia Chen",
-      "class": "Class B",
+      "class_name": "Class B",
       "must_quote_substrings": ["finished early", "fractions worksheet"]
     },
     {
       "name": "Marcus Davis",
-      "class": "Class B",
+      "class_name": "Class B",
       "must_quote_substrings": ["not turning in homework", "fractions worksheet"]
     }
   ],

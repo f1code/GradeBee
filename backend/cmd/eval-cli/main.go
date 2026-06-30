@@ -92,11 +92,11 @@ func runBuildExtractPrompt(ec evalContext) error {
 
 // runBuildReportPrompt outputs a promptfoo messages array for report generation.
 func runBuildReportPrompt(ec evalContext) error {
-	var studentName, class, instructions string
+	var studentName, className, instructions string
 	if err := ec.unmarshalVar("student_name", &studentName); err != nil {
 		return err
 	}
-	if err := ec.unmarshalVar("class", &class); err != nil {
+	if err := ec.unmarshalVar("class_name", &className); err != nil {
 		return err
 	}
 	if err := ec.unmarshalVar("instructions", &instructions); err != nil {
@@ -111,7 +111,7 @@ func runBuildReportPrompt(ec evalContext) error {
 		return err
 	}
 	// Production sends the built prompt as a single user message (no system role).
-	prompt := handler.BuildReportPrompt(studentName, class, notes, examples, instructions, "")
+	prompt := handler.BuildReportPrompt(studentName, className, notes, examples, instructions, "")
 	return writeJSON([]map[string]string{
 		{"role": "user", "content": prompt},
 	})

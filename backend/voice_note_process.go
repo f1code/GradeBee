@@ -140,11 +140,11 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			continue
 		}
 
-		studentID, err := studentRepo.FindByNameAndClass(ctx, student.Name, student.Level, userID)
+		studentID, err := studentRepo.FindByNameAndClass(ctx, student.Name, student.ClassName, userID)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
 				log.Warn("process voice note: student not found in DB, skipping",
-					"student", student.Name, "class", student.Level)
+					"student", student.Name, "class_name", student.ClassName)
 				continue
 			}
 			return fail("find student "+student.Name, err)
@@ -163,7 +163,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		noteLinks = append(noteLinks, NoteLink{
 			Name: student.Name, NoteID: result.NoteID,
-			StudentID: studentID, LevelName: student.Level,
+			StudentID: studentID, LevelName: student.ClassName,
 		})
 	}
 

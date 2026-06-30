@@ -116,7 +116,7 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
             placeholder="Schedule (optional)"
             disabled={submitting}
             className="add-class-input"
-            data-testid="add-class-group-input"
+            data-testid="add-class-schedule-input"
           />
         </div>
         <p className="add-class-hint" data-testid="add-class-hint">

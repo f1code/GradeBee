@@ -2,27 +2,27 @@
   "expected_students": [
     {
       "name": "Théo",
-      "class": "Marcia-Wed@14:10",
+      "class_name": "Marcia-Wed@14:10",
       "must_quote_substrings": ["very good participation and motivation", "/making (?:the )?full sentences/", "I can", "animals could"]
     },
     {
       "name": "Inaya",
-      "class": "Marcia-Wed@14:10",
+      "class_name": "Marcia-Wed@14:10",
       "must_quote_substrings": ["/repeat.* in full structures/", "animals could"]
     },
     {
       "name": "Camille",
-      "class": "Marcia-Wed@14:10",
+      "class_name": "Marcia-Wed@14:10",
       "must_quote_substrings": ["/repeat.* in full structures/", "/easily kn(?:owing|ew) what to take .* area/", "animals could"]
     },
     {
       "name": "Lina",
-      "class": "Marcia-Wed@14:10",
+      "class_name": "Marcia-Wed@14:10",
       "must_quote_substrings": ["/Lina.*did well/", "animals could"]
     },
     {
       "name": "Lucie",
-      "class": "Marcia-Wed@14:10",
+      "class_name": "Marcia-Wed@14:10",
       "must_quote_substrings": ["/Lucie.*did well/", "animals could"]
     }
   ],

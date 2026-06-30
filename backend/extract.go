@@ -33,7 +33,7 @@ type ExtractResponse struct {
 // MatchedStudent is a single student extraction result.
 type MatchedStudent struct {
 	Name       string             `json:"name"`
-	Level      string             `json:"level"`
+	ClassName  string             `json:"class_name"`
 	QuotedText string             `json:"quoted_text"` // Extracted passages from transcript, unchanged
 	Confidence float64            `json:"confidence"`
 	Candidates []StudentCandidate `json:"candidates,omitempty"`
@@ -41,8 +41,8 @@ type MatchedStudent struct {
 
 // StudentCandidate is a possible roster match for a low-confidence extraction.
 type StudentCandidate struct {
-	Name  string `json:"name"`
-	Level string `json:"level"`
+	Name      string `json:"name"`
+	ClassName string `json:"class_name"`
 }
 
 // llmExtractor uses an LLMProvider to extract student mentions from transcripts.
@@ -86,9 +86,9 @@ func BuildExtractionPrompt(classes []ClassGroup) string {
 	for _, c := range classes {
 		for _, s := range c.Students {
 			if len(s.Aliases) > 0 {
-				sb.WriteString(fmt.Sprintf("- %s (aka %s) (class %s)\n", s.Name, strings.Join(s.Aliases, ", "), c.Name))
+				sb.WriteString(fmt.Sprintf("- %s (aka %s) (class_name %s)\n", s.Name, strings.Join(s.Aliases, ", "), c.Name))
 			} else {
-				sb.WriteString(fmt.Sprintf("- %s (class %s)\n", s.Name, c.Name))
+				sb.WriteString(fmt.Sprintf("- %s (class_name %s)\n", s.Name, c.Name))
 			}
 		}
 	}
@@ -107,7 +107,7 @@ func extractResponseSchema() json.RawMessage {
 					"type": "object",
 					"properties": {
 						"name": {"type": "string"},
-						"level": {"type": "string"},
+						"class_name": {"type": "string"},
 						"quoted_text": {"type": "string"},
 						"confidence": {"type": "number"},
 						"candidates": {
@@ -116,14 +116,14 @@ func extractResponseSchema() json.RawMessage {
 								"type": "object",
 								"properties": {
 									"name": {"type": "string"},
-									"level": {"type": "string"}
+									"class_name": {"type": "string"}
 								},
-								"required": ["name", "level"],
+								"required": ["name", "class_name"],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["name", "level", "quoted_text", "confidence", "candidates"],
+					"required": ["name", "class_name", "quoted_text", "confidence", "candidates"],
 					"additionalProperties": false
 				}
 			},

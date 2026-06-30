@@ -402,7 +402,7 @@ export async function updateReportExample(
 
 export async function generateReports(
   req: {
-    students: { studentId: number; name: string; class: string }[]
+    students: { studentId: number; name: string; className: string }[]
     startDate: string
     endDate: string
     instructions?: string

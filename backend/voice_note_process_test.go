@@ -49,8 +49,8 @@ func TestProcessJob_HappyPath(t *testing.T) {
 			result: &ExtractResponse{
 				Date: "2026-03-22",
 				Students: []MatchedStudent{
-					{Name: "Alice", Level: "Math", QuotedText: "Did great", Confidence: 0.9},
-					{Name: "Bob", Level: "Math", QuotedText: "Needs improvement", Confidence: 0.8},
+					{Name: "Alice", ClassName: "Math", QuotedText: "Did great", Confidence: 0.9},
+					{Name: "Bob", ClassName: "Math", QuotedText: "Needs improvement", Confidence: 0.8},
 				},
 			},
 		},
@@ -154,7 +154,7 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date:     "2026-01-01",
-			Students: []MatchedStudent{{Name: "Alice", Level: "Math", QuotedText: "ok", Confidence: 0.9}},
+			Students: []MatchedStudent{{Name: "Alice", ClassName: "Math", QuotedText: "ok", Confidence: 0.9}},
 		}},
 		noteCreator:   &stubNoteCreator{err: io.ErrUnexpectedEOF},
 		studentRepo:   studentRepo,
@@ -211,8 +211,8 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-01-01",
 			Students: []MatchedStudent{
-				{Name: "Alice", Level: "Math", QuotedText: "ok", Confidence: 0.9},
-				{Name: "Alice", Level: "WrongClass", QuotedText: "hallucinated", Confidence: 0.9},
+				{Name: "Alice", ClassName: "Math", QuotedText: "ok", Confidence: 0.9},
+				{Name: "Alice", ClassName: "WrongClass", QuotedText: "hallucinated", Confidence: 0.9},
 			},
 		}},
 		noteCreator:   nc,
@@ -255,8 +255,8 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-01-01",
 			Students: []MatchedStudent{
-				{Name: "Alice", Level: "Math", QuotedText: "ok", Confidence: 0.9},
-				{Name: "Maybe", Level: "Math", QuotedText: "unsure", Confidence: 0.3},
+				{Name: "Alice", ClassName: "Math", QuotedText: "ok", Confidence: 0.9},
+				{Name: "Maybe", ClassName: "Math", QuotedText: "unsure", Confidence: 0.3},
 			},
 		}},
 		noteCreator:   nc,
@@ -301,7 +301,7 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-04-13",
 			Students: []MatchedStudent{
-				{Name: "Alice", Level: "Math", QuotedText: rawQuote, Confidence: 0.95},
+				{Name: "Alice", ClassName: "Math", QuotedText: rawQuote, Confidence: 0.95},
 			},
 		}},
 		noteCreator:   nc,
@@ -348,7 +348,7 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date:     "2026-04-13",
-			Students: []MatchedStudent{{Name: "Alice", Level: "Math", QuotedText: "did well", Confidence: 0.9}},
+			Students: []MatchedStudent{{Name: "Alice", ClassName: "Math", QuotedText: "did well", Confidence: 0.9}},
 		}},
 		noteCreator:   nc,
 		studentRepo:   studentRepo,

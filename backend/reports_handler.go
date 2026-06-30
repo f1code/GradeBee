@@ -26,7 +26,7 @@ type GenerateReportsHTTPRequest struct {
 type ReportStudentInput struct {
 	StudentID int64  `json:"studentId"`
 	Name      string `json:"name"`
-	Class     string `json:"class"`
+	ClassName string `json:"className"`
 }
 
 // ReportResult is the per-student result in a generate/regenerate response.
@@ -34,7 +34,7 @@ type ReportResult struct {
 	ID        int64  `json:"id"`
 	StudentID int64  `json:"studentId"`
 	Student   string `json:"student"`
-	Class     string `json:"class"`
+	ClassName string `json:"className"`
 	HTML      string `json:"html"`
 	StartDate string `json:"startDate"`
 	EndDate   string `json:"endDate"`
@@ -93,15 +93,15 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 		// Look up student's class to get LevelName for example filtering.
 		var levelName string
 		if student, err := serviceDeps.GetStudentRepo().GetByID(ctx, s.StudentID); err == nil {
-			if class, err := serviceDeps.GetClassRepo().GetByID(ctx, student.ClassID); err == nil {
-				levelName = class.LevelName
+			if cls, err := serviceDeps.GetClassRepo().GetByID(ctx, student.ClassID); err == nil {
+				levelName = cls.LevelName
 			}
 		}
 
 		resp, err := generator.Generate(ctx, GenerateReportRequest{
 			StudentID:    s.StudentID,
 			Student:      s.Name,
-			Class:        s.Class,
+			ClassName:    s.ClassName,
 			LevelName:    levelName,
 			StartDate:    req.StartDate,
 			EndDate:      req.EndDate,
@@ -121,7 +121,7 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 			ID:        resp.ReportID,
 			StudentID: s.StudentID,
 			Student:   s.Name,
-			Class:     s.Class,
+			ClassName: s.ClassName,
 			HTML:      resp.HTML,
 			StartDate: req.StartDate,
 			EndDate:   req.EndDate,
@@ -194,7 +194,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load student"})
 		return
 	}
-	class, err := serviceDeps.GetClassRepo().GetByID(ctx, student.ClassID)
+	cls, err := serviceDeps.GetClassRepo().GetByID(ctx, student.ClassID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load class"})
 		return
@@ -217,8 +217,8 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		Feedback:     req.Feedback,
 		StudentID:    rpt.StudentID,
 		Student:      student.Name,
-		Class:        class.Name,
-		LevelName:    class.LevelName,
+		ClassName:    cls.Name,
+		LevelName:    cls.LevelName,
 		StartDate:    rpt.StartDate,
 		EndDate:      rpt.EndDate,
 		UserID:       userID,
@@ -255,7 +255,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		ID:        resp.ReportID,
 		StudentID: rpt.StudentID,
 		Student:   student.Name,
-		Class:     class.Name,
+		ClassName: cls.Name,
 		HTML:      resp.HTML,
 		StartDate: rpt.StartDate,
 		EndDate:   rpt.EndDate,
@@ -328,7 +328,7 @@ func handleGetReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load student"})
 		return
 	}
-	class, err := serviceDeps.GetClassRepo().GetByID(r.Context(), student.ClassID)
+	cls, err := serviceDeps.GetClassRepo().GetByID(r.Context(), student.ClassID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to load class"})
 		return
@@ -338,7 +338,7 @@ func handleGetReport(w http.ResponseWriter, r *http.Request) {
 			ID:        rpt.ID,
 			StudentID: rpt.StudentID,
 			Student:   student.Name,
-			Class:     class.Name,
+			ClassName: cls.Name,
 			HTML:       rpt.HTML,
 			StartDate: rpt.StartDate,
 			EndDate:   rpt.EndDate,
