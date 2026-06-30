@@ -67,8 +67,8 @@
       ansible.builtin.file:
         path: "{{ data_dir }}"
         state: directory
-        owner: root
-        group: root
+        owner: dokku
+        group: dokku
         mode: "0755"
       # NOTE: Container write access to /data depends on the Dockerfile USER directive.
       # Verify when task #14 (app packaging) sets a non-root user.
