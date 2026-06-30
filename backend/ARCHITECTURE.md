@@ -231,8 +231,8 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 
 | Table | Purpose |
 |-------|---------|
-| `classes` | Teacher's classes. `class_name` (required) is the class identifier and is also used to tag report examples for style matching (see `report_example_classes`). `group_name` (optional, e.g. "Period 1") is purely organizational, grouping related classes. `name` is the derived display name (`class_name-group_name` when a group is set). |
-| `report_example_classes` | M-M link: report examples ↔ `class_name` values (drives example selection for style matching at report generation). |
+| `classes` | Teacher's classes. `level_name` (required) is the class identifier and is also used to tag report examples for style matching (see `report_example_classes`). `schedule_name` (optional, e.g. "Period 1") is purely organizational, grouping related classes. `name` is the derived display name (`level_name-schedule_name` when a schedule is set). |
+| `report_example_classes` | M-M link: report examples ↔ `level_name` values (drives example selection for style matching at report generation). |
 | `students` | Students belonging to classes |
 | `student_aliases` | Nickname/variant aliases per student (per-class uniqueness, case-insensitive) |
 | `notes` | Observation notes per student |

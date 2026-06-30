@@ -127,7 +127,7 @@ func (r *ReportExampleRepo) SetLevelNames(ctx context.Context, exampleID int64, 
 		return fmt.Errorf("set level names: delete: %w", err)
 	}
 	for _, ln := range levelNames {
-		if _, err := tx.ExecContext(ctx, "INSERT INTO report_example_classes (example_id, class_name) VALUES (?, ?)", exampleID, ln); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO report_example_classes (example_id, level_name) VALUES (?, ?)", exampleID, ln); err != nil {
 			return fmt.Errorf("set level names: insert %q: %w", ln, err)
 		}
 	}
@@ -137,7 +137,7 @@ func (r *ReportExampleRepo) SetLevelNames(ctx context.Context, exampleID int64, 
 // GetLevelNames returns the level names associated with a report example.
 func (r *ReportExampleRepo) GetLevelNames(ctx context.Context, exampleID int64) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx,
-		"SELECT class_name FROM report_example_classes WHERE example_id = ? ORDER BY class_name",
+		"SELECT level_name FROM report_example_classes WHERE example_id = ? ORDER BY level_name",
 		exampleID)
 	if err != nil {
 		return nil, fmt.Errorf("get level names: %w", err)
@@ -161,7 +161,7 @@ func (r *ReportExampleRepo) ListReadyByLevelName(ctx context.Context, userID, le
 		SELECT DISTINCT re.id, re.user_id, re.name, re.content, re.status, re.file_path, re.created_at
 		FROM report_examples re
 		JOIN report_example_classes rec ON rec.example_id = re.id
-		WHERE re.user_id = ? AND re.status = 'ready' AND rec.class_name = ?
+		WHERE re.user_id = ? AND re.status = 'ready' AND rec.level_name = ?
 		ORDER BY re.created_at DESC`, userID, levelName)
 	if err != nil {
 		return nil, fmt.Errorf("list ready by level name: %w", err)

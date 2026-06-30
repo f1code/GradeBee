@@ -30,7 +30,7 @@ type ClassWithCount struct {
 // including the count of students in each class.
 func (r *ClassRepo) List(ctx context.Context, userID string) ([]ClassWithCount, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT c.id, c.user_id, c.name, c.class_name, c.group_name, c.position, c.created_at, COUNT(s.id)
+		SELECT c.id, c.user_id, c.name, c.level_name, c.schedule_name, c.position, c.created_at, COUNT(s.id)
 		FROM classes c
 		LEFT JOIN students s ON s.class_id = c.id
 		WHERE c.user_id = ?
@@ -60,9 +60,9 @@ func (r *ClassRepo) Create(ctx context.Context, userID, levelName, scheduleName 
 		name = levelName + "-" + scheduleName
 	}
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO classes (user_id, name, class_name, group_name, position)
+		INSERT INTO classes (user_id, name, level_name, schedule_name, position)
 		VALUES (?, ?, ?, ?, COALESCE((SELECT MAX(position) FROM classes WHERE user_id = ?), 0) + 1)
-		RETURNING id, user_id, name, class_name, group_name, position, created_at`,
+		RETURNING id, user_id, name, level_name, schedule_name, position, created_at`,
 		userID, name, levelName, scheduleName, userID,
 	).Scan(&c.ID, &c.UserID, &c.Name, &c.LevelName, &c.ScheduleName, &c.Position, &c.CreatedAt)
 	if err != nil {
@@ -81,7 +81,7 @@ func (r *ClassRepo) Update(ctx context.Context, userID string, id int64, levelNa
 		name = levelName + "-" + scheduleName
 	}
 	res, err := r.db.ExecContext(ctx,
-		"UPDATE classes SET name = ?, class_name = ?, group_name = ? WHERE id = ? AND user_id = ?",
+		"UPDATE classes SET name = ?, level_name = ?, schedule_name = ? WHERE id = ? AND user_id = ?",
 		name, levelName, scheduleName, id, userID)
 	if err != nil {
 		if isDuplicateErr(err) {
@@ -92,10 +92,10 @@ func (r *ClassRepo) Update(ctx context.Context, userID string, id int64, levelNa
 	return rowsAffectedOrNotFound(res)
 }
 
-// ListDistinctLevelNames returns distinct class_name values for a user, ordered alphabetically.
+// ListDistinctLevelNames returns distinct level_name values for a user, ordered alphabetically.
 func (r *ClassRepo) ListDistinctLevelNames(ctx context.Context, userID string) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx,
-		"SELECT DISTINCT class_name FROM classes WHERE user_id = ? ORDER BY class_name", userID)
+		"SELECT DISTINCT level_name FROM classes WHERE user_id = ? ORDER BY level_name", userID)
 	if err != nil {
 		return nil, fmt.Errorf("list class names: %w", err)
 	}
@@ -115,7 +115,7 @@ func (r *ClassRepo) ListDistinctLevelNames(ctx context.Context, userID string) (
 func (r *ClassRepo) GetByID(ctx context.Context, id int64) (Class, error) {
 	var c Class
 	err := r.db.QueryRowContext(ctx,
-		"SELECT id, user_id, name, class_name, group_name, position, created_at FROM classes WHERE id = ?", id,
+		"SELECT id, user_id, name, level_name, schedule_name, position, created_at FROM classes WHERE id = ?", id,
 	).Scan(&c.ID, &c.UserID, &c.Name, &c.LevelName, &c.ScheduleName, &c.Position, &c.CreatedAt)
 	if err == sql.ErrNoRows {
 		return Class{}, ErrNotFound
