@@ -102,7 +102,7 @@ export async function listLevelNames(
   getToken: () => Promise<string | null>
 ): Promise<{ levelNames: string[] }> {
   const token = await getToken()
-  const resp = await fetch(`${apiUrl}/classes/class-names`, {
+  const resp = await fetch(`${apiUrl}/classes/level-names`, {
     headers: { Authorization: `Bearer ${token}` },
   })
   const body = await resp.json()

@@ -39,7 +39,7 @@ func TestListClassNames(t *testing.T) {
 	defer func() { serviceDeps = origDeps }()
 	serviceDeps = &mockDepsAll{classRepo: classRepo, studentRepo: &StudentRepo{db: db}}
 
-	req := httptest.NewRequest(http.MethodGet, "/classes/class-names", http.NoBody)
+	req := httptest.NewRequest(http.MethodGet, "/classes/level-names", http.NoBody)
 	ctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: "test-user"},
 	})

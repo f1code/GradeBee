@@ -43,7 +43,7 @@ async function mockBaseRoutes(page: Page) {
     }
   })
   // Class names for autocomplete
-  await page.route('**/classes/class-names', async (route) => {
+  await page.route('**/classes/level-names', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ levelNames: ['Grade 3A'] }) })
   })
 }
