@@ -26,9 +26,9 @@ Cache headers:
 |--------|------|------|---------|-------------|
 | GET | `/` `/health` | No | inline | Health check |
 | GET | `/api/classes` | Yes | `handleListClasses` | List user's classes with student counts |
-| POST | `/api/classes` | Yes | `handleCreateClass` | Create a class (body: `{className, group}`) |
-| PUT | `/api/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{className, group}`) |
-| GET | `/api/classes/class-names` | Yes | `handleListClassNames` | Distinct class names for autocomplete |
+| POST | `/api/classes` | Yes | `handleCreateClass` | Create a class (body: `{levelName, scheduleName}`) |
+| PUT | `/api/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{levelName, scheduleName}`) |
+| GET | `/api/classes/class-names` | Yes | `handleListClassNames` | Distinct level names for autocomplete |
 | DELETE | `/api/classes/{id}` | Yes | `handleDeleteClass` | Delete class + cascade |
 | GET | `/api/classes/{id}/students` | Yes | `handleListStudents` | List students in a class |
 | POST | `/api/classes/{id}/students` | Yes | `handleCreateStudent` | Add a student |

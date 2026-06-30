@@ -8,7 +8,7 @@ vi.mock('@clerk/react', () => ({
 
 vi.mock('../../api', () => ({
   createClass: vi.fn(),
-  listClassNames: vi.fn().mockResolvedValue({ classNames: [] }),
+  listLevelNames: vi.fn().mockResolvedValue({ levelNames: [] }),
 }))
 
 const mockCreateClass = createClass as ReturnType<typeof vi.fn>

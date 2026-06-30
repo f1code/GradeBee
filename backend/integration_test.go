@@ -45,14 +45,14 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did great. Bob needs work."},
 		roster: &stubRoster{
-			classNames: []string{"Math"},
+			levelNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-03-22",
 			Students: []MatchedStudent{
-				{Name: "Alice", Class: "Math", QuotedText: "Did great", Confidence: 0.9},
-				{Name: "Bob", Class: "Math", QuotedText: "Needs work", Confidence: 0.8},
+				{Name: "Alice", Level: "Math", QuotedText: "Did great", Confidence: 0.9},
+				{Name: "Bob", Level: "Math", QuotedText: "Needs work", Confidence: 0.8},
 			},
 		}},
 		noteCreator:   nc,
@@ -137,7 +137,7 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date:     "2026-01-01",
-			Students: []MatchedStudent{{Name: "Alice", Class: "Math", QuotedText: "ok", Confidence: 0.9}},
+			Students: []MatchedStudent{{Name: "Alice", Level: "Math", QuotedText: "ok", Confidence: 0.9}},
 		}},
 		noteCreator:    nc,
 		voiceNoteQueue: queue,
@@ -195,7 +195,7 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	doneJob, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
 	require.NoError(t, err)
 	doneJob.Status = JobStatusDone
-	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1, StudentID: 5, ClassName: "Math"}}
+	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1, StudentID: 5, LevelName: "Math"}}
 	require.NoError(t, queue.UpdateJob(ctx, *doneJob))
 
 	// Job 2: failed.
@@ -284,7 +284,7 @@ func TestLLM_SingleStudentCorrectClass(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result.Students, 1, "got %+v", result.Students)
 	assert.Equal(t, "Alice Johnson", result.Students[0].Name)
-	assert.Equal(t, "Math 101", result.Students[0].Class)
+	assert.Equal(t, "Math 101", result.Students[0].Level)
 }
 
 func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
@@ -304,7 +304,7 @@ func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
 
 	found := map[string]string{}
 	for _, s := range result.Students {
-		found[s.Name] = s.Class
+		found[s.Name] = s.Level
 	}
 	assert.Equal(t, "Math 101", found["Bob Smith"])
 	assert.Equal(t, "Science 202", found["Diana Lee"])
@@ -327,7 +327,7 @@ func TestLLM_UnknownClassSkipped(t *testing.T) {
 	// (or possibly empty results). It must NOT invent a class name.
 	validClasses := map[string]bool{"Math 101": true, "Science 202": true}
 	for _, s := range result.Students {
-		assert.True(t, validClasses[s.Class], "student %q assigned to invalid class %q", s.Name, s.Class)
+		assert.True(t, validClasses[s.Level], "student %q assigned to invalid class %q", s.Name, s.Level)
 	}
 }
 
@@ -349,7 +349,7 @@ func TestLLM_PartialNameMatch(t *testing.T) {
 	for _, s := range result.Students {
 		if s.Name == "Alexander Hamilton" {
 			found = true
-			assert.Equal(t, "English 101", s.Class)
+			assert.Equal(t, "English 101", s.Level)
 			break
 		}
 	}

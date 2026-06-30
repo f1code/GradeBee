@@ -131,19 +131,19 @@ export default function StudentList() {
 
   async function handleRenameClass(classId: number, newName: string, newGroup: string) {
     const old = classes.find(c => c.id === classId)
-    if (!old || (newName === old.className && newGroup === old.groupName)) {
+    if (!old || (newName === old.levelName && newGroup === old.scheduleName)) {
       setEditingClassId(null)
       return
     }
     const displayName = newGroup ? `${newName} — ${newGroup}` : newName
     // Optimistic update
-    setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: displayName, className: newName, groupName: newGroup } : c).sort((a, b) => a.name.localeCompare(b.name)))
+    setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: displayName, levelName: newName, scheduleName: newGroup } : c).sort((a, b) => a.name.localeCompare(b.name)))
     setEditingClassId(null)
     try {
       await renameClass(classId, newName, newGroup, getToken)
     } catch {
       // Revert
-      setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: old.name, className: old.className, groupName: old.groupName } : c).sort((a, b) => a.name.localeCompare(b.name)))
+      setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: old.name, levelName: old.levelName, scheduleName: old.scheduleName } : c).sort((a, b) => a.name.localeCompare(b.name)))
       showFlash('Failed to rename class')
     }
   }
@@ -369,15 +369,15 @@ export default function StudentList() {
                         <HexBullet />
                         {editingClassId === cls.id ? (
                           <InlineClassEdit
-                            className={cls.className}
-                            groupName={cls.groupName}
+                            levelName={cls.levelName}
+                            scheduleName={cls.scheduleName}
                             onSave={(newName, newGroup) => handleRenameClass(cls.id, newName, newGroup)}
                             onCancel={() => setEditingClassId(null)}
                           />
                         ) : (
                           <span className="level-name-text">
-                            {cls.className}
-                            {cls.groupName && <span className="schedule-name-text"> — {cls.groupName}</span>}
+                            {cls.levelName}
+                            {cls.scheduleName && <span className="schedule-name-text"> — {cls.scheduleName}</span>}
                           </span>
                         )}
                         <span className="count">({cls.studentCount})</span>
@@ -569,18 +569,18 @@ function InlineEdit({
 }
 
 function InlineClassEdit({
-  className,
-  groupName,
+  levelName,
+  scheduleName,
   onSave,
   onCancel,
 }: {
-  className: string
-  groupName: string
-  onSave: (className: string, groupName: string) => void
+  levelName: string
+  scheduleName: string
+  onSave: (levelName: string, scheduleName: string) => void
   onCancel: () => void
 }) {
-  const [name, setName] = useState(className)
-  const [group, setGroup] = useState(groupName)
+  const [name, setName] = useState(levelName)
+  const [group, setGroup] = useState(scheduleName)
   const nameRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 

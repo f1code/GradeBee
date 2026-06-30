@@ -65,12 +65,12 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		defer audioFile.Close()
 
-		var classNames []string
-		names, err := roster.ClassNames(ctx)
+		var levelNames []string
+		names, err := roster.LevelNames(ctx)
 		if err != nil {
-			log.Warn("process voice note: could not read class names", "error", err)
+			log.Warn("process voice note: could not read level names", "error", err)
 		} else {
-			classNames = names
+			levelNames = names
 		}
 
 		transcriber, err := d.GetTranscriber()
@@ -78,7 +78,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			return fail("init transcriber", err)
 		}
 
-		transcript, err = transcriber.Transcribe(ctx, job.FileName, audioFile, classNames)
+		transcript, err = transcriber.Transcribe(ctx, job.FileName, audioFile, levelNames)
 		if err != nil {
 			return fail("transcribe", err)
 		}
@@ -140,11 +140,11 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			continue
 		}
 
-		studentID, err := studentRepo.FindByNameAndClass(ctx, student.Name, student.Class, userID)
+		studentID, err := studentRepo.FindByNameAndClass(ctx, student.Name, student.Level, userID)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
 				log.Warn("process voice note: student not found in DB, skipping",
-					"student", student.Name, "class", student.Class)
+					"student", student.Name, "class", student.Level)
 				continue
 			}
 			return fail("find student "+student.Name, err)
@@ -163,7 +163,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		noteLinks = append(noteLinks, NoteLink{
 			Name: student.Name, NoteID: result.NoteID,
-			StudentID: studentID, ClassName: student.Class,
+			StudentID: studentID, LevelName: student.Level,
 		})
 	}
 

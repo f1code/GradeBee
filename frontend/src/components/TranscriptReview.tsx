@@ -22,7 +22,7 @@ export default function TranscriptReview({ transcript, noteLinks }: TranscriptRe
               {noteLinks.map((link) => (
                 <li key={link.noteId} className="transcript-review-student">
                   <span className="transcript-review-student-name">{link.name}</span>
-                  <span className="transcript-review-student-class">{link.className}</span>
+                  <span className="transcript-review-student-class">{link.levelName}</span>
                 </li>
               ))}
             </ul>

@@ -99,16 +99,16 @@ test.describe('Report generation', () => {
     await expect(page.getByTestId('report-result-name')).toContainText('Alice')
   })
 
-  test('class with group name matches example by base className', async ({ page }) => {
+  test('class with group name matches example by base levelName', async ({ page }) => {
     // Regression test: c.name is "Math — Group A" but examples store just "Math"
-    // The matching must use c.className, not c.name.
+    // The matching must use c.levelName, not c.name.
     await page.route('**/classes', async (route) => {
       if (route.request().method() === 'GET' && !route.request().url().includes('/classes/')) {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            classes: [{ id: 1, name: 'Math — Group A', className: 'Math', groupName: 'Group A', studentCount: 1 }],
+            classes: [{ id: 1, name: 'Math — Group A', levelName: 'Math', scheduleName: 'Group A', studentCount: 1 }],
           }),
         })
       } else {
@@ -121,7 +121,7 @@ test.describe('Report generation', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            examples: [{ id: 1, name: 'Math example.pdf', content: 'Example content.', status: 'ready', classNames: ['Math'] }],
+            examples: [{ id: 1, name: 'Math example.pdf', content: 'Example content.', status: 'ready', levelNames: ['Math'] }],
           }),
         })
       } else {
@@ -136,7 +136,7 @@ test.describe('Report generation', () => {
     // Select Alice (whose class has a group suffix in its display name)
     await page.getByText('Alice').click()
 
-    // The example's classNames: ['Math'] should match c.className 'Math', not c.name 'Math — Group A'
+    // The example's levelNames: ['Math'] should match c.levelName 'Math', not c.name 'Math — Group A'
     await expect(page.getByTestId('generate-blocker')).not.toBeAttached()
     await expect(page.getByRole('button', { name: /Generate.*Report/ })).toBeEnabled()
   })

@@ -93,7 +93,7 @@ func TestUploadExample_PDFDispatchesAsync(t *testing.T) {
 	require.NoError(t, err)
 	_, err = part.Write([]byte("fake pdf data"))
 	require.NoError(t, err)
-	require.NoError(t, writer.WriteField("classNames", `["Grade 4"]`))
+	require.NoError(t, writer.WriteField("levelNames", `["Grade 4"]`))
 	writer.Close()
 
 	r := httptest.NewRequest(http.MethodPost, "/report-examples", &buf)
@@ -125,7 +125,7 @@ func TestUploadExample_TextFileStoresDirect(t *testing.T) {
 	require.NoError(t, err)
 	_, err = part.Write([]byte("Some report card text"))
 	require.NoError(t, err)
-	require.NoError(t, writer.WriteField("classNames", `["Grade 4"]`))
+	require.NoError(t, writer.WriteField("levelNames", `["Grade 4"]`))
 	writer.Close()
 
 	r := httptest.NewRequest(http.MethodPost, "/report-examples", &buf)

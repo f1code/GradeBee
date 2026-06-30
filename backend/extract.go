@@ -33,7 +33,7 @@ type ExtractResponse struct {
 // MatchedStudent is a single student extraction result.
 type MatchedStudent struct {
 	Name       string             `json:"name"`
-	Class      string             `json:"class"`
+	Level      string             `json:"level"`
 	QuotedText string             `json:"quoted_text"` // Extracted passages from transcript, unchanged
 	Confidence float64            `json:"confidence"`
 	Candidates []StudentCandidate `json:"candidates,omitempty"`
@@ -42,7 +42,7 @@ type MatchedStudent struct {
 // StudentCandidate is a possible roster match for a low-confidence extraction.
 type StudentCandidate struct {
 	Name  string `json:"name"`
-	Class string `json:"class"`
+	Level string `json:"level"`
 }
 
 // llmExtractor uses an LLMProvider to extract student mentions from transcripts.
@@ -107,7 +107,7 @@ func extractResponseSchema() json.RawMessage {
 					"type": "object",
 					"properties": {
 						"name": {"type": "string"},
-						"class": {"type": "string"},
+						"level": {"type": "string"},
 						"quoted_text": {"type": "string"},
 						"confidence": {"type": "number"},
 						"candidates": {
@@ -116,14 +116,14 @@ func extractResponseSchema() json.RawMessage {
 								"type": "object",
 								"properties": {
 									"name": {"type": "string"},
-									"class": {"type": "string"}
+									"level": {"type": "string"}
 								},
-								"required": ["name", "class"],
+								"required": ["name", "level"],
 								"additionalProperties": false
 							}
 						}
 					},
-					"required": ["name", "class", "quoted_text", "confidence", "candidates"],
+					"required": ["name", "level", "quoted_text", "confidence", "candidates"],
 					"additionalProperties": false
 				}
 			},

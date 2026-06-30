@@ -11,18 +11,18 @@ type ClassRepo struct{ db *sql.DB }
 
 // Class represents a row in the classes table.
 type Class struct {
-	ID        int64  `json:"id"`
-	UserID    string `json:"userId"`
-	Name      string `json:"name"`
-	ClassName string `json:"className"`
-	GroupName string `json:"groupName"`
-	Position  int    `json:"position"`
-	CreatedAt string `json:"createdAt"`
+	ID           int64  `json:"id"`
+	UserID       string `json:"userId"`
+	Name         string `json:"name"`
+	LevelName    string `json:"levelName"`
+	ScheduleName string `json:"scheduleName"`
+	Position     int    `json:"position"`
+	CreatedAt    string `json:"createdAt"`
 }
 
 // ClassWithCount is a Class with its student count.
 type ClassWithCount struct {
-	Class `tstype:",extends"`
+	Class        `tstype:",extends"`
 	StudentCount int `json:"studentCount"`
 }
 
@@ -44,7 +44,7 @@ func (r *ClassRepo) List(ctx context.Context, userID string) ([]ClassWithCount, 
 	var result []ClassWithCount
 	for rows.Next() {
 		var c ClassWithCount
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.ClassName, &c.GroupName, &c.Position, &c.CreatedAt, &c.StudentCount); err != nil {
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.LevelName, &c.ScheduleName, &c.Position, &c.CreatedAt, &c.StudentCount); err != nil {
 			return nil, fmt.Errorf("scan class: %w", err)
 		}
 		result = append(result, c)
@@ -53,18 +53,18 @@ func (r *ClassRepo) List(ctx context.Context, userID string) ([]ClassWithCount, 
 }
 
 // Create inserts a new class for the user. Position is set to max+1.
-func (r *ClassRepo) Create(ctx context.Context, userID, className, groupName string) (Class, error) {
+func (r *ClassRepo) Create(ctx context.Context, userID, levelName, scheduleName string) (Class, error) {
 	var c Class
-	name := className
-	if groupName != "" {
-		name = className + "-" + groupName
+	name := levelName
+	if scheduleName != "" {
+		name = levelName + "-" + scheduleName
 	}
 	err := r.db.QueryRowContext(ctx, `
 		INSERT INTO classes (user_id, name, class_name, group_name, position)
 		VALUES (?, ?, ?, ?, COALESCE((SELECT MAX(position) FROM classes WHERE user_id = ?), 0) + 1)
 		RETURNING id, user_id, name, class_name, group_name, position, created_at`,
-		userID, name, className, groupName, userID,
-	).Scan(&c.ID, &c.UserID, &c.Name, &c.ClassName, &c.GroupName, &c.Position, &c.CreatedAt)
+		userID, name, levelName, scheduleName, userID,
+	).Scan(&c.ID, &c.UserID, &c.Name, &c.LevelName, &c.ScheduleName, &c.Position, &c.CreatedAt)
 	if err != nil {
 		if isDuplicateErr(err) {
 			return Class{}, fmt.Errorf("create class %q: %w", name, ErrDuplicate)
@@ -75,14 +75,14 @@ func (r *ClassRepo) Create(ctx context.Context, userID, className, groupName str
 }
 
 // Update updates the name of a class owned by the user.
-func (r *ClassRepo) Update(ctx context.Context, userID string, id int64, className, groupName string) error {
-	name := className
-	if groupName != "" {
-		name = className + "-" + groupName
+func (r *ClassRepo) Update(ctx context.Context, userID string, id int64, levelName, scheduleName string) error {
+	name := levelName
+	if scheduleName != "" {
+		name = levelName + "-" + scheduleName
 	}
 	res, err := r.db.ExecContext(ctx,
 		"UPDATE classes SET name = ?, class_name = ?, group_name = ? WHERE id = ? AND user_id = ?",
-		name, className, groupName, id, userID)
+		name, levelName, scheduleName, id, userID)
 	if err != nil {
 		if isDuplicateErr(err) {
 			return fmt.Errorf("update class: %w", ErrDuplicate)
@@ -92,8 +92,8 @@ func (r *ClassRepo) Update(ctx context.Context, userID string, id int64, classNa
 	return rowsAffectedOrNotFound(res)
 }
 
-// ListDistinctClassNames returns distinct class_name values for a user, ordered alphabetically.
-func (r *ClassRepo) ListDistinctClassNames(ctx context.Context, userID string) ([]string, error) {
+// ListDistinctLevelNames returns distinct class_name values for a user, ordered alphabetically.
+func (r *ClassRepo) ListDistinctLevelNames(ctx context.Context, userID string) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx,
 		"SELECT DISTINCT class_name FROM classes WHERE user_id = ? ORDER BY class_name", userID)
 	if err != nil {
@@ -116,7 +116,7 @@ func (r *ClassRepo) GetByID(ctx context.Context, id int64) (Class, error) {
 	var c Class
 	err := r.db.QueryRowContext(ctx,
 		"SELECT id, user_id, name, class_name, group_name, position, created_at FROM classes WHERE id = ?", id,
-	).Scan(&c.ID, &c.UserID, &c.Name, &c.ClassName, &c.GroupName, &c.Position, &c.CreatedAt)
+	).Scan(&c.ID, &c.UserID, &c.Name, &c.LevelName, &c.ScheduleName, &c.Position, &c.CreatedAt)
 	if err == sql.ErrNoRows {
 		return Class{}, ErrNotFound
 	}

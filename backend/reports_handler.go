@@ -90,11 +90,11 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Look up student's class to get ClassName for example filtering.
-		var className string
+		// Look up student's class to get LevelName for example filtering.
+		var levelName string
 		if student, err := serviceDeps.GetStudentRepo().GetByID(ctx, s.StudentID); err == nil {
 			if class, err := serviceDeps.GetClassRepo().GetByID(ctx, student.ClassID); err == nil {
-				className = class.ClassName
+				levelName = class.LevelName
 			}
 		}
 
@@ -102,7 +102,7 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 			StudentID:    s.StudentID,
 			Student:      s.Name,
 			Class:        s.Class,
-			ClassName:    className,
+			LevelName:    levelName,
 			StartDate:    req.StartDate,
 			EndDate:      req.EndDate,
 			UserID:       userID,
@@ -218,7 +218,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		StudentID:    rpt.StudentID,
 		Student:      student.Name,
 		Class:        class.Name,
-		ClassName:    class.ClassName,
+		LevelName:    class.LevelName,
 		StartDate:    rpt.StartDate,
 		EndDate:      rpt.EndDate,
 		UserID:       userID,

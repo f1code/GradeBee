@@ -6,8 +6,8 @@ describe('TranscriptReview', () => {
   const defaultProps = {
     transcript: 'Today I observed that Emma did great on her math test. Jacob was struggling with reading.',
     noteLinks: [
-      { name: 'Emma', noteId: 1, studentId: 10, className: 'Class A' },
-      { name: 'Jacob', noteId: 2, studentId: 11, className: 'Class A' },
+      { name: 'Emma', noteId: 1, studentId: 10, levelName: 'Class A' },
+      { name: 'Jacob', noteId: 2, studentId: 11, levelName: 'Class A' },
     ],
   }
 

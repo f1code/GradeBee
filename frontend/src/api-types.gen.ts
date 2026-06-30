@@ -78,7 +78,7 @@ export interface ExtractResponse {
  */
 export interface MatchedStudent {
   name: string;
-  class: string;
+  level: string;
   quoted_text: string; // Extracted passages from transcript, unchanged
   confidence: number /* float64 */;
   candidates?: StudentCandidate[];
@@ -88,7 +88,7 @@ export interface MatchedStudent {
  */
 export interface StudentCandidate {
   name: string;
-  class: string;
+  level: string;
 }
 
 //////////
@@ -310,8 +310,8 @@ export interface Class {
   id: number /* int64 */;
   userId: string;
   name: string;
-  className: string;
-  groupName: string;
+  levelName: string;
+  scheduleName: string;
   position: number /* int */;
   createdAt: string;
 }
@@ -548,7 +548,7 @@ export interface ReportExample {
   name: string;
   content: string;
   status: string; // "ready", "processing", "failed"
-  classNames: string[];
+  levelNames: string[];
 }
 /**
  * ExampleStore abstracts CRUD operations for example report cards.
@@ -583,7 +583,7 @@ export interface GenerateReportRequest {
   StudentID: number /* int64 */;
   Student: string;
   Class: string;
-  ClassName: string;
+  LevelName: string;
   StartDate: string; // YYYY-MM-DD
   EndDate: string; // YYYY-MM-DD
   UserID: string;
@@ -610,7 +610,7 @@ export interface RegenerateReportRequest {
   StudentID: number /* int64 */;
   Student: string;
   Class: string;
-  ClassName: string;
+  LevelName: string;
   StartDate: string;
   EndDate: string;
   UserID: string;
@@ -814,7 +814,7 @@ export interface NoteLink {
   name: string;
   noteId: number /* int64 */;
   studentId: number /* int64 */;
-  className: string;
+  levelName: string;
 }
 /**
  * VoiceNoteJob represents an async voice note processing job.

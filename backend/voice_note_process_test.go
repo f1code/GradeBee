@@ -42,15 +42,15 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did great today. Bob needs improvement."},
 		roster: &stubRoster{
-			classNames: []string{"Math"},
+			levelNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{
 			result: &ExtractResponse{
 				Date: "2026-03-22",
 				Students: []MatchedStudent{
-					{Name: "Alice", Class: "Math", QuotedText: "Did great", Confidence: 0.9},
-					{Name: "Bob", Class: "Math", QuotedText: "Needs improvement", Confidence: 0.8},
+					{Name: "Alice", Level: "Math", QuotedText: "Did great", Confidence: 0.9},
+					{Name: "Bob", Level: "Math", QuotedText: "Needs improvement", Confidence: 0.8},
 				},
 			},
 		},
@@ -154,7 +154,7 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date:     "2026-01-01",
-			Students: []MatchedStudent{{Name: "Alice", Class: "Math", QuotedText: "ok", Confidence: 0.9}},
+			Students: []MatchedStudent{{Name: "Alice", Level: "Math", QuotedText: "ok", Confidence: 0.9}},
 		}},
 		noteCreator:   &stubNoteCreator{err: io.ErrUnexpectedEOF},
 		studentRepo:   studentRepo,
@@ -211,8 +211,8 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-01-01",
 			Students: []MatchedStudent{
-				{Name: "Alice", Class: "Math", QuotedText: "ok", Confidence: 0.9},
-				{Name: "Alice", Class: "WrongClass", QuotedText: "hallucinated", Confidence: 0.9},
+				{Name: "Alice", Level: "Math", QuotedText: "ok", Confidence: 0.9},
+				{Name: "Alice", Level: "WrongClass", QuotedText: "hallucinated", Confidence: 0.9},
 			},
 		}},
 		noteCreator:   nc,
@@ -255,8 +255,8 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-01-01",
 			Students: []MatchedStudent{
-				{Name: "Alice", Class: "Math", QuotedText: "ok", Confidence: 0.9},
-				{Name: "Maybe", Class: "Math", QuotedText: "unsure", Confidence: 0.3},
+				{Name: "Alice", Level: "Math", QuotedText: "ok", Confidence: 0.9},
+				{Name: "Maybe", Level: "Math", QuotedText: "unsure", Confidence: 0.3},
 			},
 		}},
 		noteCreator:   nc,
@@ -295,13 +295,13 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "some transcript"},
 		roster: &stubRoster{
-			classNames: []string{"Math"},
+			levelNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-04-13",
 			Students: []MatchedStudent{
-				{Name: "Alice", Class: "Math", QuotedText: rawQuote, Confidence: 0.95},
+				{Name: "Alice", Level: "Math", QuotedText: rawQuote, Confidence: 0.95},
 			},
 		}},
 		noteCreator:   nc,
@@ -343,12 +343,12 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did well"},
 		roster: &stubRoster{
-			classNames: []string{"Math"},
+			levelNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date:     "2026-04-13",
-			Students: []MatchedStudent{{Name: "Alice", Class: "Math", QuotedText: "did well", Confidence: 0.9}},
+			Students: []MatchedStudent{{Name: "Alice", Level: "Math", QuotedText: "did well", Confidence: 0.9}},
 		}},
 		noteCreator:   nc,
 		studentRepo:   studentRepo,

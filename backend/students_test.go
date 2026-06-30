@@ -51,6 +51,6 @@ func TestListClassNames(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	var resp map[string][]string
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode failed")
-	names := resp["classNames"]
+	names := resp["levelNames"]
 	assert.Len(t, names, 2, "got %v, want 2 distinct names", names)
 }

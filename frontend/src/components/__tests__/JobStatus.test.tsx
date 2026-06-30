@@ -113,8 +113,8 @@ describe('JobStatus', () => {
         fileName: 'complete.m4a',
         status: 'done' as const,
         noteLinks: [
-          { name: 'Alice', noteId: 10, studentId: 1, className: 'Math' },
-          { name: 'Bob', noteId: 11, studentId: 2, className: 'Math' },
+          { name: 'Alice', noteId: 10, studentId: 1, levelName: 'Math' },
+          { name: 'Bob', noteId: 11, studentId: 2, levelName: 'Math' },
         ],
         createdAt: '2026-03-26T08:00:00Z',
       }],
@@ -136,7 +136,7 @@ describe('JobStatus', () => {
     mockFetchJobs
       .mockResolvedValueOnce({ active: [{ uploadId: 1, fileName: 'a.m4a', status: 'transcribing', createdAt: '2026-03-26T10:00:00Z' }], failed: [], done: [] })
       // Second poll: job is done
-      .mockResolvedValue({ active: [], failed: [], done: [{ uploadId: 1, fileName: 'a.m4a', status: 'done' as const, noteLinks: [{ name: 'Student', noteId: 5, studentId: 3, className: 'Science' }], createdAt: '2026-03-26T10:00:00Z' }] })
+      .mockResolvedValue({ active: [], failed: [], done: [{ uploadId: 1, fileName: 'a.m4a', status: 'done' as const, noteLinks: [{ name: 'Student', noteId: 5, studentId: 3, levelName: 'Science' }], createdAt: '2026-03-26T10:00:00Z' }] })
 
     const { default: JobStatus } = await import('../JobStatus')
     render(<JobStatus />)
@@ -168,7 +168,7 @@ describe('JobStatus', () => {
         status: 'done' as const,
         transcript: 'Emma did great on math. Jacob struggled with reading.',
         noteLinks: [
-          { name: 'Emma', noteId: 30, studentId: 10, className: 'Class A' },
+          { name: 'Emma', noteId: 30, studentId: 10, levelName: 'Class A' },
         ],
         createdAt: '2026-03-27T10:00:00Z',
       }],
@@ -224,7 +224,7 @@ describe('JobStatus', () => {
        
         fileName: 'recording.m4a',
         status: 'done' as const,
-        noteLinks: [{ name: 'Maxence', noteId: 20, studentId: 7, className: 'CE2' }],
+        noteLinks: [{ name: 'Maxence', noteId: 20, studentId: 7, levelName: 'CE2' }],
         createdAt: '2026-03-27T10:00:00Z',
       }],
     })
