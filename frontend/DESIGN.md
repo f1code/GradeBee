@@ -29,10 +29,10 @@
 - `background: var(--chalk)`, `border-radius: 12px`, warm box-shadow (`--shadow-md`).
 - Used for: class groups, setup panels, upload states, sign-in card.
 
-### Class fields: name vs group
+### Level and Schedule fields
 The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinct purposes — surface this distinction in helper text:
-- **Class name** (required): the class identifier. It also tags report examples for style matching, so reports for a class reuse examples sharing its name.
-- **Group** (optional, e.g. "Period 1"): purely organizational — groups related classes together. Shown as `Class name — Group`. It has no effect on report generation.
+- **Level** (required): the class identifier. It also tags report examples for style matching, so reports for a class reuse examples sharing its level.
+- **Schedule** (optional, e.g. "Period 1"): purely organizational — groups classes by schedule slot. Shown as `Level — Schedule`. It has no effect on report generation.
 
 ### Buttons
 - Base `<button>` is primary-styled by default: `background: var(--honey)`, `color: var(--ink)`, shadow, 3D hover lift. No class needed.
@@ -64,7 +64,7 @@ The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinc
 
 - **Logo:** Inline SVG bee inside hexagon, paired with "GradeBee" in Fraunces.
 - **Header divider:** Repeating honeycomb-stripe gradient (not a plain border).
-- **Class group bullets:** Small filled hexagon SVG (`.hex-bullet`).
+- **Level bullets:** Small filled hexagon SVG (`.hex-bullet`).
 - **Background texture:** Subtle SVG noise overlay on body (paper-grain feel).
 - **Decorative patterns:** Honeycomb hex grid used sparingly behind sign-in and empty states.
 
@@ -92,7 +92,7 @@ For picking from a small set of options (e.g. assigning classes to an example), 
 - Selected (`.is-selected`): pale `--honey-light` bg, `--honey` border, bold label, `--honey`-filled check circle with `--ink` tick — noticeable but not saturated.
 - Hover lifts the border to `--honey`; keyboard focus (`:has(input:focus-visible)`) shows an offset dashed `--honey-dark` outline — distinct from the solid selected fill, and suppressed on mouse click.
 - Min height `36px` for touch.
-- CSS: `.class-names-select` (wrap container), `.class-names-option` / `.class-names-option.is-selected`.
+- CSS: `.level-names-select` (wrap container), `.level-names-option` / `.level-names-option.is-selected`.
 
 ### Guided Action Panel
 

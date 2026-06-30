@@ -188,7 +188,7 @@ describe('ReportGeneration — selection-aware blocking', () => {
     await user.click(screen.getByText('Alice'))
     await waitFor(() => {
       expect(screen.getByTestId('generate-blocker')).toHaveTextContent(
-        'Class 3B (no examples) — assign a class / add examples to continue.'
+        'Class 3B (no examples) — assign a level / add examples to continue.'
       )
     })
   })

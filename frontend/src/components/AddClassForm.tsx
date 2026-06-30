@@ -92,7 +92,7 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
                 if (suggestions.length > 0) setShowSuggestions(true)
               }}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              placeholder="Class name"
+              placeholder="Level"
               disabled={submitting}
               className="add-class-input"
               data-testid="add-class-input"
@@ -113,15 +113,15 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
             value={group}
             onChange={e => setGroup(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Group (optional)"
+            placeholder="Schedule (optional)"
             disabled={submitting}
             className="add-class-input"
             data-testid="add-class-group-input"
           />
         </div>
         <p className="add-class-hint" data-testid="add-class-hint">
-          <strong>Group</strong> is optional and just organizes related classes
-          together (e.g. “Period 1”). The <strong>class name</strong> identifies the
+          <strong>Schedule</strong> is optional and groups classes by schedule slot
+          (e.g. "Period 1"). The <strong>level</strong> identifies the
           class and is used to match report-card examples.
         </p>
         <div className="add-class-form-row">

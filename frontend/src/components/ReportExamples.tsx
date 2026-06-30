@@ -34,9 +34,9 @@ interface ClassNameTagsProps {
 function ClassNameTags({ classNames }: ClassNameTagsProps) {
   if (!classNames || classNames.length === 0) return null
   return (
-    <span className="class-name-tags">
+    <span className="level-name-tags">
       {classNames.map(n => (
-        <span key={n} className="class-name-tag">{n}</span>
+        <span key={n} className="level-name-tag">{n}</span>
       ))}
     </span>
   )
@@ -58,25 +58,25 @@ function ClassNamesSelect({ available, selected, onChange }: ClassNamesSelectPro
   }
 
   if (available.length === 0) {
-    return <p className="class-names-empty">No classes yet — add a class first, then come back to assign it.</p>
+    return <p className="level-names-empty">No classes yet — add a class first, then come back to assign it.</p>
   }
 
   return (
-    <div className="class-names-select" role="group">
+    <div className="level-names-select" role="group">
       {available.map(name => {
         const isSelected = selected.includes(name)
         return (
           <label
             key={name}
-            className={`class-names-option${isSelected ? ' is-selected' : ''}`}
+            className={`level-names-option${isSelected ? ' is-selected' : ''}`}
           >
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => toggle(name)}
             />
-            <span className="class-names-option-check" aria-hidden="true">✓</span>
-            <span className="class-names-option-label">{name}</span>
+            <span className="level-names-option-check" aria-hidden="true">✓</span>
+            <span className="level-names-option-label">{name}</span>
           </label>
         )
       })}
@@ -201,11 +201,11 @@ export default function ReportExamples({
             {pendingFiles && (
               <div className="upload-classnames-panel">
                 <p className="upload-classnames-title">
-                  Which class {pendingFiles.length > 1 ? 'are these examples' : 'is this example'} for?
+                Which level {pendingFiles.length > 1 ? 'are these examples' : 'is this example'} for?
                 </p>
                 <p className="upload-classnames-help">
-                  Pick the class{availableClassNames.length > 1 ? 'es' : ''} this should guide — reports for the
-                  selected class{availableClassNames.length > 1 ? 'es' : ''} will follow its writing style.
+                  Pick the level{availableClassNames.length > 1 ? 's' : ''} this should guide — reports for the
+                  selected level{availableClassNames.length > 1 ? 's' : ''} will follow its writing style.
                 </p>
                 <ul className="upload-classnames-files">
                   {pendingFiles.map((f, i) => (
@@ -213,7 +213,7 @@ export default function ReportExamples({
                   ))}
                 </ul>
                 {availableClassNames.length > 0 && (
-                  <p className="upload-classnames-steplabel">Choose a class</p>
+                  <p className="upload-classnames-steplabel">Choose a level</p>
                 )}
                 <ClassNamesSelect
                   available={availableClassNames}
@@ -221,7 +221,7 @@ export default function ReportExamples({
                   onChange={setUploadClassNames}
                 />
                 {availableClassNames.length > 0 && uploadClassNames.length === 0 && (
-                  <p className="upload-classnames-hint">Select at least one class to continue.</p>
+                  <p className="upload-classnames-hint">Select at least one level to continue.</p>
                 )}
                 <div className="upload-classnames-actions">
                   <button
@@ -352,7 +352,7 @@ export default function ReportExamples({
                             />
                           </label>
                           <label className="example-edit-label">
-                            Classes
+                            Levels
                           </label>
                           <ClassNamesSelect
                             available={availableClassNames}

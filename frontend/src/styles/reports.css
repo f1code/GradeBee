@@ -158,13 +158,13 @@
 }
 
 /* --- Class selection chips (used by assign panel + edit form) --- */
-.class-names-select {
+.level-names-select {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
 }
 
-.class-names-option {
+.level-names-option {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -180,11 +180,11 @@
   transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 
-.class-names-option:hover {
+.level-names-option:hover {
   border-color: var(--honey);
 }
 
-.class-names-option input {
+.level-names-option input {
   position: absolute;
   opacity: 0;
   width: 1px;
@@ -192,7 +192,7 @@
   pointer-events: none;
 }
 
-.class-names-option-check {
+.level-names-option-check {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -207,31 +207,31 @@
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.class-names-option.is-selected {
+.level-names-option.is-selected {
   background: var(--honey-light);
   border-color: var(--honey);
   font-weight: 600;
 }
 
-.class-names-option.is-selected .class-names-option-check {
+.level-names-option.is-selected .level-names-option-check {
   background: var(--honey);
   border-color: var(--honey);
   color: var(--ink);
 }
 
-.class-names-option:has(input:focus-visible) {
+.level-names-option:has(input:focus-visible) {
   outline: 2px dashed var(--honey-dark);
   outline-offset: 2px;
 }
 
-.class-names-empty {
+.level-names-empty {
   font-size: 0.85rem;
   color: var(--ink-muted);
   margin: 0;
 }
 
 /* --- Class tags shown on ready examples --- */
-.class-name-tags {
+.level-name-tags {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.3rem;
@@ -239,7 +239,7 @@
   vertical-align: middle;
 }
 
-.class-name-tag {
+.level-name-tag {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--honey-dark);

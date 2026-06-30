@@ -339,7 +339,7 @@ export default function StudentList() {
               return (
                 <motion.div
                   key={cls.id}
-                  className="class-group"
+                  className="level"
                   data-testid={`class-group-${cls.id}`}
                   variants={cardVariants}
                 >
@@ -364,7 +364,7 @@ export default function StudentList() {
 
                   {/* Class header */}
                   {!isDeleting && (
-                    <div className="class-group-header" onClick={() => toggleExpand(cls.id)} data-testid={`class-toggle-${cls.id}`}>
+                    <div className="level-header" onClick={() => toggleExpand(cls.id)} data-testid={`class-toggle-${cls.id}`}>
                       <h3>
                         <HexBullet />
                         {editingClassId === cls.id ? (
@@ -375,9 +375,9 @@ export default function StudentList() {
                             onCancel={() => setEditingClassId(null)}
                           />
                         ) : (
-                          <span className="class-name-text">
+                          <span className="level-name-text">
                             {cls.className}
-                            {cls.groupName && <span className="group-name-text"> — {cls.groupName}</span>}
+                            {cls.groupName && <span className="schedule-name-text"> — {cls.groupName}</span>}
                           </span>
                         )}
                         <span className="count">({cls.studentCount})</span>
@@ -624,7 +624,7 @@ function InlineClassEdit({
         onBlur={handleBlur}
         className="inline-edit-input"
         data-testid="inline-edit-class-name"
-        placeholder="Class name"
+        placeholder="Level"
       />
       <input
         type="text"
@@ -634,7 +634,7 @@ function InlineClassEdit({
         onBlur={handleBlur}
         className="inline-edit-input inline-edit-group"
         data-testid="inline-edit-group-name"
-        placeholder="Group (optional)"
+        placeholder="Schedule (optional)"
       />
     </div>
   )

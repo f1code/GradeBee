@@ -208,7 +208,7 @@ export default function ReportGeneration() {
     for (const c of classes) {
       if (!c.name) {
         for (const s of c.students) {
-          if (selected.has(s.id)) parts.push(`${s.name} (no class)`)
+          if (selected.has(s.id)) parts.push(`${s.name} (no level)`)
         }
       }
     }
@@ -224,7 +224,7 @@ export default function ReportGeneration() {
       }
     }
     return parts.length > 0
-      ? `${parts.join(', ')} — assign a class / add examples to continue.`
+      ? `${parts.join(', ')} — assign a level / add examples to continue.`
       : null
   }, [classes, selected, examples])
 
