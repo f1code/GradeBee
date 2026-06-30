@@ -11,7 +11,7 @@ import (
 type GenerateReportRequest struct {
 	StudentID    int64
 	Student      string
-	Class        string
+	ClassName    string
 	LevelName    string
 	StartDate    string // YYYY-MM-DD
 	EndDate      string // YYYY-MM-DD
@@ -38,7 +38,7 @@ type RegenerateReportRequest struct {
 	Feedback     string
 	StudentID    int64
 	Student      string
-	Class        string
+	ClassName    string
 	LevelName    string
 	StartDate    string
 	EndDate      string
@@ -79,7 +79,7 @@ func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	}
 
 	// 3. Build prompt and call LLM.
-	prompt := BuildReportPrompt(req.Student, req.Class, notes, examples, req.Instructions, "")
+	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, examples, req.Instructions, "")
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	}
 
 	// 3. Build prompt with feedback and call LLM.
-	prompt := BuildReportPrompt(req.Student, req.Class, notes, examples, req.Instructions, req.Feedback)
+	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, examples, req.Instructions, req.Feedback)
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err

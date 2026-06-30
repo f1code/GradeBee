@@ -84,7 +84,7 @@ test.describe('Feedback — explicit thumbs on report', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             reports: [{
-              id: 42, studentId: 10, student: 'Alice', class: 'Grade 3A',
+              id: 42, studentId: 10, student: 'Alice', className: 'Grade 3A',
               html: '<p>Alice shows great progress.</p>',
               startDate: '2026-01-01', endDate: '2026-03-31', createdAt: '2026-04-01T00:00:00Z',
             }],

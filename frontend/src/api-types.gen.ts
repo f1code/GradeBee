@@ -582,7 +582,7 @@ HTML report cards using an LLMProvider and student notes from the database.
 export interface GenerateReportRequest {
   StudentID: number /* int64 */;
   Student: string;
-  Class: string;
+  ClassName: string;
   LevelName: string;
   StartDate: string; // YYYY-MM-DD
   EndDate: string; // YYYY-MM-DD
@@ -609,7 +609,7 @@ export interface RegenerateReportRequest {
   Feedback: string;
   StudentID: number /* int64 */;
   Student: string;
-  Class: string;
+  ClassName: string;
   LevelName: string;
   StartDate: string;
   EndDate: string;
@@ -645,7 +645,7 @@ export interface GenerateReportsHTTPRequest {
 export interface ReportStudentInput {
   studentId: number /* int64 */;
   name: string;
-  class: string;
+  className: string;
 }
 /**
  * ReportResult is the per-student result in a generate/regenerate response.
@@ -654,7 +654,7 @@ export interface ReportResult {
   id: number /* int64 */;
   studentId: number /* int64 */;
   student: string;
-  class: string;
+  className: string;
   html: string;
   startDate: string;
   endDate: string;

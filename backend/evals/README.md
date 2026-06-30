@@ -65,7 +65,7 @@ make bin/eval-cli
 ./bin/eval-cli '{"vars":{"transcript":"Alice read well today.","classes":[{"name":"Grade 3A","students":["Alice Chen"]}]},"config":{"task":"build-extract-prompt"}}'
 
 # Build report prompt (exec-prompt mode)
-./bin/eval-cli '{"vars":{"student_name":"Alice Chen","class":"Grade 3A","notes":[{"date":"2026-01-15","summary":"Strong reading fluency."}],"examples":[],"instructions":""},"config":{"task":"build-report-prompt"}}'
+./bin/eval-cli '{"vars":{"student_name":"Alice Chen","class_name":"Grade 3A","notes":[{"date":"2026-01-15","summary":"Strong reading fluency."}],"examples":[],"instructions":""},"config":{"task":"build-report-prompt"}}'
 ```
 
 ## Directory layout

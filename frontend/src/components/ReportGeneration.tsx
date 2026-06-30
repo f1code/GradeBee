@@ -239,7 +239,7 @@ export default function ReportGeneration() {
       const students = classes.flatMap(c =>
         c.students
           .filter(s => selected.has(s.id))
-          .map(s => ({ studentId: s.id, name: s.name, class: c.name }))
+          .map(s => ({ studentId: s.id, name: s.name, className: c.name }))
       )
       const resp: GenerateReportsResponse = await generateReports(
         { students, startDate, endDate, instructions: instructions || undefined },
@@ -399,7 +399,7 @@ export default function ReportGeneration() {
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedReportId(isExpanded ? null : r.id) } }}
                     >
                       <span className="report-result-name" data-testid="report-result-name">
-                        {r.student} <span className="report-result-class">({r.class})</span>
+                        {r.student} <span className="report-result-class">({r.className})</span>
                       </span>
                       <svg
                         width="16" height="16" viewBox="0 0 16 16" fill="none"

@@ -144,7 +144,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
 				log.Warn("process voice note: student not found in DB, skipping",
-					"student", student.Name, "class", student.Level)
+					"student", student.Name, "level", student.Level)
 				continue
 			}
 			return fail("find student "+student.Name, err)
