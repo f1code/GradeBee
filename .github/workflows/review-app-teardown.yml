@@ -24,4 +24,4 @@ jobs:
             if dokku apps:exists "$APP_NAME" 2>/dev/null; then
               dokku apps:destroy "$APP_NAME" --force
             fi
-            dokku storage:destroy $APP_NAME --force
+            dokku storage:destroy data-$APP_NAME --force
