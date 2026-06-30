@@ -163,7 +163,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		noteLinks = append(noteLinks, NoteLink{
 			Name: student.Name, NoteID: result.NoteID,
-			StudentID: studentID, LevelName: student.ClassName,
+			StudentID: studentID, ClassName: student.ClassName,
 		})
 	}
 

@@ -195,7 +195,7 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	doneJob, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
 	require.NoError(t, err)
 	doneJob.Status = JobStatusDone
-	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1, StudentID: 5, LevelName: "Math"}}
+	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1, StudentID: 5, ClassName: "Math"}}
 	require.NoError(t, queue.UpdateJob(ctx, *doneJob))
 
 	// Job 2: failed.

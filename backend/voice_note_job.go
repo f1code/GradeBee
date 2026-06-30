@@ -22,7 +22,7 @@ type NoteLink struct {
 	Name      string `json:"name"`
 	NoteID    int64  `json:"noteId"`
 	StudentID int64  `json:"studentId"`
-	LevelName string `json:"levelName"`
+	ClassName string `json:"className"`
 }
 
 // VoiceNoteJob represents an async voice note processing job.

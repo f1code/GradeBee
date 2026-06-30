@@ -814,7 +814,7 @@ export interface NoteLink {
   name: string;
   noteId: number /* int64 */;
   studentId: number /* int64 */;
-  levelName: string;
+  className: string;
 }
 /**
  * VoiceNoteJob represents an async voice note processing job.

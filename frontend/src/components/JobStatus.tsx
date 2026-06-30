@@ -50,7 +50,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newDoneIds, setNewDoneIds] = useState<Set<number>>(new Set())
-  const [modalStudent, setModalStudent] = useState<{ studentId: number; name: string; levelName: string } | null>(null)
+  const [modalStudent, setModalStudent] = useState<{ studentId: number; name: string; className: string } | null>(null)
   const prevDoneIdsRef = useRef<Set<number>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -279,7 +279,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
               <StudentDetail
                 studentId={modalStudent.studentId}
                 studentName={modalStudent.name}
-                className={modalStudent.levelName}
+                className={modalStudent.className}
                 onCollapse={() => setModalStudent(null)}
                 modal
               />
@@ -291,7 +291,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   )
 }
 
-function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { job: UploadJob; isNew: boolean; onDismissNew: () => void; onDismiss: () => void; onOpenStudent: (link: { studentId: number; name: string; levelName: string }) => void }) {
+function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { job: UploadJob; isNew: boolean; onDismissNew: () => void; onDismiss: () => void; onOpenStudent: (link: { studentId: number; name: string; className: string }) => void }) {
   const noteCount = job.noteLinks?.length ?? 0
   const [showTranscript, setShowTranscript] = useState(false)
 
@@ -328,7 +328,7 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
       {job.noteLinks && job.noteLinks.length > 0 && (
         <div className="job-note-links">
           {job.noteLinks.map((link, i) => (
-            <button key={i} className="job-note-link" onClick={() => onOpenStudent({ studentId: link.studentId, name: link.name, levelName: link.levelName })}>
+            <button key={i} className="job-note-link" onClick={() => onOpenStudent({ studentId: link.studentId, name: link.name, className: link.className })}>
               <DocIcon /> {link.name}
             </button>
           ))}
