@@ -189,7 +189,7 @@ func TestBuildExtractionPrompt_AliasesIncluded(t *testing.T) {
 
 	assert.True(t, strings.Contains(prompt, "Alexander (aka Alex, Xander)"),
 		"prompt missing alias line, got: %s", prompt)
-	assert.True(t, strings.Contains(prompt, "Katherine (class Period 1)"),
+	assert.True(t, strings.Contains(prompt, "Katherine (level Period 1)"),
 		"prompt missing no-alias line, got: %s", prompt)
 	assert.True(t, strings.Contains(prompt, "return the canonical name"),
 		"prompt missing alias instruction, got: %s", prompt)

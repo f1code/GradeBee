@@ -86,9 +86,9 @@ func BuildExtractionPrompt(classes []ClassGroup) string {
 	for _, c := range classes {
 		for _, s := range c.Students {
 			if len(s.Aliases) > 0 {
-				sb.WriteString(fmt.Sprintf("- %s (aka %s) (class %s)\n", s.Name, strings.Join(s.Aliases, ", "), c.Name))
+				sb.WriteString(fmt.Sprintf("- %s (aka %s) (level %s)\n", s.Name, strings.Join(s.Aliases, ", "), c.Name))
 			} else {
-				sb.WriteString(fmt.Sprintf("- %s (class %s)\n", s.Name, c.Name))
+				sb.WriteString(fmt.Sprintf("- %s (level %s)\n", s.Name, c.Name))
 			}
 		}
 	}

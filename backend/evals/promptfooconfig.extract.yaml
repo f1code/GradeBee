@@ -26,7 +26,7 @@ providers:
                   type: object
                   properties:
                     name:        { type: string }
-                    class:       { type: string }
+                    level:       { type: string }
                     quoted_text: { type: string }
                     confidence:  { type: number }
                     candidates:
@@ -35,10 +35,10 @@ providers:
                         type: object
                         properties:
                           name:  { type: string }
-                          class: { type: string }
-                        required: [name, class]
+                          level: { type: string }
+                        required: [name, level]
                         additionalProperties: false
-                  required: [name, class, quoted_text, confidence, candidates]
+                  required: [name, level, quoted_text, confidence, candidates]
                   additionalProperties: false
               date: { type: string }
             required: [students, date]
