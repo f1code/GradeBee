@@ -580,7 +580,7 @@ function InlineClassEdit({
   onCancel: () => void
 }) {
   const [name, setName] = useState(levelName)
-  const [group, setGroup] = useState(scheduleName)
+  const [schedule, setSchedule] = useState(scheduleName)
   const nameRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -592,7 +592,7 @@ function InlineClassEdit({
   function doSave() {
     const trimmedName = name.trim()
     if (trimmedName) {
-      onSave(trimmedName, group.trim())
+      onSave(trimmedName, schedule.trim())
     } else {
       onCancel()
     }
@@ -628,12 +628,12 @@ function InlineClassEdit({
       />
       <input
         type="text"
-        value={group}
-        onChange={e => setGroup(e.target.value)}
+        value={schedule}
+        onChange={e => setSchedule(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         className="inline-edit-input inline-edit-group"
-        data-testid="inline-edit-group-name"
+        data-testid="inline-edit-schedule-name"
         placeholder="Schedule (optional)"
       />
     </div>

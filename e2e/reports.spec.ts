@@ -99,8 +99,8 @@ test.describe('Report generation', () => {
     await expect(page.getByTestId('report-result-name')).toContainText('Alice')
   })
 
-  test('class with group name matches example by base levelName', async ({ page }) => {
-    // Regression test: c.name is "Math — Group A" but examples store just "Math"
+  test('class with schedule name matches example by base levelName', async ({ page }) => {
+    // Regression test: c.name is "Math — Schedule A" but examples store just "Math"
     // The matching must use c.levelName, not c.name.
     await page.route('**/classes', async (route) => {
       if (route.request().method() === 'GET' && !route.request().url().includes('/classes/')) {
@@ -133,7 +133,7 @@ test.describe('Report generation', () => {
     await page.getByText('Reports').click()
     await expect(page.getByText('Alice')).toBeVisible({ timeout: 10000 })
 
-    // Select Alice (whose class has a group suffix in its display name)
+    // Select Alice (whose class has a schedule suffix in its display name)
     await page.getByText('Alice').click()
 
     // The example's levelNames: ['Math'] should match c.levelName 'Math', not c.name 'Math — Group A'
