@@ -24,5 +24,4 @@ jobs:
             if dokku apps:exists "$APP_NAME" 2>/dev/null; then
               dokku apps:destroy "$APP_NAME" --force
             fi
-            # Clean up the per-app SQLite data directory left on the host
-            rm -rf "/data/$APP_NAME"
+            dokku storage:destroy $APP_NAME

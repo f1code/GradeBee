@@ -64,15 +64,12 @@ jobs:
             # Create app if it does not already exist
             if ! dokku apps:exists "$APP_NAME" 2>/dev/null; then
               dokku apps:create "$APP_NAME"
-              # Use a per-app host path so each review app gets its own isolated SQLite database
-              dokku storage:mount "$APP_NAME" "/data/$APP_NAME:/data"
+              dokku domains:set "$APP_NAME" $APP_NAME.test.gradebee.app
+              dokku storage:create data-$APP_NAME
+              dokku storage:mount "$APP_NAME" data-$APP_NAME --container-dir /data
               # Inject backend runtime config; update on every deploy in case secrets rotate
             fi
 
-            # Always (re-)apply runtime config so secret rotations propagate on re-deploy
-            # DB_PATH follows the same convention as Ansible: /data/<app_name>.db inside the
-            # container, which maps to /data/<app_name>/<app_name>.db on the host — fully
-            # isolated from production (/data/gradebee/gradebee.db).
             dokku config:set --no-restart "$APP_NAME" \
               CLERK_SECRET_KEY="$CLERK_SECRET_KEY" \
               MISTRAL_API_KEY="$MISTRAL_API_KEY" \
@@ -83,4 +80,4 @@ jobs:
             # Deploy the PR image (predeploy script in app.json runs migrations automatically)
             dokku git:from-image "$APP_NAME" "$IMAGE"
             dokku letsencrypt:set ${APP_NAME} email $LETSENCRYPT_EMAIL
-            dokku letsencrypt:active ${APP_NAME} || dokku letsencrypt:enable ${APP_NAME}
+            dokku letsencrypt:enable ${APP_NAME}
