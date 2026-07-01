@@ -25,7 +25,7 @@ jobs:
 
       - name: Clean up Github environment
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.ENV_ADMIN_TOKEN }}
         run: |
           gh api \
             --method DELETE \
