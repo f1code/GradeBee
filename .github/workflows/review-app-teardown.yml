@@ -19,9 +19,15 @@ jobs:
           username: dokku
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            set -euo pipefail
             APP_NAME="gradebee-pr-${{ github.event.number }}"
-            if dokku apps:exists "$APP_NAME" 2>/dev/null; then
-              dokku apps:destroy "$APP_NAME" --force
-            fi
-            dokku storage:destroy data-$APP_NAME --force
+            dokku apps:destroy "$APP_NAME" --force || true
+            dokku storage:destroy data-$APP_NAME --force || true
+
+      - name: Clean up Github environment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api \
+            --method DELETE \
+            -H "Accept: application/vnd.github+json" \
+            /repos/${{ github.repository }}/environments/pr-${{ github.event.number }} || true
