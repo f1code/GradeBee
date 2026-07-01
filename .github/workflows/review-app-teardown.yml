@@ -19,9 +19,15 @@ jobs:
           username: dokku
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
+            set -euo pipefail
+
             APP_NAME="gradebee-pr-${{ github.event.number }}"
             dokku apps:destroy "$APP_NAME" --force || true
-            dokku storage:destroy data-$APP_NAME --force || true
+            if dokku storage:info data-$APP_NAME; then
+              TARGET=`dokku storage:info data-$APP_NAME --format json | jq -r .host_path`
+              dokku storage:destroy data-$APP_NAME --force
+              rm -rf $TARGET
+            fi
 
       - name: Clean up Github environment
         env:
