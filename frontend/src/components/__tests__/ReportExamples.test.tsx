@@ -10,7 +10,7 @@ const baseExamples: ReportExampleItem[] = [
     name: 'Report.jpg',
     content: 'Student showed great improvement in math.',
     status: 'ready',
-    classNames: ['Math'],
+    levelNames: ['Math'],
   },
 ]
 
@@ -19,7 +19,7 @@ const secondExample: ReportExampleItem = {
   name: 'Science.jpg',
   content: 'Science report content.',
   status: 'ready',
-  classNames: ['Science'],
+  levelNames: ['Science'],
 }
 
 function renderExamples(overrides: Partial<React.ComponentProps<typeof ReportExamples>> = {}) {
@@ -27,7 +27,7 @@ function renderExamples(overrides: Partial<React.ComponentProps<typeof ReportExa
     examples: baseExamples,
     loading: false,
     error: null,
-    availableClassNames: ['Math'],
+    availableLevelNames: ['Math'],
     onUpload: vi.fn().mockResolvedValue(undefined),
     onDriveImport: vi.fn().mockResolvedValue(undefined),
     onUpdate: vi.fn().mockResolvedValue(undefined),
@@ -43,8 +43,8 @@ describe('ReportExamples (selection-aware)', () => {
     const user = userEvent.setup()
     renderExamples({
       examples: [baseExamples[0], secondExample],
-      availableClassNames: ['Math', 'Science'],
-      selectedClassNames: ['Math'],
+      availableLevelNames: ['Math', 'Science'],
+      selectedLevelNames: ['Math'],
     })
     await user.click(screen.getByText(/Example Report Cards/))
     await waitFor(() => {
@@ -61,8 +61,8 @@ describe('ReportExamples (selection-aware)', () => {
     const user = userEvent.setup()
     renderExamples({
       examples: [baseExamples[0], secondExample],
-      availableClassNames: ['Math', 'Science'],
-      selectedClassNames: ['Math'],
+      availableLevelNames: ['Math', 'Science'],
+      selectedLevelNames: ['Math'],
     })
     await user.click(screen.getByText(/Example Report Cards/))
     await waitFor(() => {
@@ -72,11 +72,11 @@ describe('ReportExamples (selection-aware)', () => {
 
   it('shows plural summary when multiple matching', async () => {
     const user = userEvent.setup()
-    const mathExample2: ReportExampleItem = { id: 3, name: 'Math2.pdf', content: 'More math.', status: 'ready', classNames: ['Math'] }
+    const mathExample2: ReportExampleItem = { id: 3, name: 'Math2.pdf', content: 'More math.', status: 'ready', levelNames: ['Math'] }
     renderExamples({
       examples: [baseExamples[0], mathExample2, secondExample],
-      availableClassNames: ['Math', 'Science'],
-      selectedClassNames: ['Math'],
+      availableLevelNames: ['Math', 'Science'],
+      selectedLevelNames: ['Math'],
     })
     await user.click(screen.getByText(/Example Report Cards/))
     await waitFor(() => {
@@ -86,7 +86,7 @@ describe('ReportExamples (selection-aware)', () => {
 
   it('does not show summary when no classes are selected', async () => {
     const user = userEvent.setup()
-    renderExamples({ selectedClassNames: [] })
+    renderExamples({ selectedLevelNames: [] })
     await user.click(screen.getByText(/Example Report Cards/))
     await waitFor(() => {
       expect(screen.getByText('Report.jpg')).toBeInTheDocument()
@@ -94,7 +94,7 @@ describe('ReportExamples (selection-aware)', () => {
     expect(screen.queryByTestId('example-selection-summary')).not.toBeInTheDocument()
   })
 
-  it('does not dim when selectedClassNames is not provided', async () => {
+  it('does not dim when selectedLevelNames is not provided', async () => {
     const user = userEvent.setup()
     renderExamples()
     await user.click(screen.getByText(/Example Report Cards/))
@@ -108,11 +108,11 @@ describe('ReportExamples (selection-aware)', () => {
 
   it('multiple selected classes: example matching any is highlighted', async () => {
     const user = userEvent.setup()
-    const multiExample: ReportExampleItem = { id: 4, name: 'Multi.pdf', content: 'Both.', status: 'ready', classNames: ['Math', 'Science'] }
+    const multiExample: ReportExampleItem = { id: 4, name: 'Multi.pdf', content: 'Both.', status: 'ready', levelNames: ['Math', 'Science'] }
     renderExamples({
       examples: [multiExample],
-      availableClassNames: ['Math', 'Science'],
-      selectedClassNames: ['Science'],
+      availableLevelNames: ['Math', 'Science'],
+      selectedLevelNames: ['Science'],
     })
     await user.click(screen.getByText(/Example Report Cards/))
     await waitFor(() => {

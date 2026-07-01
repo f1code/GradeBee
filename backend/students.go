@@ -54,14 +54,14 @@ func handleCreateClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ClassName string `json:"className"`
-		Group     string `json:"group"`
+		LevelName    string `json:"levelName"`
+		ScheduleName string `json:"scheduleName"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClassName == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "className is required"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LevelName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "levelName is required"})
 		return
 	}
-	c, err := serviceDeps.GetClassRepo().Create(r.Context(), userID, req.ClassName, req.Group)
+	c, err := serviceDeps.GetClassRepo().Create(r.Context(), userID, req.LevelName, req.ScheduleName)
 	if err != nil {
 		if errors.Is(err, ErrDuplicate) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "class already exists"})
@@ -86,14 +86,14 @@ func handleUpdateClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ClassName string `json:"className"`
-		Group     string `json:"group"`
+		LevelName    string `json:"levelName"`
+		ScheduleName string `json:"scheduleName"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClassName == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "className is required"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LevelName == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "levelName is required"})
 		return
 	}
-	if err := serviceDeps.GetClassRepo().Update(r.Context(), userID, id, req.ClassName, req.Group); err != nil {
+	if err := serviceDeps.GetClassRepo().Update(r.Context(), userID, id, req.LevelName, req.ScheduleName); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "class not found"})
 			return
@@ -138,7 +138,7 @@ func handleListClassNames(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
 		return
 	}
-	names, err := serviceDeps.GetClassRepo().ListDistinctClassNames(r.Context(), userID)
+	names, err := serviceDeps.GetClassRepo().ListDistinctLevelNames(r.Context(), userID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -146,7 +146,7 @@ func handleListClassNames(w http.ResponseWriter, r *http.Request) {
 	if names == nil {
 		names = []string{}
 	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"classNames": names})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"levelNames": names})
 }
 
 // --- Student CRUD ---

@@ -22,7 +22,7 @@
   margin: 0;
 }
 
-.class-group {
+.level {
   background: var(--chalk);
   border-radius: var(--radius);
   padding: 0;
@@ -31,7 +31,7 @@
   overflow: hidden;
 }
 
-.class-group-header {
+.level-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -40,11 +40,11 @@
   transition: background 0.12s ease;
 }
 
-.class-group-header:hover {
+.level-header:hover {
   background: var(--honey-light);
 }
 
-.class-group h3 {
+.level h3 {
   margin: 0;
   font-size: 1.05rem;
   display: flex;
@@ -54,7 +54,7 @@
   min-width: 0;
 }
 
-.class-name-text {
+.level-name-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -68,7 +68,7 @@
   display: inline-block;
 }
 
-.class-group .count {
+.level .count {
   font-family: var(--font-body);
   font-size: 0.8rem;
   color: var(--ink-muted);
@@ -83,24 +83,24 @@
   flex-shrink: 0;
 }
 
-.class-group ul {
+.level ul {
   list-style: none;
   padding: 0 1.25rem;
   margin: 0;
 }
 
-.class-group li {
+.level li {
   padding: 0.5rem 0.5rem;
   border-radius: var(--radius-sm);
   transition: background 0.12s ease;
   font-size: 0.95rem;
 }
 
-.class-group li:nth-child(even) {
+.level li:nth-child(even) {
   background: rgba(245, 230, 200, 0.3);
 }
 
-.class-group li:hover {
+.level li:hover {
   background: var(--honey-light);
 }
 
@@ -347,12 +347,12 @@
 
 /* --- Responsive: roster/upload --- */
 @media (max-width: 640px) {
-  .class-group-header {
+  .level-header {
     padding: 0.85rem 1rem;
   }
 
   /* Touch-friendly student items */
-  .class-group li {
+  .level li {
     padding: 0.65rem 0.75rem;
     font-size: 0.9rem;
   }
@@ -364,11 +364,11 @@
 }
 
 @media (max-width: 480px) {
-  .class-group h3 {
+  .level h3 {
     font-size: 0.95rem;
   }
 
-  .class-group li {
+  .level li {
     font-size: 0.88rem;
   }
 }

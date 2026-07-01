@@ -14,8 +14,8 @@ func TestClassRepo_CreateWithClassNameGroup(t *testing.T) {
 
 	c, err := repo.Create(t.Context(), "user1", "Mousy", "Thursday")
 	require.NoError(t, err)
-	assert.Equal(t, "Mousy", c.ClassName)
-	assert.Equal(t, "Thursday", c.GroupName)
+	assert.Equal(t, "Mousy", c.LevelName)
+	assert.Equal(t, "Thursday", c.ScheduleName)
 	assert.Equal(t, "Mousy-Thursday", c.Name)
 }
 
@@ -26,10 +26,10 @@ func TestClassRepo_CreateNoGroup(t *testing.T) {
 	c, err := repo.Create(t.Context(), "user1", "Lions", "")
 	require.NoError(t, err)
 	assert.Equal(t, "Lions", c.Name)
-	assert.Empty(t, c.GroupName)
+	assert.Empty(t, c.ScheduleName)
 }
 
-func TestClassRepo_ListDistinctClassNames(t *testing.T) {
+func TestClassRepo_ListDistinctLevelNames(t *testing.T) {
 	db := setupTestDB(t)
 	repo := &ClassRepo{db: db}
 
@@ -43,7 +43,7 @@ func TestClassRepo_ListDistinctClassNames(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	names, err := repo.ListDistinctClassNames(t.Context(), "user1")
+	names, err := repo.ListDistinctLevelNames(t.Context(), "user1")
 	require.NoError(t, err)
 	want := []string{"Bears", "Lions", "Tigers"}
 	require.Len(t, names, len(want), "got %v, want %v", names, want)

@@ -26,9 +26,9 @@ Cache headers:
 |--------|------|------|---------|-------------|
 | GET | `/` `/health` | No | inline | Health check |
 | GET | `/api/classes` | Yes | `handleListClasses` | List user's classes with student counts |
-| POST | `/api/classes` | Yes | `handleCreateClass` | Create a class (body: `{className, group}`) |
-| PUT | `/api/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{className, group}`) |
-| GET | `/api/classes/class-names` | Yes | `handleListClassNames` | Distinct class names for autocomplete |
+| POST | `/api/classes` | Yes | `handleCreateClass` | Create a class (body: `{levelName, scheduleName}`) |
+| PUT | `/api/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{levelName, scheduleName}`) |
+| GET | `/api/classes/level-names` | Yes | `handleListClassNames` | Distinct level names for autocomplete |
 | DELETE | `/api/classes/{id}` | Yes | `handleDeleteClass` | Delete class + cascade |
 | GET | `/api/classes/{id}/students` | Yes | `handleListStudents` | List students in a class |
 | POST | `/api/classes/{id}/students` | Yes | `handleCreateStudent` | Add a student |
@@ -231,8 +231,8 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 
 | Table | Purpose |
 |-------|---------|
-| `classes` | Teacher's classes. `class_name` (required) is the class identifier and is also used to tag report examples for style matching (see `report_example_classes`). `group_name` (optional, e.g. "Period 1") is purely organizational, grouping related classes. `name` is the derived display name (`class_name-group_name` when a group is set). |
-| `report_example_classes` | M-M link: report examples ↔ `class_name` values (drives example selection for style matching at report generation). |
+| `classes` | Teacher's classes. `level_name` (required) is the class identifier and is also used to tag report examples for style matching (see `report_example_classes`). `schedule_name` (optional, e.g. "Period 1") is purely organizational, grouping related classes. `name` is the derived display name (`level_name-schedule_name` when a schedule is set). |
+| `report_example_classes` | M-M link: report examples ↔ `level_name` values (drives example selection for style matching at report generation). |
 | `students` | Students belonging to classes |
 | `student_aliases` | Nickname/variant aliases per student (per-class uniqueness, case-insensitive) |
 | `notes` | Observation notes per student |

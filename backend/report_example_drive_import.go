@@ -30,7 +30,7 @@ func handleDriveImportExample(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		FileID     string   `json:"fileId"`
 		FileName   string   `json:"fileName"`
-		ClassNames []string `json:"classNames"`
+		LevelNames []string `json:"levelNames"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.FileID == "" || req.FileName == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing or invalid 'fileId' / 'fileName'"})
@@ -108,7 +108,7 @@ func handleDriveImportExample(w http.ResponseWriter, r *http.Request) {
 			ext = mimeToExt(fileMeta.MimeType)
 		}
 
-		example, err := dispatchExtraction(ctx, userID, name, data, ext, req.ClassNames)
+		example, err := dispatchExtraction(ctx, userID, name, data, ext, req.LevelNames)
 		if err != nil {
 			log.Error("drive-import-example: dispatch failed", "error", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to dispatch extraction"})
@@ -129,7 +129,7 @@ func handleDriveImportExample(w http.ResponseWriter, r *http.Request) {
 
 	// Store as report example.
 	store := serviceDeps.GetExampleStore()
-	example, err := store.UploadExample(ctx, userID, name, content, req.ClassNames)
+	example, err := store.UploadExample(ctx, userID, name, content, req.LevelNames)
 	if err != nil {
 		log.Error("drive-import-example: store failed", "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
