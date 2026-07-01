@@ -247,7 +247,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     >
       <h2>Add Notes</h2>
 
-      <p className="hint">Include class name and group, and use student names or aliases - we'll match them to your roster.</p>
+      <p className="hint">Include level and schedule, and use student names or aliases - we'll match them to your roster.</p>
       <p className="upload-pii-hint">
         Use first names or initials — avoid full names when possible.
       </p>

@@ -12,15 +12,15 @@ GradeBee helps teachers record voice notes about students and automatically gene
 
 ### Organizing Classes
 
-Each class has a **class name** (required) and an optional **group**.
+Each class has a **level** (required) and an optional **schedule**.
 
-- **Group** lets you run several classes of the same type side by side. Create
-  multiple classes that share a class name but differ by group — e.g. a
-  "Maths" class with groups "Period 1" and "Period 2". The group is purely
+- **Schedule** lets you run several classes of the same type side by side. Create
+  multiple classes that share a level but differ by schedule — e.g. a
+  "Maths" class with schedules "Period 1" and "Period 2". The schedule is purely
   organizational.
-- **Class name** also drives report style. When you upload example report
-  cards, you tag each example with one or more class names. At report
-  generation, GradeBee selects the examples tagged with the class being
+- **Level** also drives report style. When you upload example report
+  cards, you tag each example with one or more levels. At report
+  generation, GradeBee selects the examples tagged with the level being
   generated and uses them to match the writing style.
 
 ## Technology Stack

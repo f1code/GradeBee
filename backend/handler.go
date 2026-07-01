@@ -231,7 +231,7 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	// Classes CRUD
 	case path == "classes" && r.Method == http.MethodGet:
 		authHandler(handleListClasses).ServeHTTP(rec, r)
-	case path == "classes/class-names" && r.Method == http.MethodGet:
+	case path == "classes/level-names" && r.Method == http.MethodGet:
 		authHandler(handleListClassNames).ServeHTTP(rec, r)
 	case path == "classes" && r.Method == http.MethodPost:
 		authHandler(handleCreateClass).ServeHTTP(rec, r)

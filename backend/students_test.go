@@ -39,7 +39,7 @@ func TestListClassNames(t *testing.T) {
 	defer func() { serviceDeps = origDeps }()
 	serviceDeps = &mockDepsAll{classRepo: classRepo, studentRepo: &StudentRepo{db: db}}
 
-	req := httptest.NewRequest(http.MethodGet, "/classes/class-names", http.NoBody)
+	req := httptest.NewRequest(http.MethodGet, "/classes/level-names", http.NoBody)
 	ctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: "test-user"},
 	})
@@ -51,6 +51,6 @@ func TestListClassNames(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
 	var resp map[string][]string
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode failed")
-	names := resp["classNames"]
+	names := resp["levelNames"]
 	assert.Len(t, names, 2, "got %v, want 2 distinct names", names)
 }

@@ -61,7 +61,7 @@ Rules:
 - For multi-student transcripts, produce a separate entry per student with relevant passages
 - If a mentioned student cannot be matched to any roster entry, do not include them in the output
 - If no students are clearly mentioned, return an empty students array
-- The "class" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.
+- The "class_name" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.
 - IMPORTANT: Clean up speech into readable sentences, but do NOT invent observations or editorialize. Stay faithful to what the teacher actually said.
 `
 

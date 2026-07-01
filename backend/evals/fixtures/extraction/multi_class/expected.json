@@ -2,17 +2,17 @@
   "expected_students": [
     {
       "name": "Noah Jensen",
-      "class": "Class A",
+      "class_name": "Class A",
       "must_quote_substrings": ["improvement in his writing", "sentence structure"]
     },
     {
       "name": "Sophie Nguyen",
-      "class": "Class B",
+      "class_name": "Class B",
       "must_quote_substrings": ["science experiment", "thoughtful questions"]
     },
     {
       "name": "Jacob Williams",
-      "class": "Class B",
+      "class_name": "Class B",
       "must_quote_substrings": ["off task", "disturbing others"]
     }
   ],

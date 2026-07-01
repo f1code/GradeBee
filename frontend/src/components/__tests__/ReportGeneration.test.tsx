@@ -11,7 +11,7 @@ const mockUpdateReportExample = vi.fn()
 const mockDeleteReportExample = vi.fn()
 const mockImportExampleFromDrive = vi.fn()
 const mockGetGoogleToken = vi.fn()
-const mockListClassNames = vi.fn()
+const mockListLevelNames = vi.fn()
 const mockOpenPicker = vi.fn()
 
 vi.mock('../../api', () => ({
@@ -24,7 +24,7 @@ vi.mock('../../api', () => ({
   deleteReportExample: (...args: unknown[]) => mockDeleteReportExample(...args),
   importExampleFromDrive: (...args: unknown[]) => mockImportExampleFromDrive(...args),
   getGoogleToken: (...args: unknown[]) => mockGetGoogleToken(...args),
-  listClassNames: (...args: unknown[]) => mockListClassNames(...args),
+  listLevelNames: (...args: unknown[]) => mockListLevelNames(...args),
 }))
 
 vi.mock('../../hooks/useDrivePicker', () => ({
@@ -39,13 +39,13 @@ vi.mock('@clerk/react', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   mockListReportExamples.mockResolvedValue({ examples: [] })
-  mockListClassNames.mockResolvedValue({ classNames: [] })
+  mockListLevelNames.mockResolvedValue({ levelNames: [] })
   mockUploadReportExample.mockResolvedValue({})
 })
 
 async function renderWithStudents() {
   mockListClasses.mockResolvedValue({
-    classes: [{ id: 1, name: 'Math 101', className: 'Math 101', groupName: '', studentCount: 2 }],
+    classes: [{ id: 1, name: 'Math 101', levelName: 'Math 101', scheduleName: '', studentCount: 2 }],
   })
   mockListStudents.mockResolvedValue({
     students: [
@@ -79,13 +79,13 @@ describe('ReportGeneration', () => {
   it('generates reports on submit', async () => {
     mockGenerateReports.mockResolvedValue({
       reports: [
-        { id: 1, student: 'Alice', class: 'Math 101', studentId: 10, html: '<p>Alice report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
-        { id: 2, student: 'Bob', class: 'Math 101', studentId: 11, html: '<p>Bob report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
+        { id: 1, student: 'Alice', className: 'Math 101', studentId: 10, html: '<p>Alice report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
+        { id: 2, student: 'Bob', className: 'Math 101', studentId: 11, html: '<p>Bob report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
       ],
       error: null,
     })
     mockListReportExamples.mockResolvedValue({
-      examples: [{ id: 1, name: 'Example.pdf', content: 'ex', status: 'ready', classNames: ['Math 101'] }],
+      examples: [{ id: 1, name: 'Example.pdf', content: 'ex', status: 'ready', levelNames: ['Math 101'] }],
     })
     const user = await renderWithStudents()
     await user.click(screen.getByText('Math 101'))
@@ -103,7 +103,7 @@ describe('ReportGeneration', () => {
   it('shows error on failed generation', async () => {
     mockGenerateReports.mockRejectedValue(new Error('Generation failed'))
     mockListReportExamples.mockResolvedValue({
-      examples: [{ id: 1, name: 'Example.pdf', content: 'ex', status: 'ready', classNames: ['Math 101'] }],
+      examples: [{ id: 1, name: 'Example.pdf', content: 'ex', status: 'ready', levelNames: ['Math 101'] }],
     })
     const user = await renderWithStudents()
     await user.click(screen.getByText('Math 101'))
@@ -117,7 +117,7 @@ describe('ReportGeneration', () => {
   it('fetches and renders example report cards', async () => {
     mockListReportExamples.mockResolvedValue({
       examples: [
-        { id: 1, name: 'Report.jpg', content: 'Student showed great improvement in math.', status: 'ready', classNames: ['Math'] },
+        { id: 1, name: 'Report.jpg', content: 'Student showed great improvement in math.', status: 'ready', levelNames: ['Math'] },
       ],
     })
     const user = await renderWithStudents()
@@ -130,7 +130,7 @@ describe('ReportGeneration', () => {
   })
 
   it('uploads example files with selected class names', async () => {
-    mockListClassNames.mockResolvedValue({ classNames: ['Math'] })
+    mockListLevelNames.mockResolvedValue({ levelNames: ['Math'] })
     const user = await renderWithStudents()
 
     await user.click(screen.getByText(/Example Report Cards/))
@@ -149,16 +149,16 @@ describe('ReportGeneration', () => {
     await waitFor(() => {
       expect(mockUploadReportExample).toHaveBeenCalled()
     })
-    const [uploadedFile, classNames] = mockUploadReportExample.mock.calls[0]
+    const [uploadedFile, levelNames] = mockUploadReportExample.mock.calls[0]
     expect(uploadedFile).toBeInstanceOf(File)
-    expect(classNames).toEqual(['Math'])
+    expect(levelNames).toEqual(['Math'])
   })
 })
 
 describe('ReportGeneration — selection-aware blocking', () => {
-  async function renderWithClass(className: string, studentName = 'Alice') {
+  async function renderWithClass(levelName: string, studentName = 'Alice') {
     mockListClasses.mockResolvedValue({
-      classes: [{ id: 1, name: className, studentCount: 1, userId: '', className: className, groupName: '', position: 0, createdAt: '' }],
+      classes: [{ id: 1, name: levelName, studentCount: 1, userId: '', levelName: levelName, scheduleName: '', position: 0, createdAt: '' }],
     })
     mockListStudents.mockResolvedValue({
       students: [{ id: 10, name: studentName, classId: 1, createdAt: '', aliases: [] }],
@@ -166,7 +166,7 @@ describe('ReportGeneration — selection-aware blocking', () => {
     const { default: ReportGeneration } = await import('../ReportGeneration')
     const user = userEvent.setup()
     render(<ReportGeneration />)
-    await waitFor(() => screen.getByText(className || studentName))
+    await waitFor(() => screen.getByText(levelName || studentName))
     return user
   }
 
@@ -188,7 +188,7 @@ describe('ReportGeneration — selection-aware blocking', () => {
     await user.click(screen.getByText('Alice'))
     await waitFor(() => {
       expect(screen.getByTestId('generate-blocker')).toHaveTextContent(
-        'Class 3B (no examples) — assign a class / add examples to continue.'
+        'Class 3B (no examples) — assign a level / add examples to continue.'
       )
     })
   })
@@ -196,7 +196,7 @@ describe('ReportGeneration — selection-aware blocking', () => {
   it('enables generation when selected student class has a matching ready example', async () => {
     mockListReportExamples.mockResolvedValue({
       examples: [
-        { id: 1, name: 'Report.pdf', content: 'Example.', status: 'ready', classNames: ['ClassA'] },
+        { id: 1, name: 'Report.pdf', content: 'Example.', status: 'ready', levelNames: ['ClassA'] },
       ],
     })
     const user = await renderWithClass('ClassA')
@@ -211,8 +211,8 @@ describe('ReportGeneration — selection-aware blocking', () => {
   it('multiple classes: lists each class without examples separately', async () => {
     mockListClasses.mockResolvedValue({
       classes: [
-        { id: 1, name: 'ClassA', studentCount: 1, userId: '', className: 'ClassA', groupName: '', position: 0, createdAt: '' },
-        { id: 2, name: 'ClassB', studentCount: 1, userId: '', className: 'ClassB', groupName: '', position: 0, createdAt: '' },
+        { id: 1, name: 'ClassA', studentCount: 1, userId: '', levelName: 'ClassA', scheduleName: '', position: 0, createdAt: '' },
+        { id: 2, name: 'ClassB', studentCount: 1, userId: '', levelName: 'ClassB', scheduleName: '', position: 0, createdAt: '' },
       ],
     })
     mockListStudents.mockImplementation((_classId: unknown) => {
@@ -225,7 +225,7 @@ describe('ReportGeneration — selection-aware blocking', () => {
     })
     mockListReportExamples.mockResolvedValue({
       examples: [
-        { id: 1, name: 'R.pdf', content: 'e', status: 'ready', classNames: ['ClassA'] },
+        { id: 1, name: 'R.pdf', content: 'e', status: 'ready', levelNames: ['ClassA'] },
       ],
     })
     const { default: ReportGeneration } = await import('../ReportGeneration')

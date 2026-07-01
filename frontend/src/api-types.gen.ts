@@ -78,7 +78,7 @@ export interface ExtractResponse {
  */
 export interface MatchedStudent {
   name: string;
-  class: string;
+  class_name: string;
   quoted_text: string; // Extracted passages from transcript, unchanged
   confidence: number /* float64 */;
   candidates?: StudentCandidate[];
@@ -88,7 +88,7 @@ export interface MatchedStudent {
  */
 export interface StudentCandidate {
   name: string;
-  class: string;
+  class_name: string;
 }
 
 //////////
@@ -310,8 +310,8 @@ export interface Class {
   id: number /* int64 */;
   userId: string;
   name: string;
-  className: string;
-  groupName: string;
+  levelName: string;
+  scheduleName: string;
   position: number /* int */;
   createdAt: string;
 }
@@ -548,7 +548,7 @@ export interface ReportExample {
   name: string;
   content: string;
   status: string; // "ready", "processing", "failed"
-  classNames: string[];
+  levelNames: string[];
 }
 /**
  * ExampleStore abstracts CRUD operations for example report cards.
@@ -582,8 +582,8 @@ HTML report cards using an LLMProvider and student notes from the database.
 export interface GenerateReportRequest {
   StudentID: number /* int64 */;
   Student: string;
-  Class: string;
   ClassName: string;
+  LevelName: string;
   StartDate: string; // YYYY-MM-DD
   EndDate: string; // YYYY-MM-DD
   UserID: string;
@@ -609,8 +609,8 @@ export interface RegenerateReportRequest {
   Feedback: string;
   StudentID: number /* int64 */;
   Student: string;
-  Class: string;
   ClassName: string;
+  LevelName: string;
   StartDate: string;
   EndDate: string;
   UserID: string;
@@ -645,7 +645,7 @@ export interface GenerateReportsHTTPRequest {
 export interface ReportStudentInput {
   studentId: number /* int64 */;
   name: string;
-  class: string;
+  className: string;
 }
 /**
  * ReportResult is the per-student result in a generate/regenerate response.
@@ -654,7 +654,7 @@ export interface ReportResult {
   id: number /* int64 */;
   studentId: number /* int64 */;
   student: string;
-  class: string;
+  className: string;
   html: string;
   startDate: string;
   endDate: string;

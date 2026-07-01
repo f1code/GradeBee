@@ -49,7 +49,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Lucas"
-      class: "Linda-Thursday@17:25"
+      class_name: "Linda-Thursday@17:25"
       notes: "file://fixtures/reports/mousy_with_instructions/notes.json"
       examples: "file://fixtures/reports/mousy_with_instructions/examples.json"
       instructions: "file://fixtures/reports/mousy_with_instructions/instructions.txt"
@@ -83,7 +83,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Sophie"
-      class: "Marcia-Wed@14:10"
+      class_name: "Marcia-Wed@14:10"
       notes: "file://fixtures/reports/oliver_with_examples/notes.json"
       examples: "file://fixtures/reports/oliver_with_examples/examples.json"
       instructions: ""
@@ -113,7 +113,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Thomas"
-      class: "Sam Saturday"
+      class_name: "Sam Saturday"
       notes: "file://fixtures/reports/many_notes_sam/notes.json"
       examples: "file://fixtures/reports/many_notes_sam/examples.json"
       instructions: ""
@@ -143,7 +143,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Emma"
-      class: "Fairy Tales 2 Tuesday & Friday"
+      class_name: "Fairy Tales 2 Tuesday & Friday"
       notes: "file://fixtures/reports/fairy_tales/notes.json"
       examples: "file://fixtures/reports/fairy_tales/examples.json"
       instructions: ""
@@ -174,7 +174,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Chloé"
-      class: "Emma Saturday"
+      class_name: "Emma Saturday"
       notes: "file://fixtures/reports/chloe_emma_saturday/notes.json"
       examples: "file://fixtures/reports/chloe_emma_saturday/examples.json"
       instructions: "file://fixtures/reports/chloe_emma_saturday/instructions.txt"
@@ -211,7 +211,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Mila"
-      class: "Oliver Thursday"
+      class_name: "Oliver Thursday"
       notes: "file://fixtures/reports/mila_oliver_thu/notes.json"
       examples: "file://fixtures/reports/mila_oliver_thu/examples.json"
       instructions: "file://fixtures/reports/mila_oliver_thu/instructions.txt"
@@ -245,7 +245,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Camille"
-      class: "Oliver-Group 2 Saturday"
+      class_name: "Oliver-Group 2 Saturday"
       notes: "file://fixtures/reports/camille_oliver_group2/notes.json"
       examples: "file://fixtures/reports/camille_oliver_group2/examples.json"
       instructions: "file://fixtures/reports/camille_oliver_group2/instructions.txt"
@@ -279,7 +279,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Hugo"
-      class: "Fairy Tales 2 Tuesday & Friday"
+      class_name: "Fairy Tales 2 Tuesday & Friday"
       notes: "file://fixtures/reports/hugo_fairy_tales/notes.json"
       examples: "file://fixtures/reports/hugo_fairy_tales/examples.json"
       instructions: ""

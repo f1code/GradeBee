@@ -215,7 +215,7 @@ button:active,
     opacity: 0;
     transition: opacity 0.15s, color 0.15s, background 0.15s;
   }
-  .class-group-header:hover .class-actions .icon-btn {
+  .level-header:hover .class-actions .icon-btn {
     opacity: 1;
   }
 }
@@ -257,7 +257,7 @@ button:active,
   font-size: 0.9em;
 }
 
-.group-name-text {
+.schedule-name-text {
   font-weight: 400;
   color: var(--ink-muted);
   font-size: 0.9em;

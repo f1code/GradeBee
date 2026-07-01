@@ -11,7 +11,7 @@ import {
   deleteReportExample,
   importExampleFromDrive,
   getGoogleToken,
-  listClassNames,
+  listLevelNames,
   type ClassItem,
   type StudentItem,
   type ReportResult,
@@ -61,7 +61,7 @@ export default function ReportGeneration() {
   const [examples, setExamples] = useState<ReportExampleItem[]>([])
   const [examplesLoading, setExamplesLoading] = useState(true)
   const [examplesError, setExamplesError] = useState<string | null>(null)
-  const [availableClassNames, setAvailableClassNames] = useState<string[]>([])
+  const [availableLevelNames, setAvailableLevelNames] = useState<string[]>([])
   const { openPicker } = useDrivePicker()
 
   const loadExamples = useCallback(async () => {
@@ -79,7 +79,7 @@ export default function ReportGeneration() {
   useEffect(() => { loadExamples() }, [loadExamples])
 
   useEffect(() => {
-    listClassNames(getToken).then(({ classNames }) => setAvailableClassNames(classNames)).catch(() => {})
+    listLevelNames(getToken).then(({ levelNames }) => setAvailableLevelNames(levelNames)).catch(() => {})
   }, [getToken])
 
   // Poll while any example is still processing.
@@ -90,11 +90,11 @@ export default function ReportGeneration() {
     return () => clearInterval(timer)
   }, [examples, loadExamples])
 
-  async function handleUploadExamples(files: File[], classNames: string[]) {
+  async function handleUploadExamples(files: File[], levelNames: string[]) {
     setExamplesError(null)
     try {
       for (const file of files) {
-        await uploadReportExample(file, classNames, () => getToken())
+        await uploadReportExample(file, levelNames, () => getToken())
       }
       await loadExamples()
     } catch (e: unknown) {
@@ -118,10 +118,10 @@ export default function ReportGeneration() {
     }
   }
 
-  async function handleUpdateExample(id: number, name: string, content: string, classNames: string[]) {
+  async function handleUpdateExample(id: number, name: string, content: string, levelNames: string[]) {
     setExamplesError(null)
     try {
-      await updateReportExample(id, name, content, classNames, () => getToken())
+      await updateReportExample(id, name, content, levelNames, () => getToken())
       await loadExamples()
     } catch (e: unknown) {
       setExamplesError(e instanceof Error ? e.message : 'Update failed')
@@ -188,11 +188,11 @@ export default function ReportGeneration() {
   const selectedCount = selected.size
 
   // Distinct class names of currently-selected students
-  const selectedClassNames = useMemo(() => {
+  const selectedLevelNames = useMemo(() => {
     const names = new Set<string>()
     for (const c of classes) {
       for (const s of c.students) {
-        if (selected.has(s.id)) names.add(c.className)
+        if (selected.has(s.id)) names.add(c.levelName)
       }
     }
     return Array.from(names)
@@ -202,29 +202,29 @@ export default function ReportGeneration() {
   const blockerMessage = useMemo(() => {
     if (selected.size === 0) return null
     const readyExamples = examples.filter(e => e.status === 'ready')
-    const classesWithExamples = new Set(readyExamples.flatMap(e => e.classNames ?? []))
+    const classesWithExamples = new Set(readyExamples.flatMap(e => e.levelNames ?? []))
     const parts: string[] = []
     // Students whose class name is empty
     for (const c of classes) {
       if (!c.name) {
         for (const s of c.students) {
-          if (selected.has(s.id)) parts.push(`${s.name} (no class)`)
+          if (selected.has(s.id)) parts.push(`${s.name} (no level)`)
         }
       }
     }
     // Classes with selected students but no matching ready example
     const checked = new Set<string>()
     for (const c of classes) {
-      if (c.className && !checked.has(c.className)) {
+      if (c.levelName && !checked.has(c.levelName)) {
         const hasSelected = c.students.some(s => selected.has(s.id))
-        if (hasSelected && !classesWithExamples.has(c.className)) {
+        if (hasSelected && !classesWithExamples.has(c.levelName)) {
           parts.push(`${c.name} (no examples)`)
-          checked.add(c.className)
+          checked.add(c.levelName)
         }
       }
     }
     return parts.length > 0
-      ? `${parts.join(', ')} — assign a class / add examples to continue.`
+      ? `${parts.join(', ')} — assign a level / add examples to continue.`
       : null
   }, [classes, selected, examples])
 
@@ -239,7 +239,7 @@ export default function ReportGeneration() {
       const students = classes.flatMap(c =>
         c.students
           .filter(s => selected.has(s.id))
-          .map(s => ({ studentId: s.id, name: s.name, class: c.name }))
+          .map(s => ({ studentId: s.id, name: s.name, className: c.name }))
       )
       const resp: GenerateReportsResponse = await generateReports(
         { students, startDate, endDate, instructions: instructions || undefined },
@@ -328,8 +328,8 @@ export default function ReportGeneration() {
         examples={examples}
         loading={examplesLoading}
         error={examplesError}
-        availableClassNames={availableClassNames}
-        selectedClassNames={selectedClassNames}
+        availableLevelNames={availableLevelNames}
+        selectedLevelNames={selectedLevelNames}
         onUpload={handleUploadExamples}
         onDriveImport={handleDriveImportExample}
         onUpdate={handleUpdateExample}
@@ -399,7 +399,7 @@ export default function ReportGeneration() {
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedReportId(isExpanded ? null : r.id) } }}
                     >
                       <span className="report-result-name" data-testid="report-result-name">
-                        {r.student} <span className="report-result-class">({r.class})</span>
+                        {r.student} <span className="report-result-class">({r.className})</span>
                       </span>
                       <svg
                         width="16" height="16" viewBox="0 0 16 16" fill="none"

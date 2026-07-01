@@ -27,16 +27,16 @@ function FailedBadge() {
   return <span className="example-status-badge failed">Extraction failed</span>
 }
 
-interface ClassNameTagsProps {
-  classNames: string[]
+interface LevelNameTagsProps {
+  levelNames: string[]
 }
 
-function ClassNameTags({ classNames }: ClassNameTagsProps) {
-  if (!classNames || classNames.length === 0) return null
+function LevelNameTags({ levelNames }: LevelNameTagsProps) {
+  if (!levelNames || levelNames.length === 0) return null
   return (
-    <span className="class-name-tags">
-      {classNames.map(n => (
-        <span key={n} className="class-name-tag">{n}</span>
+    <span className="level-name-tags">
+      {levelNames.map(n => (
+        <span key={n} className="level-name-tag">{n}</span>
       ))}
     </span>
   )
@@ -58,25 +58,25 @@ function ClassNamesSelect({ available, selected, onChange }: ClassNamesSelectPro
   }
 
   if (available.length === 0) {
-    return <p className="class-names-empty">No classes yet — add a class first, then come back to assign it.</p>
+    return <p className="level-names-empty">No classes yet — add a class first, then come back to assign it.</p>
   }
 
   return (
-    <div className="class-names-select" role="group">
+    <div className="level-names-select" role="group">
       {available.map(name => {
         const isSelected = selected.includes(name)
         return (
           <label
             key={name}
-            className={`class-names-option${isSelected ? ' is-selected' : ''}`}
+            className={`level-names-option${isSelected ? ' is-selected' : ''}`}
           >
             <input
               type="checkbox"
               checked={isSelected}
               onChange={() => toggle(name)}
             />
-            <span className="class-names-option-check" aria-hidden="true">✓</span>
-            <span className="class-names-option-label">{name}</span>
+            <span className="level-names-option-check" aria-hidden="true">✓</span>
+            <span className="level-names-option-label">{name}</span>
           </label>
         )
       })}
@@ -88,11 +88,11 @@ interface ReportExamplesProps {
   examples: ReportExampleItem[]
   loading: boolean
   error: string | null
-  availableClassNames: string[]
-  selectedClassNames?: string[]
-  onUpload: (files: File[], classNames: string[]) => Promise<void>
+  availableLevelNames: string[]
+  selectedLevelNames?: string[]
+  onUpload: (files: File[], levelNames: string[]) => Promise<void>
   onDriveImport: () => Promise<void>
-  onUpdate: (id: number, name: string, content: string, classNames: string[]) => Promise<void>
+  onUpdate: (id: number, name: string, content: string, levelNames: string[]) => Promise<void>
   onDelete: (id: number) => Promise<void>
 }
 
@@ -100,8 +100,8 @@ export default function ReportExamples({
   examples,
   loading,
   error,
-  availableClassNames,
-  selectedClassNames,
+  availableLevelNames,
+  selectedLevelNames,
   onUpload,
   onDriveImport,
   onUpdate,
@@ -115,29 +115,29 @@ export default function ReportExamples({
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editName, setEditName] = useState('')
   const [editContent, setEditContent] = useState('')
-  const [editClassNames, setEditClassNames] = useState<string[]>([])
+  const [editLevelNames, setEditLevelNames] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
-  // Upload class names selection state
+  // Upload level names selection state
   const [pendingFiles, setPendingFiles] = useState<File[] | null>(null)
-  const [uploadClassNames, setUploadClassNames] = useState<string[]>([])
+  const [uploadLevelNames, setUploadLevelNames] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return
     // Collect files and show class name picker
     setPendingFiles(Array.from(files))
-    setUploadClassNames([])
+    setUploadLevelNames([])
   }
 
   async function confirmUpload() {
     if (!pendingFiles) return
     setUploading(true)
     try {
-      await onUpload(pendingFiles, uploadClassNames)
+      await onUpload(pendingFiles, uploadLevelNames)
     } finally {
       setUploading(false)
       setPendingFiles(null)
-      setUploadClassNames([])
+      setUploadLevelNames([])
     }
   }
 
@@ -154,7 +154,7 @@ export default function ReportExamples({
     setEditingId(ex.id)
     setEditName(ex.name)
     setEditContent(ex.content)
-    setEditClassNames(ex.classNames || [])
+    setEditLevelNames(ex.levelNames || [])
   }
 
   function cancelEditing() {
@@ -165,7 +165,7 @@ export default function ReportExamples({
     if (!editingId) return
     setSaving(true)
     try {
-      await onUpdate(editingId, editName, editContent, editClassNames)
+      await onUpdate(editingId, editName, editContent, editLevelNames)
       setEditingId(null)
     } catch {
       // error surfaced by parent via the error prop; keep edit form open
@@ -199,41 +199,41 @@ export default function ReportExamples({
           >
             {/* Pending upload class selection */}
             {pendingFiles && (
-              <div className="upload-classnames-panel">
-                <p className="upload-classnames-title">
-                  Which class {pendingFiles.length > 1 ? 'are these examples' : 'is this example'} for?
+              <div className="upload-levelnames-panel">
+                <p className="upload-levelnames-title">
+                Which level {pendingFiles.length > 1 ? 'are these examples' : 'is this example'} for?
                 </p>
-                <p className="upload-classnames-help">
-                  Pick the class{availableClassNames.length > 1 ? 'es' : ''} this should guide — reports for the
-                  selected class{availableClassNames.length > 1 ? 'es' : ''} will follow its writing style.
+                <p className="upload-levelnames-help">
+                  Pick the level{availableLevelNames.length > 1 ? 's' : ''} this should guide — reports for the
+                  selected level{availableLevelNames.length > 1 ? 's' : ''} will follow its writing style.
                 </p>
-                <ul className="upload-classnames-files">
+                <ul className="upload-levelnames-files">
                   {pendingFiles.map((f, i) => (
-                    <li key={`${f.name}-${i}`} className="upload-classnames-file">{f.name}</li>
+                    <li key={`${f.name}-${i}`} className="upload-levelnames-file">{f.name}</li>
                   ))}
                 </ul>
-                {availableClassNames.length > 0 && (
-                  <p className="upload-classnames-steplabel">Choose a class</p>
+                {availableLevelNames.length > 0 && (
+                  <p className="upload-levelnames-steplabel">Choose a level</p>
                 )}
                 <ClassNamesSelect
-                  available={availableClassNames}
-                  selected={uploadClassNames}
-                  onChange={setUploadClassNames}
+                  available={availableLevelNames}
+                  selected={uploadLevelNames}
+                  onChange={setUploadLevelNames}
                 />
-                {availableClassNames.length > 0 && uploadClassNames.length === 0 && (
-                  <p className="upload-classnames-hint">Select at least one class to continue.</p>
+                {availableLevelNames.length > 0 && uploadLevelNames.length === 0 && (
+                  <p className="upload-levelnames-hint">Select at least one level to continue.</p>
                 )}
-                <div className="upload-classnames-actions">
+                <div className="upload-levelnames-actions">
                   <button
                     className="btn-secondary btn-sm"
-                    onClick={() => { setPendingFiles(null); setUploadClassNames([]) }}
+                    onClick={() => { setPendingFiles(null); setUploadLevelNames([]) }}
                   >
                     Cancel
                   </button>
                   <button
                     className="btn-sm"
                     onClick={confirmUpload}
-                    disabled={uploadClassNames.length === 0 || uploading}
+                    disabled={uploadLevelNames.length === 0 || uploading}
                   >
                     {uploading ? 'Uploading…' : 'Upload'}
                   </button>
@@ -298,9 +298,9 @@ export default function ReportExamples({
             ) : (
               <div className="example-list">
                 {(() => {
-                  const hasSelection = !!selectedClassNames && selectedClassNames.length > 0
+                  const hasSelection = !!selectedLevelNames && selectedLevelNames.length > 0
                   const matchingReadyCount = hasSelection
-                    ? examples.filter(e => e.status === 'ready' && (e.classNames ?? []).some(cn => selectedClassNames!.includes(cn))).length
+                    ? examples.filter(e => e.status === 'ready' && (e.levelNames ?? []).some(cn => selectedLevelNames!.includes(cn))).length
                     : 0
                   return (
                     <>
@@ -310,7 +310,7 @@ export default function ReportExamples({
                         </p>
                       )}
                       {examples.map((ex) => {
-                        const isMatching = hasSelection && (ex.classNames ?? []).some(cn => selectedClassNames!.includes(cn))
+                        const isMatching = hasSelection && (ex.levelNames ?? []).some(cn => selectedLevelNames!.includes(cn))
                         const isDimmed = hasSelection && !isMatching
                         return (
                           <motion.div
@@ -327,7 +327,7 @@ export default function ReportExamples({
                       badge={
                         ex.status === 'processing' ? <ProcessingBadge /> :
                         ex.status === 'failed' ? <FailedBadge /> :
-                        <ClassNameTags classNames={ex.classNames || []} />
+                        <LevelNameTags levelNames={ex.levelNames || []} />
                       }
                       actions={
                         ex.status === 'ready' ? (
@@ -352,12 +352,12 @@ export default function ReportExamples({
                             />
                           </label>
                           <label className="example-edit-label">
-                            Classes
+                            Levels
                           </label>
                           <ClassNamesSelect
-                            available={availableClassNames}
-                            selected={editClassNames}
-                            onChange={setEditClassNames}
+                            available={availableLevelNames}
+                            selected={editLevelNames}
+                            onChange={setEditLevelNames}
                           />
                           <label className="example-edit-label">
                             Content
@@ -373,7 +373,7 @@ export default function ReportExamples({
                             <button
                               className="btn-sm"
                               onClick={saveEdit}
-                              disabled={saving || !editName.trim() || !editContent.trim() || editClassNames.length === 0}
+                              disabled={saving || !editName.trim() || !editContent.trim() || editLevelNames.length === 0}
                             >
                               {saving ? 'Saving…' : 'Save'}
                             </button>

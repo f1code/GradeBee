@@ -84,7 +84,7 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 	assert.Equal(t, "Maxence", gen.lastRegenReq.Student)
-	assert.Equal(t, "Thursday Timezone", gen.lastRegenReq.Class)
+	assert.Equal(t, "Thursday Timezone", gen.lastRegenReq.ClassName)
 	assert.Equal(t, "2026-01-01", gen.lastRegenReq.StartDate)
 	assert.Equal(t, "make it shorter", gen.lastRegenReq.Feedback)
 	assert.Equal(t, "be concise", gen.lastRegenReq.Instructions)
@@ -117,7 +117,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	}
 
 	reqBody, err := json.Marshal(map[string]any{
-		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "class": "Art"}},
+		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "className": "Art"}},
 		"startDate": "2026-01-01",
 		"endDate":   "2026-03-31",
 	})
@@ -136,7 +136,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 			ID        int64  `json:"id"`
 			StudentID int64  `json:"studentId"`
 			Student   string `json:"student"`
-			Class     string `json:"class"`
+			ClassName string `json:"className"`
 			HTML      string `json:"html"`
 			StartDate string `json:"startDate"`
 			EndDate   string `json:"endDate"`
@@ -217,7 +217,7 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 		ID        int64  `json:"id"`
 		StudentID int64  `json:"studentId"`
 		Student   string `json:"student"`
-		Class     string `json:"class"`
+		ClassName string `json:"className"`
 		HTML      string `json:"html"`
 		StartDate string `json:"startDate"`
 		EndDate   string `json:"endDate"`
@@ -226,7 +226,7 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, int64(77), resp.ID)
 	assert.Equal(t, "Bob", resp.Student)
-	assert.Equal(t, "Science", resp.Class)
+	assert.Equal(t, "Science", resp.ClassName)
 	assert.Equal(t, "2026-02-01", resp.StartDate)
 }
 
@@ -259,10 +259,10 @@ func TestHandleGetReport_IncludesStudentAndClass(t *testing.T) {
 	var resp struct {
 		ID      int64  `json:"id"`
 		Student string `json:"student"`
-		Class   string `json:"class"`
+		ClassName string `json:"className"`
 		HTML    string `json:"html"`
 	}
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "Carol", resp.Student)
-	assert.Equal(t, "History", resp.Class)
+	assert.Equal(t, "History", resp.ClassName)
 }

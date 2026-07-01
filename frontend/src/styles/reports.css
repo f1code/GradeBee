@@ -80,7 +80,7 @@
 }
 
 /* --- Assign-class panel (shown after picking example files) --- */
-.upload-classnames-panel {
+.upload-levelnames-panel {
   position: relative;
   margin: 0.75rem 0;
   padding: 1rem 1.1rem 1.1rem;
@@ -91,7 +91,7 @@
   box-shadow: var(--shadow-sm);
 }
 
-.upload-classnames-title {
+.upload-levelnames-title {
   font-family: var(--font-display);
   font-weight: 500;
   font-size: 1.1rem;
@@ -99,14 +99,14 @@
   margin: 0;
 }
 
-.upload-classnames-help {
+.upload-levelnames-help {
   font-size: 0.85rem;
   color: var(--ink-muted);
   line-height: 1.45;
   margin: 0.3rem 0 0.75rem;
 }
 
-.upload-classnames-files {
+.upload-levelnames-files {
   list-style: none;
   margin: 0 0 0.9rem;
   padding: 0;
@@ -115,7 +115,7 @@
   gap: 0.25rem;
 }
 
-.upload-classnames-file {
+.upload-levelnames-file {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -128,14 +128,14 @@
   word-break: break-word;
 }
 
-.upload-classnames-file::before {
+.upload-levelnames-file::before {
   content: "\1F4C4";
   font-size: 0.85rem;
   line-height: 1;
   flex-shrink: 0;
 }
 
-.upload-classnames-steplabel {
+.upload-levelnames-steplabel {
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -144,13 +144,13 @@
   margin: 0 0 0.45rem;
 }
 
-.upload-classnames-hint {
+.upload-levelnames-hint {
   font-size: 0.8rem;
   color: var(--ink-muted);
   margin: 0.55rem 0 0;
 }
 
-.upload-classnames-actions {
+.upload-levelnames-actions {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
@@ -158,13 +158,13 @@
 }
 
 /* --- Class selection chips (used by assign panel + edit form) --- */
-.class-names-select {
+.level-names-select {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
 }
 
-.class-names-option {
+.level-names-option {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -180,11 +180,11 @@
   transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 
-.class-names-option:hover {
+.level-names-option:hover {
   border-color: var(--honey);
 }
 
-.class-names-option input {
+.level-names-option input {
   position: absolute;
   opacity: 0;
   width: 1px;
@@ -192,7 +192,7 @@
   pointer-events: none;
 }
 
-.class-names-option-check {
+.level-names-option-check {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -207,31 +207,31 @@
   transition: background 0.12s, border-color 0.12s, color 0.12s;
 }
 
-.class-names-option.is-selected {
+.level-names-option.is-selected {
   background: var(--honey-light);
   border-color: var(--honey);
   font-weight: 600;
 }
 
-.class-names-option.is-selected .class-names-option-check {
+.level-names-option.is-selected .level-names-option-check {
   background: var(--honey);
   border-color: var(--honey);
   color: var(--ink);
 }
 
-.class-names-option:has(input:focus-visible) {
+.level-names-option:has(input:focus-visible) {
   outline: 2px dashed var(--honey-dark);
   outline-offset: 2px;
 }
 
-.class-names-empty {
+.level-names-empty {
   font-size: 0.85rem;
   color: var(--ink-muted);
   margin: 0;
 }
 
 /* --- Class tags shown on ready examples --- */
-.class-name-tags {
+.level-name-tags {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 0.3rem;
@@ -239,7 +239,7 @@
   vertical-align: middle;
 }
 
-.class-name-tag {
+.level-name-tag {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--honey-dark);

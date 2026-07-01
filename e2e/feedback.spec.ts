@@ -13,7 +13,7 @@ async function mockBaseRoutes(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          classes: [{ id: 1, name: 'Grade 3A', className: 'Grade 3A', groupName: '', studentCount: 1 }],
+          classes: [{ id: 1, name: 'Grade 3A', levelName: 'Grade 3A', scheduleName: '', studentCount: 1 }],
         }),
       })
     } else {
@@ -43,8 +43,8 @@ async function mockBaseRoutes(page: Page) {
     }
   })
   // Class names for autocomplete
-  await page.route('**/classes/class-names', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ classNames: ['Grade 3A'] }) })
+  await page.route('**/classes/level-names', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ levelNames: ['Grade 3A'] }) })
   })
 }
 
@@ -84,7 +84,7 @@ test.describe('Feedback — explicit thumbs on report', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             reports: [{
-              id: 42, studentId: 10, student: 'Alice', class: 'Grade 3A',
+              id: 42, studentId: 10, student: 'Alice', className: 'Grade 3A',
               html: '<p>Alice shows great progress.</p>',
               startDate: '2026-01-01', endDate: '2026-03-31', createdAt: '2026-04-01T00:00:00Z',
             }],

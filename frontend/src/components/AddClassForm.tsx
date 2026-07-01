@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion } from 'motion/react'
-import { createClass, listClassNames, type ClassItem } from '../api'
+import { createClass, listLevelNames, type ClassItem } from '../api'
 import InlineError from './InlineError'
 
 interface AddClassFormProps {
@@ -11,25 +11,25 @@ interface AddClassFormProps {
 
 export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps) {
   const { getToken } = useAuth()
-  const [className, setClassName] = useState('')
-  const [group, setGroup] = useState('')
+  const [levelName, setLevelName] = useState('')
+  const [scheduleName, setScheduleName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [suggestions, setSuggestions] = useState<string[]>([])
-  const [allClassNames, setAllClassNames] = useState<string[]>([])
+  const [allLevelNames, setAllLevelNames] = useState<string[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     inputRef.current?.focus()
-    listClassNames(getToken).then(({ classNames }) => setAllClassNames(classNames)).catch(() => {})
+    listLevelNames(getToken).then(({ levelNames }) => setAllLevelNames(levelNames)).catch(() => {})
   }, [getToken])
 
-  function handleClassNameChange(val: string) {
-    setClassName(val)
+  function handleLevelNameChange(val: string) {
+    setLevelName(val)
     if (val.trim()) {
       const lower = val.toLowerCase()
-      const filtered = allClassNames.filter(n => n.toLowerCase().includes(lower))
+      const filtered = allLevelNames.filter(n => n.toLowerCase().includes(lower))
       setSuggestions(filtered)
       setShowSuggestions(filtered.length > 0)
     } else {
@@ -39,20 +39,20 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
   }
 
   function pickSuggestion(name: string) {
-    setClassName(name)
+    setLevelName(name)
     setSuggestions([])
     setShowSuggestions(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const trimmed = className.trim()
+    const trimmed = levelName.trim()
     if (!trimmed || submitting) return
 
     setSubmitting(true)
     setError(null)
     try {
-      const cls = await createClass(trimmed, group.trim(), getToken)
+      const cls = await createClass(trimmed, scheduleName.trim(), getToken)
       onCreated(cls)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create class')
@@ -85,14 +85,14 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
             <input
               ref={inputRef}
               type="text"
-              value={className}
-              onChange={e => handleClassNameChange(e.target.value)}
+              value={levelName}
+              onChange={e => handleLevelNameChange(e.target.value)}
               onKeyDown={handleKeyDown}
               onFocus={() => {
                 if (suggestions.length > 0) setShowSuggestions(true)
               }}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              placeholder="Class name"
+              placeholder="Level"
               disabled={submitting}
               className="add-class-input"
               data-testid="add-class-input"
@@ -110,22 +110,22 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
           </div>
           <input
             type="text"
-            value={group}
-            onChange={e => setGroup(e.target.value)}
+            value={scheduleName}
+            onChange={e => setScheduleName(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Group (optional)"
+            placeholder="Schedule (optional)"
             disabled={submitting}
             className="add-class-input"
-            data-testid="add-class-group-input"
+            data-testid="add-class-schedule-input"
           />
         </div>
         <p className="add-class-hint" data-testid="add-class-hint">
-          <strong>Group</strong> is optional and just organizes related classes
-          together (e.g. “Period 1”). The <strong>class name</strong> identifies the
+          <strong>Schedule</strong> is optional and groups classes by schedule slot
+          (e.g. "Period 1"). The <strong>level</strong> identifies the
           class and is used to match report-card examples.
         </p>
         <div className="add-class-form-row">
-          <button type="submit" disabled={submitting || !className.trim()} data-testid="add-class-submit">
+          <button type="submit" disabled={submitting || !levelName.trim()} data-testid="add-class-submit">
             {submitting ? 'Adding…' : 'Add'}
           </button>
           {onCancel && (
