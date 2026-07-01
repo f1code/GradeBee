@@ -10,6 +10,17 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 
 **Storage:** SQLite database (`modernc.org/sqlite`) with WAL mode. Audio files stored on local disk. No Google Sheets/Docs — all data in SQLite.
 
+## Domain Concepts
+
+| Term | Definition |
+|------|------------|
+| **Level** | A curriculum tier or grade (e.g. "Grade 3", "Intermediate"). Identifies the style of report card expected. Used to match report-card examples. |
+| **Schedule** | An optional time-slot or period label (e.g. "Period 1", "Morning"). Distinguishes multiple sections taught at the same level. |
+| **Class** | A concrete teaching group — a **Level instance**. Combines a required `level_name` with an optional `schedule_name`. A teacher may have multiple classes at the same level (different schedules). The display name is `level_name` when no schedule is set, or `level_name–schedule_name` when one is. |
+| **Student** | A learner belonging to exactly one class. |
+| **Note** | A per-student observation extracted from a voice or text upload. |
+| **Report** | An LLM-generated report card for one student, drawing on their notes and matching examples. |
+
 ## Entrypoint & Routing
 
 **`handler.go`** — exports `Handle(w, r)`, the single HTTP handler. Routes use `strings.HasPrefix` + `pathParam()` for parameterized paths.
@@ -231,7 +242,7 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 
 | Table | Purpose |
 |-------|---------|
-| `classes` | Teacher's classes. `level_name` (required) is the class identifier and is also used to tag report examples for style matching (see `report_example_classes`). `schedule_name` (optional, e.g. "Period 1") is purely organizational, grouping related classes. `name` is the derived display name (`level_name-schedule_name` when a schedule is set). |
+| `classes` | A **class** is a Level instance: the combination of a required `level_name` and an optional `schedule_name`. `level_name` is used to match report-card examples for style (see `report_example_classes`). `schedule_name` (e.g. "Period 1") distinguishes multiple sections at the same level. `name` is the derived display name (`level_name` alone, or `level_name–schedule_name` when a schedule is set). |
 | `report_example_classes` | M-M link: report examples ↔ `level_name` values (drives example selection for style matching at report generation). |
 | `students` | Students belonging to classes |
 | `student_aliases` | Nickname/variant aliases per student (per-class uniqueness, case-insensitive) |
