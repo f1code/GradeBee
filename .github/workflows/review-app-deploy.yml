@@ -69,6 +69,9 @@ jobs:
               dokku apps:create "$APP_NAME"
               dokku domains:set "$APP_NAME" $APP_NAME.test.gradebee.app
               dokku storage:create data-$APP_NAME
+              TARGET=`dokku storage:info data-$APP_NAME --format json | jq -r .host_path`
+              # Online backup avoids reading mid-write; copy to the PR-specific DB filename
+              sqlite3 /data/gradebee/gradebee.db ".backup ${TARGET}/${APP_NAME}.db"
               dokku storage:mount "$APP_NAME" data-$APP_NAME --container-dir /data
               # Inject backend runtime config; update on every deploy in case secrets rotate
             fi
