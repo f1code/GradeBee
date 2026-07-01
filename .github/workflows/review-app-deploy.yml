@@ -20,6 +20,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    environment:
+      name: pr-${{ github.event.number }}
+      url: ${{ steps.review_app_url.outputs.review_app_url }}
 
     steps:
       - name: Checkout
@@ -39,9 +42,9 @@ jobs:
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/gradebee:pr-${{ github.event.number }}-${{ github.sha }}
           build-args: |
-            VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}
+            VITE_CLERK_PUBLISHABLE_KEY=${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
-            VITE_SENTRY_DSN=${{ secrets.VITE_SENTRY_DSN }}
+            VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
             VITE_APP_VERSION=pr-${{ github.event.number }}
 
       - name: Deploy review app via SSH
@@ -81,3 +84,10 @@ jobs:
             dokku git:from-image "$APP_NAME" "$IMAGE"
             dokku letsencrypt:set ${APP_NAME} email $LETSENCRYPT_EMAIL
             dokku letsencrypt:enable ${APP_NAME}
+
+      - name: Generate review app URL
+        id: review_app_url
+        run: |
+          # Pass the URL to the environment URL via step outputs
+          APP_NAME="gradebee-pr-${{ github.event.number }}"
+          echo "review_app_url=https://$APP_NAME.test.gradebee.app" >> $GITHUB_OUTPUT
