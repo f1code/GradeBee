@@ -53,19 +53,6 @@ echo "  Uploaded to ${S3_BUCKET}/${S3_PREFIX}/${TIMESTAMP}.db"
 # --- Cleanup temp file ---
 rm -f "$TMPFILE"
 
-# --- Prune old backups (keep newest $BACKUP_RETENTION) ---
-OBJECTS=$(aws s3 ls "${S3_BUCKET}/${S3_PREFIX}/" | sort | awk '{print $4}')
-COUNT=$(echo "$OBJECTS" | grep -c . || true)
-
-if [ "$COUNT" -gt "$BACKUP_RETENTION" ]; then
-    DELETE_COUNT=$((COUNT - BACKUP_RETENTION))
-    echo "  Pruning ${DELETE_COUNT} old backup(s) (keeping ${BACKUP_RETENTION})..."
-    echo "$OBJECTS" | head -n "$DELETE_COUNT" | while read -r obj; do
-        aws s3 rm "${S3_BUCKET}/${S3_PREFIX}/${obj}" --quiet
-        echo "    Deleted ${obj}"
-    done
-fi
-
 echo "[${TIMESTAMP}] Backup complete."
 
 # Notify Sentry success.
