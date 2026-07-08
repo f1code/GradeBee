@@ -40,3 +40,4 @@ docs/superpowers/
 ansible/secrets.yml
 ansible/inventory
 backend/bin/
+.pi-subagents/
