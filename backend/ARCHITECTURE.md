@@ -216,7 +216,11 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 ### Clerk (`auth.go`)
 - JWT verification via middleware.
 - OAuth token retrieval: `user.ListOAuthAccessTokens` for `oauth_google`.
-- `userIDFromRequest(r)` extracts user ID from Clerk session claims.
+- `userIDFromRequest(r)` extracts user ID from Clerk session claims (in `handler.go`).
+- `groupIDFromRequest(r)` — extracts the active Clerk Organization ID (`ActiveOrganizationID`) from verified session claims. Returns `403 unauthorized` if claims are absent, `403 no_active_org` if no org is active (user not yet in a Group).
+- `isAdmin(r)` — returns `true` if the session role is `"org:admin"` (uses `SessionClaims.HasRole`).
+- `debugAuthMiddleware` enforces the active-org gate after Clerk JWT verification: any verified request with an empty `ActiveOrganizationID` is rejected with `403 no_active_org` before reaching the handler. `/health` and static routes are outside this middleware.
+- **Phase 2 note:** `group_id` columns on domain tables are intentionally absent in Phase 1. The Group boundary is enforced at the auth layer only; `user_id`-scoped reads/writes are unchanged. Group-owned entities (`levels`, group-scoped `report_examples`) and the DB columns that carry `group_id` are introduced in Phase 2.
 
 ### LLM Provider (`llm_provider*.go`)
 
@@ -258,10 +262,13 @@ Each table has a `Repo*` type in `repo_*.go` files providing type-safe CRUD.
 ## Authorization Pattern
 
 All CRUD endpoints verify resource ownership:
-1. Extract `userID` from Clerk JWT claims
-2. For class operations: query class, check `class.UserID == userID`
-3. For student operations: `studentRepo.BelongsToUser(studentID, userID)`
-4. For note/report operations: join through student → class to verify ownership
+1. Extract `userID` from Clerk JWT claims via `userIDFromRequest(r)`
+2. Extract `groupID` from the active Clerk Organisation via `groupIDFromRequest(r)` (available from Phase 1; used for scoped queries from Phase 2 onward)
+3. For class operations: query class, check `class.UserID == userID`
+4. For student operations: `studentRepo.BelongsToUser(studentID, userID)`
+5. For note/report operations: join through student → class to verify ownership
+
+The `debugAuthMiddleware` enforces that every `/api/` request carries an active Clerk Organization (`ActiveOrganizationID != ""`). Requests without an active org receive `403 no_active_org` before reaching any handler.
 
 ## File-by-File Reference
 
@@ -275,7 +282,7 @@ All CRUD endpoints verify resource ownership:
 | `llm_provider_openai.go` | `openaiProvider` — OpenAI chat/vision via go-openai + Whisper transcription |
 | `llm_provider_mistral.go` | `mistralProvider` — Mistral chat/vision via OpenAI-compat endpoint + Voxtral transcription via ZaguanLabs SDK |
 | `google.go` | `apiError` type, `writeAPIError`, `newDriveReadClient` (Drive-read-only) |
-| `auth.go` | `getGoogleOAuthToken` — Clerk → Google OAuth token |
+| `auth.go` | `groupIDFromRequest`, `isAdmin` — Clerk org/role helpers; `getGoogleOAuthToken` — Clerk → Google OAuth token |
 | `db.go` | Open SQLite, set PRAGMAs (WAL, busy_timeout, foreign_keys) |
 | `migrate.go` | Embed + run SQL migrations on startup |
 | `sql/001_init.sql` | Schema: classes, students, notes, reports, report_examples, uploads (renamed to voice_notes via 002) |

@@ -85,6 +85,17 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 		verified := false
 		inner := clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			verified = true
+			// Enforce active Clerk Organisation — every API request must belong
+			// to a Group. Personal (org-less) sessions are not permitted.
+			claims, ok := clerk.SessionClaimsFromContext(r.Context())
+			if !ok || claims == nil || claims.ActiveOrganizationID == "" {
+				writeAPIError(w, r, &apiError{
+					Status:  http.StatusForbidden,
+					Code:    "no_active_org",
+					Message: "no active organization \u2014 ask your admin for an invitation",
+				})
+				return
+			}
 			next.ServeHTTP(w, r)
 		}))
 		inner.ServeHTTP(w, r)

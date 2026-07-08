@@ -65,8 +65,15 @@ GradeBee/
 
 - Node.js 24.13.x
 - Go 1.24+
-- A [Clerk](https://clerk.com) account configured with Google OAuth
+- A [Clerk](https://clerk.com) account configured with Google OAuth and **Organizations enabled**
 - pnpm (enabled via Corepack: `corepack enable`)
+
+### User onboarding (invitation-only)
+
+GradeBee is invitation-only. Every user must belong to a **Group** (Clerk Organization) — ungrouped access is not permitted.
+
+- **New teachers** join via an organization invitation from their admin. The admin invites the teacher's email in the Clerk dashboard; the teacher accepts and signs up into the org with a `member` role.
+- **Initial setup:** create the first Group and its admin user manually in the Clerk dashboard (see `backend/ARCHITECTURE.md` for the auth pattern). Open self-registration is disabled.
 
 ### Setup
 
