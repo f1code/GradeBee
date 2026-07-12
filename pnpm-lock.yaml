@@ -4,6 +4,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    typescript:
+      specifier: ~6.0.2
+      version: 6.0.3
+
 importers:
 
   .:
@@ -26,6 +32,9 @@ importers:
       lint-staged:
         specifier: ^16.4.0
         version: 16.4.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
   backend/evals:
     devDependencies:
@@ -106,7 +115,7 @@ importers:
         specifier: ^25.1.0
         version: 25.1.0(proxy-agent@8.0.1)
       typescript:
-        specifier: ~6.0.2
+        specifier: 'catalog:'
         version: 6.0.3
       typescript-eslint:
         specifier: ^8.60.0

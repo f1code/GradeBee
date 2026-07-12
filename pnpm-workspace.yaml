@@ -12,3 +12,5 @@ allowBuilds:
   protobufjs: false
   puppeteer: true
   sharp: false
+catalog:
+  typescript: ~6.0.2
