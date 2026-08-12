@@ -84,9 +84,22 @@ Mistral (`mistral-medium-2508`) is the default provider for extraction, report g
 
 ## Git Worktrees
 
-Create git worktrees under .worktrees.
 To prepare a worktree for running the application, copy the following files from the main tree:
 
  - .env
  - frontend/.env
  - data/gradebee.db
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as tasks on the local kanban-md board (`../kanban/tasks/`). See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five canonical triage roles, label strings unchanged. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
