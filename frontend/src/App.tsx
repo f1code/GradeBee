@@ -1,4 +1,4 @@
-import { Show, SignInButton, UserButton, useUser } from '@clerk/react'
+import { Show, SignInButton, UserButton, useAuth, useUser } from '@clerk/react'
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
 import StudentList from './components/StudentList'
@@ -10,6 +10,10 @@ import HintBanner from './components/HintBanner'
 import FeedbackButton from './components/FeedbackButton'
 import PrivacyPreferencesLink from './components/PrivacyPreferencesLink'
 
+
+// Feature flag: when enabled, the Reports tab is restricted to Clerk org admins.
+// Unset/false keeps the tab visible to every Group member (current behavior).
+const REPORTS_ADMIN_ONLY = import.meta.env.VITE_FEATURE_REPORTS_ADMIN_ONLY === 'true'
 function BeeIcon({ size = 28 }: { size?: number }) {
   return (
     <svg
@@ -119,6 +123,8 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
 }) {
   const jobPollNowRef = useRef<(() => void) | null>(null)
   const { user } = useUser()
+  const { has } = useAuth()
+  const reportsLocked = REPORTS_ADMIN_ONLY && !has({ role: 'org:admin' })
 
   // Auto-show guide on first visit
   useEffect(() => {
@@ -127,6 +133,14 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
       localStorage.setItem('gradebee:seenGuide', '1')
     }
   }, [setShowGuide])
+
+  // If the flag/role state makes Reports locked while it's the active tab
+  // (e.g. role change mid-session), fall back to Notes.
+  useEffect(() => {
+    if (reportsLocked && activeTab === 'reports') {
+      setActiveTab('notes')
+    }
+  }, [reportsLocked, activeTab, setActiveTab])
 
   return (
     <motion.div
@@ -144,6 +158,8 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
         <button
           className={`toolbar-link ${activeTab === 'reports' ? 'active' : ''}`}
           onClick={() => setActiveTab('reports')}
+          disabled={reportsLocked}
+          title={reportsLocked ? 'This feature is not enabled yet.' : undefined}
         >
           📝 Reports
         </button>

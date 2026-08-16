@@ -292,7 +292,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={ACCEPTED_FORMATS}
+                  accept="audio/*"
                   onChange={handleFileChange}
                   multiple
                   style={{ display: 'none' }}
