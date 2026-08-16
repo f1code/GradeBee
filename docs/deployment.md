@@ -206,6 +206,7 @@ Deployments are automated via GitHub Actions (see `.github/workflows/`):
 | `MISTRAL_API_KEY` | Mistral API key (used when `LLM_PROVIDER=mistral`; required for default config) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (passed as Docker build-arg) |
 | `VITE_SENTRY_DSN` | Sentry DSN (optional; passed as Docker build-arg) |
+| `VITE_FEATURE_REPORTS_ADMIN_ONLY` | Feature flag (repo variable, not secret; optional; passed as Docker build-arg) |
 
 > **Note:** GHCR authentication uses `secrets.GITHUB_TOKEN` (auto-provided by GitHub Actions) — no PAT is needed.
 
@@ -259,6 +260,7 @@ These are baked into the JS bundle at image build time. CI passes them from GitH
 | `VITE_API_URL` | No | API base URL (default `/api`, same origin) |
 | `VITE_SENTRY_DSN` | No | Sentry DSN (omit to disable Sentry) |
 | `VITE_APP_VERSION` | No | Release tag for Sentry (CI passes `${{ github.sha }}`) |
+| `VITE_FEATURE_REPORTS_ADMIN_ONLY` | No | Restricts Reports tab to Clerk org admins when `"true"` (default unset/false) |
 
 ## Troubleshooting
 

@@ -41,6 +41,7 @@ jobs:
             VITE_CLERK_PUBLISHABLE_KEY=${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
             VITE_APP_VERSION=${{ github.sha }}
+            VITE_FEATURE_REPORTS_ADMIN_ONLY=${{ vars.VITE_FEATURE_REPORTS_ADMIN_ONLY }}
 
       - name: Deploy to production via SSH
         uses: appleboy/ssh-action@v1

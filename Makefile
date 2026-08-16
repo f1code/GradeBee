@@ -29,6 +29,7 @@ build:
 		--build-arg VITE_API_URL=$(VITE_API_URL) \
 		--build-arg VITE_SENTRY_DSN=$(VITE_SENTRY_DSN) \
 		--build-arg VITE_APP_VERSION=$(VITE_APP_VERSION) \
+		--build-arg VITE_FEATURE_REPORTS_ADMIN_ONLY=$(VITE_FEATURE_REPORTS_ADMIN_ONLY) \
 		-t gradebee:local .
 
 # --- Infrastructure ---
