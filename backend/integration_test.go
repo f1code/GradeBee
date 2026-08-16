@@ -45,7 +45,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did great. Bob needs work."},
 		roster: &stubRoster{
-			levelNames: []string{"Math"},
+			classNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{

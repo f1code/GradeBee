@@ -10,14 +10,14 @@ import (
 
 // stubRoster implements Roster for tests.
 type stubRoster struct {
-	levelNames  []string
+	classNames  []string
 	classErr    error
 	students    []ClassGroup
 	studentsErr error
 }
 
-func (s *stubRoster) LevelNames(_ context.Context) ([]string, error) {
-	return s.levelNames, s.classErr
+func (s *stubRoster) ClassNames(_ context.Context) ([]string, error) {
+	return s.classNames, s.classErr
 }
 
 func (s *stubRoster) Students(_ context.Context) ([]ClassGroup, error) {

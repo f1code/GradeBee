@@ -39,10 +39,11 @@ func TestProcessJob_HappyPath(t *testing.T) {
 			{NoteID: 2},
 		},
 	}
+	transcriber := &stubTranscriber{result: "Alice did great today. Bob needs improvement."}
 	d := &mockDepsAll{
-		transcriber: &stubTranscriber{result: "Alice did great today. Bob needs improvement."},
+		transcriber: transcriber,
 		roster: &stubRoster{
-			levelNames: []string{"Math"},
+			classNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{
@@ -76,6 +77,7 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	assert.Equal(t, JobStatusDone, got.Status)
 	assert.Len(t, got.NoteLinks, 2)
 	assert.Len(t, nc.calls, 2)
+	assert.Equal(t, []string{"Math"}, transcriber.gotBias, "transcriber should receive class names as context bias")
 }
 
 func TestProcessJob_TranscribeFail(t *testing.T) {
@@ -295,7 +297,7 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "some transcript"},
 		roster: &stubRoster{
-			levelNames: []string{"Math"},
+			classNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
@@ -343,7 +345,7 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did well"},
 		roster: &stubRoster{
-			levelNames: []string{"Math"},
+			classNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
