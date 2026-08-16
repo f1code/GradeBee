@@ -63,6 +63,7 @@ type mockDepsAll struct {
 	exampleRepo         *ReportExampleRepo
 	voiceNoteRepo       *VoiceNoteRepo
 	feedbackRepo        *ArtifactFeedbackRepo
+	levelRepo           *LevelRepo
 	uploadsDir          string
 }
 
@@ -138,6 +139,7 @@ func (m *mockDepsAll) GetReportRepo() *ReportRepo             { return m.reportR
 func (m *mockDepsAll) GetExampleRepo() *ReportExampleRepo     { return m.exampleRepo }
 func (m *mockDepsAll) GetVoiceNoteRepo() *VoiceNoteRepo       { return m.voiceNoteRepo }
 func (m *mockDepsAll) GetFeedbackRepo() *ArtifactFeedbackRepo { return m.feedbackRepo }
+func (m *mockDepsAll) GetLevelRepo() *LevelRepo               { return m.levelRepo }
 func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploadsDir }
 
 // stubExtractor implements Extractor for tests.
@@ -332,4 +334,17 @@ func requireLiveLLM(t *testing.T) LLMProvider {
 		t.Skipf("LLM provider not configured: %v", err)
 	}
 	return p
+}
+
+// newTestLevel creates a Level for the given Group directly in the DB,
+// bypassing the migration's hand-authored seed data. Tests build their own
+// Levels through this fixture rather than relying on the migration's seed —
+// a data migration should not be load-bearing for the unit suite.
+func newTestLevel(t *testing.T, db *sql.DB, groupID, name string) Level {
+	t.Helper()
+	l, err := (&LevelRepo{db: db}).Create(context.Background(), groupID, name)
+	if err != nil {
+		t.Fatalf("newTestLevel: %v", err)
+	}
+	return l
 }

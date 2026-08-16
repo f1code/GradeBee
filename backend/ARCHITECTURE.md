@@ -14,7 +14,7 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 
 | Term | Definition |
 |------|------------|
-| **Level** | A curriculum tier or grade (e.g. "Grade 3", "Intermediate"). Identifies the style of report card expected. Used to match report-card examples. |
+| **Level** | A Group-owned curriculum tier (e.g. "Grade 3", "Intermediate"), curated by the Admin via the Levels screen. Carries shared Report Instructions that will guide report generation. Not yet referenced by Classes — `classes.level_name` remains free text until Classes are wired to `level_id`. |
 | **Schedule** | An optional time-slot or period label (e.g. "Period 1", "Morning"). Distinguishes multiple sections taught at the same level. |
 | **Class** | A concrete teaching group — a **Level instance**. Combines a required `level_name` with an optional `schedule_name`. A teacher may have multiple classes at the same level (different schedules). The display name is `level_name` when no schedule is set, or `level_name–schedule_name` when one is. |
 | **Student** | A learner belonging to exactly one class. |
@@ -71,6 +71,10 @@ Cache headers:
 | GET | `/api/voice-notes/jobs` | Yes | `handleJobList` | List user's async upload jobs |
 | POST | `/api/voice-notes/jobs/retry` | Yes | `handleJobRetry` | Retry failed jobs |
 | POST | `/api/voice-notes/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs |
+| GET | `/api/levels` | Yes | `handleListLevels` | List the caller's Group's Levels |
+| POST | `/api/levels` | Yes (Admin) | `handleCreateLevel` | Create a Level (body: `{name}`) |
+| PUT | `/api/levels/{id}` | Yes (Admin) | `handleUpdateLevel` | Rename and/or set Report Instructions (body: `{name?, reportInstructions?}`) |
+| DELETE | `/api/levels/{id}` | Yes (Admin) | `handleDeleteLevel` | Delete a Level |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline (GET, POST, PUT, DELETE, OPTIONS).
 
@@ -186,6 +190,7 @@ deps interface {
     GetReportRepo()       → *ReportRepo
     GetExampleRepo()      → *ReportExampleRepo
     GetVoiceNoteRepo()    → *VoiceNoteRepo
+    GetLevelRepo()        → *LevelRepo
     GetUploadsDir()       → string
 }
 ```
@@ -220,7 +225,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 - `groupIDFromRequest(r)` — extracts the active Clerk Organization ID (`ActiveOrganizationID`) from verified session claims. Returns `403 unauthorized` if claims are absent, `403 no_active_org` if no org is active (user not yet in a Group).
 - `isAdmin(r)` — returns `true` if the session role is `"org:admin"` (uses `SessionClaims.HasRole`).
 - `debugAuthMiddleware` enforces the active-org gate after Clerk JWT verification: any verified request with an empty `ActiveOrganizationID` is rejected with `403 no_active_org` before reaching the handler. `/health` and static routes are outside this middleware.
-- **Phase 2 note:** `group_id` columns on domain tables are intentionally absent in Phase 1. The Group boundary is enforced at the auth layer only; `user_id`-scoped reads/writes are unchanged. Group-owned entities (`levels`, group-scoped `report_examples`) and the DB columns that carry `group_id` are introduced in Phase 2.
+- **Phase 2:** `levels` table added (`sql/010_levels.sql`), Group-owned and scoped by `group_id` (the active Clerk Organization ID). `LevelRepo` (`repo_level.go`) enforces the Group boundary on every method; `/api/levels` reads are open to any Group member, writes (`POST`/`PUT`/`DELETE`) require `isAdmin(r)`. `classes.level_name` is still free text — Class→Level linkage is deferred to a follow-up ticket (#57).
 
 ### LLM Provider (`llm_provider*.go`)
 
@@ -254,6 +259,7 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 | `reports` | Generated HTML report cards |
 | `report_examples` | Example report cards for style matching |
 | `voice_notes` | Audio file tracking (file path, processed_at, purged_at) |
+| `levels` | Group-owned curriculum tiers. `name` unique within `group_id`; `report_instructions` defaults to `''`. Seeded with 8 hand-authored Levels against the production Clerk org ID (one-shot data migration, `sql/010_levels.sql`). |
 
 ### Repository Layer
 
@@ -294,6 +300,8 @@ The `debugAuthMiddleware` enforces that every `/api/` request carries an active 
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
 | `repo_example.go` | `ReportExampleRepo` — CRUD for report examples |
 | `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `MarkPurged`, `ListStale` |
+| `repo_level.go` | `LevelRepo` — CRUD for levels, every method scoped by `group_id` |
+| `levels.go` | GET/POST/PUT/DELETE /levels handlers — write endpoints gated on `isAdmin(r)` |
 | `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr`; `ErrDuplicateAlias` (carries `ConflictStudentName` for alias 409 responses) |
 | `students.go` | GET /students, class/student CRUD handlers, `classGroup`/`student` types |
 | `aliases.go` | GET/POST/DELETE /students/{id}/aliases — alias CRUD handlers |

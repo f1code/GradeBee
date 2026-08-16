@@ -41,6 +41,7 @@ type deps interface {
 	GetReportRepo() *ReportRepo
 	GetExampleRepo() *ReportExampleRepo
 	GetVoiceNoteRepo() *VoiceNoteRepo
+	GetLevelRepo() *LevelRepo
 	// GetUploadsDir returns the local directory for audio file storage.
 	GetUploadsDir() string
 	// GetFeedbackRepo returns the ArtifactFeedbackRepo.
@@ -57,6 +58,7 @@ type prodDeps struct {
 	exampleRepo    *ReportExampleRepo
 	voiceNoteRepo  *VoiceNoteRepo
 	feedbackRepo   *ArtifactFeedbackRepo
+	levelRepo      *LevelRepo
 	uploadsDir     string
 	provider       LLMProvider
 }
@@ -119,6 +121,7 @@ func (p *prodDeps) GetReportRepo() *ReportRepo                  { return p.repor
 func (p *prodDeps) GetExampleRepo() *ReportExampleRepo          { return p.exampleRepo }
 func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo            { return p.voiceNoteRepo }
 func (p *prodDeps) GetFeedbackRepo() *ArtifactFeedbackRepo      { return p.feedbackRepo }
+func (p *prodDeps) GetLevelRepo() *LevelRepo                    { return p.levelRepo }
 func (p *prodDeps) GetUploadsDir() string                       { return p.uploadsDir }
 
 // Voice note queue singleton, initialised at startup via InitVoiceNoteQueue.
@@ -155,6 +158,7 @@ func NewProdDeps(db *sql.DB, uploadsDir string) deps {
 		exampleRepo:   &ReportExampleRepo{db: db},
 		voiceNoteRepo: &VoiceNoteRepo{db: db},
 		feedbackRepo:  &ArtifactFeedbackRepo{db: db},
+		levelRepo:     &LevelRepo{db: db},
 		uploadsDir:    uploadsDir,
 		provider:      provider,
 	}

@@ -89,3 +89,28 @@ func TestHandle_ProtectedEndpoint_NoAuth(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code, "GET /api/classes no auth: unexpected status")
 }
+
+// TestHandle_LevelsRoutes asserts each /api/levels route reaches auth
+// middleware (401, not 404) — proving the path-matching in Handle() routes
+// GET/POST/PUT/DELETE correctly instead of falling through to the unknown
+// route branch.
+func TestHandle_LevelsRoutes(t *testing.T) {
+	cases := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/levels"},
+		{http.MethodPost, "/api/levels"},
+		{http.MethodPut, "/api/levels/1"},
+		{http.MethodDelete, "/api/levels/1"},
+	}
+	for _, c := range cases {
+		req := httptest.NewRequest(c.method, c.path, http.NoBody)
+		req.Header.Set("Authorization", "Bearer invalid-token")
+		rec := httptest.NewRecorder()
+
+		Handle(rec, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code, "%s %s: expected routed-then-rejected, got %d", c.method, c.path, rec.Code)
+	}
+}

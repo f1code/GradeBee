@@ -9,6 +9,7 @@ import type {
   VoiceNoteJob,
   JobListResponse,
   AliasResponse,
+  Level as LevelItem,
 } from './api-types.gen'
 
 export type {
@@ -22,6 +23,7 @@ export type {
   VoiceNoteJob,
   JobListResponse,
   AliasResponse,
+  LevelItem,
 }
 
 /**
@@ -661,5 +663,90 @@ export async function dismissJobs(
   if (!resp.ok) {
     const body = await resp.json()
     throw new Error(body.error || 'Failed to dismiss jobs')
+  }
+}
+
+// --- Levels (admin) ---
+
+export async function listLevels(
+  getToken: () => Promise<string | null>
+): Promise<{ levels: LevelItem[] }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/levels`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to list levels')
+  return body
+}
+
+export async function createLevel(
+  name: string,
+  getToken: () => Promise<string | null>
+): Promise<LevelItem> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/levels`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to create level')
+  return body
+}
+
+export async function renameLevel(
+  id: number,
+  name: string,
+  getToken: () => Promise<string | null>
+): Promise<LevelItem> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/levels/${id}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ name }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to rename level')
+  return body
+}
+
+export async function updateLevelReportInstructions(
+  id: number,
+  reportInstructions: string,
+  getToken: () => Promise<string | null>
+): Promise<LevelItem> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/levels/${id}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reportInstructions }),
+  })
+  const body = await resp.json()
+  if (!resp.ok) throw new Error(body.error || 'Failed to update report instructions')
+  return body
+}
+
+export async function deleteLevel(
+  id: number,
+  getToken: () => Promise<string | null>
+): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/levels/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}))
+    throw new Error(body.error || 'Failed to delete level')
   }
 }

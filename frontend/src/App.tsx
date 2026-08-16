@@ -9,6 +9,7 @@ import HowItWorks from './components/HowItWorks'
 import HintBanner from './components/HintBanner'
 import FeedbackButton from './components/FeedbackButton'
 import PrivacyPreferencesLink from './components/PrivacyPreferencesLink'
+import LevelsAdmin from './components/LevelsAdmin'
 
 
 // Feature flag: when enabled, the Reports tab is restricted to Clerk org admins.
@@ -47,7 +48,7 @@ function BeeIcon({ size = 28 }: { size?: number }) {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'notes' | 'reports'>('notes')
+  const [activeTab, setActiveTab] = useState<'notes' | 'reports' | 'levels'>('notes')
   const [showGuide, setShowGuide] = useState(false)
   const [consented, setConsented] = useState(() => !!localStorage.getItem('gradebee:consented'))
 
@@ -117,14 +118,15 @@ function App() {
 }
 
 function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
-  activeTab: 'notes' | 'reports'
-  setActiveTab: (v: 'notes' | 'reports') => void
+  activeTab: 'notes' | 'reports' | 'levels'
+  setActiveTab: (v: 'notes' | 'reports' | 'levels') => void
   setShowGuide: (v: boolean) => void
 }) {
   const jobPollNowRef = useRef<(() => void) | null>(null)
   const { user } = useUser()
   const { has } = useAuth()
   const reportsLocked = REPORTS_ADMIN_ONLY && !has({ role: 'org:admin' })
+  const isAdmin = has({ role: 'org:admin' })
 
   // Auto-show guide on first visit
   useEffect(() => {
@@ -135,12 +137,17 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
   }, [setShowGuide])
 
   // If the flag/role state makes Reports locked while it's the active tab
-  // (e.g. role change mid-session), fall back to Notes.
+  // (e.g. role change mid-session), fall back to Notes. Same for Levels —
+  // the tab is Admin-only, hiding it is UX; the real gate is the backend
+  // isAdmin check on write endpoints.
   useEffect(() => {
     if (reportsLocked && activeTab === 'reports') {
       setActiveTab('notes')
     }
-  }, [reportsLocked, activeTab, setActiveTab])
+    if (!isAdmin && activeTab === 'levels') {
+      setActiveTab('notes')
+    }
+  }, [reportsLocked, isAdmin, activeTab, setActiveTab])
 
   return (
     <motion.div
@@ -163,20 +170,30 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
         >
           📝 Reports
         </button>
+        {isAdmin && (
+          <button
+            className={`toolbar-link ${activeTab === 'levels' ? 'active' : ''}`}
+            onClick={() => setActiveTab('levels')}
+          >
+            🐝 Levels
+          </button>
+        )}
       </nav>
-      {activeTab === 'notes' ? (
+      {activeTab === 'notes' && (
         <>
           <HintBanner storageKey="gradebee:hint:notes">Upload audio — GradeBee processes it in the background and creates notes automatically.</HintBanner>
           <StudentList />
           <JobStatus pollNowRef={jobPollNowRef} />
           <AudioUpload onUploadDone={() => jobPollNowRef.current?.()} />
         </>
-      ) : (
+      )}
+      {activeTab === 'reports' && (
         <>
           <HintBanner storageKey="gradebee:hint:reports">Select students and a date range to generate report cards from your accumulated notes.</HintBanner>
           <ReportGeneration />
         </>
       )}
+      {activeTab === 'levels' && <LevelsAdmin />}
       {/* Floating feedback button — only shown to authenticated teachers */}
       {user && (
         <FeedbackButton

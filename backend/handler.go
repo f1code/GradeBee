@@ -251,6 +251,16 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "classes/") && !strings.Contains(strings.TrimPrefix(path, "classes/"), "/") && r.Method == http.MethodDelete:
 		authHandler(handleDeleteClass).ServeHTTP(rec, r)
 
+	// Levels CRUD (Group-owned; write endpoints admin-gated in the handler)
+	case path == "levels" && r.Method == http.MethodGet:
+		authHandler(handleListLevels).ServeHTTP(rec, r)
+	case path == "levels" && r.Method == http.MethodPost:
+		authHandler(handleCreateLevel).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "levels/") && !strings.Contains(strings.TrimPrefix(path, "levels/"), "/") && r.Method == http.MethodPut:
+		authHandler(handleUpdateLevel).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "levels/") && !strings.Contains(strings.TrimPrefix(path, "levels/"), "/") && r.Method == http.MethodDelete:
+		authHandler(handleDeleteLevel).ServeHTTP(rec, r)
+
 	// Students under class
 	case strings.HasPrefix(path, "classes/") && strings.HasSuffix(path, "/students") && r.Method == http.MethodGet:
 		authHandler(handleListStudents).ServeHTTP(rec, r)

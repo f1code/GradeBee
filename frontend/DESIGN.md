@@ -112,6 +112,16 @@ When a parent view has an active selection (e.g. students from a class), list it
 - CSS modifier classes: `<wrapper>--matching`, `<wrapper>--dimmed`.
 - A summary line (`.example-selection-summary`) uses `var(--honey-dark)` at `0.82rem` to show e.g. *N example(s) will guide these reports.*
 
+### Levels Admin Screen
+
+A third tab (`🐝 Levels`), visible only when `useAuth().has({ role: 'org:admin' })` — Teachers never see it; the real gate is the backend's `isAdmin(r)` check on write endpoints, this is UX only. No router; `App.tsx` keeps `activeTab: 'notes' | 'reports' | 'levels'` local state, same pattern as the Reports tab.
+
+- List uses the existing `<ItemRow>` pattern (`.hex-bullet` badge, pencil rename action, trash→`.delete-confirm` inline). Expanding a row reveals its Report Instructions editor.
+- Rename reuses the `.inline-edit-input` / `.inline-class-edit` pattern from `StudentList`.
+- Report Instructions is a `<textarea>` inside `.report-instructions` (same class reports/generation uses — see "Known cascade quirk" below), auto-saved on blur. An empty textarea shows an inline `--honey-dark` hint that reports can't generate for this Level yet.
+- Add form reuses `.add-class-form` / `.add-class-input` styling. Duplicate name (case-insensitive) within the Group is caught client-side before submit, surfaced via `<InlineError>`; a 409 from a race is surfaced the same way.
+- New classes: `.levels-admin`, `.levels-admin-header`, `.levels-admin-help`, `.levels-admin-list`, `.levels-admin-instructions`, `.levels-admin-instructions-status/saved/empty` — defined in `levels.css`.
+
 ### Error Patterns
 
 Three variants for communicating errors to users:
@@ -179,6 +189,7 @@ All rules live under `frontend/src/styles/`:
 | `reports.css` | Report examples, generation, viewer, history |
 | `student-detail-notes.css` | Student detail expansion + tabs, student aliases, note editor |
 | `feedback-privacy.css` | Feedback FAB + popover, privacy page |
+| `levels.css` | Levels admin screen (list, add form, Report Instructions editor) |
 
 ### Responsive rules
 Each file owns its own `@media` blocks, placed after the base rules they override. There is no global responsive file.

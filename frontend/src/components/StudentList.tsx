@@ -16,6 +16,7 @@ import AddClassForm from './AddClassForm'
 import AddStudentForm from './AddStudentForm'
 import StudentDetail from './StudentDetail'
 import InlineError from './InlineError'
+import InlineEdit from './InlineEdit'
 
 import { HexBullet, ChevronIcon, PencilIcon, TrashIcon } from './Icons'
 import ItemRow from './ItemRow'
@@ -518,55 +519,6 @@ export default function StudentList() {
   )
 }
 
-function InlineEdit({
-  value,
-  onSave,
-  onCancel,
-}: {
-  value: string
-  onSave: (newValue: string) => void
-  onCancel: () => void
-}) {
-  const [text, setText] = useState(value)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-    inputRef.current?.select()
-  }, [])
-
-  function handleBlur() {
-    const trimmed = text.trim()
-    if (trimmed && trimmed !== value) {
-      onSave(trimmed)
-    } else {
-      onCancel()
-    }
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') {
-      const trimmed = text.trim()
-      if (trimmed) onSave(trimmed)
-      else onCancel()
-    } else if (e.key === 'Escape') {
-      onCancel()
-    }
-  }
-
-  return (
-    <input
-      ref={inputRef}
-      type="text"
-      value={text}
-      onChange={e => setText(e.target.value)}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
-      className="inline-edit-input"
-      data-testid="inline-edit-input"
-    />
-  )
-}
 
 function InlineClassEdit({
   levelName,
