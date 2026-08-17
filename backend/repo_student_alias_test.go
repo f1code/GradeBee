@@ -14,8 +14,7 @@ import (
 func TestStudentAliasRepo_AddRemoveList(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 
@@ -44,8 +43,7 @@ func TestStudentAliasRepo_AddRemoveList(t *testing.T) {
 func TestStudentAliasRepo_DuplicateAlias(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 
@@ -63,8 +61,7 @@ func TestStudentAliasRepo_DuplicateAlias(t *testing.T) {
 func TestStudentAliasRepo_DuplicateCaseInsensitive(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 
@@ -83,8 +80,7 @@ func TestStudentAliasRepo_DuplicateCaseInsensitive(t *testing.T) {
 func TestStudentAliasRepo_AliasCollidesWithName(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s1, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	_, err = r.students.Create(ctx, c.ID, "Alex")
@@ -102,8 +98,7 @@ func TestStudentAliasRepo_AliasCollidesWithName(t *testing.T) {
 func TestFindByNameAndClass_MatchesAlias(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
@@ -119,8 +114,7 @@ func TestFindByNameAndClass_MatchesAlias(t *testing.T) {
 func TestFindByNameAndClass_MatchesCaseInsensitive(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
@@ -141,8 +135,7 @@ func TestFindByNameAndClass_MatchesCaseInsensitive(t *testing.T) {
 func TestListWithAliases(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
@@ -160,8 +153,7 @@ func TestListWithAliases(t *testing.T) {
 func TestAliasDeleteCascadesWithStudent(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	a, err := r.students.AddAlias(ctx, s.ID, "Alex")
@@ -199,8 +191,7 @@ func TestBuildExtractionPrompt_AliasesIncluded(t *testing.T) {
 func TestRemoveAlias_WrongStudent(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s1, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	s2, err := r.students.Create(ctx, c.ID, "Katherine")
@@ -223,8 +214,7 @@ func TestRemoveAlias_WrongStudent(t *testing.T) {
 func TestCreateStudent_CollidesWithAlias(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
@@ -239,8 +229,7 @@ func TestCreateStudent_CollidesWithAlias(t *testing.T) {
 func TestRenameStudent_CollidesWithAlias(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s1, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	s2, err := r.students.Create(ctx, c.ID, "Bob")
@@ -263,10 +252,8 @@ func TestFindByNameAndClass_AliasNotFoundInDifferentClass(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	studentRepo := &StudentRepo{db: db}
 
-	c1, err := classRepo.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
-	_, err = classRepo.Create(ctx, "user1", "Science", "")
-	require.NoError(t, err)
+	c1 := newTestClass(t, classRepo, "test-group", "user1", "Math", "")
+	_ = newTestClass(t, classRepo, "test-group", "user1", "Science", "")
 
 	s1, err := studentRepo.Create(ctx, c1.ID, "Alexander")
 	require.NoError(t, err)

@@ -320,12 +320,16 @@ export const ExampleExtractionPromptTemplate = "Extract all text from this repor
 export interface ClassRepo {
 }
 /**
- * Class represents a row in the classes table.
+ * Class represents a row in the classes table. Name and LevelName are not
+ * stored — both are derived from the referenced Level's name, so renaming a
+ * Level immediately changes every Class's display name (and the key used to
+ * match report-card examples).
  */
 export interface Class {
   id: number /* int64 */;
   userId: string;
   name: string;
+  levelId: number /* int64 */;
   levelName: string;
   scheduleName: string;
   position: number /* int */;

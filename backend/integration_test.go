@@ -23,9 +23,8 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "int-user", "Math", "")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	cls := newTestClass(t, classRepo, "test-group", "int-user", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
 	_, err = studentRepo.Create(t.Context(), cls.ID, "Bob")
 	require.NoError(t, err)
@@ -120,9 +119,8 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "int-user", "Math", "")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	cls := newTestClass(t, classRepo, "test-group", "int-user", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()

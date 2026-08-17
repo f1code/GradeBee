@@ -40,9 +40,10 @@ func testDBAndRepos(t *testing.T) (context.Context, *repos) {
 
 func TestClassRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
+	mathID := testLevelID(t, r.classes.db, "test-group", "Math")
 
 	// Create
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
+	c, err := r.classes.Create(ctx, "test-group", "user1", mathID, "")
 	require.NoError(t, err, "create")
 	assert.Equal(t, "Math", c.Name)
 	assert.Equal(t, "user1", c.UserID)
@@ -56,14 +57,15 @@ func TestClassRepo_CRUD(t *testing.T) {
 	assert.Equal(t, 0, list[0].StudentCount)
 
 	// Duplicate
-	_, err = r.classes.Create(ctx, "user1", "Math", "")
+	_, err = r.classes.Create(ctx, "test-group", "user1", mathID, "")
 	assert.True(t, errors.Is(err, ErrDuplicate), "expected ErrDuplicate, got: %v", err)
 
-	// Rename
-	require.NoError(t, r.classes.Update(ctx, "user1", c.ID, "Science", ""), "rename")
+	// Rename (change Level)
+	scienceID := testLevelID(t, r.classes.db, "test-group", "Science")
+	require.NoError(t, r.classes.Update(ctx, "test-group", "user1", c.ID, scienceID, ""), "rename")
 
 	// Rename not found
-	err = r.classes.Update(ctx, "user1", 999, "X", "")
+	err = r.classes.Update(ctx, "test-group", "user1", 999, scienceID, "")
 	assert.True(t, errors.Is(err, ErrNotFound), "expected ErrNotFound, got: %v", err)
 
 	// Delete
@@ -73,9 +75,11 @@ func TestClassRepo_CRUD(t *testing.T) {
 	assert.Empty(t, list)
 
 	// User isolation
-	_, err = r.classes.Create(ctx, "user1", "A", "")
+	aID := testLevelID(t, r.classes.db, "test-group", "A")
+	bID := testLevelID(t, r.classes.db, "test-group", "B")
+	_, err = r.classes.Create(ctx, "test-group", "user1", aID, "")
 	require.NoError(t, err, "create A")
-	_, err = r.classes.Create(ctx, "user2", "B", "")
+	_, err = r.classes.Create(ctx, "test-group", "user2", bID, "")
 	require.NoError(t, err, "create B")
 	l1, err := r.classes.List(ctx, "user1")
 	require.NoError(t, err, "list user1")
@@ -89,8 +93,9 @@ func TestClassRepo_GetByID(t *testing.T) {
 	db := setupTestDB(t)
 	repo := &ClassRepo{db: db}
 	ctx := context.Background()
+	levelID := testLevelID(t, db, "test-group", "Math 101")
 
-	c, err := repo.Create(ctx, "user1", "Math 101", "")
+	c, err := repo.Create(ctx, "test-group", "user1", levelID, "")
 	require.NoError(t, err)
 
 	got, err := repo.GetByID(ctx, c.ID)
@@ -105,8 +110,7 @@ func TestClassRepo_GetByID(t *testing.T) {
 func TestStudentRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err, "create class")
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 
 	// Create
 	s, err := r.students.Create(ctx, c.ID, "Alice")
@@ -137,8 +141,7 @@ func TestStudentRepo_CRUD(t *testing.T) {
 	assert.False(t, ok)
 
 	// Move
-	c2, err := r.classes.Create(ctx, "user1", "Science", "")
-	require.NoError(t, err, "create class2")
+	c2 := newTestClass(t, r.classes, "test-group", "user1", "Science", "")
 	require.NoError(t, r.students.Move(ctx, s.ID, c2.ID), "move")
 	got, err = r.students.GetByID(ctx, s.ID)
 	require.NoError(t, err, "get after move")
@@ -153,8 +156,7 @@ func TestStudentRepo_CRUD(t *testing.T) {
 func TestCascadeDelete(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err, "create class")
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err, "create student")
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Good work", Source: "manual"}
@@ -172,8 +174,7 @@ func TestCascadeDelete(t *testing.T) {
 func TestNoteRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err, "create class")
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err, "create student")
 
@@ -215,8 +216,7 @@ func TestNoteRepo_CRUD(t *testing.T) {
 func TestReportRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err, "create class")
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err, "create student")
 
@@ -318,9 +318,8 @@ func TestVoiceNoteRepo_CRUD(t *testing.T) {
 func TestClassStudentCount(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err, "create class")
-	_, err = r.students.Create(ctx, c.ID, "Alice")
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
+	_, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err, "create alice")
 	_, err = r.students.Create(ctx, c.ID, "Bob")
 	require.NoError(t, err, "create bob")

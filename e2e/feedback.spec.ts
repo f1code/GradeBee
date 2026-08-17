@@ -13,7 +13,7 @@ async function mockBaseRoutes(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          classes: [{ id: 1, name: 'Grade 3A', levelName: 'Grade 3A', scheduleName: '', studentCount: 1 }],
+          classes: [{ id: 1, levelId: 1, name: 'Grade 3A', levelName: 'Grade 3A', scheduleName: '', studentCount: 1 }],
         }),
       })
     } else {
@@ -42,9 +42,9 @@ async function mockBaseRoutes(page: Page) {
       await route.continue()
     }
   })
-  // Class names for autocomplete
-  await page.route('**/classes/level-names', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ levelNames: ['Grade 3A'] }) })
+  // Levels (for the AddClassForm dropdown, unused by these tests but fetched on mount)
+  await page.route('**/levels', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ levels: [{ id: 1, name: 'Grade 3A', groupId: 'g1', reportInstructions: '', createdAt: '' }] }) })
   })
 }
 

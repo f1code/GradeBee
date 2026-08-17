@@ -53,16 +53,24 @@ func handleCreateClass(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
 		return
 	}
-	var req struct {
-		LevelName    string `json:"levelName"`
-		ScheduleName string `json:"scheduleName"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LevelName == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "levelName is required"})
+	groupID, ok := requireGroup(w, r)
+	if !ok {
 		return
 	}
-	c, err := serviceDeps.GetClassRepo().Create(r.Context(), userID, req.LevelName, req.ScheduleName)
+	var req struct {
+		LevelID      int64  `json:"levelId"`
+		ScheduleName string `json:"scheduleName"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LevelID == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "levelId is required"})
+		return
+	}
+	c, err := serviceDeps.GetClassRepo().Create(r.Context(), groupID, userID, req.LevelID, req.ScheduleName)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "level not found"})
+			return
+		}
 		if errors.Is(err, ErrDuplicate) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "class already exists"})
 			return
@@ -79,6 +87,10 @@ func handleUpdateClass(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
 		return
 	}
+	groupID, ok := requireGroup(w, r)
+	if !ok {
+		return
+	}
 	path := r.URL.Path
 	id, ok := pathParam(path, "/classes/")
 	if !ok {
@@ -86,16 +98,16 @@ func handleUpdateClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		LevelName    string `json:"levelName"`
+		LevelID      int64  `json:"levelId"`
 		ScheduleName string `json:"scheduleName"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LevelName == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "levelName is required"})
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LevelID == 0 {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "levelId is required"})
 		return
 	}
-	if err := serviceDeps.GetClassRepo().Update(r.Context(), userID, id, req.LevelName, req.ScheduleName); err != nil {
+	if err := serviceDeps.GetClassRepo().Update(r.Context(), groupID, userID, id, req.LevelID, req.ScheduleName); err != nil {
 		if errors.Is(err, ErrNotFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "class not found"})
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "class or level not found"})
 			return
 		}
 		if errors.Is(err, ErrDuplicate) {
@@ -128,25 +140,6 @@ func handleDeleteClass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
-}
-
-// --- Student CRUD ---
-
-func handleListClassNames(w http.ResponseWriter, r *http.Request) {
-	userID, err := userIDFromRequest(r)
-	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
-		return
-	}
-	names, err := serviceDeps.GetClassRepo().ListDistinctLevelNames(r.Context(), userID)
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		return
-	}
-	if names == nil {
-		names = []string{}
-	}
-	writeJSON(w, http.StatusOK, map[string]interface{}{"levelNames": names})
 }
 
 // --- Student CRUD ---

@@ -31,8 +31,8 @@
 
 ### Level and Schedule fields
 The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinct purposes — surface this distinction in helper text:
-- **Level** (required): the class identifier. It also tags report examples for style matching, so reports for a class reuse examples sharing its level.
-- **Schedule** (optional, e.g. "Period 1"): purely organizational — groups classes by schedule slot. Shown as `Level — Schedule`. It has no effect on report generation.
+- **Level** (required): a `<select>` over the Group's Levels (fetched via `listLevels`), never free text — Teachers pick, they don't type. Also tags report examples for style matching, so reports for a class reuse examples sharing its level. An empty Level list shows an "ask your admin" message instead of the form.
+- **Schedule** (optional, e.g. "Period 1"): purely organizational free text — groups classes by schedule slot. Shown as `Level — Schedule`. It has no effect on report generation.
 
 ### Buttons
 - Base `<button>` is primary-styled by default: `background: var(--honey)`, `color: var(--ink)`, shadow, 3D hover lift. No class needed.

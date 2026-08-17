@@ -5,12 +5,14 @@ import { useMediaQuery } from '../hooks/useMediaQuery'
 import {
   listClasses,
   listStudents,
+  listLevels,
   renameClass,
   deleteClass,
   renameStudent,
   deleteStudent,
   type ClassItem,
   type StudentItem,
+  type LevelItem,
 } from '../api'
 import AddClassForm from './AddClassForm'
 import AddStudentForm from './AddStudentForm'
@@ -53,11 +55,16 @@ export default function StudentList() {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [collapsed, setCollapsed] = useState(isMobile)
   const [expandedStudentId, setExpandedStudentId] = useState<number | null>(null)
+  const [levels, setLevels] = useState<LevelItem[]>([])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCollapsed(isMobile)
   }, [isMobile])
+
+  useEffect(() => {
+    listLevels(getToken).then(({ levels: lvls }) => setLevels(lvls || [])).catch(() => {})
+  }, [getToken])
 
   function showFlash(msg: string) {
     setFlashError(msg)
@@ -130,21 +137,22 @@ export default function StudentList() {
     setClasses(prev => prev.map(c => c.id === classId ? { ...c, studentCount: c.studentCount + 1 } : c))
   }
 
-  async function handleRenameClass(classId: number, newName: string, newGroup: string) {
+  async function handleRenameClass(classId: number, newLevelId: number, newGroup: string) {
     const old = classes.find(c => c.id === classId)
-    if (!old || (newName === old.levelName && newGroup === old.scheduleName)) {
+    if (!old || (newLevelId === old.levelId && newGroup === old.scheduleName)) {
       setEditingClassId(null)
       return
     }
-    const displayName = newGroup ? `${newName} — ${newGroup}` : newName
+    const newLevelName = levels.find(l => l.id === newLevelId)?.name ?? old.levelName
+    const displayName = newGroup ? `${newLevelName} — ${newGroup}` : newLevelName
     // Optimistic update
-    setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: displayName, levelName: newName, scheduleName: newGroup } : c).sort((a, b) => a.name.localeCompare(b.name)))
+    setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: displayName, levelId: newLevelId, levelName: newLevelName, scheduleName: newGroup } : c).sort((a, b) => a.name.localeCompare(b.name)))
     setEditingClassId(null)
     try {
-      await renameClass(classId, newName, newGroup, getToken)
+      await renameClass(classId, newLevelId, newGroup, getToken)
     } catch {
       // Revert
-      setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: old.name, levelName: old.levelName, scheduleName: old.scheduleName } : c).sort((a, b) => a.name.localeCompare(b.name)))
+      setClasses(prev => prev.map(c => c.id === classId ? { ...c, name: old.name, levelId: old.levelId, levelName: old.levelName, scheduleName: old.scheduleName } : c).sort((a, b) => a.name.localeCompare(b.name)))
       showFlash('Failed to rename class')
     }
   }
@@ -370,9 +378,10 @@ export default function StudentList() {
                         <HexBullet />
                         {editingClassId === cls.id ? (
                           <InlineClassEdit
-                            levelName={cls.levelName}
+                            levelId={cls.levelId}
                             scheduleName={cls.scheduleName}
-                            onSave={(newName, newGroup) => handleRenameClass(cls.id, newName, newGroup)}
+                            levels={levels}
+                            onSave={(newLevelId, newGroup) => handleRenameClass(cls.id, newLevelId, newGroup)}
                             onCancel={() => setEditingClassId(null)}
                           />
                         ) : (
@@ -521,33 +530,29 @@ export default function StudentList() {
 
 
 function InlineClassEdit({
-  levelName,
+  levelId,
   scheduleName,
+  levels,
   onSave,
   onCancel,
 }: {
-  levelName: string
+  levelId: number
   scheduleName: string
-  onSave: (levelName: string, scheduleName: string) => void
+  levels: LevelItem[]
+  onSave: (levelId: number, scheduleName: string) => void
   onCancel: () => void
 }) {
-  const [name, setName] = useState(levelName)
+  const [selectedLevelId, setSelectedLevelId] = useState(levelId)
   const [schedule, setSchedule] = useState(scheduleName)
-  const nameRef = useRef<HTMLInputElement>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    nameRef.current?.focus()
-    nameRef.current?.select()
+    selectRef.current?.focus()
   }, [])
 
   function doSave() {
-    const trimmedName = name.trim()
-    if (trimmedName) {
-      onSave(trimmedName, schedule.trim())
-    } else {
-      onCancel()
-    }
+    onSave(selectedLevelId, schedule.trim())
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -567,17 +572,19 @@ function InlineClassEdit({
 
   return (
     <div ref={containerRef} className="inline-class-edit" onClick={e => e.stopPropagation()}>
-      <input
-        ref={nameRef}
-        type="text"
-        value={name}
-        onChange={e => setName(e.target.value)}
+      <select
+        ref={selectRef}
+        value={selectedLevelId}
+        onChange={e => setSelectedLevelId(Number(e.target.value))}
         onKeyDown={handleKeyDown}
         onBlur={handleBlur}
         className="inline-edit-input"
-        data-testid="inline-edit-class-name"
-        placeholder="Level"
-      />
+        data-testid="inline-edit-class-level"
+      >
+        {levels.map(l => (
+          <option key={l.id} value={l.id}>{l.name}</option>
+        ))}
+      </select>
       <input
         type="text"
         value={schedule}

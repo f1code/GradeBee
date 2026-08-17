@@ -22,8 +22,7 @@ func TestHandleAddAlias_Conflict(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	ctx := t.Context()
 
-	c, err := classRepo.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, classRepo, "test-group", "user1", "Math", "")
 	s1, err := studentRepo.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 	_, err = studentRepo.Create(ctx, c.ID, "Katie")
@@ -67,8 +66,7 @@ func TestHandleAddAlias_Success(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	ctx := t.Context()
 
-	c, err := classRepo.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, classRepo, "test-group", "user1", "Math", "")
 	s, err := studentRepo.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
 

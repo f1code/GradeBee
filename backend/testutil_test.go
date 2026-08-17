@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 )
 
@@ -347,4 +349,44 @@ func newTestLevel(t *testing.T, db *sql.DB, groupID, name string) Level {
 		t.Fatalf("newTestLevel: %v", err)
 	}
 	return l
+}
+
+// testLevelID returns the ID of a Level named name in groupID, creating it if
+// it doesn't already exist. Tests share this across many class-creating call
+// sites so re-creating a class with the same level name (e.g. duplicate
+// checks) resolves to the same Level rather than erroring on Level creation.
+func testLevelID(t *testing.T, db *sql.DB, groupID, name string) int64 {
+	t.Helper()
+	repo := &LevelRepo{db: db}
+	l, err := repo.Create(context.Background(), groupID, name)
+	if err == nil {
+		return l.ID
+	}
+	if !errors.Is(err, ErrDuplicate) {
+		t.Fatalf("testLevelID: %v", err)
+	}
+	levels, lerr := repo.List(context.Background(), groupID)
+	if lerr != nil {
+		t.Fatalf("testLevelID: list: %v", lerr)
+	}
+	for _, lv := range levels {
+		if strings.EqualFold(lv.Name, name) {
+			return lv.ID
+		}
+	}
+	t.Fatalf("testLevelID: %q not found in group %q after duplicate error", name, groupID)
+	return 0
+}
+
+// newTestClass creates a class for userID against a Level named levelName in
+// groupID, creating the Level on first use. Test call sites that pre-#57
+// passed a free-text level name now pass it here unchanged.
+func newTestClass(t *testing.T, cr *ClassRepo, groupID, userID, levelName, scheduleName string) Class {
+	t.Helper()
+	levelID := testLevelID(t, cr.db, groupID, levelName)
+	c, err := cr.Create(context.Background(), groupID, userID, levelID, scheduleName)
+	if err != nil {
+		t.Fatalf("newTestClass: %v", err)
+	}
+	return c
 }

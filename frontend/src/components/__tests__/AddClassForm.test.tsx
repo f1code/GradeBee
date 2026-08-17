@@ -1,6 +1,6 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createClass } from '../../api'
+import { createClass, listLevels } from '../../api'
 
 vi.mock('@clerk/react', () => ({
   useAuth: () => ({ getToken: vi.fn().mockResolvedValue('tok') }),
@@ -8,10 +8,11 @@ vi.mock('@clerk/react', () => ({
 
 vi.mock('../../api', () => ({
   createClass: vi.fn(),
-  listLevelNames: vi.fn().mockResolvedValue({ levelNames: [] }),
+  listLevels: vi.fn(),
 }))
 
 const mockCreateClass = createClass as ReturnType<typeof vi.fn>
+const mockListLevels = listLevels as ReturnType<typeof vi.fn>
 
 import AddClassForm from '../AddClassForm'
 
@@ -21,23 +22,40 @@ describe('AddClassForm', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockListLevels.mockResolvedValue({ levels: [{ id: 1, name: 'Math', groupId: 'g1', reportInstructions: '', createdAt: '' }] })
   })
 
-  it('renders input and buttons', () => {
+  it('renders select and buttons once levels load', async () => {
     render(<AddClassForm onCreated={onCreated} onCancel={onCancel} />)
-    expect(screen.getByTestId('add-class-input')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
+    })
     expect(screen.getByTestId('add-class-submit')).toBeInTheDocument()
     expect(screen.getByTestId('add-class-cancel')).toBeInTheDocument()
   })
 
-  it('hides Cancel button when onCancel is not provided', () => {
+  it('hides Cancel button when onCancel is not provided', async () => {
     render(<AddClassForm onCreated={onCreated} />)
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
+    })
     expect(screen.queryByTestId('add-class-cancel')).not.toBeInTheDocument()
   })
 
-  it('disables submit when input is empty', () => {
+  it('disables submit until a level is chosen', async () => {
     render(<AddClassForm onCreated={onCreated} onCancel={onCancel} />)
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
+    })
     expect(screen.getByTestId('add-class-submit')).toBeDisabled()
+  })
+
+  it('shows an ask-admin message when there are no levels', async () => {
+    mockListLevels.mockResolvedValue({ levels: [] })
+    render(<AddClassForm onCreated={onCreated} onCancel={onCancel} />)
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-no-levels')).toBeInTheDocument()
+    })
   })
 
   it('calls createClass and fires onCreated on submit', async () => {
@@ -46,11 +64,14 @@ describe('AddClassForm', () => {
 
     render(<AddClassForm onCreated={onCreated} onCancel={onCancel} />)
 
-    fireEvent.change(screen.getByTestId('add-class-input'), { target: { value: 'Math' } })
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
+    })
+    fireEvent.change(screen.getByTestId('add-class-level-select'), { target: { value: '1' } })
     fireEvent.click(screen.getByTestId('add-class-submit'))
 
     await waitFor(() => {
-      expect(mockCreateClass).toHaveBeenCalledWith('Math', '', expect.any(Function))
+      expect(mockCreateClass).toHaveBeenCalledWith(1, '', expect.any(Function))
     })
     expect(onCreated).toHaveBeenCalledWith(cls)
   })
@@ -60,7 +81,10 @@ describe('AddClassForm', () => {
 
     render(<AddClassForm onCreated={onCreated} onCancel={onCancel} />)
 
-    fireEvent.change(screen.getByTestId('add-class-input'), { target: { value: 'Math' } })
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
+    })
+    fireEvent.change(screen.getByTestId('add-class-level-select'), { target: { value: '1' } })
     fireEvent.click(screen.getByTestId('add-class-submit'))
 
     await waitFor(() => {
@@ -69,10 +93,13 @@ describe('AddClassForm', () => {
     expect(onCreated).not.toHaveBeenCalled()
   })
 
-  it('calls onCancel on Escape key', () => {
+  it('calls onCancel on Escape key', async () => {
     render(<AddClassForm onCreated={onCreated} onCancel={onCancel} />)
 
-    fireEvent.keyDown(screen.getByTestId('add-class-input'), { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
+    })
+    fireEvent.keyDown(screen.getByTestId('add-class-level-select'), { key: 'Escape' })
 
     expect(onCancel).toHaveBeenCalled()
   })

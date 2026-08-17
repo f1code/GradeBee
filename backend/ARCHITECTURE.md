@@ -14,9 +14,9 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 
 | Term | Definition |
 |------|------------|
-| **Level** | A Group-owned curriculum tier (e.g. "Grade 3", "Intermediate"), curated by the Admin via the Levels screen. Carries shared Report Instructions that will guide report generation. Not yet referenced by Classes — `classes.level_name` remains free text until Classes are wired to `level_id`. |
+| **Level** | A Group-owned curriculum tier (e.g. "Grade 3", "Intermediate"), curated by the Admin via the Levels screen. Carries shared Report Instructions that will guide report generation. Referenced by Classes via `classes.level_id` (`NOT NULL`, `ON DELETE RESTRICT`). |
 | **Schedule** | An optional time-slot or period label (e.g. "Period 1", "Morning"). Distinguishes multiple sections taught at the same level. |
-| **Class** | A concrete teaching group — a **Level instance**. Combines a required `level_name` with an optional `schedule_name`. A teacher may have multiple classes at the same level (different schedules). The display name is `level_name` when no schedule is set, or `level_name–schedule_name` when one is. |
+| **Class** | A concrete teaching group — a **Level instance**. References a required Level (`level_id`) plus an optional `schedule_name`. A teacher may have multiple classes at the same level (different schedules). The display name (`Class.Name`) is derived in SQL from the Level's name plus `schedule_name`, never stored — renaming a Level immediately renames every Class using it. |
 | **Student** | A learner belonging to exactly one class. |
 | **Note** | A per-student observation extracted from a voice or text upload. |
 | **Report** | An LLM-generated report card for one student, drawing on their notes and matching examples. |
@@ -37,9 +37,8 @@ Cache headers:
 |--------|------|------|---------|-------------|
 | GET | `/` `/health` | No | inline | Health check |
 | GET | `/api/classes` | Yes | `handleListClasses` | List user's classes with student counts |
-| POST | `/api/classes` | Yes | `handleCreateClass` | Create a class (body: `{levelName, scheduleName}`) |
-| PUT | `/api/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{levelName, scheduleName}`) |
-| GET | `/api/classes/level-names` | Yes | `handleListClassNames` | Distinct level names for autocomplete |
+| POST | `/api/classes` | Yes | `handleCreateClass` | Create a class (body: `{levelId, scheduleName}`) |
+| PUT | `/api/classes/{id}` | Yes | `handleUpdateClass` | Update a class (body: `{levelId, scheduleName}`) |
 | DELETE | `/api/classes/{id}` | Yes | `handleDeleteClass` | Delete class + cascade |
 | GET | `/api/classes/{id}/students` | Yes | `handleListStudents` | List students in a class |
 | POST | `/api/classes/{id}/students` | Yes | `handleCreateStudent` | Add a student |
@@ -225,7 +224,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 - `groupIDFromRequest(r)` — extracts the active Clerk Organization ID (`ActiveOrganizationID`) from verified session claims. Returns `403 unauthorized` if claims are absent, `403 no_active_org` if no org is active (user not yet in a Group).
 - `isAdmin(r)` — returns `true` if the session role is `"org:admin"` (uses `SessionClaims.HasRole`).
 - `debugAuthMiddleware` enforces the active-org gate after Clerk JWT verification: any verified request with an empty `ActiveOrganizationID` is rejected with `403 no_active_org` before reaching the handler. `/health` and static routes are outside this middleware.
-- **Phase 2:** `levels` table added (`sql/010_levels.sql`), Group-owned and scoped by `group_id` (the active Clerk Organization ID). `LevelRepo` (`repo_level.go`) enforces the Group boundary on every method; `/api/levels` reads are open to any Group member, writes (`POST`/`PUT`/`DELETE`) require `isAdmin(r)`. `classes.level_name` is still free text — Class→Level linkage is deferred to a follow-up ticket (#57).
+- **Phase 2:** `levels` table added (`sql/010_levels.sql`), Group-owned and scoped by `group_id` (the active Clerk Organization ID). `LevelRepo` (`repo_level.go`) enforces the Group boundary on every method; `/api/levels` reads are open to any Group member, writes (`POST`/`PUT`/`DELETE`) require `isAdmin(r)`. `classes.level_id` (`sql/011_class_level_id.sql`) wires Classes to Levels; `ClassRepo.Create`/`Update` validate `level_id` belongs to the caller's Group, rejecting a forged cross-Group reference.
 
 ### LLM Provider (`llm_provider*.go`)
 
@@ -251,8 +250,8 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 
 | Table | Purpose |
 |-------|---------|
-| `classes` | A **class** is a Level instance: the combination of a required `level_name` and an optional `schedule_name`. `level_name` is used to match report-card examples for style (see `report_example_classes`). `schedule_name` (e.g. "Period 1") distinguishes multiple sections at the same level. `name` is the derived display name (`level_name` alone, or `level_name–schedule_name` when a schedule is set). |
-| `report_example_classes` | M-M link: report examples ↔ `level_name` values (drives example selection for style matching at report generation). |
+| `classes` | A **class** is a Level instance: a required `level_id` FK (`NOT NULL`, `ON DELETE RESTRICT`) plus an optional `schedule_name`. `Class.Name` and `Class.LevelName` are not stored — both are derived in SQL by joining `levels` (`levels.name` alone, or `levels.name–schedule_name` when a schedule is set), so renaming a Level immediately renames every Class using it. `Class.LevelName` is used to match report-card examples for style (see `report_example_classes`, still keyed by the bare Level name). |
+| `report_example_classes` | M-M link: report examples ↔ Level names (drives example selection for style matching at report generation; still free text — untouched by #57, see ADR-0002 and the Phase 2 plan for the accepted "9 classes load no examples" consequence). |
 | `students` | Students belonging to classes |
 | `student_aliases` | Nickname/variant aliases per student (per-class uniqueness, case-insensitive) |
 | `notes` | Observation notes per student |
@@ -294,7 +293,8 @@ The `debugAuthMiddleware` enforces that every `/api/` request carries an active 
 | `sql/001_init.sql` | Schema: classes, students, notes, reports, report_examples, uploads (renamed to voice_notes via 002) |
 | `sql/005_student_aliases.sql` | Migration: create `student_aliases` table with per-class uniqueness index |
 | `sql/002_rename_uploads.sql` | Migration: rename uploads → voice_notes, update indexes |
-| `repo_class.go` | `ClassRepo` — CRUD for classes |
+| `repo_class.go` | `ClassRepo` — CRUD for classes, scoped by `group_id` on Create/Update to validate `level_id` belongs to the caller's Group |
+| `sql/011_class_level_id.sql` | Migration: add `classes.level_id`, backfill by contains-match against `levels.name`, move leftover text into empty `schedule_name`, drop `level_name`/`name`, harden `level_id` `NOT NULL ON DELETE RESTRICT` |
 | `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass` (matches canonical name + aliases, case-insensitive), `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases` |
 | `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |

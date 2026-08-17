@@ -19,6 +19,10 @@ test.describe('Authenticated app loads correctly', () => {
     await expect(page.getByTestId('audio-upload')).toBeVisible({ timeout: 15000 })
 
     // The add class form should be available
-    await expect(page.getByTestId('add-class-btn').or(page.getByTestId('add-class-input'))).toBeVisible()
+    await expect(
+      page.getByTestId('add-class-btn')
+        .or(page.getByTestId('add-class-level-select'))
+        .or(page.getByTestId('add-class-no-levels'))
+    ).toBeVisible()
   })
 })

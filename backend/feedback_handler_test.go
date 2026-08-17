@@ -39,8 +39,7 @@ func TestHandleSubmitFeedback_ReportThumbsDown(t *testing.T) {
 	}
 	t.Cleanup(func() { serviceDeps = nil })
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
 	rpt := &Report{StudentID: s.ID, StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<p>r</p>"}
@@ -85,8 +84,7 @@ func TestHandleSubmitFeedback_NoteThumbsUp(t *testing.T) {
 	}
 	t.Cleanup(func() { serviceDeps = nil })
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Good work", Source: "auto"}
@@ -125,8 +123,7 @@ func TestHandleSubmitFeedback_WrongUser(t *testing.T) {
 	}
 	t.Cleanup(func() { serviceDeps = nil })
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
 	rpt := &Report{StudentID: s.ID, StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<p>r</p>"}

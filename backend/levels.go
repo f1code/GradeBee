@@ -17,14 +17,13 @@ type ListLevelsResponse struct {
 }
 
 // requireGroup extracts the active Group ID from the request, writing the
-// apiError response and returning ok=false on failure. groupIDFromRequest
-// always returns *apiError on error, so callers write it directly rather
-// than through a defensive fallback.
+// apiError response and returning ok=false on failure.
 func requireGroup(w http.ResponseWriter, r *http.Request) (groupID string, ok bool) {
 	groupID, err := groupIDFromRequest(r)
 	if err != nil {
 		var ae *apiError
 		if !errors.As(err, &ae) {
+			// defensive fallback - groupIDFromRequest normally returns apiError 
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return "", false
 		}

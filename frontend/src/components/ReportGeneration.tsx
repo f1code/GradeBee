@@ -11,7 +11,7 @@ import {
   deleteReportExample,
   importExampleFromDrive,
   getGoogleToken,
-  listLevelNames,
+  listLevels,
   type ClassItem,
   type StudentItem,
   type ReportResult,
@@ -79,7 +79,7 @@ export default function ReportGeneration() {
   useEffect(() => { loadExamples() }, [loadExamples])
 
   useEffect(() => {
-    listLevelNames(getToken).then(({ levelNames }) => setAvailableLevelNames(levelNames)).catch(() => {})
+    listLevels(getToken).then(({ levels }) => setAvailableLevelNames(levels.map(l => l.name))).catch(() => {})
   }, [getToken])
 
   // Poll while any example is still processing.

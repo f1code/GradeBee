@@ -4,6 +4,7 @@ import { ChevronIcon, TrashIcon } from './Icons'
 
 interface ItemRowProps {
   name: string
+  icon?: ReactNode
   subtitle?: ReactNode
   expanded: boolean
   onToggle: () => void
@@ -15,6 +16,7 @@ interface ItemRowProps {
 
 export default function ItemRow({
   name,
+  icon,
   subtitle,
   expanded,
   onToggle,
@@ -72,6 +74,7 @@ export default function ItemRow({
         }}
       >
         <span className={`item-row-name${expanded ? ' item-row-name-active' : ''}`}>
+          {icon}
           <span className="item-row-name-text">
             {name}
             {subtitle && <span className="item-row-subtitle">{subtitle}</span>}

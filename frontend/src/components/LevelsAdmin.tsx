@@ -164,7 +164,7 @@ export default function LevelsAdmin() {
               ) : (
                 <ItemRow
                   name={level.name}
-                  badge={<HexBullet />}
+                  icon={<HexBullet />}
                   expanded={expandedId === level.id}
                   onToggle={() => setExpandedId(prev => prev === level.id ? null : level.id)}
                   onDelete={() => handleDelete(level.id)}
