@@ -20,10 +20,12 @@ type stubReportGenerator struct {
 	generateErr    error
 	regenerateResp *GenerateReportResponse
 	regenerateErr  error
+	lastGenReq     GenerateReportRequest
 	lastRegenReq   RegenerateReportRequest
 }
 
 func (s *stubReportGenerator) Generate(_ context.Context, req GenerateReportRequest) (*GenerateReportResponse, error) {
+	s.lastGenReq = req
 	return s.generateResp, s.generateErr
 }
 
@@ -94,6 +96,7 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 	assert.Equal(t, "2026-01-01", gen.lastRegenReq.StartDate)
 	assert.Equal(t, "make it shorter", gen.lastRegenReq.Feedback)
 	assert.Equal(t, "be concise", gen.lastRegenReq.Instructions)
+	assert.Equal(t, "Write three sections.", gen.lastRegenReq.ReportInstructions)
 }
 
 func TestHandleGenerateReports_ResponseShape(t *testing.T) {
@@ -159,6 +162,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	assert.Equal(t, "Alice", r.Student)
 	assert.Equal(t, "2026-01-01", r.StartDate)
 	assert.Equal(t, "2026-03-31", r.EndDate)
+	assert.Equal(t, "Write three sections.", gen.lastGenReq.ReportInstructions)
 }
 
 func TestHandleRegenerateReport_ReportNotFound(t *testing.T) {
@@ -237,6 +241,7 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 	assert.Equal(t, "Bob", resp.Student)
 	assert.Equal(t, "Science", resp.ClassName)
 	assert.Equal(t, "2026-02-01", resp.StartDate)
+	assert.Equal(t, "Write three sections.", gen.lastRegenReq.ReportInstructions)
 }
 
 func TestHandleGetReport_IncludesStudentAndClass(t *testing.T) {
