@@ -99,9 +99,8 @@ describe('useAudioRecorder', () => {
   })
 
   it('cancelling while the permission prompt is still pending stops the stream once it resolves', async () => {
-    const { promise, resolve } = Promise.withResolvers<MediaStream>()
-    getUserMedia.mockReturnValue(promise)
-
+    let resolveGetUserMedia: (stream: MediaStream) => void = () => {}
+    getUserMedia.mockReturnValue(new Promise<MediaStream>(resolve => { resolveGetUserMedia = resolve }))
     const { result } = renderHook(() => useAudioRecorder())
 
     let startPromise: Promise<RecorderError | null>
@@ -115,8 +114,34 @@ describe('useAudioRecorder', () => {
     expect(result.current.isRecording).toBe(false)
 
     await act(async () => {
-      resolve(fakeStream)
+      resolveGetUserMedia(fakeStream)
       await startPromise
+    })
+
+    expect(stopTrack).toHaveBeenCalled()
+    expect(result.current.isRecording).toBe(false)
+  })
+
+  it('stopping while the permission prompt is still pending stops the stream once it resolves', async () => {
+    let resolveGetUserMedia: (stream: MediaStream) => void = () => {}
+    getUserMedia.mockReturnValue(new Promise<MediaStream>(resolve => { resolveGetUserMedia = resolve }))
+    const { result } = renderHook(() => useAudioRecorder())
+
+    let startPromise: Promise<RecorderError | null>
+    act(() => {
+      startPromise = result.current.start()
+    })
+
+    let stopPromise: Promise<File | null>
+    act(() => {
+      stopPromise = result.current.stop()
+    })
+    expect(result.current.isRecording).toBe(false)
+
+    await act(async () => {
+      resolveGetUserMedia(fakeStream)
+      await startPromise
+      expect(await stopPromise).toBeNull()
     })
 
     expect(stopTrack).toHaveBeenCalled()

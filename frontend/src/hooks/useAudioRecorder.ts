@@ -20,7 +20,7 @@ export function isRecordingSupported(): boolean {
   if (!window.isSecureContext) return false
   if (!navigator.mediaDevices?.getUserMedia) return false
   if (!window.MediaRecorder) return false
-  return pickMimeType() !== '' || MIME_TYPE_PREFERENCE.includes('')
+  return true
 }
 
 export type RecorderErrorReason = 'denied' | 'not-found' | 'in-use' | 'unknown'
@@ -130,10 +130,14 @@ export function useAudioRecorder() {
 
   const stop = useCallback((): Promise<File | null> => {
     const recorder = mediaRecorderRef.current
-    if (!recorder) return Promise.resolve(null)
+    if (!recorder) {
+      // No recorder yet — start() is still awaiting getUserMedia. Tear down now
+      // so the pending stream is discarded as soon as it resolves (matches cancel()).
+      teardown()
+      return Promise.resolve(null)
+    }
 
-    const { promise, resolve } = Promise.withResolvers<File | null>()
-    recorder.onstop = () => {
+    const finalize = (): File => {
       const mimeType = mimeTypeRef.current || recorder.mimeType || 'audio/webm'
       const blob = new Blob(chunksRef.current, { type: mimeType })
       const ext = extensionForMimeType(mimeType)
@@ -141,10 +145,21 @@ export function useAudioRecorder() {
         type: mimeType,
       })
       teardown()
-      resolve(file)
+      return file
     }
-    recorder.stop()
-    return promise
+
+    if (recorder.state === 'inactive') {
+      return Promise.resolve(finalize())
+    }
+
+    // MediaRecorder's stop is inherently event-callback-driven (onstop fires
+    // asynchronously); Promise.withResolvers is ES2024 and unsupported on
+    // iOS Safari < 17.4, a primary target for this feature, so the executor
+    // form is required here rather than the stored-resolver pattern.
+    return new Promise(resolve => {
+      recorder.onstop = () => resolve(finalize())
+      recorder.stop()
+    })
   }, [teardown])
 
   const cancel = useCallback(() => {
