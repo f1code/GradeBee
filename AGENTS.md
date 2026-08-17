@@ -21,27 +21,23 @@ When an authoritative doc exists for a topic, **read it first** rather than re-d
 Refer to `backend/ARCHITECTURE.md` for backend architecture, patterns, and implementation guidelines.
 Update this document when the backend is updated.
 
-After editing Go code in `backend/`, run lint to catch issues:
-
-```bash
-make lint
-make test
-```
-
-Run this before considering Go changes complete.
-
 ## Frontend Design
 
 Follow the design system documented in `frontend/DESIGN.md` for all UI work. Use the established color tokens, typography, and component patterns.
 
-After editing code in `frontend/`, run lint and tests to catch issues:
+## Editing Code - Definition of Done
+
+1. After editing **any** code, run lint and test **from the root of the repo** to catch issues:
 
 ```bash
 make lint
 make test
 ```
 
-Run this before considering Frontend changes complete.
+Run this before considering code changes complete.
+
+2. **Docs updated** - see "Documentation Maintenance".
+If unsure whether a doc update is needed, prefer updating the authoritative doc over leaving it stale.
 
 ## Documentation Maintenance
 
@@ -56,14 +52,6 @@ Keeping docs in sync with code is part of "done". Before considering a task comp
 | Change the tech stack or complete a phase | `README.md` |
 | Complete or supersede an implementation plan | Mark status in the relevant `../plans/*.md` |
 | Make a non-trivial architectural decision | Add a doc under `docs/` (consider an ADR-style filename) |
-
-Definition of done for code changes:
-
-1. Lint passes (`cd backend && make lint` for Go changes)
-2. Tests pass (relevant unit/e2e suites)
-3. **Docs updated** per the table above
-
-If unsure whether a doc update is needed, prefer updating the authoritative doc over leaving it stale.
 
 Agent-generated plans go into ../plans - this is not committed.  When a plan that involved design decisions has
 been implemented, examine the documentation and distill the plan across relevant files, using the table above.  Do not
