@@ -1,6 +1,6 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const mockUploadAudio = vi.fn()
 const mockGetGoogleToken = vi.fn()
@@ -223,5 +223,106 @@ describe('AudioUpload', () => {
       expect(screen.getByTestId('upload-error')).toHaveTextContent(/too large|exceed the 25 MB limit/)
     })
     expect(mockUploadAudio).not.toHaveBeenCalled()
+  })
+
+  describe('recording', () => {
+    class FakeMediaRecorder {
+      static isTypeSupported = vi.fn(() => true)
+      state: 'inactive' | 'recording' = 'inactive'
+      mimeType: string
+      ondataavailable: ((e: { data: Blob }) => void) | null = null
+      onstop: (() => void) | null = null
+      constructor(_stream: MediaStream, options?: { mimeType?: string }) {
+        this.mimeType = options?.mimeType ?? ''
+      }
+      start() {
+        this.state = 'recording'
+      }
+      stop() {
+        this.state = 'inactive'
+        this.ondataavailable?.({ data: new Blob(['chunk'], { type: this.mimeType || 'audio/webm' }) })
+        this.onstop?.()
+      }
+    }
+
+    const stopTrack = vi.fn()
+    const fakeStream = { getTracks: () => [{ stop: stopTrack }] } as unknown as MediaStream
+    const getUserMedia = vi.fn()
+
+    beforeEach(() => {
+      stopTrack.mockClear()
+      getUserMedia.mockReset().mockResolvedValue(fakeStream)
+      vi.stubGlobal('MediaRecorder', FakeMediaRecorder as unknown as typeof MediaRecorder)
+      Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia }, configurable: true })
+      Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true })
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('shows a permission-denied error when the mic is blocked', async () => {
+      const err = new Error('denied')
+      err.name = 'NotAllowedError'
+      getUserMedia.mockRejectedValue(err)
+
+      const { default: AudioUpload } = await import('../AudioUpload')
+      render(<AudioUpload />)
+
+      await userEvent.click(screen.getByTestId('record-btn'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('upload-error')).toHaveTextContent(/blocked/)
+      })
+    })
+
+    it('records, stops, confirms, and uploads the resulting file', async () => {
+      mockUploadAudio.mockResolvedValue({ uploadId: 1, fileName: 'recording.webm' })
+
+      const { default: AudioUpload } = await import('../AudioUpload')
+      render(<AudioUpload />)
+
+      await userEvent.click(screen.getByTestId('record-btn'))
+      await waitFor(() => expect(screen.getByTestId('recording-panel')).toBeInTheDocument())
+
+      await userEvent.click(screen.getByTestId('record-stop-btn'))
+      await waitFor(() => expect(screen.getByTestId('recorded-panel')).toBeInTheDocument())
+
+      await userEvent.click(screen.getByTestId('record-upload-btn'))
+
+      await waitFor(() => {
+        expect(mockUploadAudio).toHaveBeenCalledTimes(1)
+      })
+      const uploadedFile = mockUploadAudio.mock.calls[0][0] as File
+      expect(uploadedFile.name).toMatch(/^recording-/)
+    })
+
+    it('discards the recording without uploading', async () => {
+      const { default: AudioUpload } = await import('../AudioUpload')
+      render(<AudioUpload />)
+
+      await userEvent.click(screen.getByTestId('record-btn'))
+      await waitFor(() => expect(screen.getByTestId('recording-panel')).toBeInTheDocument())
+
+      await userEvent.click(screen.getByTestId('record-stop-btn'))
+      await waitFor(() => expect(screen.getByTestId('recorded-panel')).toBeInTheDocument())
+
+      await userEvent.click(screen.getByTestId('record-discard-btn'))
+
+      expect(screen.getByTestId('drop-zone')).toBeInTheDocument()
+      expect(mockUploadAudio).not.toHaveBeenCalled()
+    })
+
+    it('stops mic tracks when unmounted mid-recording', async () => {
+      const { default: AudioUpload } = await import('../AudioUpload')
+      const { unmount } = render(<AudioUpload />)
+
+      await userEvent.click(screen.getByTestId('record-btn'))
+      await waitFor(() => expect(screen.getByTestId('recording-panel')).toBeInTheDocument())
+
+      unmount()
+
+      expect(stopTrack).toHaveBeenCalled()
+    })
   })
 })
