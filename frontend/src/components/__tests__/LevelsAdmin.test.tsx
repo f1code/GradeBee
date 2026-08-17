@@ -208,4 +208,27 @@ describe('LevelsAdmin', () => {
       expect(screen.queryByText('Marcia')).not.toBeInTheDocument()
     })
   })
+
+  it('shows a countable refusal message when the Level is still in use', async () => {
+    const user = userEvent.setup()
+    mockListLevels.mockResolvedValueOnce({
+      levels: [{ id: 1, groupId: 'org_a', name: 'Marcia', reportInstructions: '', createdAt: '2026-01-01T00:00:00Z' }],
+    })
+    mockDeleteLevel.mockRejectedValueOnce(new Error('3 classes use this Level — move them to another Level first'))
+
+    render(<LevelsAdmin />)
+
+    await waitFor(() => {
+      expect(screen.getByText('Marcia')).toBeInTheDocument()
+    })
+
+    await user.click(screen.getByLabelText('Delete Marcia'))
+    await user.click(screen.getByText('Delete'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/3 classes use this Level/)).toBeInTheDocument()
+    })
+    // Refused delete must leave the Level in the list.
+    expect(screen.getByText('Marcia')).toBeInTheDocument()
+  })
 })

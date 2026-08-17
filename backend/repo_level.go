@@ -106,12 +106,39 @@ func (r *LevelRepo) UpdateReportInstructions(ctx context.Context, groupID string
 }
 
 // Delete removes a Level from the Group. Returns ErrNotFound if the Level
-// doesn't exist in the Group.
+// doesn't exist in the Group, or *ErrLevelInUse (with the referencing Class
+// count) if any Class still points at it — the DB's ON DELETE RESTRICT would
+// refuse the DELETE anyway, but only this pre-check can say how many and
+// therefore give the Admin an actionable message. Count and DELETE run in one
+// transaction so a Class created for this Level between the two statements
+// can't turn the DELETE into a raw FK-constraint 500 instead of this 409.
 func (r *LevelRepo) Delete(ctx context.Context, groupID string, id int64) error {
-	res, err := r.db.ExecContext(ctx,
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("delete level: begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op once committed
+
+	var count int
+	if err := tx.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM classes c
+		 JOIN levels l ON l.id = c.level_id
+		 WHERE c.level_id = ? AND l.group_id = ?`, id, groupID).Scan(&count); err != nil {
+		return fmt.Errorf("count classes for level: %w", err)
+	}
+	if count > 0 {
+		return &ErrLevelInUse{Count: count}
+	}
+	res, err := tx.ExecContext(ctx,
 		"DELETE FROM levels WHERE id = ? AND group_id = ?", id, groupID)
 	if err != nil {
 		return fmt.Errorf("delete level: %w", err)
 	}
-	return rowsAffectedOrNotFound(res)
+	if err := rowsAffectedOrNotFound(res); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("delete level: commit: %w", err)
+	}
+	return nil
 }

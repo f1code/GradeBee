@@ -195,3 +195,35 @@ func TestLevelRepo_Delete_CrossGroup_NotFound(t *testing.T) {
 	_, err = repo.GetByID(t.Context(), "org_a", l.ID)
 	assert.NoError(t, err)
 }
+
+func TestLevelRepo_Delete_ReferencedByClass_ReturnsErrLevelInUseAndPreservesData(t *testing.T) {
+	db := setupTestDB(t)
+	levelRepo := &LevelRepo{db: db}
+	classRepo := &ClassRepo{db: db}
+	studentRepo := &StudentRepo{db: db}
+
+	l, err := levelRepo.Create(t.Context(), "org_a", "Marcia")
+	require.NoError(t, err)
+
+	c1, err := classRepo.Create(t.Context(), "org_a", "user_1", l.ID, "")
+	require.NoError(t, err)
+	c2, err := classRepo.Create(t.Context(), "org_a", "user_1", l.ID, "AM")
+	require.NoError(t, err)
+	s, err := studentRepo.Create(t.Context(), c1.ID, "Alice")
+	require.NoError(t, err)
+
+	err = levelRepo.Delete(t.Context(), "org_a", l.ID)
+	var inUse *ErrLevelInUse
+	require.ErrorAs(t, err, &inUse)
+	assert.Equal(t, 2, inUse.Count)
+
+	// Level, both Classes, and the Student all survive the refused delete.
+	_, err = levelRepo.GetByID(t.Context(), "org_a", l.ID)
+	assert.NoError(t, err)
+	_, err = classRepo.GetByID(t.Context(), c1.ID)
+	assert.NoError(t, err)
+	_, err = classRepo.GetByID(t.Context(), c2.ID)
+	assert.NoError(t, err)
+	_, err = studentRepo.GetByID(t.Context(), s.ID)
+	assert.NoError(t, err)
+}

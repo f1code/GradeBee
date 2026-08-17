@@ -30,6 +30,23 @@ func (e *ErrDuplicateAlias) Is(target error) bool {
 	return ok
 }
 
+// ErrLevelInUse is returned by LevelRepo.Delete when Classes still
+// reference the Level. Count holds how many, so the handler can tell the
+// Admin exactly how many Classes need to move first.
+type ErrLevelInUse struct {
+	Count int
+}
+
+func (e *ErrLevelInUse) Error() string {
+	return fmt.Sprintf("level is used by %d class(es)", e.Count)
+}
+
+// Is satisfies errors.Is for target *ErrLevelInUse.
+func (e *ErrLevelInUse) Is(target error) bool {
+	_, ok := target.(*ErrLevelInUse)
+	return ok
+}
+
 // isDuplicateErr checks if a SQLite error is a UNIQUE constraint violation.
 func isDuplicateErr(err error) bool {
 	if err == nil {

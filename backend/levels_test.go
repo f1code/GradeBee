@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -232,6 +233,50 @@ func TestHandleDeleteLevel_CrossGroup_NotFound(t *testing.T) {
 	handleDeleteLevel(w, r)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestHandleDeleteLevel_ReferencedByClass_Returns409WithCount(t *testing.T) {
+	levelsTestDeps(t)
+	db := serviceDeps.GetDB()
+	target := newTestLevel(t, db, "org_a", "Marcia")
+	classRepo := &ClassRepo{db: db}
+	_, err := classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "")
+	require.NoError(t, err)
+	_, err = classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "AM")
+	require.NoError(t, err)
+
+	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_a", "org:admin")
+	r.URL.Path = "/levels/" + itoa(target.ID)
+	w := httptest.NewRecorder()
+	handleDeleteLevel(w, r)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var resp map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Contains(t, resp["error"], "2 classes use this Level")
+
+	// Refused delete must not have removed the Level.
+	_, err = (&LevelRepo{db: db}).GetByID(r.Context(), "org_a", target.ID)
+	assert.NoError(t, err)
+}
+
+func TestHandleDeleteLevel_ReferencedByOneClass_Returns409WithSingularMessage(t *testing.T) {
+	levelsTestDeps(t)
+	db := serviceDeps.GetDB()
+	target := newTestLevel(t, db, "org_a", "Marcia")
+	classRepo := &ClassRepo{db: db}
+	_, err := classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "")
+	require.NoError(t, err)
+
+	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_a", "org:admin")
+	r.URL.Path = "/levels/" + itoa(target.ID)
+	w := httptest.NewRecorder()
+	handleDeleteLevel(w, r)
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var resp map[string]string
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Equal(t, "1 class uses this Level — move it to another Level first", resp["error"])
 }
 
 func TestHandleListLevels_NoActiveOrg_Refused(t *testing.T) {

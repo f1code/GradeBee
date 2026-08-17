@@ -7,6 +7,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 )
@@ -166,6 +167,15 @@ func handleDeleteLevel(w http.ResponseWriter, r *http.Request) {
 	if err := serviceDeps.GetLevelRepo().Delete(r.Context(), groupID, id); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "level not found"})
+			return
+		}
+		var inUse *ErrLevelInUse
+		if errors.As(err, &inUse) {
+			msg := fmt.Sprintf("%d classes use this Level — move them to another Level first", inUse.Count)
+			if inUse.Count == 1 {
+				msg = "1 class uses this Level — move it to another Level first"
+			}
+			writeJSON(w, http.StatusConflict, map[string]string{"error": msg})
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})

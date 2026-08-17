@@ -354,6 +354,14 @@ export interface ClassWithCount extends Class {
 export interface ErrDuplicateAlias {
   ConflictStudentName: string;
 }
+/**
+ * ErrLevelInUse is returned by LevelRepo.Delete when Classes still
+ * reference the Level. Count holds how many, so the handler can tell the
+ * Admin exactly how many Classes need to move first.
+ */
+export interface ErrLevelInUse {
+  Count: number /* int */;
+}
 
 //////////
 // source: repo_example.go

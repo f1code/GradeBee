@@ -73,7 +73,7 @@ Cache headers:
 | GET | `/api/levels` | Yes | `handleListLevels` | List the caller's Group's Levels |
 | POST | `/api/levels` | Yes (Admin) | `handleCreateLevel` | Create a Level (body: `{name}`) |
 | PUT | `/api/levels/{id}` | Yes (Admin) | `handleUpdateLevel` | Rename and/or set Report Instructions (body: `{name?, reportInstructions?}`) |
-| DELETE | `/api/levels/{id}` | Yes (Admin) | `handleDeleteLevel` | Delete a Level |
+| DELETE | `/api/levels/{id}` | Yes (Admin) | `handleDeleteLevel` | Delete a Level; refused with 409 (message states the count) if any Class still references it |
 
 Auth is Clerk JWT via `clerkhttp.RequireHeaderAuthorization()` middleware. CORS handled inline (GET, POST, PUT, DELETE, OPTIONS).
 
@@ -350,6 +350,7 @@ Repo-level errors:
 - `ErrNotFound` — entity not found
 - `ErrDuplicate` — generic unique constraint violation (used by class/student/note repos)
 - `*ErrDuplicateAlias` — alias-specific conflict that carries the canonical name of the student who owns the conflicting alias, so the handler can include it in the 409 `details` field
+- `*ErrLevelInUse` — carries the count of Classes still referencing a Level being deleted, so `handleDeleteLevel` can return a 409 stating how many Classes must move first; the DB's `ON DELETE RESTRICT` on `classes.level_id` backs this up but can't name the count itself
 
 ## Observability / Sentry
 
