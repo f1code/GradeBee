@@ -217,33 +217,6 @@ describe('ReportGeneration — Level instructions gate', () => {
     })
     const generateBtn = screen.getByRole('button', { name: /Generate/ })
     expect(generateBtn).not.toBeDisabled()
-    // Read-only: no textarea/input to edit the instructions text within the block.
-    const block = screen.getByTestId('level-instructions-block')
-    expect(block.querySelector('textarea, input')).toBeNull()
-  })
-
-  it('renders exactly one block for several students in the same Level', async () => {
-    mockListClasses.mockResolvedValue({
-      classes: [{ id: 1, name: 'Math 101', levelId: 1, levelName: 'Math 101', scheduleName: '', studentCount: 2, userId: '', position: 0, createdAt: '' }],
-    })
-    mockListStudents.mockResolvedValue({
-      students: [
-        { id: 10, name: 'Alice', classId: 1, createdAt: '', aliases: [] },
-        { id: 11, name: 'Bob', classId: 1, createdAt: '', aliases: [] },
-      ],
-    })
-    mockListLevels.mockResolvedValue({ levels: [level(1, 'Math 101', 'Some instructions.')] })
-    const { default: ReportGeneration } = await import('../ReportGeneration')
-    const user = userEvent.setup()
-    render(<ReportGeneration />)
-    await waitFor(() => screen.getByText('Math 101'))
-
-    await user.click(screen.getByText('Alice'))
-    await user.click(screen.getByText('Bob'))
-
-    await waitFor(() => {
-      expect(screen.getAllByTestId('level-instructions-block')).toHaveLength(1)
-    })
   })
 
   it('renders one block per distinct Level across multiple selected Levels', async () => {

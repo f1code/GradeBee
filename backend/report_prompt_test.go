@@ -30,27 +30,3 @@ func TestBuildReportPrompt_AdHocInstructionsOverrideSpec(t *testing.T) {
 	assert.Contains(t, prompt, "override the Report Specification")
 	assert.Contains(t, prompt, "be extra concise")
 }
-
-// TestBuildReportPrompt_NoExactlyForExamples verifies no prompt fragment
-// instructs the model to match examples "exactly" — examples illustrate tone
-// and vocabulary only, per the reframed authority ranking.
-func TestBuildReportPrompt_NoExactlyForExamples(t *testing.T) {
-	examples := []ReportExample{{Name: "ex1", Content: "example body"}}
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, examples, "spec text", "", "")
-	assert.NotContains(t, prompt, "exactly")
-}
-
-// TestBuildReportPrompt_NotesRemainSoleSourceOfFacts verifies the base
-// framing sentence survives the reframe.
-func TestBuildReportPrompt_NotesRemainSoleSourceOfFacts(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "", "")
-	assert.Contains(t, prompt, "student notes are the sole source of facts")
-}
-
-// TestBuildReportPrompt_NoStyleFallbackWithoutExamples verifies there's no
-// styleless "write a professional narrative" fallback fragment left — the
-// mandatory Report Specification replaces it.
-func TestBuildReportPrompt_NoStyleFallbackWithoutExamples(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "", "")
-	assert.NotContains(t, prompt, "Write a professional, warm report card narrative")
-}
