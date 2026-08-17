@@ -72,21 +72,22 @@ const reportPromptBase = "You are a report card writer for a school teacher.\n" 
 	"The student notes are the sole source of facts for the report.\n" +
 	"Every observation, data field, and mark must come from the notes — not from any examples.\n\n"
 
+// reportSpecHeader is prefixed before the Level's mandatory Report
+// Specification — the required structure, sections, and content for the
+// report. It outranks the style guide and any examples.
+const reportSpecHeader = "## Report Specification (defines the report's required structure, sections, and content — follow it)\n\n"
+
 // reportStyleHeader is prefixed before the style-guide examples section.
 const reportStyleHeader = "## Style & Layout Guide\n"
 
 // reportStyleWithExamples is used when example reports are available.
-const reportStyleWithExamples = "The following are example report cards. Match their tone, voice, vocabulary,\n" +
-	"section headings, and layout exactly. These examples may differ slightly from the provided\n" +
-	"additional instructions - in that case, the instructions from the user take precedence.\n" +
+const reportStyleWithExamples = "The following are example report cards. Match their tone, voice, and vocabulary.\n" +
+	"Where an example's structure differs from the Report Specification above, the Specification wins.\n" +
 	"IMPORTANT: Do not copy specific Data field values, Marks, or observations from the examples —\n" +
 	"only include a Data field or Marks section if that value is present in the student notes.\n\n"
 
-// reportStyleNoExamples is used when no example reports are available.
-const reportStyleNoExamples = "Write a professional, warm report card narrative.\n\n"
-
-// reportInstructionsHeader prefixes the optional additional-instructions block.
-const reportInstructionsHeader = "## Important Additional Instructions from User - Takes precedence over any provided example\n\n"
+// reportInstructionsHeader prefixes the optional ad-hoc-instructions block.
+const reportInstructionsHeader = "## Teacher's Instructions for This Report — override the Report Specification where they conflict\n\n"
 
 // reportNotesHeader prefixes the student notes section.
 const reportNotesHeader = "## Student Notes (source of truth — all report content must derive from these)\n"
@@ -104,7 +105,7 @@ const reportTaskFooter = "## Task\nWrite a report card narrative for this studen
 
 // reportTaskFooterWithExamples appends the examples-follow reminder when
 // examples were provided.
-const reportTaskFooterWithExamples = "Follow the tone, section headings, and layout of the examples exactly.\n" +
+const reportTaskFooterWithExamples = "The tone and vocabulary should be consistent with the examples.\n" +
 	"Do not replicate their specific Data field values, Marks, or observations —\n" +
 	"the report content comes only from the student notes above.\n"
 
@@ -138,9 +139,9 @@ func init() {
 	// Dynamic parts (student name, notes, examples, feedback) are represented by
 	// sentinels so the hash captures the structural template, not the data.
 	reportTemplate := reportPromptBase +
+		reportSpecHeader + "<<<reportInstructions>>>" +
 		reportStyleHeader +
 		reportStyleWithExamples + "<<<examples>>>" +
-		reportStyleNoExamples +
 		reportInstructionsHeader + "<<<instructions>>>" +
 		reportNotesHeader + "<<<notes>>>" +
 		reportFeedbackHeader + "<<<feedback>>>" +

@@ -9,14 +9,15 @@ import (
 
 // GenerateReportRequest is the input for generating a single student report.
 type GenerateReportRequest struct {
-	StudentID    int64
-	Student      string
-	ClassName    string
-	LevelName    string
-	StartDate    string // YYYY-MM-DD
-	EndDate      string // YYYY-MM-DD
-	UserID       string
-	Instructions string
+	StudentID          int64
+	Student            string
+	ClassName          string
+	LevelName          string
+	StartDate          string // YYYY-MM-DD
+	EndDate            string // YYYY-MM-DD
+	UserID             string
+	Instructions       string
+	ReportInstructions string
 }
 
 // GenerateReportResponse contains the created report info.
@@ -34,16 +35,17 @@ type ReportGenerator interface {
 
 // RegenerateReportRequest is the input for regenerating an existing report.
 type RegenerateReportRequest struct {
-	ReportID     int64
-	Feedback     string
-	StudentID    int64
-	Student      string
-	ClassName    string
-	LevelName    string
-	StartDate    string
-	EndDate      string
-	UserID       string
-	Instructions string
+	ReportID           int64
+	Feedback           string
+	StudentID          int64
+	Student            string
+	ClassName          string
+	LevelName          string
+	StartDate          string
+	EndDate            string
+	UserID             string
+	Instructions       string
+	ReportInstructions string
 }
 
 // llmReportGenerator implements ReportGenerator using an LLMProvider + DB.
@@ -79,7 +81,7 @@ func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	}
 
 	// 3. Build prompt and call LLM.
-	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, examples, req.Instructions, "")
+	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, examples, req.ReportInstructions, req.Instructions, "")
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
@@ -124,7 +126,7 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	}
 
 	// 3. Build prompt with feedback and call LLM.
-	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, examples, req.Instructions, req.Feedback)
+	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, examples, req.ReportInstructions, req.Instructions, req.Feedback)
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err

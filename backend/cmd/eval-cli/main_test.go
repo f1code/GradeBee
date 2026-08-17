@@ -91,11 +91,12 @@ func TestRunBuildExtractPrompt_MissingTranscript(t *testing.T) {
 
 func TestRunBuildReportPrompt(t *testing.T) {
 	ec := evalContext{Vars: mustRawMap(map[string]interface{}{
-		"student_name": "Alice",
-		"class_name":   "Grade 3A",
-		"notes":        []interface{}{map[string]interface{}{"date": "2026-01-15", "summary": "Strong reader."}},
-		"examples":     []interface{}{},
-		"instructions": "",
+		"student_name":        "Alice",
+		"class_name":          "Grade 3A",
+		"notes":               []interface{}{map[string]interface{}{"date": "2026-01-15", "summary": "Strong reader."}},
+		"examples":            []interface{}{},
+		"report_instructions": "Write a three-section report.",
+		"instructions":        "",
 	})}
 	out, err := captureOutput(func() error { return runBuildReportPrompt(ec) })
 	require.NoError(t, err)

@@ -12,6 +12,7 @@ import {
   importExampleFromDrive,
   getGoogleToken,
   listLevels,
+  type LevelItem,
   type ClassItem,
   type StudentItem,
   type ReportResult,
@@ -61,7 +62,8 @@ export default function ReportGeneration() {
   const [examples, setExamples] = useState<ReportExampleItem[]>([])
   const [examplesLoading, setExamplesLoading] = useState(true)
   const [examplesError, setExamplesError] = useState<string | null>(null)
-  const [availableLevelNames, setAvailableLevelNames] = useState<string[]>([])
+  const [levels, setLevels] = useState<LevelItem[]>([])
+  const [levelsError, setLevelsError] = useState<string | null>(null)
   const { openPicker } = useDrivePicker()
 
   const loadExamples = useCallback(async () => {
@@ -79,7 +81,9 @@ export default function ReportGeneration() {
   useEffect(() => { loadExamples() }, [loadExamples])
 
   useEffect(() => {
-    listLevels(getToken).then(({ levels }) => setAvailableLevelNames(levels.map(l => l.name))).catch(() => {})
+    listLevels(getToken)
+      .then(({ levels }) => setLevels(levels))
+      .catch((e: unknown) => setLevelsError(e instanceof Error ? e.message : 'Failed to load Levels'))
   }, [getToken])
 
   // Poll while any example is still processing.
@@ -187,49 +191,42 @@ export default function ReportGeneration() {
 
   const selectedCount = selected.size
 
-  // Distinct class names of currently-selected students
-  const selectedLevelNames = useMemo(() => {
-    const names = new Set<string>()
+  // Distinct Levels among currently-selected students, keyed by levelId.
+  const selectedLevels = useMemo(() => {
+    const byId = new Map<number, LevelItem>()
     for (const c of classes) {
-      for (const s of c.students) {
-        if (selected.has(s.id)) names.add(c.levelName)
-      }
+      if (!c.students.some(s => selected.has(s.id))) continue
+      const level = levels.find(l => l.id === c.levelId)
+      if (level && !byId.has(level.id)) byId.set(level.id, level)
     }
-    return Array.from(names)
-  }, [classes, selected])
+    return Array.from(byId.values())
+  }, [classes, selected, levels])
 
-  // Block generation when a class has no matching ready example
-  const blockerMessage = useMemo(() => {
-    if (selected.size === 0) return null
-    const readyExamples = examples.filter(e => e.status === 'ready')
-    const classesWithExamples = new Set(readyExamples.flatMap(e => e.levelNames ?? []))
-    const parts: string[] = []
-    // Students whose class name is empty
+  // True while a selected student's Class references a levelId not present in
+  // the loaded Levels list (still loading, or the load failed) — treat as
+  // unresolved rather than silently passing the gate.
+  const hasUnresolvedLevel = useMemo(() => {
     for (const c of classes) {
-      if (!c.name) {
-        for (const s of c.students) {
-          if (selected.has(s.id)) parts.push(`${s.name} (no level)`)
-        }
-      }
+      if (!c.students.some(s => selected.has(s.id))) continue
+      if (!levels.some(l => l.id === c.levelId)) return true
     }
-    // Classes with selected students but no matching ready example
-    const checked = new Set<string>()
-    for (const c of classes) {
-      if (c.levelName && !checked.has(c.levelName)) {
-        const hasSelected = c.students.some(s => selected.has(s.id))
-        if (hasSelected && !classesWithExamples.has(c.levelName)) {
-          parts.push(`${c.name} (no examples)`)
-          checked.add(c.levelName)
-        }
-      }
-    }
-    return parts.length > 0
-      ? `${parts.join(', ')} — assign a level / add examples to continue.`
-      : null
-  }, [classes, selected, examples])
+    return false
+  }, [classes, selected, levels])
+
+  const selectedLevelNames = useMemo(
+    () => selectedLevels.map(l => l.name),
+    [selectedLevels]
+  )
+
+  const availableLevelNames = useMemo(() => levels.map(l => l.name), [levels])
+
+  const unsetLevels = useMemo(
+    () => selectedLevels.filter(l => l.reportInstructions.trim() === ''),
+    [selectedLevels]
+  )
 
   async function handleGenerate() {
-    if (selectedCount === 0 || !startDate || !endDate) return
+    if (selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel) return
     setGenerating(true)
     setError(null)
     setResults([])
@@ -323,6 +320,41 @@ export default function ReportGeneration() {
         )}
       </div>
 
+      {levelsError && (
+        <div className="report-error" data-testid="levels-load-error">
+          <p>⚠️ Could not load Levels: {levelsError}. Reload the page to try again.</p>
+        </div>
+      )}
+
+      {/* Level report instructions — one read-only block per distinct selected Level */}
+      {selectedLevels.length > 0 && (
+        <div className="report-levels">
+          {selectedLevels.map(level => {
+            const isUnset = level.reportInstructions.trim() === ''
+            return (
+              <div
+                key={level.id}
+                className={`report-level-block${isUnset ? ' report-level-block-blocker' : ''}`}
+                data-testid={isUnset ? 'level-instructions-blocker' : 'level-instructions-block'}
+              >
+                <h4 className="report-level-name">{level.name}</h4>
+                {isUnset ? (
+                  <p className="report-level-blocker-text">
+                    No report instructions set. An admin must add report instructions for this
+                    Level before reports can be generated.
+                  </p>
+                ) : (
+                  <details className="report-level-instructions">
+                    <summary>Report instructions</summary>
+                    <p className="report-level-instructions-text">{level.reportInstructions}</p>
+                  </details>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
       {/* Example report cards */}
       <ReportExamples
         examples={examples}
@@ -347,14 +379,10 @@ export default function ReportGeneration() {
         />
       </div>
 
-      {/* Generate button */}
-      {blockerMessage && (
-        <p className="report-generate-blocker" data-testid="generate-blocker">{blockerMessage}</p>
-      )}
       <button
         className="report-generate-btn"
         onClick={handleGenerate}
-        disabled={generating || selectedCount === 0 || !startDate || !endDate || !!blockerMessage}
+        disabled={generating || selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel}
       >
         {generating ? (
           <span className="btn-loading"><span className="honeycomb-spinner honeycomb-spinner-inline"><span className="hex" /><span className="hex" /><span className="hex" /></span> Generating...</span>

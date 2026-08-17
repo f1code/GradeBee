@@ -36,6 +36,10 @@ vi.mock('@clerk/react', () => ({
   useAuth: () => ({ getToken: stableGetToken }),
 }))
 
+function level(id: number, name: string, reportInstructions: string) {
+  return { id, groupId: 'g1', name, reportInstructions, createdAt: '' }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockListReportExamples.mockResolvedValue({ examples: [] })
@@ -45,7 +49,7 @@ beforeEach(() => {
 
 async function renderWithStudents() {
   mockListClasses.mockResolvedValue({
-    classes: [{ id: 1, name: 'Math 101', levelName: 'Math 101', scheduleName: '', studentCount: 2 }],
+    classes: [{ id: 1, name: 'Math 101', levelId: 1, levelName: 'Math 101', scheduleName: '', studentCount: 2 }],
   })
   mockListStudents.mockResolvedValue({
     students: [
@@ -53,6 +57,7 @@ async function renderWithStudents() {
       { id: 11, name: 'Bob', classId: 1 },
     ],
   })
+  mockListLevels.mockResolvedValue({ levels: [level(1, 'Math 101', 'Focus on math skills.')] })
   const { default: ReportGeneration } = await import('../ReportGeneration')
   const user = userEvent.setup()
   render(<ReportGeneration />)
@@ -72,7 +77,7 @@ describe('ReportGeneration', () => {
     await user.click(screen.getByText('Math 101'))
     expect(screen.getByText(/Generate 2 Report/)).toBeInTheDocument()
 
-    await user.click(screen.getByText('Math 101'))
+    await user.click(screen.getByText('Math 101', { selector: 'strong' }))
     expect(screen.getByText(/Generate 0 Report/)).toBeInTheDocument()
   })
 
@@ -83,9 +88,6 @@ describe('ReportGeneration', () => {
         { id: 2, student: 'Bob', className: 'Math 101', studentId: 11, html: '<p>Bob report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
       ],
       error: null,
-    })
-    mockListReportExamples.mockResolvedValue({
-      examples: [{ id: 1, name: 'Example.pdf', content: 'ex', status: 'ready', levelNames: ['Math 101'] }],
     })
     const user = await renderWithStudents()
     await user.click(screen.getByText('Math 101'))
@@ -102,9 +104,6 @@ describe('ReportGeneration', () => {
 
   it('shows error on failed generation', async () => {
     mockGenerateReports.mockRejectedValue(new Error('Generation failed'))
-    mockListReportExamples.mockResolvedValue({
-      examples: [{ id: 1, name: 'Example.pdf', content: 'ex', status: 'ready', levelNames: ['Math 101'] }],
-    })
     const user = await renderWithStudents()
     await user.click(screen.getByText('Math 101'))
 
@@ -130,8 +129,20 @@ describe('ReportGeneration', () => {
   })
 
   it('uploads example files with selected class names', async () => {
-    mockListLevels.mockResolvedValue({ levels: [{ id: 1, name: 'Math', groupId: 'g1', reportInstructions: '', createdAt: '' }] })
-    const user = await renderWithStudents()
+    mockListClasses.mockResolvedValue({
+      classes: [{ id: 1, name: 'Math', levelId: 1, levelName: 'Math', scheduleName: '', studentCount: 2 }],
+    })
+    mockListStudents.mockResolvedValue({
+      students: [
+        { id: 10, name: 'Alice', classId: 1 },
+        { id: 11, name: 'Bob', classId: 1 },
+      ],
+    })
+    mockListLevels.mockResolvedValue({ levels: [level(1, 'Math', 'Some instructions.')] })
+    const { default: ReportGeneration } = await import('../ReportGeneration')
+    const user = userEvent.setup()
+    render(<ReportGeneration />)
+    await waitFor(() => screen.getByText('Math', { selector: 'strong' }))
 
     await user.click(screen.getByText(/Example Report Cards/))
 
@@ -141,7 +152,7 @@ describe('ReportGeneration', () => {
     await user.upload(fileInput, file)
 
     // Class selection panel appears; choose the Math class.
-    await waitFor(() => expect(screen.getByText('Math')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Math' })).toBeInTheDocument())
     await user.click(screen.getByRole('checkbox', { name: 'Math' }))
 
     await user.click(screen.getByText('Upload'))
@@ -155,14 +166,19 @@ describe('ReportGeneration', () => {
   })
 })
 
-describe('ReportGeneration — selection-aware blocking', () => {
-  async function renderWithClass(levelName: string, studentName = 'Alice') {
+describe('ReportGeneration — Level instructions gate', () => {
+  async function renderWithClass(
+    levelName: string,
+    reportInstructions: string,
+    studentName = 'Alice'
+  ) {
     mockListClasses.mockResolvedValue({
-      classes: [{ id: 1, name: levelName, studentCount: 1, userId: '', levelName: levelName, scheduleName: '', position: 0, createdAt: '' }],
+      classes: [{ id: 1, name: levelName, studentCount: 1, userId: '', levelId: 1, levelName, scheduleName: '', position: 0, createdAt: '' }],
     })
     mockListStudents.mockResolvedValue({
       students: [{ id: 10, name: studentName, classId: 1, createdAt: '', aliases: [] }],
     })
+    mockListLevels.mockResolvedValue({ levels: [level(1, levelName, reportInstructions)] })
     const { default: ReportGeneration } = await import('../ReportGeneration')
     const user = userEvent.setup()
     render(<ReportGeneration />)
@@ -170,49 +186,71 @@ describe('ReportGeneration — selection-aware blocking', () => {
     return user
   }
 
-  it('blocks generation when selected student class has no matching examples', async () => {
-    mockListReportExamples.mockResolvedValue({ examples: [] })
-    const user = await renderWithClass('3B')
-    // Select Alice
-    await user.click(screen.getByLabelText('Alice') ?? screen.getByText('Alice'))
+  it('blocks generation when the selected Level has no report instructions', async () => {
+    const user = await renderWithClass('3B', '')
+    await user.click(screen.getByText('Alice'))
     await waitFor(() => {
-      expect(screen.getByTestId('generate-blocker')).toHaveTextContent('3B (no examples)')
+      expect(screen.getByTestId('level-instructions-blocker')).toHaveTextContent('3B')
+      expect(screen.getByTestId('level-instructions-blocker')).toHaveTextContent(
+        'An admin must add report instructions'
+      )
     })
     const generateBtn = screen.getByRole('button', { name: /Generate/ })
     expect(generateBtn).toBeDisabled()
   })
 
-  it('shows correct message format: class name + reason', async () => {
-    mockListReportExamples.mockResolvedValue({ examples: [] })
-    const user = await renderWithClass('Class 3B')
+  it('treats whitespace-only instructions as empty', async () => {
+    const user = await renderWithClass('3B', '   \n\t  ')
     await user.click(screen.getByText('Alice'))
     await waitFor(() => {
-      expect(screen.getByTestId('generate-blocker')).toHaveTextContent(
-        'Class 3B (no examples) — assign a level / add examples to continue.'
-      )
+      expect(screen.getByTestId('level-instructions-blocker')).toBeInTheDocument()
     })
+    expect(screen.getByRole('button', { name: /Generate/ })).toBeDisabled()
   })
 
-  it('enables generation when selected student class has a matching ready example', async () => {
-    mockListReportExamples.mockResolvedValue({
-      examples: [
-        { id: 1, name: 'Report.pdf', content: 'Example.', status: 'ready', levelNames: ['ClassA'] },
-      ],
-    })
-    const user = await renderWithClass('ClassA')
+  it('renders a read-only instructions block and enables generation when the Level has instructions', async () => {
+    const user = await renderWithClass('ClassA', 'Keep it warm and encouraging.')
     await user.click(screen.getByText('Alice'))
     await waitFor(() => {
-      expect(screen.queryByTestId('generate-blocker')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('level-instructions-blocker')).not.toBeInTheDocument()
+      expect(screen.getByTestId('level-instructions-block')).toHaveTextContent('ClassA')
     })
     const generateBtn = screen.getByRole('button', { name: /Generate/ })
     expect(generateBtn).not.toBeDisabled()
+    // Read-only: no textarea/input to edit the instructions text within the block.
+    const block = screen.getByTestId('level-instructions-block')
+    expect(block.querySelector('textarea, input')).toBeNull()
   })
 
-  it('multiple classes: lists each class without examples separately', async () => {
+  it('renders exactly one block for several students in the same Level', async () => {
+    mockListClasses.mockResolvedValue({
+      classes: [{ id: 1, name: 'Math 101', levelId: 1, levelName: 'Math 101', scheduleName: '', studentCount: 2, userId: '', position: 0, createdAt: '' }],
+    })
+    mockListStudents.mockResolvedValue({
+      students: [
+        { id: 10, name: 'Alice', classId: 1, createdAt: '', aliases: [] },
+        { id: 11, name: 'Bob', classId: 1, createdAt: '', aliases: [] },
+      ],
+    })
+    mockListLevels.mockResolvedValue({ levels: [level(1, 'Math 101', 'Some instructions.')] })
+    const { default: ReportGeneration } = await import('../ReportGeneration')
+    const user = userEvent.setup()
+    render(<ReportGeneration />)
+    await waitFor(() => screen.getByText('Math 101'))
+
+    await user.click(screen.getByText('Alice'))
+    await user.click(screen.getByText('Bob'))
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('level-instructions-block')).toHaveLength(1)
+    })
+  })
+
+  it('renders one block per distinct Level across multiple selected Levels', async () => {
     mockListClasses.mockResolvedValue({
       classes: [
-        { id: 1, name: 'ClassA', studentCount: 1, userId: '', levelName: 'ClassA', scheduleName: '', position: 0, createdAt: '' },
-        { id: 2, name: 'ClassB', studentCount: 1, userId: '', levelName: 'ClassB', scheduleName: '', position: 0, createdAt: '' },
+        { id: 1, name: 'ClassA', levelId: 1, levelName: 'ClassA', studentCount: 1, userId: '', scheduleName: '', position: 0, createdAt: '' },
+        { id: 2, name: 'ClassB', levelId: 2, levelName: 'ClassB', studentCount: 1, userId: '', scheduleName: '', position: 0, createdAt: '' },
       ],
     })
     mockListStudents.mockImplementation((_classId: unknown) => {
@@ -223,10 +261,8 @@ describe('ReportGeneration — selection-aware blocking', () => {
           : [{ id: 11, name: 'Bob', classId: 2, createdAt: '', aliases: [] }],
       })
     })
-    mockListReportExamples.mockResolvedValue({
-      examples: [
-        { id: 1, name: 'R.pdf', content: 'e', status: 'ready', levelNames: ['ClassA'] },
-      ],
+    mockListLevels.mockResolvedValue({
+      levels: [level(1, 'ClassA', 'Instructions A.'), level(2, 'ClassB', '')],
     })
     const { default: ReportGeneration } = await import('../ReportGeneration')
     const user = userEvent.setup()
@@ -236,9 +272,34 @@ describe('ReportGeneration — selection-aware blocking', () => {
     await user.click(screen.getByText('Alice'))
     await user.click(screen.getByText('Bob'))
     await waitFor(() => {
-      const blocker = screen.getByTestId('generate-blocker')
-      expect(blocker).toHaveTextContent('ClassB (no examples)')
-      expect(blocker).not.toHaveTextContent('ClassA (no examples)')
+      expect(screen.getByTestId('level-instructions-block')).toHaveTextContent('ClassA')
+      expect(screen.getByTestId('level-instructions-blocker')).toHaveTextContent('ClassB')
     })
+    expect(screen.getByRole('button', { name: /Generate/ })).toBeDisabled()
+  })
+})
+
+describe('ReportGeneration — Levels load failure', () => {
+  it('surfaces a listLevels() failure and disables Generate', async () => {
+    mockListClasses.mockResolvedValue({
+      classes: [{ id: 1, name: 'Math 101', levelId: 1, levelName: 'Math 101', scheduleName: '', studentCount: 2 }],
+    })
+    mockListStudents.mockResolvedValue({
+      students: [
+        { id: 10, name: 'Alice', classId: 1 },
+        { id: 11, name: 'Bob', classId: 1 },
+      ],
+    })
+    mockListLevels.mockRejectedValue(new Error('network down'))
+    const { default: ReportGeneration } = await import('../ReportGeneration')
+    const user = userEvent.setup()
+    render(<ReportGeneration />)
+    await waitFor(() => screen.getByText('Math 101'))
+
+    await user.click(screen.getByText('Math 101', { selector: 'strong' }))
+    await waitFor(() => {
+      expect(screen.getByTestId('levels-load-error')).toHaveTextContent('network down')
+    })
+    expect(screen.getByRole('button', { name: /Generate/ })).toBeDisabled()
   })
 })

@@ -42,9 +42,10 @@ async function mockBaseRoutes(page: Page) {
       await route.continue()
     }
   })
-  // Levels (for the AddClassForm dropdown, unused by these tests but fetched on mount)
+  // Levels (feeds both the AddClassForm dropdown and the report-generation
+  // instructions gate; non-empty instructions so Generate stays enabled)
   await page.route('**/levels', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ levels: [{ id: 1, name: 'Grade 3A', groupId: 'g1', reportInstructions: '', createdAt: '' }] }) })
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ levels: [{ id: 1, name: 'Grade 3A', groupId: 'g1', reportInstructions: 'Focus on academic progress and behaviour.', createdAt: '' }] }) })
   })
 }
 

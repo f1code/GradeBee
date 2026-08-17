@@ -122,6 +122,26 @@ A third tab (`🐝 Levels`), visible only when `useAuth().has({ role: 'org:admin
 - Add form reuses `.add-class-form` / `.add-class-input` styling. Duplicate name (case-insensitive) within the Group is caught client-side before submit, surfaced via `<InlineError>`; a 409 from a race is surfaced the same way.
 - New classes: `.levels-admin`, `.levels-admin-header`, `.levels-admin-help`, `.levels-admin-list`, `.levels-admin-instructions`, `.levels-admin-instructions-status/saved/empty` — defined in `levels.css`.
 
+### Report Generation — Per-Level Instructions Gate
+
+`ReportGeneration.tsx` shows one collapsed, read-only block per distinct Level
+among the currently-selected students — keyed by `levelId`, not per student or
+per Class, so 12 students across 3 Levels render 3 blocks. A Level whose
+`reportInstructions` is empty or whitespace-only (`.trim() === ''`, matching the
+server's `strings.TrimSpace` gate) renders instead as a named, expanded blocker
+and disables Generate — the client check is UX only, the server pre-flight is
+the real gate.
+
+- Two states of the same block: `.report-level-block` (default) vs
+  `.report-level-block-blocker` (unset). `data-testid="level-instructions-block"`
+  / `"level-instructions-blocker"` distinguish them in tests.
+- Instructions render inside a native `<details>`/`<summary>` — no edit
+  affordance on this screen; editing lives on the Levels Admin screen.
+- New classes: `.report-levels`, `.report-level-block`,
+  `.report-level-block-blocker`, `.report-level-name`,
+  `.report-level-blocker-text`, `.report-level-instructions`,
+  `.report-level-instructions-text` — defined in `reports.css`.
+
 ### Error Patterns
 
 Three variants for communicating errors to users:

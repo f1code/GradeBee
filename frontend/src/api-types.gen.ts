@@ -637,6 +637,7 @@ export interface GenerateReportRequest {
   EndDate: string; // YYYY-MM-DD
   UserID: string;
   Instructions: string;
+  ReportInstructions: string;
 }
 /**
  * GenerateReportResponse contains the created report info.
@@ -664,6 +665,7 @@ export interface RegenerateReportRequest {
   EndDate: string;
   UserID: string;
   Instructions: string;
+  ReportInstructions: string;
 }
 
 //////////

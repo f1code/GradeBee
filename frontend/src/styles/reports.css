@@ -290,16 +290,6 @@
   margin: 0.25rem 0 0.5rem;
 }
 
-.report-generate-blocker {
-  font-size: 0.85rem;
-  color: var(--error-red);
-  margin: 0 0 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(197, 48, 48, 0.06);
-  border: 1px solid rgba(197, 48, 48, 0.2);
-  border-radius: 8px;
-}
-
 .example-item-wrapper {
   display: flex;
   flex-direction: column;
@@ -562,6 +552,51 @@
 
 .report-instructions {
   margin-bottom: 1.25rem;
+}
+
+/* --- Per-Level report instructions (generation screen) --- */
+.report-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.25rem;
+}
+
+.report-level-block {
+  border: 1px solid var(--comb);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
+  background: var(--chalk);
+}
+
+.report-level-block-blocker {
+  border-color: var(--error-red);
+  background: rgba(197, 48, 48, 0.06);
+}
+
+.report-level-name {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.report-level-blocker-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--error-red);
+}
+
+.report-level-instructions summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.report-level-instructions-text {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  color: var(--ink);
 }
 
 .report-generate-btn {

@@ -8,7 +8,20 @@ async function mockClassesAndStudents(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          classes: [{ id: 1, name: 'Science', studentCount: 1 }],
+          classes: [{ id: 1, levelId: 1, levelName: 'Science', name: 'Science', studentCount: 1 }],
+        }),
+      })
+    } else {
+      await route.continue()
+    }
+  })
+  await page.route('**/levels', async (route) => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          levels: [{ id: 1, groupId: 'g1', name: 'Science', reportInstructions: 'Focus on scientific curiosity and observation skills.', createdAt: '2026-01-01T00:00:00Z' }],
         }),
       })
     } else {
@@ -99,9 +112,9 @@ test.describe('Report generation', () => {
     await expect(page.getByTestId('report-result-name')).toContainText('Alice')
   })
 
-  test('class with schedule name matches example by base levelName', async ({ page }) => {
-    // Regression test: c.name is "Math — Schedule A" but examples store just "Math"
-    // The matching must use c.levelName, not c.name.
+  test('class with schedule name resolves Level instructions by levelId, not display name', async ({ page }) => {
+    // Regression test: c.name is "Math — Group A" but the Level is looked up by
+    // c.levelId, not by parsing the composed display name.
     await page.route('**/classes', async (route) => {
       if (route.request().method() === 'GET' && !route.request().url().includes('/classes/')) {
         await route.fulfill({
@@ -115,13 +128,13 @@ test.describe('Report generation', () => {
         await route.continue()
       }
     })
-    await page.route('**/report-examples', async (route) => {
+    await page.route('**/levels', async (route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            examples: [{ id: 1, name: 'Math example.pdf', content: 'Example content.', status: 'ready', levelNames: ['Math'] }],
+            levels: [{ id: 1, groupId: 'g1', name: 'Math', reportInstructions: 'Keep comments under 100 words.', createdAt: '2026-01-01T00:00:00Z' }],
           }),
         })
       } else {
@@ -136,8 +149,12 @@ test.describe('Report generation', () => {
     // Select Alice (whose class has a schedule suffix in its display name)
     await page.getByText('Alice').click()
 
-    // The example's levelNames: ['Math'] should match c.levelName 'Math', not c.name 'Math — Group A'
-    await expect(page.getByTestId('generate-blocker')).not.toBeAttached()
+    // The Level, looked up by levelId 1 (not the composed name 'Math — Group A'),
+    // has instructions, so the read-only block renders and Generate is enabled.
+    await expect(page.getByTestId('level-instructions-blocker')).not.toBeAttached()
+    const block = page.getByTestId('level-instructions-block')
+    await expect(block).toBeVisible()
+    await expect(block).toContainText('Math')
     await expect(page.getByRole('button', { name: /Generate.*Report/ })).toBeEnabled()
   })
 

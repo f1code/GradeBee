@@ -8,10 +8,15 @@ import (
 
 // BuildReportPrompt builds the GPT system prompt for report card generation.
 // Exported for use by cmd/eval-cli.
-func BuildReportPrompt(student, className string, notes []Note, examples []ReportExample, instructions, feedback string) string {
+func BuildReportPrompt(student, className string, notes []Note, examples []ReportExample, reportInstructions, instructions, feedback string) string {
 	var sb strings.Builder
 
 	sb.WriteString(reportPromptBase)
+
+	// Report Specification (Level-level, mandatory)
+	sb.WriteString(reportSpecHeader)
+	sb.WriteString(reportInstructions)
+	sb.WriteString("\n\n")
 
 	// Style & layout guide
 	sb.WriteString(reportStyleHeader)
@@ -20,8 +25,6 @@ func BuildReportPrompt(student, className string, notes []Note, examples []Repor
 		for i, ex := range examples {
 			sb.WriteString(fmt.Sprintf("### Example %d: %s\n%s\n\n", i+1, ex.Name, ex.Content))
 		}
-	} else {
-		sb.WriteString(reportStyleNoExamples)
 	}
 
 	// Additional instructions

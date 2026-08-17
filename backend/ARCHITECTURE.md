@@ -258,7 +258,7 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 | `reports` | Generated HTML report cards |
 | `report_examples` | Example report cards for style matching |
 | `voice_notes` | Audio file tracking (file path, processed_at, purged_at) |
-| `levels` | Group-owned curriculum tiers. `name` unique within `group_id`; `report_instructions` defaults to `''`. Seeded with 8 hand-authored Levels against the production Clerk org ID (one-shot data migration, `sql/010_levels.sql`). |
+| `levels` | Group-owned curriculum tiers. `name` unique within `group_id`; `report_instructions` defaults to `''`. A Level with trimmed-empty `report_instructions` cannot generate or regenerate reports — `handleGenerateReports`/`handleRegenerateReport` refuse with `400` before any LLM call (see `report_prompt.go`/`reports_handler.go` below). Seeded with 8 hand-authored Levels against the production Clerk org ID (one-shot data migration, `sql/010_levels.sql`). |
 
 ### Repository Layer
 
@@ -318,8 +318,8 @@ The `debugAuthMiddleware` enforces that every `/api/` request carries an active 
 | `report_example_job.go` | `ExtractionJob` type for async report example extraction |
 | `report_example_process.go` | `processExtraction` pipeline (read file→extract→update DB) |
 | `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output) |
-| `report_prompt.go` | GPT prompt construction for report generation (requests HTML output) |
-| `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers |
+| `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections: the Level's Report Specification (mandatory), then the Style & Layout Guide (examples, if any — tone/vocabulary only), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
+| `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers. Both generation endpoints pre-flight-resolve every selected student's Class → Level and refuse the whole request with `400` (naming the offending Levels) if any Level's `report_instructions` is trimmed-empty — no report row created, no LLM call made. |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
 | `logger.go` | Dual stdout+Sentry structured logging via `log/slog`; `InitLogger()` wires `slog.NewMultiHandler` when `SENTRY_DSN` is set; request-scoped logger via context |
 | `job_queue.go` | `Keyed` constraint, `JobQueue[T]` generic interface for async job queues |
@@ -412,8 +412,11 @@ backend/evals/
       expected.json             expected students + must_quote_substrings
     reports/<case>/
       notes.json                student notes
-      examples.json             example report cards (optional)
-      instructions.txt          additional prompt instructions (optional)
+      examples.json             example report cards (optional; tone/vocabulary only)
+      report_instructions.txt   Level's report specification (structure/sections; drives content). Absent
+                                 on the four cases parked for #54, which have no live test entry.
+      instructions.txt          ad-hoc per-run instructions (optional; override report_instructions
+                                 where they conflict)
 ```
 
 ### Running evals
@@ -453,7 +456,7 @@ make bin/eval-cli
 | Config task | Reads from `vars` | Builds |
 |---|---|---|
 | `build-extract-prompt` | `transcript`, `classes` | `BuildExtractionPrompt` → messages array (system + user) |
-| `build-report-prompt` | `student_name`, `class`, `notes`, `examples`, `instructions` | `BuildReportPrompt` → messages array (user only) |
+| `build-report-prompt` | `student_name`, `class`, `notes`, `examples`, `report_instructions`, `instructions` | `BuildReportPrompt` → messages array (user only) |
 
 Model selection and the actual LLM call belong to promptfoo, not eval-cli.
 
