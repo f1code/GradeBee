@@ -11,7 +11,7 @@
 // by manually bumping the tag.
 //
 // The builder functions in extract.go and report_prompt.go still live there and
-// interpolate dynamic values (roster, notes, examples, feedback) into the
+// interpolate dynamic values (roster, notes, feedback) into the
 // templates.  Hashing the static portion is a reasonable proxy: substantive
 // changes almost always touch the static text.
 package handler
@@ -74,17 +74,8 @@ const reportPromptBase = "You are a report card writer for a school teacher.\n" 
 
 // reportSpecHeader is prefixed before the Level's mandatory Report
 // Specification — the required structure, sections, and content for the
-// report. It outranks the style guide and any examples.
+// report.
 const reportSpecHeader = "## Report Specification (defines the report's required structure, sections, and content — follow it)\n\n"
-
-// reportStyleHeader is prefixed before the style-guide examples section.
-const reportStyleHeader = "## Style & Layout Guide\n"
-
-// reportStyleWithExamples is used when example reports are available.
-const reportStyleWithExamples = "The following are example report cards. Match their tone, voice, and vocabulary.\n" +
-	"Where an example's structure differs from the Report Specification above, the Specification wins.\n" +
-	"IMPORTANT: Do not copy specific Data field values, Marks, or observations from the examples —\n" +
-	"only include a Data field or Marks section if that value is present in the student notes.\n\n"
 
 // reportInstructionsHeader prefixes the optional ad-hoc-instructions block.
 const reportInstructionsHeader = "## Teacher's Instructions for This Report — override the Report Specification where they conflict\n\n"
@@ -100,21 +91,8 @@ const reportTaskFooter = "## Task\nWrite a report card narrative for this studen
 	"Output the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\n" +
 	"Do not include <html>, <head>, or <body> wrapper tags — just the content HTML.\n" +
 	"Only include structured Data fields (Absences, Marks, Frequency of use, etc.) if those\n" +
-	"values are explicitly present in the notes. Do not invent or carry over values from the examples.\n" +
+	"values are explicitly present in the notes.\n" +
 	"Every statement in the report must be traceable to the notes. Do not invent observations.\n"
-
-// reportTaskFooterWithExamples appends the examples-follow reminder when
-// examples were provided.
-const reportTaskFooterWithExamples = "The tone and vocabulary should be consistent with the examples.\n" +
-	"Do not replicate their specific Data field values, Marks, or observations —\n" +
-	"the report content comes only from the student notes above.\n"
-
-// --- Example-extraction prompt template ---
-
-// ExampleExtractionPromptTemplate is the static prompt used by the image/PDF
-// example extractor (report_example_extractor.go).
-const ExampleExtractionPromptTemplate = "Extract all text from this report card image exactly as written. " +
-	"Preserve all paragraphs, headings, and formatting. Do not summarize or paraphrase."
 
 // --- Computed hashes (populated at init) ---
 
@@ -126,10 +104,6 @@ var ExtractionPromptHash string
 // Stamped on every generated report row.
 var ReportPromptHash string
 
-// ExampleExtractionPromptHash is the short hash of the example-extraction
-// prompt. Stamped when image extraction is instrumented.
-var ExampleExtractionPromptHash string
-
 func init() {
 	// The extraction hash covers both the prefix and suffix (the roster is
 	// dynamic, so we use a sentinel to represent it).
@@ -140,16 +114,11 @@ func init() {
 	// sentinels so the hash captures the structural template, not the data.
 	reportTemplate := reportPromptBase +
 		reportSpecHeader + "<<<reportInstructions>>>" +
-		reportStyleHeader +
-		reportStyleWithExamples + "<<<examples>>>" +
 		reportInstructionsHeader + "<<<instructions>>>" +
 		reportNotesHeader + "<<<notes>>>" +
 		reportFeedbackHeader + "<<<feedback>>>" +
-		reportTaskFooter +
-		reportTaskFooterWithExamples
+		reportTaskFooter
 	ReportPromptHash = hashPrompt(reportTemplate)
-
-	ExampleExtractionPromptHash = hashPrompt(ExampleExtractionPromptTemplate)
 }
 
 // hashPrompt returns the first 12 hex characters of SHA-256(PromptVersionTag + ":" + s).

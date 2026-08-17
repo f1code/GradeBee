@@ -34,14 +34,6 @@ async function mockBaseRoutes(page: Page) {
   await page.route('**/jobs', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ active: [], failed: [], done: [] }) })
   })
-  // Report examples (empty)
-  await page.route('**/report-examples', async (route) => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ examples: [] }) })
-    } else {
-      await route.continue()
-    }
-  })
   // Levels (feeds both the AddClassForm dropdown and the report-generation
   // instructions gate; non-empty instructions so Generate stays enabled)
   await page.route('**/levels', async (route) => {

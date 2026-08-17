@@ -19,7 +19,7 @@ const steps = [
   {
     num: 4,
     heading: 'Generate report cards',
-    desc: 'When it\'s report time, select a date range and students. GradeBee aggregates all notes into a report card that matches your style. Upload example reports so it learns your voice.',
+    desc: 'When it\'s report time, select a date range and students. GradeBee aggregates all notes into a report card that follows your Level\'s Report Instructions.',
   },
 ]
 

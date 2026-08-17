@@ -305,16 +305,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(path, "reports/") && r.Method == http.MethodDelete:
 		authHandler(handleDeleteReport).ServeHTTP(rec, r)
 
-	// Report examples
-	case path == "report-examples" && r.Method == http.MethodGet:
-		authHandler(handleListReportExamples).ServeHTTP(rec, r)
-	case path == "report-examples" && r.Method == http.MethodPost:
-		authHandler(handleUploadReportExample).ServeHTTP(rec, r)
-	case path == "report-examples" && r.Method == http.MethodDelete:
-		authHandler(handleDeleteReportExample).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "report-examples/") && r.Method == http.MethodPut:
-		authHandler(handleUpdateReportExample).ServeHTTP(rec, r)
-
 	// Voice note upload + Drive import
 	case path == "voice-notes/upload" && r.Method == http.MethodPost:
 		authHandler(handleUpload).ServeHTTP(rec, r)
@@ -322,8 +312,6 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		authHandler(handleTextNotesUpload).ServeHTTP(rec, r)
 	case path == "voice-notes/drive-import" && r.Method == http.MethodPost:
 		authHandler(handleDriveImport).ServeHTTP(rec, r)
-	case path == "drive-import-example" && r.Method == http.MethodPost:
-		authHandler(handleDriveImportExample).ServeHTTP(rec, r)
 
 	// Google token (for Drive Picker)
 	case path == "google-token" && r.Method == http.MethodGet:

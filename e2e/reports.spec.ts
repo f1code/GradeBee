@@ -45,18 +45,6 @@ async function mockClassesAndStudents(page: Page) {
       body: JSON.stringify({ active: [], failed: [], done: [] }),
     })
   })
-  // Empty examples
-  await page.route('**/report-examples', async (route) => {
-    if (route.request().method() === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ examples: [] }),
-      })
-    } else {
-      await route.continue()
-    }
-  })
 }
 
 test.beforeEach(async ({ page }) => {

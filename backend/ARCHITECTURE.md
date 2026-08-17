@@ -19,7 +19,7 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 | **Class** | A concrete teaching group — a **Level instance**. References a required Level (`level_id`) plus an optional `schedule_name`. A teacher may have multiple classes at the same level (different schedules). The display name (`Class.Name`) is derived in SQL from the Level's name plus `schedule_name`, never stored — renaming a Level immediately renames every Class using it. |
 | **Student** | A learner belonging to exactly one class. |
 | **Note** | A per-student observation extracted from a voice or text upload. |
-| **Report** | An LLM-generated report card for one student, drawing on their notes and matching examples. |
+| **Report** | An LLM-generated report card for one student, drawing on their notes and the Level's Report Instructions. |
 
 ## Entrypoint & Routing
 
@@ -58,11 +58,7 @@ Cache headers:
 | GET | `/api/students/{id}/reports` | Yes | `handleListReports` | List reports for a student |
 | GET | `/api/reports/{id}` | Yes | `handleGetReport` | Get single report HTML |
 | DELETE | `/api/reports/{id}` | Yes | `handleDeleteReport` | Delete a report |
-| GET | `/api/report-examples` | Yes | `handleListReportExamples` | List example report cards |
-| POST | `/api/report-examples` | Yes | `handleUploadReportExample` | Upload example report card |
-| DELETE | `/api/report-examples` | Yes | `handleDeleteReportExample` | Delete example report card |
 | POST | `/api/feedback` | Yes | `handleSubmitFeedback` | Submit explicit thumbs rating on a report or auto note |
-| PUT | `/api/report-examples/{id}` | Yes | `handleUpdateReportExample` | Update example report card |
 | POST | `/api/voice-notes/upload` | Yes | `handleUpload` | Upload audio to disk + dispatch job |
 | POST | `/api/text-notes/upload` | Yes | `handleTextNotesUpload` | Submit pasted text + dispatch extraction job |
 | POST | `/api/voice-notes/drive-import` | Yes | `handleDriveImport` | Download from Drive + dispatch job |
@@ -141,32 +137,6 @@ The queue system uses Go generics for type safety:
 
 Each job type gets its own queue instance. The processor function is injected at construction via closure, keeping the generic queue status-agnostic.
 
-### Report Example Extraction Pipeline
-
-PDF and image report card uploads are processed asynchronously:
-
-```
-User uploads PDF/image
-        │
-        ▼
-  POST /report-examples (or /drive-import-example)
-        │  Saves file to disk, creates report_examples row
-        │  with status='processing', publishes ExtractionJob
-        │
-        ▼
-  MemQueue[ExtractionJob] worker goroutine
-        │
-        ├─ Read file from disk
-        ├─ For PDFs: convert to JPEG images via pdftoppm (150 DPI)
-        ├─ Send each page to GPT Vision (parallel, structured JSON output)
-        ├─ Update report_examples row: status='ready', content=extracted text
-        └─ Clean up temp file from disk
-```
-
-Text file uploads (plain text, JSON body) are stored synchronously with `status='ready'`.
-
-The frontend polls `GET /report-examples` every 3s while any example has `status='processing'`.
-
 ## Dependency Injection
 
 **`deps.go`** — defines `deps` interface + `prodDeps` implementation + package-level `serviceDeps` variable.
@@ -177,8 +147,6 @@ deps interface {
     GetRoster(ctx, userID) → Roster
     GetExtractor()        → Extractor
     GetNoteCreator()      → NoteCreator
-    GetExampleStore()     → ExampleStore
-    GetExampleExtractor() → ExampleExtractor
     GetReportGenerator()  → ReportGenerator
     GetVoiceNoteQueue()   → JobQueue[VoiceNoteJob]
     GetDriveClient(ctx, userID) → DriveClient
@@ -187,7 +155,6 @@ deps interface {
     GetStudentRepo()      → *StudentRepo
     GetNoteRepo()         → *NoteRepo
     GetReportRepo()       → *ReportRepo
-    GetExampleRepo()      → *ReportExampleRepo
     GetVoiceNoteRepo()    → *VoiceNoteRepo
     GetLevelRepo()        → *LevelRepo
     GetUploadsDir()       → string
@@ -205,17 +172,14 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `Transcriber` | `transcriber.go` | `providerTranscriber` | Audio→text via LLMProvider (Voxtral or Whisper) |
 | `Extractor` | `extract.go` | `llmExtractor` | Transcript→student extraction via LLMProvider |
 | `NoteCreator` | `notes.go` | `dbNoteCreator` | Create notes in SQLite |
-| `ExampleStore` | `report_examples.go` | `dbExampleStore` | CRUD for example report cards |
-| `ExampleExtractor` | `report_example_extractor.go` | `llmExampleExtractor` | Vision text extraction from images; PDF→image via pdftoppm |
 | `ReportGenerator` | `report_generator.go` | `llmReportGenerator` | LLM-based report card generation (HTML output) |
 | `JobQueue[VoiceNoteJob]` | `job_queue.go` | `MemQueue[VoiceNoteJob]` | Generic in-memory async job queue with worker pool |
-| `JobQueue[ExtractionJob]` | `job_queue.go` | `MemQueue[ExtractionJob]` | Async report example extraction queue |
 
 ## External Services
 
 ### Google OAuth (`google.go`)
 - Auth: Clerk JWT → extract user ID → Google OAuth token (used for Drive Picker import).
-- **Note:** Google Drive was replaced by SQLite as the primary data store. Drive Picker import remains active for importing audio files and report examples from a user's own Drive.
+- **Note:** Google Drive was replaced by SQLite as the primary data store. Drive Picker import remains active for importing audio files from a user's own Drive.
 
 ### Clerk (`auth.go`)
 - JWT verification via middleware.
@@ -250,13 +214,11 @@ SQLite with WAL mode (`db.go`). Migrations embedded via `embed.FS` (`migrate.go`
 
 | Table | Purpose |
 |-------|---------|
-| `classes` | A **class** is a Level instance: a required `level_id` FK (`NOT NULL`, `ON DELETE RESTRICT`) plus an optional `schedule_name`. `Class.Name` and `Class.LevelName` are not stored — both are derived in SQL by joining `levels` (`levels.name` alone, or `levels.name–schedule_name` when a schedule is set), so renaming a Level immediately renames every Class using it. `Class.LevelName` is used to match report-card examples for style (see `report_example_classes`, still keyed by the bare Level name). |
-| `report_example_classes` | M-M link: report examples ↔ Level names (drives example selection for style matching at report generation; still free text — untouched by #57, see ADR-0002 and the Phase 2 plan for the accepted "9 classes load no examples" consequence). |
+| `classes` | A **class** is a Level instance: a required `level_id` FK (`NOT NULL`, `ON DELETE RESTRICT`) plus an optional `schedule_name`. `Class.Name` and `Class.LevelName` are not stored — both are derived in SQL by joining `levels` (`levels.name` alone, or `levels.name–schedule_name` when a schedule is set), so renaming a Level immediately renames every Class using it. |
 | `students` | Students belonging to classes |
 | `student_aliases` | Nickname/variant aliases per student (per-class uniqueness, case-insensitive) |
 | `notes` | Observation notes per student |
 | `reports` | Generated HTML report cards |
-| `report_examples` | Example report cards for style matching |
 | `voice_notes` | Audio file tracking (file path, processed_at, purged_at) |
 | `levels` | Group-owned curriculum tiers. `name` unique within `group_id`; `report_instructions` defaults to `''`. A Level with trimmed-empty `report_instructions` cannot generate or regenerate reports — `handleGenerateReports`/`handleRegenerateReport` refuse with `400` before any LLM call (see `report_prompt.go`/`reports_handler.go` below). Seeded with 8 hand-authored Levels against the production Clerk org ID (one-shot data migration, `sql/010_levels.sql`). |
 
@@ -290,15 +252,15 @@ The `debugAuthMiddleware` enforces that every `/api/` request carries an active 
 | `auth.go` | `groupIDFromRequest`, `isAdmin` — Clerk org/role helpers; `getGoogleOAuthToken` — Clerk → Google OAuth token |
 | `db.go` | Open SQLite, set PRAGMAs (WAL, busy_timeout, foreign_keys) |
 | `migrate.go` | Embed + run SQL migrations on startup |
-| `sql/001_init.sql` | Schema: classes, students, notes, reports, report_examples, uploads (renamed to voice_notes via 002) |
+| `sql/001_init.sql` | Schema: classes, students, notes, reports, uploads (renamed to voice_notes via 002) |
 | `sql/005_student_aliases.sql` | Migration: create `student_aliases` table with per-class uniqueness index |
 | `sql/002_rename_uploads.sql` | Migration: rename uploads → voice_notes, update indexes |
 | `repo_class.go` | `ClassRepo` — CRUD for classes, scoped by `group_id` on Create/Update to validate `level_id` belongs to the caller's Group |
 | `sql/011_class_level_id.sql` | Migration: add `classes.level_id`, backfill by contains-match against `levels.name`, move leftover text into empty `schedule_name`, drop `level_name`/`name`, harden `level_id` `NOT NULL ON DELETE RESTRICT` |
+| `sql/012_drop_report_examples.sql` | Migration: drop `report_examples` and `report_example_classes` — the example subsystem is removed (#54) |
 | `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass` (matches canonical name + aliases, case-insensitive), `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases` |
 | `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
-| `repo_example.go` | `ReportExampleRepo` — CRUD for report examples |
 | `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `MarkPurged`, `ListStale` |
 | `repo_level.go` | `LevelRepo` — CRUD for levels, every method scoped by `group_id` |
 | `levels.go` | GET/POST/PUT/DELETE /levels handlers — write endpoints gated on `isAdmin(r)` |
@@ -312,13 +274,8 @@ The `debugAuthMiddleware` enforces that every `/api/` request carries an active 
 | `google_token.go` | GET /google-token — return user's Google OAuth access token |
 | `extract.go` | `Extractor` interface + `llmExtractor` for transcript analysis |
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers |
-| `report_examples.go` | `ExampleStore` interface + `dbExampleStore` |
-| `report_examples_handler.go` | GET/POST/DELETE /report-examples handlers |
-| `report_example_extractor.go` | Vision extraction of text from image uploads; PDF→JPEG conversion via pdftoppm |
-| `report_example_job.go` | `ExtractionJob` type for async report example extraction |
-| `report_example_process.go` | `processExtraction` pipeline (read file→extract→update DB) |
 | `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output) |
-| `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections: the Level's Report Specification (mandatory), then the Style & Layout Guide (examples, if any — tone/vocabulary only), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
+| `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections: the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers. Both generation endpoints pre-flight-resolve every selected student's Class → Level and refuse the whole request with `400` (naming the offending Levels) if any Level's `report_instructions` is trimmed-empty — no report row created, no LLM call made. |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
 | `logger.go` | Dual stdout+Sentry structured logging via `log/slog`; `InitLogger()` wires `slog.NewMultiHandler` when `SENTRY_DSN` is set; request-scoped logger via context |
@@ -412,9 +369,7 @@ backend/evals/
       expected.json             expected students + must_quote_substrings
     reports/<case>/
       notes.json                student notes
-      examples.json             example report cards (optional; tone/vocabulary only)
-      report_instructions.txt   Level's report specification (structure/sections; drives content). Absent
-                                 on the four cases parked for #54, which have no live test entry.
+      report_instructions.txt   Level's report specification (structure/sections; drives content).
       instructions.txt          ad-hoc per-run instructions (optional; override report_instructions
                                  where they conflict)
 ```
@@ -456,7 +411,7 @@ make bin/eval-cli
 | Config task | Reads from `vars` | Builds |
 |---|---|---|
 | `build-extract-prompt` | `transcript`, `classes` | `BuildExtractionPrompt` → messages array (system + user) |
-| `build-report-prompt` | `student_name`, `class`, `notes`, `examples`, `report_instructions`, `instructions` | `BuildReportPrompt` → messages array (user only) |
+| `build-report-prompt` | `student_name`, `class`, `notes`, `report_instructions`, `instructions` | `BuildReportPrompt` → messages array (user only) |
 
 Model selection and the actual LLM call belong to promptfoo, not eval-cli.
 

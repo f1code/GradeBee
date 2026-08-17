@@ -20,16 +20,10 @@ type deps interface {
 	GetExtractor() (Extractor, error)
 	// GetNoteCreator returns a NoteCreator backed by the DB.
 	GetNoteCreator() NoteCreator
-	// GetExampleStore returns an ExampleStore backed by the DB.
-	GetExampleStore() ExampleStore
-	// GetExampleExtractor returns an ExampleExtractor for PDF/image text extraction.
-	GetExampleExtractor() (ExampleExtractor, error)
 	// GetReportGenerator returns a ReportGenerator.
 	GetReportGenerator() (ReportGenerator, error)
 	// GetVoiceNoteQueue returns the JobQueue for async voice note processing.
 	GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error)
-	// GetExtractionQueue returns the JobQueue for async report example extraction.
-	GetExtractionQueue() (JobQueue[ExtractionJob], error)
 	// GetDriveClient returns a Drive-read-only client for the given user.
 	GetDriveClient(ctx context.Context, userID string) (DriveClient, error)
 	// GetDB returns the SQLite database handle.
@@ -39,7 +33,6 @@ type deps interface {
 	GetStudentRepo() *StudentRepo
 	GetNoteRepo() *NoteRepo
 	GetReportRepo() *ReportRepo
-	GetExampleRepo() *ReportExampleRepo
 	GetVoiceNoteRepo() *VoiceNoteRepo
 	GetLevelRepo() *LevelRepo
 	// GetUploadsDir returns the local directory for audio file storage.
@@ -55,7 +48,6 @@ type prodDeps struct {
 	studentRepo    *StudentRepo
 	noteRepo       *NoteRepo
 	reportRepo     *ReportRepo
-	exampleRepo    *ReportExampleRepo
 	voiceNoteRepo  *VoiceNoteRepo
 	feedbackRepo   *ArtifactFeedbackRepo
 	levelRepo      *LevelRepo
@@ -79,16 +71,8 @@ func (p *prodDeps) GetNoteCreator() NoteCreator {
 	return newDBNoteCreator(p.noteRepo)
 }
 
-func (p *prodDeps) GetExampleStore() ExampleStore {
-	return newDBExampleStore(p.exampleRepo)
-}
-
-func (p *prodDeps) GetExampleExtractor() (ExampleExtractor, error) {
-	return newLLMExampleExtractor(p.provider), nil
-}
-
 func (p *prodDeps) GetReportGenerator() (ReportGenerator, error) {
-	return newDBReportGenerator(p.provider, p.noteRepo, p.reportRepo, p.exampleRepo)
+	return newDBReportGenerator(p.provider, p.noteRepo, p.reportRepo)
 }
 
 func (p *prodDeps) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
@@ -96,13 +80,6 @@ func (p *prodDeps) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
 		return nil, fmt.Errorf("voice note queue not initialized — call InitVoiceNoteQueue first")
 	}
 	return voiceNoteQueueInstance, nil
-}
-
-func (p *prodDeps) GetExtractionQueue() (JobQueue[ExtractionJob], error) {
-	if extractionQueueInstance == nil {
-		return nil, fmt.Errorf("extraction queue not initialized — call InitExtractionQueue first")
-	}
-	return extractionQueueInstance, nil
 }
 
 func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (DriveClient, error) {
@@ -118,7 +95,6 @@ func (p *prodDeps) GetClassRepo() *ClassRepo                    { return p.class
 func (p *prodDeps) GetStudentRepo() *StudentRepo                { return p.studentRepo }
 func (p *prodDeps) GetNoteRepo() *NoteRepo                      { return p.noteRepo }
 func (p *prodDeps) GetReportRepo() *ReportRepo                  { return p.reportRepo }
-func (p *prodDeps) GetExampleRepo() *ReportExampleRepo          { return p.exampleRepo }
 func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo            { return p.voiceNoteRepo }
 func (p *prodDeps) GetFeedbackRepo() *ArtifactFeedbackRepo      { return p.feedbackRepo }
 func (p *prodDeps) GetLevelRepo() *LevelRepo                    { return p.levelRepo }
@@ -126,9 +102,6 @@ func (p *prodDeps) GetUploadsDir() string                       { return p.uploa
 
 // Voice note queue singleton, initialised at startup via InitVoiceNoteQueue.
 var voiceNoteQueueInstance JobQueue[VoiceNoteJob]
-
-// Extraction queue singleton, initialised at startup via InitExtractionQueue.
-var extractionQueueInstance JobQueue[ExtractionJob]
 
 // InitVoiceNoteQueue creates the in-memory voice note queue, starts worker
 // goroutines, and stores it as the package-level singleton.
@@ -155,7 +128,6 @@ func NewProdDeps(db *sql.DB, uploadsDir string) deps {
 		studentRepo:   &StudentRepo{db: db},
 		noteRepo:      &NoteRepo{db: db},
 		reportRepo:    &ReportRepo{db: db},
-		exampleRepo:   &ReportExampleRepo{db: db},
 		voiceNoteRepo: &VoiceNoteRepo{db: db},
 		feedbackRepo:  &ArtifactFeedbackRepo{db: db},
 		levelRepo:     &LevelRepo{db: db},
@@ -164,16 +136,6 @@ func NewProdDeps(db *sql.DB, uploadsDir string) deps {
 	}
 	serviceDeps = d
 	return d
-}
-
-// InitExtractionQueue creates the in-memory extraction queue, starts worker
-// goroutines, and stores it as the package-level singleton.
-func InitExtractionQueue(d deps, workers int) *MemQueue[ExtractionJob] {
-	q := NewMemQueue[ExtractionJob](func(ctx context.Context, queue JobQueue[ExtractionJob], key string) error {
-		return processExtraction(ctx, d, queue, key)
-	}, workers)
-	extractionQueueInstance = q
-	return q
 }
 
 // serviceDeps is the active dependency implementation. Tests override this.

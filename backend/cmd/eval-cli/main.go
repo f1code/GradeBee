@@ -109,12 +109,8 @@ func runBuildReportPrompt(ec evalContext) error {
 	if err := ec.unmarshalVar("notes", &notes); err != nil {
 		return err
 	}
-	var examples []handler.ReportExample
-	if err := ec.unmarshalVar("examples", &examples); err != nil {
-		return err
-	}
 	// Production sends the built prompt as a single user message (no system role).
-	prompt := handler.BuildReportPrompt(studentName, className, notes, examples, reportInstructions, instructions, "")
+	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, "")
 	return writeJSON([]map[string]string{
 		{"role": "user", "content": prompt},
 	})

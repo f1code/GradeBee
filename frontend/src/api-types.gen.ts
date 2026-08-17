@@ -294,7 +294,7 @@ PromptVersionTag prefix so that non-template logic changes can be captured
 by manually bumping the tag.
 
 The builder functions in extract.go and report_prompt.go still live there and
-interpolate dynamic values (roster, notes, examples, feedback) into the
+interpolate dynamic values (roster, notes, feedback) into the
 templates.  Hashing the static portion is a reasonable proxy: substantive
 changes almost always touch the static text.
 */
@@ -305,11 +305,6 @@ changes almost always touch the static text.
  * would not catch).  Format: monotonic integer as string.
  */
 export const PromptVersionTag = "3";
-/**
- * ExampleExtractionPromptTemplate is the static prompt used by the image/PDF
- * example extractor (report_example_extractor.go).
- */
-export const ExampleExtractionPromptTemplate = "Extract all text from this report card image exactly as written. " + "Preserve all paragraphs, headings, and formatting. Do not summarize or paraphrase.";
 
 //////////
 // source: repo_class.go
@@ -361,28 +356,6 @@ export interface ErrDuplicateAlias {
  */
 export interface ErrLevelInUse {
   Count: number /* int */;
-}
-
-//////////
-// source: repo_example.go
-
-/**
- * ReportExampleRepo provides CRUD operations for the report_examples table.
- */
-export interface ReportExampleRepo {
-}
-/**
- * DBReportExample represents a row in the report_examples table.
- * Named DBReportExample to avoid conflict with the existing Drive-backed
- * ReportExample type during the migration period.
- */
-export interface DBReportExample {
-  id: number /* int64 */;
-  userId: string;
-  name: string;
-  content: string;
-  status: string;
-  createdAt: string;
 }
 
 //////////
@@ -542,83 +515,6 @@ export interface VoiceNote {
 }
 
 //////////
-// source: report_example_drive_import.go
-/*
-report_example_drive_import.go handles the POST /drive-import-example endpoint that
-downloads a Google Drive file, extracts text if needed, and stores it as a
-report example.
-*/
-
-
-//////////
-// source: report_example_extractor.go
-/*
-report_example_extractor.go extracts text from PDF/image report card examples
-using vision via an LLMProvider.
-*/
-
-/**
- * ExampleExtractor extracts text content from uploaded report card files.
- */
-export type ExampleExtractor = any;
-
-//////////
-// source: report_example_job.go
-/*
-report_example_job.go defines the ExtractionJob type for async report
-example text extraction (PDF/image → GPT Vision → stored text).
-*/
-
-/**
- * ExtractionJob represents an async report example text extraction job.
- */
-export interface ExtractionJob {
-  userId: string;
-  exampleId: number /* int64 */;
-  filePath: string;
-  fileName: string;
-  status: string;
-  error?: string;
-  createdAt: string;
-}
-
-//////////
-// source: report_examples.go
-/*
-report_examples.go defines the ExampleStore interface and its DB-backed
-implementation for managing example report cards.
-*/
-
-/**
- * ReportExample represents a stored example report card.
- */
-export interface ReportExample {
-  id: number /* int64 */;
-  name: string;
-  content: string;
-  status: string; // "ready", "processing", "failed"
-  levelNames: string[];
-}
-/**
- * ExampleStore abstracts CRUD operations for example report cards.
- */
-export type ExampleStore = any;
-
-//////////
-// source: report_examples_handler.go
-/*
-report_examples_handler.go handles the GET/POST/DELETE /report-examples
-endpoints for managing example report cards.
-*/
-
-/**
- * ListExamplesResponse is the JSON envelope for handleListReportExamples.
- */
-export interface ListExamplesResponse {
-  examples: ReportExample[];
-}
-
-//////////
 // source: report_generator.go
 /*
 report_generator.go implements the ReportGenerator interface that creates
@@ -632,7 +528,6 @@ export interface GenerateReportRequest {
   StudentID: number /* int64 */;
   Student: string;
   ClassName: string;
-  LevelName: string;
   StartDate: string; // YYYY-MM-DD
   EndDate: string; // YYYY-MM-DD
   UserID: string;
@@ -660,7 +555,6 @@ export interface RegenerateReportRequest {
   StudentID: number /* int64 */;
   Student: string;
   ClassName: string;
-  LevelName: string;
   StartDate: string;
   EndDate: string;
   UserID: string;

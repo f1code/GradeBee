@@ -5,38 +5,18 @@ import {
   listClasses,
   listStudents,
   generateReports,
-  listReportExamples,
-  uploadReportExample,
-  updateReportExample,
-  deleteReportExample,
-  importExampleFromDrive,
-  getGoogleToken,
   listLevels,
   type LevelItem,
   type ClassItem,
   type StudentItem,
   type ReportResult,
   type GenerateReportsResponse,
-  type ReportExampleItem,
 } from '../api'
-import { useDrivePicker } from '../hooks/useDrivePicker'
-import ReportExamples from './ReportExamples'
 import ReportViewer from './ReportViewer'
 
 interface ClassWithStudents extends ClassItem {
   students: StudentItem[]
 }
-
-const REPORT_MIME_TYPES = [
-  'application/pdf',
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'text/plain',
-  'text/markdown',
-].join(',')
-
-const EXAMPLE_POLL_INTERVAL = 3000
 
 export default function ReportGeneration() {
   const { getToken } = useAuth()
@@ -58,89 +38,14 @@ export default function ReportGeneration() {
   const [error, setError] = useState<string | null>(null)
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null)
 
-  // Example report cards state + lifecycle
-  const [examples, setExamples] = useState<ReportExampleItem[]>([])
-  const [examplesLoading, setExamplesLoading] = useState(true)
-  const [examplesError, setExamplesError] = useState<string | null>(null)
   const [levels, setLevels] = useState<LevelItem[]>([])
   const [levelsError, setLevelsError] = useState<string | null>(null)
-  const { openPicker } = useDrivePicker()
-
-  const loadExamples = useCallback(async () => {
-    try {
-      const { examples } = await listReportExamples(() => getToken())
-      setExamples(examples)
-    } catch (e: unknown) {
-      setExamplesError(e instanceof Error ? e.message : 'Failed to load examples')
-    } finally {
-      setExamplesLoading(false)
-    }
-  }, [getToken])
-
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { loadExamples() }, [loadExamples])
 
   useEffect(() => {
     listLevels(getToken)
       .then(({ levels }) => setLevels(levels))
       .catch((e: unknown) => setLevelsError(e instanceof Error ? e.message : 'Failed to load Levels'))
   }, [getToken])
-
-  // Poll while any example is still processing.
-  useEffect(() => {
-    const hasProcessing = examples.some(e => e.status === 'processing')
-    if (!hasProcessing) return
-    const timer = setInterval(() => { loadExamples() }, EXAMPLE_POLL_INTERVAL)
-    return () => clearInterval(timer)
-  }, [examples, loadExamples])
-
-  async function handleUploadExamples(files: File[], levelNames: string[]) {
-    setExamplesError(null)
-    try {
-      for (const file of files) {
-        await uploadReportExample(file, levelNames, () => getToken())
-      }
-      await loadExamples()
-    } catch (e: unknown) {
-      setExamplesError(e instanceof Error ? e.message : 'Upload failed')
-    }
-  }
-
-  async function handleDriveImportExample() {
-    setExamplesError(null)
-    try {
-      const { accessToken } = await getGoogleToken(getToken)
-      const picked = await openPicker(accessToken, {
-        mimeTypes: REPORT_MIME_TYPES,
-        title: 'Select a report card',
-      })
-      if (!picked || picked.length === 0) return
-      await importExampleFromDrive(picked[0].id, picked[0].name, getToken)
-      await loadExamples()
-    } catch (e: unknown) {
-      setExamplesError(e instanceof Error ? e.message : 'Drive import failed')
-    }
-  }
-
-  async function handleUpdateExample(id: number, name: string, content: string, levelNames: string[]) {
-    setExamplesError(null)
-    try {
-      await updateReportExample(id, name, content, levelNames, () => getToken())
-      await loadExamples()
-    } catch (e: unknown) {
-      setExamplesError(e instanceof Error ? e.message : 'Update failed')
-      throw e
-    }
-  }
-
-  async function handleDeleteExample(id: number) {
-    try {
-      await deleteReportExample(id, () => getToken())
-      setExamples(prev => prev.filter(e => e.id !== id))
-    } catch (e: unknown) {
-      setExamplesError(e instanceof Error ? e.message : 'Delete failed')
-    }
-  }
 
   const loadStudents = useCallback(async () => {
     try {
@@ -212,13 +117,6 @@ export default function ReportGeneration() {
     }
     return false
   }, [classes, selected, levels])
-
-  const selectedLevelNames = useMemo(
-    () => selectedLevels.map(l => l.name),
-    [selectedLevels]
-  )
-
-  const availableLevelNames = useMemo(() => levels.map(l => l.name), [levels])
 
   const unsetLevels = useMemo(
     () => selectedLevels.filter(l => l.reportInstructions.trim() === ''),
@@ -354,19 +252,6 @@ export default function ReportGeneration() {
           })}
         </div>
       )}
-
-      {/* Example report cards */}
-      <ReportExamples
-        examples={examples}
-        loading={examplesLoading}
-        error={examplesError}
-        availableLevelNames={availableLevelNames}
-        selectedLevelNames={selectedLevelNames}
-        onUpload={handleUploadExamples}
-        onDriveImport={handleDriveImportExample}
-        onUpdate={handleUpdateExample}
-        onDelete={handleDeleteExample}
-      />
 
       {/* Additional instructions */}
       <div className="report-instructions">
