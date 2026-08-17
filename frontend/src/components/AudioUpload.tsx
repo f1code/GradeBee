@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from 'motion/react'
 import { uploadAudio, getGoogleToken, importFromDrive, submitTextNotes } from '../api'
 import { useDrivePicker, AUDIO_MIME_TYPES } from '../hooks/useDrivePicker'
 import { useMediaQuery } from '../hooks/useMediaQuery'
+import { useAudioRecorder } from '../hooks/useAudioRecorder'
 
-type UploadStatus = 'idle' | 'uploading' | 'error'
+type UploadStatus = 'idle' | 'uploading' | 'error' | 'recording' | 'recorded'
 
 const ACCEPTED_FORMATS = '.mp3,.mp4,.mpeg,.mpga,.m4a,.wav,.webm'
 const MAX_SIZE_MB = 25
@@ -79,6 +80,20 @@ function PasteIcon() {
   )
 }
 
+function RecordIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="7" fill="#D64545" />
+    </svg>
+  )
+}
+
+function formatElapsed(seconds: number): string {
+  const mm = Math.floor(seconds / 60).toString().padStart(2, '0')
+  const ss = (seconds % 60).toString().padStart(2, '0')
+  return `${mm}:${ss}`
+}
+
 export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => void }) {
   const { getToken } = useAuth()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -96,6 +111,8 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   const pasteRef = useRef<HTMLTextAreaElement>(null)
   const { openPicker } = useDrivePicker()
   const isMobile = useMediaQuery('(max-width: 640px)')
+  const recorder = useAudioRecorder()
+  const [recordedFile, setRecordedFile] = useState<File | null>(null)
 
   useEffect(() => {
     if (showPaste) {
@@ -113,6 +130,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     setShowSuccess(false)
     setFailedFiles([])
     setSuccessCount(0)
+    setRecordedFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -237,6 +255,45 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     setDragOver(false)
   }
 
+  async function handleRecordStart() {
+    setError('')
+    setShowSuccess(false)
+    setStatus('recording')
+    const recorderError = await recorder.start()
+    if (recorderError) {
+      setError(recorderError.message)
+      setStatus('error')
+    }
+  }
+
+  async function handleRecordStop() {
+    const file = await recorder.stop()
+    if (file) {
+      setRecordedFile(file)
+      setStatus('recorded')
+    } else {
+      setStatus('idle')
+    }
+  }
+
+  function handleRecordCancel() {
+    recorder.cancel()
+    setRecordedFile(null)
+    setStatus('idle')
+  }
+
+  function handleRecordDiscard() {
+    setRecordedFile(null)
+    setStatus('idle')
+  }
+
+  function handleRecordUpload() {
+    if (!recordedFile) return
+    const file = recordedFile
+    setRecordedFile(null)
+    processFiles([file])
+  }
+
   return (
     <motion.div
       className="audio-upload"
@@ -279,6 +336,17 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                   <DriveIcon />
                   Add from Drive
                 </button>
+                {recorder.isSupported && (
+                  <button
+                    type="button"
+                    className="mobile-upload-btn btn-secondary"
+                    onClick={handleRecordStart}
+                    data-testid="record-btn"
+                  >
+                    <RecordIcon />
+                    Record Audio
+                  </button>
+                )}
                 <button
                   type="button"
                   className="mobile-upload-btn btn-secondary"
@@ -332,6 +400,17 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                     <DriveIcon />
                     Add from Drive
                   </button>
+                  {recorder.isSupported && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handleRecordStart}
+                      data-testid="record-btn"
+                    >
+                      <RecordIcon />
+                      Record Audio
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn-secondary"
@@ -397,6 +476,52 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
               : uploadTotal > 1
                 ? <>Uploading <strong>{uploadIndex}/{uploadTotal}</strong>: {fileName}...</>
                 : <>Uploading <strong>{fileName}</strong>...</>}</p>
+          </motion.div>
+        )}
+
+        {status === 'recording' && (
+          <motion.div
+            key="recording"
+            className="recording-panel"
+            data-testid="recording-panel"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <span className="recording-indicator" aria-hidden="true">●</span>
+            <p className="recording-time" data-testid="recording-time">{formatElapsed(recorder.elapsedSeconds)}</p>
+            <p className="hint">{(recorder.recordedBytes / 1024 / 1024).toFixed(1)} MB</p>
+            <div className="secondary-actions">
+              <button type="button" onClick={handleRecordStop} data-testid="record-stop-btn">
+                Stop
+              </button>
+              <button type="button" className="btn-secondary" onClick={handleRecordCancel} data-testid="record-cancel-btn">
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {status === 'recorded' && recordedFile && (
+          <motion.div
+            key="recorded"
+            className="recording-panel"
+            data-testid="recorded-panel"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <p>{recordedFile.name} — {formatElapsed(recorder.elapsedSeconds)}</p>
+            <div className="secondary-actions">
+              <button type="button" onClick={handleRecordUpload} data-testid="record-upload-btn">
+                Upload
+              </button>
+              <button type="button" className="btn-secondary" onClick={handleRecordDiscard} data-testid="record-discard-btn">
+                Discard
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

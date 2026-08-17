@@ -18,7 +18,7 @@ export default function PrivacyPage() {
 
       <section>
         <h2>Audio recordings</h2>
-        <p>Audio files you upload are sent to Mistral Voxtral for transcription and then <strong>deleted from our servers immediately</strong>. We do not retain raw recordings. The text transcript is stored so you can review and edit your notes.</p>
+        <p>Audio you upload or record in the browser is sent to Mistral Voxtral for transcription and then <strong>deleted from our servers immediately</strong>. We do not retain raw recordings. The text transcript is stored so you can review and edit your notes. The microphone is only active while you are recording — never in the background.</p>
       </section>
 
       <section>
