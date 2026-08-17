@@ -1,15 +1,43 @@
 // auth.go provides helpers for retrieving authenticated user information from
-// Clerk, specifically the Google OAuth access token required to call Google
-// Drive and Sheets APIs on behalf of the signed-in user.
+// Clerk: the Google OAuth access token for Drive/Sheets, and org-level helpers
+// for extracting the active Clerk Organization ID and role (Phase 1 tenancy).
 package handler
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 
+	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/clerk/clerk-sdk-go/v2/user"
 )
+
+// groupIDFromRequest extracts the active Clerk Organization ID from the
+// verified JWT session claims. Returns a 403 "unauthorized" error if claims
+// are missing, or a 403 "no_active_org" error if no organisation is active
+// (e.g. the user hasn't joined a Group yet).
+func groupIDFromRequest(r *http.Request) (string, error) {
+	claims, ok := clerk.SessionClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		return "", &apiError{Status: http.StatusForbidden, Code: "unauthorized", Message: "missing or invalid session"}
+	}
+	if claims.ActiveOrganizationID == "" {
+		return "", &apiError{Status: http.StatusForbidden, Code: "no_active_org", Message: "no active organization \u2014 ask your admin for an invitation"}
+	}
+	return claims.ActiveOrganizationID, nil
+}
+
+// isAdmin reports whether the request carries an admin role for the active
+// organisation. Returns false if claims are absent or the role is not
+// "org:admin".
+func isAdmin(r *http.Request) bool {
+	claims, ok := clerk.SessionClaimsFromContext(r.Context())
+	if !ok || claims == nil {
+		return false
+	}
+	return claims.HasRole("org:admin")
+}
 
 // getGoogleOAuthToken retrieves the Google OAuth access token for a user from Clerk.
 func getGoogleOAuthToken(ctx context.Context, userID string) (string, error) {

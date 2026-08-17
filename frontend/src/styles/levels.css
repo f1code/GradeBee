@@ -1,0 +1,55 @@
+/* === GradeBee — Levels admin screen === */
+
+.levels-admin {
+  max-width: 860px;
+}
+
+.levels-admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.levels-admin-header h2 {
+  margin: 0;
+}
+
+.levels-admin-help {
+  color: var(--ink-muted);
+  margin: 0 0 1rem;
+}
+
+.levels-admin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.levels-admin-instructions {
+  padding: 0.5rem 1.25rem 1rem;
+}
+
+.levels-admin-instructions label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  margin-bottom: 0.25rem;
+}
+
+.levels-admin-instructions-status {
+  min-height: 1.2rem;
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.levels-admin-instructions-saved {
+  color: var(--success-green);
+}
+
+.levels-admin-instructions-empty {
+  color: var(--honey-dark);
+}

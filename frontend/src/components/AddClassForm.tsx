@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion } from 'motion/react'
-import { createClass, listLevelNames, type ClassItem } from '../api'
+import { createClass, listLevels, type ClassItem, type LevelItem } from '../api'
 import InlineError from './InlineError'
 
 interface AddClassFormProps {
@@ -9,50 +9,41 @@ interface AddClassFormProps {
   onCancel?: () => void
 }
 
+type LevelsStatus = 'loading' | 'ready' | 'error'
+
 export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps) {
   const { getToken } = useAuth()
-  const [levelName, setLevelName] = useState('')
+  const [levels, setLevels] = useState<LevelItem[]>([])
+  const [levelsStatus, setLevelsStatus] = useState<LevelsStatus>('loading')
+  const [levelId, setLevelId] = useState<number | ''>('')
   const [scheduleName, setScheduleName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [suggestions, setSuggestions] = useState<string[]>([])
-  const [allLevelNames, setAllLevelNames] = useState<string[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
 
   useEffect(() => {
-    inputRef.current?.focus()
-    listLevelNames(getToken).then(({ levelNames }) => setAllLevelNames(levelNames)).catch(() => {})
+    listLevels(getToken)
+      .then(({ levels: lvls }) => {
+        setLevels(lvls || [])
+        setLevelsStatus('ready')
+      })
+      .catch(() => setLevelsStatus('error'))
   }, [getToken])
 
-  function handleLevelNameChange(val: string) {
-    setLevelName(val)
-    if (val.trim()) {
-      const lower = val.toLowerCase()
-      const filtered = allLevelNames.filter(n => n.toLowerCase().includes(lower))
-      setSuggestions(filtered)
-      setShowSuggestions(filtered.length > 0)
-    } else {
-      setSuggestions([])
-      setShowSuggestions(false)
+  useEffect(() => {
+    if (levelsStatus === 'ready' && levels.length > 0) {
+      selectRef.current?.focus()
     }
-  }
-
-  function pickSuggestion(name: string) {
-    setLevelName(name)
-    setSuggestions([])
-    setShowSuggestions(false)
-  }
+  }, [levelsStatus, levels.length])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const trimmed = levelName.trim()
-    if (!trimmed || submitting) return
+    if (!levelId || submitting) return
 
     setSubmitting(true)
     setError(null)
     try {
-      const cls = await createClass(trimmed, scheduleName.trim(), getToken)
+      const cls = await createClass(levelId, scheduleName.trim(), getToken)
       onCreated(cls)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create class')
@@ -63,12 +54,29 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') {
-      if (showSuggestions) {
-        setShowSuggestions(false)
-      } else {
-        onCancel?.()
-      }
+      onCancel?.()
     }
+  }
+
+  if (levelsStatus === 'ready' && levels.length === 0) {
+    return (
+      <motion.div
+        className="add-class-form"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.2 }}
+      >
+        <p className="add-class-hint" data-testid="add-class-no-levels">
+          There are no Levels yet — ask an Admin to add one before creating a class.
+        </p>
+        {onCancel && (
+          <button type="button" className="btn-secondary" onClick={onCancel} data-testid="add-class-cancel">
+            Cancel
+          </button>
+        )}
+      </motion.div>
+    )
   }
 
   return (
@@ -81,33 +89,22 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
     >
       <form onSubmit={handleSubmit} className="add-class-form-fields">
         <div className="add-class-field-group">
-          <div className="add-class-autocomplete-wrapper">
-            <input
-              ref={inputRef}
-              type="text"
-              value={levelName}
-              onChange={e => handleLevelNameChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onFocus={() => {
-                if (suggestions.length > 0) setShowSuggestions(true)
-              }}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              placeholder="Level"
-              disabled={submitting}
-              className="add-class-input"
-              data-testid="add-class-input"
-              autoComplete="off"
-            />
-            {showSuggestions && (
-              <ul className="add-class-suggestions">
-                {suggestions.map(s => (
-                  <li key={s} onMouseDown={() => pickSuggestion(s)} className="add-class-suggestion-item">
-                    {s}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <select
+            ref={selectRef}
+            value={levelId}
+            onChange={e => setLevelId(e.target.value ? Number(e.target.value) : '')}
+            onKeyDown={handleKeyDown}
+            disabled={submitting || levelsStatus === 'loading'}
+            className="add-class-input"
+            data-testid="add-class-level-select"
+          >
+            <option value="" disabled>
+              {levelsStatus === 'loading' ? 'Loading levels…' : 'Select a level'}
+            </option>
+            {levels.map(l => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
           <input
             type="text"
             value={scheduleName}
@@ -125,7 +122,7 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
           class and is used to match report-card examples.
         </p>
         <div className="add-class-form-row">
-          <button type="submit" disabled={submitting || !levelName.trim()} data-testid="add-class-submit">
+          <button type="submit" disabled={submitting || !levelId} data-testid="add-class-submit">
             {submitting ? 'Adding…' : 'Add'}
           </button>
           {onCancel && (

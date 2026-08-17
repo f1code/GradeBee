@@ -20,9 +20,8 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	// Seed class + students.
-	cls, err := classRepo.Create(t.Context(), "user1", "Math", "")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	cls := newTestClass(t, classRepo, "test-group", "user1", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
 	_, err = studentRepo.Create(t.Context(), cls.ID, "Bob")
 	require.NoError(t, err)
@@ -39,10 +38,11 @@ func TestProcessJob_HappyPath(t *testing.T) {
 			{NoteID: 2},
 		},
 	}
+	transcriber := &stubTranscriber{result: "Alice did great today. Bob needs improvement."}
 	d := &mockDepsAll{
-		transcriber: &stubTranscriber{result: "Alice did great today. Bob needs improvement."},
+		transcriber: transcriber,
 		roster: &stubRoster{
-			levelNames: []string{"Math"},
+			classNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{
@@ -76,6 +76,7 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	assert.Equal(t, JobStatusDone, got.Status)
 	assert.Len(t, got.NoteLinks, 2)
 	assert.Len(t, nc.calls, 2)
+	assert.Equal(t, []string{"Math"}, transcriber.gotBias, "transcriber should receive class names as context bias")
 }
 
 func TestProcessJob_TranscribeFail(t *testing.T) {
@@ -139,9 +140,8 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
@@ -194,9 +194,8 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
@@ -236,9 +235,8 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
 	_, err = studentRepo.Create(t.Context(), cls.ID, "Maybe")
 	require.NoError(t, err)
@@ -278,9 +276,8 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
@@ -295,7 +292,7 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "some transcript"},
 		roster: &stubRoster{
-			levelNames: []string{"Math"},
+			classNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
@@ -325,9 +322,8 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 	classRepo := &ClassRepo{db: db}
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
-	cls, err := classRepo.Create(t.Context(), "u1", "Math", "")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Alice")
+	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
@@ -343,7 +339,7 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did well"},
 		roster: &stubRoster{
-			levelNames: []string{"Math"},
+			classNames: []string{"Math"},
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{

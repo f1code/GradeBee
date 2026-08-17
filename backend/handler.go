@@ -85,6 +85,17 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 		verified := false
 		inner := clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			verified = true
+			// Enforce active Clerk Organisation — every API request must belong
+			// to a Group. Personal (org-less) sessions are not permitted.
+			claims, ok := clerk.SessionClaimsFromContext(r.Context())
+			if !ok || claims == nil || claims.ActiveOrganizationID == "" {
+				writeAPIError(w, r, &apiError{
+					Status:  http.StatusForbidden,
+					Code:    "no_active_org",
+					Message: "no active organization \u2014 ask your admin for an invitation",
+				})
+				return
+			}
 			next.ServeHTTP(w, r)
 		}))
 		inner.ServeHTTP(w, r)
@@ -231,14 +242,22 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	// Classes CRUD
 	case path == "classes" && r.Method == http.MethodGet:
 		authHandler(handleListClasses).ServeHTTP(rec, r)
-	case path == "classes/level-names" && r.Method == http.MethodGet:
-		authHandler(handleListClassNames).ServeHTTP(rec, r)
 	case path == "classes" && r.Method == http.MethodPost:
 		authHandler(handleCreateClass).ServeHTTP(rec, r)
 	case strings.HasPrefix(path, "classes/") && !strings.Contains(strings.TrimPrefix(path, "classes/"), "/") && r.Method == http.MethodPut:
 		authHandler(handleUpdateClass).ServeHTTP(rec, r)
 	case strings.HasPrefix(path, "classes/") && !strings.Contains(strings.TrimPrefix(path, "classes/"), "/") && r.Method == http.MethodDelete:
 		authHandler(handleDeleteClass).ServeHTTP(rec, r)
+
+	// Levels CRUD (Group-owned; write endpoints admin-gated in the handler)
+	case path == "levels" && r.Method == http.MethodGet:
+		authHandler(handleListLevels).ServeHTTP(rec, r)
+	case path == "levels" && r.Method == http.MethodPost:
+		authHandler(handleCreateLevel).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "levels/") && !strings.Contains(strings.TrimPrefix(path, "levels/"), "/") && r.Method == http.MethodPut:
+		authHandler(handleUpdateLevel).ServeHTTP(rec, r)
+	case strings.HasPrefix(path, "levels/") && !strings.Contains(strings.TrimPrefix(path, "levels/"), "/") && r.Method == http.MethodDelete:
+		authHandler(handleDeleteLevel).ServeHTTP(rec, r)
 
 	// Students under class
 	case strings.HasPrefix(path, "classes/") && strings.HasSuffix(path, "/students") && r.Method == http.MethodGet:

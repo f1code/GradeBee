@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listClasses, createClass } from '../../api'
+import { listClasses, createClass, listLevels } from '../../api'
 
 const stableGetToken = vi.fn().mockResolvedValue('tok')
 
@@ -22,17 +22,19 @@ vi.mock('../../api', () => ({
   createStudent: vi.fn(),
   renameStudent: vi.fn(),
   deleteStudent: vi.fn(),
-  listLevelNames: vi.fn().mockResolvedValue({ levelNames: [] }),
+  listLevels: vi.fn(),
 }))
 
 const mockListClasses = listClasses as ReturnType<typeof vi.fn>
 const mockCreateClass = createClass as ReturnType<typeof vi.fn>
+const mockListLevels = listLevels as ReturnType<typeof vi.fn>
 
 import StudentList from '../StudentList'
 
 describe('StudentList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockListLevels.mockResolvedValue({ levels: [{ id: 1, name: 'Science', groupId: 'g1', reportInstructions: '', createdAt: '' }] })
   })
 
   it('shows loading state initially', () => {
@@ -44,7 +46,7 @@ describe('StudentList', () => {
   it('renders class groups after fetch', async () => {
     mockListClasses.mockResolvedValueOnce({
       classes: [
-        { id: 1, name: 'Math 101', levelName: "Math 101", scheduleName: "", studentCount: 2 },
+        { id: 1, name: 'Math 101', levelId: 1, levelName: "Math 101", scheduleName: "", studentCount: 2 },
       ],
     })
 
@@ -84,9 +86,9 @@ describe('StudentList', () => {
   it('expands newly created class and shows add-student form', async () => {
     const user = userEvent.setup()
     mockListClasses.mockResolvedValueOnce({
-      classes: [{ id: 1, name: 'Math 101', levelName: "Math 101", scheduleName: "", studentCount: 2 }],
+      classes: [{ id: 1, name: 'Math 101', levelId: 2, levelName: "Math 101", scheduleName: "", studentCount: 2 }],
     })
-    mockCreateClass.mockResolvedValueOnce({ id: 5, name: 'Science', levelName: "Science", scheduleName: "", studentCount: 0 })
+    mockCreateClass.mockResolvedValueOnce({ id: 5, name: 'Science', levelId: 1, levelName: "Science", scheduleName: "", studentCount: 0 })
 
     render(<StudentList />)
 
@@ -95,8 +97,10 @@ describe('StudentList', () => {
     })
 
     await user.click(screen.getByTestId('add-class-btn'))
-    const input = screen.getByTestId('add-class-input')
-    await user.type(input, 'Science')
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
+    })
+    await user.selectOptions(screen.getByTestId('add-class-level-select'), '1')
     await user.click(screen.getByTestId('add-class-submit'))
 
     await waitFor(() => {

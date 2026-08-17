@@ -11,6 +11,7 @@ packages:
       - Note
       - Student
       - ClassWithCount
+      - Level
       - Report
       - ReportExample
       - ReportSummary
@@ -20,6 +21,7 @@ packages:
       - ListStudentsResponse
       - ListReportsResponse
       - ListExamplesResponse
+      - ListLevelsResponse
       # Request/response types
       - ReportResult
       - GenerateReportsHTTPRequest

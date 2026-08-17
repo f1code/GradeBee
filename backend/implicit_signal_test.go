@@ -34,8 +34,7 @@ func setupImplicitSignalDeps(t *testing.T) (context.Context, *repos) {
 func TestImplicitSignal_EditAutoNote(t *testing.T) {
 	ctx, r := setupImplicitSignalDeps(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Original summary", Source: "auto"}
@@ -66,8 +65,7 @@ func TestImplicitSignal_EditAutoNote(t *testing.T) {
 func TestImplicitSignal_EditAutoNote_NoChangeNoPowder(t *testing.T) {
 	ctx, r := setupImplicitSignalDeps(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Same summary", Source: "auto"}
@@ -92,8 +90,7 @@ func TestImplicitSignal_EditAutoNote_NoChangeNoPowder(t *testing.T) {
 func TestImplicitSignal_EditManualNote_NoFeedback(t *testing.T) {
 	ctx, r := setupImplicitSignalDeps(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Manual note", Source: "manual"}
@@ -117,8 +114,7 @@ func TestImplicitSignal_EditManualNote_NoFeedback(t *testing.T) {
 func TestImplicitSignal_DeleteAutoNote(t *testing.T) {
 	ctx, r := setupImplicitSignalDeps(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Auto note to delete", Source: "auto"}
@@ -147,8 +143,7 @@ func TestImplicitSignal_DeleteAutoNote(t *testing.T) {
 func TestImplicitSignal_DeleteManualNote_NoFeedback(t *testing.T) {
 	ctx, r := setupImplicitSignalDeps(t)
 
-	c, err := r.classes.Create(ctx, "user1", "Math", "")
-	require.NoError(t, err)
+	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
 	n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Manual to delete", Source: "manual"}

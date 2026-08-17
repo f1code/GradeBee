@@ -3,21 +3,23 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 )
 
 // stubRoster implements Roster for tests.
 type stubRoster struct {
-	levelNames  []string
+	classNames  []string
 	classErr    error
 	students    []ClassGroup
 	studentsErr error
 }
 
-func (s *stubRoster) LevelNames(_ context.Context) ([]string, error) {
-	return s.levelNames, s.classErr
+func (s *stubRoster) ClassNames(_ context.Context) ([]string, error) {
+	return s.classNames, s.classErr
 }
 
 func (s *stubRoster) Students(_ context.Context) ([]ClassGroup, error) {
@@ -63,6 +65,7 @@ type mockDepsAll struct {
 	exampleRepo         *ReportExampleRepo
 	voiceNoteRepo       *VoiceNoteRepo
 	feedbackRepo        *ArtifactFeedbackRepo
+	levelRepo           *LevelRepo
 	uploadsDir          string
 }
 
@@ -138,6 +141,7 @@ func (m *mockDepsAll) GetReportRepo() *ReportRepo             { return m.reportR
 func (m *mockDepsAll) GetExampleRepo() *ReportExampleRepo     { return m.exampleRepo }
 func (m *mockDepsAll) GetVoiceNoteRepo() *VoiceNoteRepo       { return m.voiceNoteRepo }
 func (m *mockDepsAll) GetFeedbackRepo() *ArtifactFeedbackRepo { return m.feedbackRepo }
+func (m *mockDepsAll) GetLevelRepo() *LevelRepo               { return m.levelRepo }
 func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploadsDir }
 
 // stubExtractor implements Extractor for tests.
@@ -332,4 +336,57 @@ func requireLiveLLM(t *testing.T) LLMProvider {
 		t.Skipf("LLM provider not configured: %v", err)
 	}
 	return p
+}
+
+// newTestLevel creates a Level for the given Group directly in the DB,
+// bypassing the migration's hand-authored seed data. Tests build their own
+// Levels through this fixture rather than relying on the migration's seed —
+// a data migration should not be load-bearing for the unit suite.
+func newTestLevel(t *testing.T, db *sql.DB, groupID, name string) Level {
+	t.Helper()
+	l, err := (&LevelRepo{db: db}).Create(context.Background(), groupID, name)
+	if err != nil {
+		t.Fatalf("newTestLevel: %v", err)
+	}
+	return l
+}
+
+// testLevelID returns the ID of a Level named name in groupID, creating it if
+// it doesn't already exist. Tests share this across many class-creating call
+// sites so re-creating a class with the same level name (e.g. duplicate
+// checks) resolves to the same Level rather than erroring on Level creation.
+func testLevelID(t *testing.T, db *sql.DB, groupID, name string) int64 {
+	t.Helper()
+	repo := &LevelRepo{db: db}
+	l, err := repo.Create(context.Background(), groupID, name)
+	if err == nil {
+		return l.ID
+	}
+	if !errors.Is(err, ErrDuplicate) {
+		t.Fatalf("testLevelID: %v", err)
+	}
+	levels, lerr := repo.List(context.Background(), groupID)
+	if lerr != nil {
+		t.Fatalf("testLevelID: list: %v", lerr)
+	}
+	for _, lv := range levels {
+		if strings.EqualFold(lv.Name, name) {
+			return lv.ID
+		}
+	}
+	t.Fatalf("testLevelID: %q not found in group %q after duplicate error", name, groupID)
+	return 0
+}
+
+// newTestClass creates a class for userID against a Level named levelName in
+// groupID, creating the Level on first use. Test call sites that pre-#57
+// passed a free-text level name now pass it here unchanged.
+func newTestClass(t *testing.T, cr *ClassRepo, groupID, userID, levelName, scheduleName string) Class {
+	t.Helper()
+	levelID := testLevelID(t, cr.db, groupID, levelName)
+	c, err := cr.Create(context.Background(), groupID, userID, levelID, scheduleName)
+	if err != nil {
+		t.Fatalf("newTestClass: %v", err)
+	}
+	return c
 }

@@ -11,7 +11,7 @@ const mockUpdateReportExample = vi.fn()
 const mockDeleteReportExample = vi.fn()
 const mockImportExampleFromDrive = vi.fn()
 const mockGetGoogleToken = vi.fn()
-const mockListLevelNames = vi.fn()
+const mockListLevels = vi.fn()
 const mockOpenPicker = vi.fn()
 
 vi.mock('../../api', () => ({
@@ -24,7 +24,7 @@ vi.mock('../../api', () => ({
   deleteReportExample: (...args: unknown[]) => mockDeleteReportExample(...args),
   importExampleFromDrive: (...args: unknown[]) => mockImportExampleFromDrive(...args),
   getGoogleToken: (...args: unknown[]) => mockGetGoogleToken(...args),
-  listLevelNames: (...args: unknown[]) => mockListLevelNames(...args),
+  listLevels: (...args: unknown[]) => mockListLevels(...args),
 }))
 
 vi.mock('../../hooks/useDrivePicker', () => ({
@@ -39,7 +39,7 @@ vi.mock('@clerk/react', () => ({
 beforeEach(() => {
   vi.clearAllMocks()
   mockListReportExamples.mockResolvedValue({ examples: [] })
-  mockListLevelNames.mockResolvedValue({ levelNames: [] })
+  mockListLevels.mockResolvedValue({ levels: [] })
   mockUploadReportExample.mockResolvedValue({})
 })
 
@@ -130,7 +130,7 @@ describe('ReportGeneration', () => {
   })
 
   it('uploads example files with selected class names', async () => {
-    mockListLevelNames.mockResolvedValue({ levelNames: ['Math'] })
+    mockListLevels.mockResolvedValue({ levels: [{ id: 1, name: 'Math', groupId: 'g1', reportInstructions: '', createdAt: '' }] })
     const user = await renderWithStudents()
 
     await user.click(screen.getByText(/Example Report Cards/))

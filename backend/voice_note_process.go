@@ -65,12 +65,12 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		defer audioFile.Close()
 
-		var levelNames []string
-		names, err := roster.LevelNames(ctx)
+		var classNames []string
+		names, err := roster.ClassNames(ctx)
 		if err != nil {
-			log.Warn("process voice note: could not read level names", "error", err)
+			log.Warn("process voice note: could not read class names", "error", err)
 		} else {
-			levelNames = names
+			classNames = names
 		}
 
 		transcriber, err := d.GetTranscriber()
@@ -78,7 +78,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			return fail("init transcriber", err)
 		}
 
-		transcript, err = transcriber.Transcribe(ctx, job.FileName, audioFile, levelNames)
+		transcript, err = transcriber.Transcribe(ctx, job.FileName, audioFile, classNames)
 		if err != nil {
 			return fail("transcribe", err)
 		}

@@ -9,7 +9,7 @@ import (
 
 // Roster abstracts read access to the user's student roster.
 type Roster interface {
-	LevelNames(ctx context.Context) ([]string, error)
+	ClassNames(ctx context.Context) ([]string, error)
 	Students(ctx context.Context) ([]ClassGroup, error)
 }
 
@@ -24,8 +24,8 @@ func newDBRoster(cr *ClassRepo, sr *StudentRepo, userID string) *dbRoster {
 	return &dbRoster{classRepo: cr, studentRepo: sr, userID: userID}
 }
 
-// LevelNames returns unique level names for the user.
-func (r *dbRoster) LevelNames(ctx context.Context) ([]string, error) {
+// ClassNames returns unique composite class names (Level + Schedule) for the user.
+func (r *dbRoster) ClassNames(ctx context.Context) ([]string, error) {
 	classes, err := r.classRepo.List(ctx, r.userID)
 	if err != nil {
 		return nil, err

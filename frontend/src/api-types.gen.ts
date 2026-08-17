@@ -132,6 +132,22 @@ together routing, CORS headers, request-scoped logging, and response timing.
 
 
 //////////
+// source: levels.go
+/*
+levels.go handles CRUD handlers for the Levels admin screen. Levels are
+Group-owned: reads and writes are scoped to the caller's active Clerk
+Organization (see auth.go). Only an Admin may create, rename, delete a
+Level, or edit its Report Instructions — Teachers get a read-only list.
+*/
+
+/**
+ * ListLevelsResponse is the JSON envelope for handleListLevels.
+ */
+export interface ListLevelsResponse {
+  levels: Level[];
+}
+
+//////////
 // source: llm_provider.go
 /*
 llm_provider.go defines the LLMProvider abstraction that backs all LLM call
@@ -304,12 +320,16 @@ export const ExampleExtractionPromptTemplate = "Extract all text from this repor
 export interface ClassRepo {
 }
 /**
- * Class represents a row in the classes table.
+ * Class represents a row in the classes table. Name and LevelName are not
+ * stored — both are derived from the referenced Level's name, so renaming a
+ * Level immediately changes every Class's display name (and the key used to
+ * match report-card examples).
  */
 export interface Class {
   id: number /* int64 */;
   userId: string;
   name: string;
+  levelId: number /* int64 */;
   levelName: string;
   scheduleName: string;
   position: number /* int */;
@@ -333,6 +353,14 @@ export interface ClassWithCount extends Class {
  */
 export interface ErrDuplicateAlias {
   ConflictStudentName: string;
+}
+/**
+ * ErrLevelInUse is returned by LevelRepo.Delete when Classes still
+ * reference the Level. Count holds how many, so the handler can tell the
+ * Admin exactly how many Classes need to move first.
+ */
+export interface ErrLevelInUse {
+  Count: number /* int */;
 }
 
 //////////
@@ -383,6 +411,27 @@ export interface ArtifactFeedback {
   PreviousValue?: string; // populated for 'edited' and 'deleted'
   UserID: string;
   CreatedAt: string;
+}
+
+//////////
+// source: repo_level.go
+
+/**
+ * LevelRepo provides CRUD operations for the levels table. Every method is
+ * scoped by group_id — a Level belongs to exactly one Group and is never
+ * visible or reachable outside it.
+ */
+export interface LevelRepo {
+}
+/**
+ * Level represents a row in the levels table.
+ */
+export interface Level {
+  id: number /* int64 */;
+  groupId: string;
+  name: string;
+  reportInstructions: string;
+  createdAt: string;
 }
 
 //////////
