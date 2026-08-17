@@ -46,6 +46,7 @@ jobs:
             VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
             VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
             VITE_APP_VERSION=pr-${{ github.event.number }}
+            VITE_FEATURE_REPORTS_ADMIN_ONLY=${{ vars.VITE_FEATURE_REPORTS_ADMIN_ONLY }}
 
       - name: Deploy review app via SSH
         uses: appleboy/ssh-action@v1
