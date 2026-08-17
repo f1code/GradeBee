@@ -58,6 +58,7 @@ export function useAudioRecorder() {
   const chunksRef = useRef<Blob[]>([])
   const intervalRef = useRef<number | null>(null)
   const mimeTypeRef = useRef<string>('')
+  const startGenerationRef = useRef(0)
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach(track => track.stop())
@@ -72,6 +73,7 @@ export function useAudioRecorder() {
   }, [])
 
   const teardown = useCallback(() => {
+    startGenerationRef.current += 1
     clearTimer()
     stopTracks()
     mediaRecorderRef.current = null
@@ -86,9 +88,18 @@ export function useAudioRecorder() {
     setElapsedSeconds(0)
     setRecordedBytes(0)
     chunksRef.current = []
+    startGenerationRef.current += 1
+    const generation = startGenerationRef.current
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+
+      if (generation !== startGenerationRef.current) {
+        // Cancelled or unmounted while the permission prompt was pending — discard the stream.
+        stream.getTracks().forEach(track => track.stop())
+        return null
+      }
+
       streamRef.current = stream
 
       const mimeType = pickMimeType()
@@ -109,6 +120,7 @@ export function useAudioRecorder() {
       }, 1000)
       return null
     } catch (err) {
+      if (generation !== startGenerationRef.current) return null
       stopTracks()
       const recorderError = classifyError(err)
       setError(recorderError)

@@ -98,6 +98,31 @@ describe('useAudioRecorder', () => {
     expect(result.current.isRecording).toBe(false)
   })
 
+  it('cancelling while the permission prompt is still pending stops the stream once it resolves', async () => {
+    const { promise, resolve } = Promise.withResolvers<MediaStream>()
+    getUserMedia.mockReturnValue(promise)
+
+    const { result } = renderHook(() => useAudioRecorder())
+
+    let startPromise: Promise<RecorderError | null>
+    act(() => {
+      startPromise = result.current.start()
+    })
+
+    act(() => {
+      result.current.cancel()
+    })
+    expect(result.current.isRecording).toBe(false)
+
+    await act(async () => {
+      resolve(fakeStream)
+      await startPromise
+    })
+
+    expect(stopTrack).toHaveBeenCalled()
+    expect(result.current.isRecording).toBe(false)
+  })
+
   it('unmount stops tracks (no dangling mic access)', async () => {
     const { result, unmount } = renderHook(() => useAudioRecorder())
 
