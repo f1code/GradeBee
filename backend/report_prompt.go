@@ -19,8 +19,8 @@ func BuildReportPrompt(student, className string, notes []Note, examples []Repor
 	sb.WriteString("\n\n")
 
 	// Style & layout guide
-	sb.WriteString(reportStyleHeader)
 	if len(examples) > 0 {
+		sb.WriteString(reportStyleHeader)
 		sb.WriteString(reportStyleWithExamples)
 		for i, ex := range examples {
 			sb.WriteString(fmt.Sprintf("### Example %d: %s\n%s\n\n", i+1, ex.Name, ex.Content))

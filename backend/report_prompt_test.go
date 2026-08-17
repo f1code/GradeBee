@@ -30,3 +30,11 @@ func TestBuildReportPrompt_AdHocInstructionsOverrideSpec(t *testing.T) {
 	assert.Contains(t, prompt, "override the Report Specification")
 	assert.Contains(t, prompt, "be extra concise")
 }
+
+// TestBuildReportPrompt_NoDanglingStyleHeaderWithoutExamples verifies the
+// Style & Layout Guide header itself is absent when no examples are
+// provided — the header must not appear detached from its body.
+func TestBuildReportPrompt_NoDanglingStyleHeaderWithoutExamples(t *testing.T) {
+	prompt := BuildReportPrompt("Alice", "3A", nil, nil, "spec text", "", "")
+	assert.NotContains(t, prompt, "Style & Layout Guide")
+}
