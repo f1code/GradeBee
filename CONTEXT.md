@@ -29,7 +29,7 @@ _Avoid_: Team, org (in UI), school (that is one kind of Group)
 A Group member who creates and edits shared Levels and their instructions (Clerk org `admin` role).
 
 **Teacher**:
-A Group member who creates Classes, records observations, and generates Reports (Clerk org `member` role). Sees shared Level instructions read-only; may layer their own transient instructions and Examples.
+A Group member who creates Classes, records observations, and generates Reports (Clerk org `member` role). Sees shared Level instructions read-only; may layer their own transient instructions.
 _Avoid_: User (too generic)
 
 ### Reports
@@ -38,10 +38,10 @@ _Avoid_: User (too generic)
 A per-student observation extracted from a voice or text upload.
 
 **Report**:
-An LLM-generated report card for one Student, drawing on their Notes, the Level's instructions, and matching Examples.
+An LLM-generated report card for one Student, drawing on their Notes and the Level's Report Instructions.
 
 **Report Instructions**:
-Admin-authored, shared guidance attached to a Level that drives a Report's content, structure, and style. **Required** — a Level with no Report Instructions cannot be used to generate Reports (hard gate). Examples are demoted to a supplementary style hint (no longer "match exactly").
+Admin-authored, shared guidance attached to a Level that drives a Report's content, structure, and style. **Required** — a Level with no Report Instructions cannot be used to generate Reports (hard gate).
 
 **Review Instructions**:
 Deferred. Report review is a future automated LLM self-review pass that runs before the Teacher sees the Report. It will likely reuse the Report Instructions rather than a separate field; a distinct Review Instructions field is added only if evidence later demands it.
@@ -50,17 +50,12 @@ Deferred. Report review is a future automated LLM self-review pass that runs bef
 A teacher's transient, per-generation free-text guidance layered on top of the shared Level instructions for a single Report run.
 _Avoid_: Additional instructions (legacy UI label)
 
-**Example**:
-A sample report card providing supplementary style/structure support at generation. Stored in `report_examples` linked to a `level_id`, with a scope of `group` (Admin-authored, shared to all Teachers in the Group) or `teacher` (private to the creating Teacher). Instructions carry the real content requirements; Examples only illustrate voice/layout.
-_Avoid_: Template (that is instructions), sample
-
 ## Relationships
 
 - A **Group** owns many **Levels**; membership + roles (**Admin**/**Teacher**) come from the Clerk Organization.
 - A **Level** carries shared **Report Instructions** (Admin-authored). Automated report review is deferred.
-- A **Report** is generated from **Notes** + Level **Report Instructions** + **Ad-hoc Instructions** + **Examples** (Group- and Teacher-level).
+- A **Report** is generated from **Notes** + Level **Report Instructions** + **Ad-hoc Instructions**.
 - A **Class** references exactly one **Level** (`level_id`) and carries an optional free-text **Schedule**.
-- **Examples** link to a **Level** (Group-level or Teacher-level) for style matching at generation.
 - A **Level** belongs to exactly one **Group**.
 - A **Student** belongs to exactly one **Class**.
 

@@ -31,7 +31,7 @@
 
 ### Level and Schedule fields
 The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinct purposes — surface this distinction in helper text:
-- **Level** (required): a `<select>` over the Group's Levels (fetched via `listLevels`), never free text — Teachers pick, they don't type. Also tags report examples for style matching, so reports for a class reuse examples sharing its level. An empty Level list shows an "ask your admin" message instead of the form.
+- **Level** (required): a `<select>` over the Group's Levels (fetched via `listLevels`), never free text — Teachers pick, they don't type. Also drives report style via that Level's Report Instructions. An empty Level list shows an "ask your admin" message instead of the form.
 - **Schedule** (optional, e.g. "Period 1"): purely organizational free text — groups classes by schedule slot. Shown as `Level — Schedule`. It has no effect on report generation.
 
 ### Buttons
@@ -83,34 +83,6 @@ The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinc
 - Don't add a dark theme (light-only by design).
 - Don't use flat borders where a card shadow works better.
 - Don't overuse the bee/honeycomb motifs — they should feel like accents, not wallpaper.
-
-### Selectable Chips (toggle pills)
-
-For picking from a small set of options (e.g. assigning classes to an example), use pill-shaped toggle chips instead of bare checkboxes. The native checkbox is visually hidden; the `<label>` is the control.
-
-- Unselected: `--chalk` bg, `1px` `--comb` hairline border, pill radius (`999px`), with a light hollow `--comb` check circle.
-- Selected (`.is-selected`): pale `--honey-light` bg, `--honey` border, bold label, `--honey`-filled check circle with `--ink` tick — noticeable but not saturated.
-- Hover lifts the border to `--honey`; keyboard focus (`:has(input:focus-visible)`) shows an offset dashed `--honey-dark` outline — distinct from the solid selected fill, and suppressed on mouse click.
-- Min height `36px` for touch.
-- CSS: `.level-names-select` (wrap container), `.level-names-option` / `.level-names-option.is-selected`.
-
-### Guided Action Panel
-
-When a multi-step flow needs the user to make a required choice (e.g. "which class is this example for?" after picking files), surface it as a distinct honey-tinted panel rather than inline text:
-
-- `--chalk` bg, soft `--comb` border with a `3px` `--honey` left accent stripe, `12px` radius, `--shadow-sm`. Light overall — the accent stripe carries the "don't miss this" weight.
-- Lead with a posed question in the display font (`.upload-classnames-title`), a one-line `--ink-muted` rationale (`.upload-classnames-help`), then the chosen file(s) as `--parchment` rows.
-- Muted uppercase step label introduces the choice; an `--ink-muted` hint line appears while the requirement is unmet.
-- Pattern classes: `.upload-classnames-panel`, `.upload-classnames-title/help/files/file/steplabel/hint/actions`.
-
-### Selection-Aware Lists
-
-When a parent view has an active selection (e.g. students from a class), list items that match the selection are highlighted with a `--matching` modifier; items that don't match are dimmed with a `--dimmed` modifier. When nothing is selected, no modifier is applied and all items render at full opacity.
-
-- Matching: `outline: 2px solid var(--honey)` at `border-radius: 8px` on the wrapper, drawn with `outline-offset: -2px` (inset) so it isn't clipped by the collapsible container's `overflow: hidden`.
-- Dimmed: `opacity: 0.45` on the wrapper.
-- CSS modifier classes: `<wrapper>--matching`, `<wrapper>--dimmed`.
-- A summary line (`.example-selection-summary`) uses `var(--honey-dark)` at `0.82rem` to show e.g. *N example(s) will guide these reports.*
 
 ### Levels Admin Screen
 
@@ -206,7 +178,7 @@ All rules live under `frontend/src/styles/`:
 | `controls.css` | Buttons, `icon-btn`, `item-row`, cards (incl. `info-box`), forms, `inline-edit`, `delete-confirm`, `flash-error`, `hint-banner`, inline error card |
 | `modals.css` | How It Works modal, student-detail modal shell |
 | `roster-upload.css` | Student list, class group, audio upload, job status, transcript review |
-| `reports.css` | Report examples, generation, viewer, history |
+| `reports.css` | Report generation, viewer, history |
 | `student-detail-notes.css` | Student detail expansion + tabs, student aliases, note editor |
 | `feedback-privacy.css` | Feedback FAB + popover, privacy page |
 | `levels.css` | Levels admin screen (list, add form, Report Instructions editor) |
@@ -215,7 +187,7 @@ All rules live under `frontend/src/styles/`:
 Each file owns its own `@media` blocks, placed after the base rules they override. There is no global responsive file.
 
 ### Flat-button reset list
-`controls.css` contains a selector list that strips button chrome from elements across features (`.toolbar-link`, `.student-detail-tab`, `.report-examples-toggle`, `.how-it-works-trigger`, etc.). When you add a new flat-button-style element anywhere, add its selector to that list in `controls.css`. It is a known cross-file coupling, not a bug.
+`controls.css` contains a selector list that strips button chrome from elements across features (`.toolbar-link`, `.student-detail-tab`, `.how-it-works-trigger`, etc.). When you add a new flat-button-style element anywhere, add its selector to that list in `controls.css`. It is a known cross-file coupling, not a bug.
 
 ### Known cascade quirk
 `.report-instructions textarea` has a `font-size: 1rem` rule inside the `@media (max-width: 640px)` block in `controls.css` (inherited from the original global responsive block). This rule is shadowed on mobile by the base `.report-instructions textarea { font-size: 0.95rem }` in `reports.css`, which appears later in the import order. The `1rem` rule is therefore dead on mobile. It is preserved intentionally to keep the cascade identical to the original. Do not remove without auditing `reports.css`.

@@ -5,30 +5,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 const mockGenerateReports = vi.fn()
 const mockListClasses = vi.fn()
 const mockListStudents = vi.fn()
-const mockListReportExamples = vi.fn()
-const mockUploadReportExample = vi.fn()
-const mockUpdateReportExample = vi.fn()
-const mockDeleteReportExample = vi.fn()
-const mockImportExampleFromDrive = vi.fn()
-const mockGetGoogleToken = vi.fn()
 const mockListLevels = vi.fn()
-const mockOpenPicker = vi.fn()
 
 vi.mock('../../api', () => ({
   generateReports: (...args: unknown[]) => mockGenerateReports(...args),
   listClasses: (...args: unknown[]) => mockListClasses(...args),
   listStudents: (...args: unknown[]) => mockListStudents(...args),
-  listReportExamples: (...args: unknown[]) => mockListReportExamples(...args),
-  uploadReportExample: (...args: unknown[]) => mockUploadReportExample(...args),
-  updateReportExample: (...args: unknown[]) => mockUpdateReportExample(...args),
-  deleteReportExample: (...args: unknown[]) => mockDeleteReportExample(...args),
-  importExampleFromDrive: (...args: unknown[]) => mockImportExampleFromDrive(...args),
-  getGoogleToken: (...args: unknown[]) => mockGetGoogleToken(...args),
   listLevels: (...args: unknown[]) => mockListLevels(...args),
-}))
-
-vi.mock('../../hooks/useDrivePicker', () => ({
-  useDrivePicker: () => ({ openPicker: mockOpenPicker }),
 }))
 
 const stableGetToken = vi.fn().mockResolvedValue('tok')
@@ -42,9 +25,7 @@ function level(id: number, name: string, reportInstructions: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockListReportExamples.mockResolvedValue({ examples: [] })
   mockListLevels.mockResolvedValue({ levels: [] })
-  mockUploadReportExample.mockResolvedValue({})
 })
 
 async function renderWithStudents() {
@@ -111,58 +92,6 @@ describe('ReportGeneration', () => {
     await waitFor(() => {
       expect(screen.getByText(/Generation failed/)).toBeInTheDocument()
     })
-  })
-
-  it('fetches and renders example report cards', async () => {
-    mockListReportExamples.mockResolvedValue({
-      examples: [
-        { id: 1, name: 'Report.jpg', content: 'Student showed great improvement in math.', status: 'ready', levelNames: ['Math'] },
-      ],
-    })
-    const user = await renderWithStudents()
-
-    await user.click(screen.getByText(/Example Report Cards/))
-    await waitFor(() => {
-      expect(screen.getByText('Report.jpg')).toBeInTheDocument()
-    })
-    expect(mockListReportExamples).toHaveBeenCalled()
-  })
-
-  it('uploads example files with selected class names', async () => {
-    mockListClasses.mockResolvedValue({
-      classes: [{ id: 1, name: 'Math', levelId: 1, levelName: 'Math', scheduleName: '', studentCount: 2 }],
-    })
-    mockListStudents.mockResolvedValue({
-      students: [
-        { id: 10, name: 'Alice', classId: 1 },
-        { id: 11, name: 'Bob', classId: 1 },
-      ],
-    })
-    mockListLevels.mockResolvedValue({ levels: [level(1, 'Math', 'Some instructions.')] })
-    const { default: ReportGeneration } = await import('../ReportGeneration')
-    const user = userEvent.setup()
-    render(<ReportGeneration />)
-    await waitFor(() => screen.getByText('Math', { selector: 'strong' }))
-
-    await user.click(screen.getByText(/Example Report Cards/))
-
-    // The hidden file input lives inside the drop zone.
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-    const file = new File(['example'], 'example.txt', { type: 'text/plain' })
-    await user.upload(fileInput, file)
-
-    // Class selection panel appears; choose the Math class.
-    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Math' })).toBeInTheDocument())
-    await user.click(screen.getByRole('checkbox', { name: 'Math' }))
-
-    await user.click(screen.getByText('Upload'))
-
-    await waitFor(() => {
-      expect(mockUploadReportExample).toHaveBeenCalled()
-    })
-    const [uploadedFile, levelNames] = mockUploadReportExample.mock.calls[0]
-    expect(uploadedFile).toBeInstanceOf(File)
-    expect(levelNames).toEqual(['Math'])
   })
 })
 

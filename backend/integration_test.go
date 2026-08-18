@@ -1,10 +1,8 @@
 package handler
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -230,36 +228,6 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	assert.Len(t, resp.Done, 1)
 }
 
-func TestIntegration_UpdateReportExample(t *testing.T) {
-	db := setupTestDB(t)
-	exampleRepo := &ReportExampleRepo{db: db}
-
-	// Create an example first
-	ex, err := exampleRepo.Create(t.Context(), "user1", "original.txt", "original content")
-	require.NoError(t, err)
-
-	store := newDBExampleStore(exampleRepo)
-	old := serviceDeps
-	serviceDeps = &mockDepsAll{exampleStore: store}
-	t.Cleanup(func() { serviceDeps = old })
-
-	// Update via full Handle router
-	body, err := json.Marshal(map[string]string{"name": "updated.txt", "content": "updated content"})
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/report-examples/%d", ex.ID), bytes.NewReader(body))
-	rctx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
-		RegisteredClaims: clerk.RegisteredClaims{Subject: "user1"},
-	})
-	req = req.WithContext(rctx)
-	rec := httptest.NewRecorder()
-	handleUpdateReportExample(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code, "want 200, got %d: %s", rec.Code, rec.Body.String())
-
-	var result ReportExample
-	require.NoError(t, json.NewDecoder(rec.Body).Decode(&result))
-	assert.Equal(t, "updated.txt", result.Name)
-}
 
 // newTestLLMExtractor creates an LLM extractor, skipping if the active provider's API key is not set.
 func newTestLLMExtractor(t *testing.T) Extractor {

@@ -15,7 +15,6 @@ type repos struct {
 	students   *StudentRepo
 	notes      *NoteRepo
 	reports    *ReportRepo
-	examples   *ReportExampleRepo
 	voiceNotes *VoiceNoteRepo
 	feedback   *ArtifactFeedbackRepo
 }
@@ -32,7 +31,6 @@ func testDBAndRepos(t *testing.T) (context.Context, *repos) {
 		students:   &StudentRepo{db: db},
 		notes:      &NoteRepo{db: db},
 		reports:    &ReportRepo{db: db},
-		examples:   &ReportExampleRepo{db: db},
 		voiceNotes: &VoiceNoteRepo{db: db},
 		feedback:   &ArtifactFeedbackRepo{db: db},
 	}
@@ -241,50 +239,6 @@ func TestReportRepo_CRUD(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrNotFound), "expected not found")
 }
 
-func TestReportExampleRepo_CRUD(t *testing.T) {
-	ctx, r := testDBAndRepos(t)
-
-	e, err := r.examples.Create(ctx, "user1", "sample.txt", "Example content")
-	require.NoError(t, err, "create")
-	assert.NotZero(t, e.ID)
-
-	list, err := r.examples.List(ctx, "user1")
-	require.NoError(t, err, "list")
-	require.Len(t, list, 1)
-	assert.Equal(t, "sample.txt", list[0].Name)
-
-	// User isolation
-	_, err = r.examples.Create(ctx, "user2", "other.txt", "other")
-	require.NoError(t, err, "create user2")
-	l1, err := r.examples.List(ctx, "user1")
-	require.NoError(t, err, "list user1")
-	l2, err := r.examples.List(ctx, "user2")
-	require.NoError(t, err, "list user2")
-	assert.Len(t, l1, 1, "user isolation failed")
-	assert.Len(t, l2, 1, "user isolation failed")
-
-	// Delete
-	require.NoError(t, r.examples.Delete(ctx, "user1", e.ID), "delete")
-	list, err = r.examples.List(ctx, "user1")
-	require.NoError(t, err, "list after delete")
-	assert.Empty(t, list)
-
-	// Delete wrong user
-	e2, err := r.examples.Create(ctx, "user1", "x.txt", "x")
-	require.NoError(t, err, "create e2")
-	err = r.examples.Delete(ctx, "user2", e2.ID)
-	assert.True(t, errors.Is(err, ErrNotFound), "should not delete other user's example")
-
-	// Update
-	updated, err := r.examples.Update(ctx, "user1", e2.ID, "renamed.txt", "new content")
-	require.NoError(t, err, "update")
-	assert.Equal(t, "renamed.txt", updated.Name)
-	assert.Equal(t, "new content", updated.Content)
-
-	// Update wrong user
-	_, err = r.examples.Update(ctx, "user2", e2.ID, "hack", "hack")
-	assert.True(t, errors.Is(err, ErrNotFound), "should not update other user's example, got: %v", err)
-}
 
 func TestVoiceNoteRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)

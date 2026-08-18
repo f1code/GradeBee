@@ -12,7 +12,6 @@ type GenerateReportRequest struct {
 	StudentID          int64
 	Student            string
 	ClassName          string
-	LevelName          string
 	StartDate          string // YYYY-MM-DD
 	EndDate            string // YYYY-MM-DD
 	UserID             string
@@ -40,7 +39,6 @@ type RegenerateReportRequest struct {
 	StudentID          int64
 	Student            string
 	ClassName          string
-	LevelName          string
 	StartDate          string
 	EndDate            string
 	UserID             string
@@ -50,20 +48,18 @@ type RegenerateReportRequest struct {
 
 // llmReportGenerator implements ReportGenerator using an LLMProvider + DB.
 type llmReportGenerator struct {
-	provider    LLMProvider
-	model       string
-	noteRepo    *NoteRepo
-	reportRepo  *ReportRepo
-	exampleRepo *ReportExampleRepo
+	provider   LLMProvider
+	model      string
+	noteRepo   *NoteRepo
+	reportRepo *ReportRepo
 }
 
-func newDBReportGenerator(provider LLMProvider, nr *NoteRepo, rr *ReportRepo, er *ReportExampleRepo) (*llmReportGenerator, error) {
+func newDBReportGenerator(provider LLMProvider, nr *NoteRepo, rr *ReportRepo) (*llmReportGenerator, error) {
 	return &llmReportGenerator{
-		provider:    provider,
-		model:       provider.Model(LLMTaskReport),
-		noteRepo:    nr,
-		reportRepo:  rr,
-		exampleRepo: er,
+		provider:   provider,
+		model:      provider.Model(LLMTaskReport),
+		noteRepo:   nr,
+		reportRepo: rr,
 	}, nil
 }
 
@@ -74,20 +70,14 @@ func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 		return nil, fmt.Errorf("report: read notes: %w", err)
 	}
 
-	// 2. Load examples.
-	examples, err := g.loadExamples(ctx, req.UserID, req.LevelName)
-	if err != nil {
-		return nil, err
-	}
-
-	// 3. Build prompt and call LLM.
-	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, examples, req.ReportInstructions, req.Instructions, "")
+	// 2. Build prompt and call LLM.
+	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, req.ReportInstructions, req.Instructions, "")
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
 
-	// 4. Save report to DB.
+	// 3. Save report to DB.
 	modelVersion := g.model
 	promptHash := ReportPromptHash
 	rpt := &Report{
@@ -119,14 +109,8 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 		return nil, fmt.Errorf("report: read notes: %w", err)
 	}
 
-	// 2. Load examples.
-	examples, err := g.loadExamples(ctx, req.UserID, req.LevelName)
-	if err != nil {
-		return nil, err
-	}
-
-	// 3. Build prompt with feedback and call LLM.
-	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, examples, req.ReportInstructions, req.Instructions, req.Feedback)
+	// 2. Build prompt with feedback and call LLM.
+	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, req.ReportInstructions, req.Instructions, req.Feedback)
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
@@ -155,21 +139,6 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 		HTML:      html,
 		CreatedAt: rpt.CreatedAt,
 	}, nil
-}
-
-func (g *llmReportGenerator) loadExamples(ctx context.Context, userID, levelName string) ([]ReportExample, error) {
-	if userID == "" {
-		return nil, nil
-	}
-	dbExamples, err := g.exampleRepo.ListReadyByLevelName(ctx, userID, levelName)
-	if err != nil {
-		return nil, fmt.Errorf("report: list examples: %w", err)
-	}
-	examples := make([]ReportExample, len(dbExamples))
-	for i, e := range dbExamples {
-		examples[i] = ReportExample{ID: e.ID, Name: e.Name, Content: e.Content, Status: e.Status}
-	}
-	return examples, nil
 }
 
 func (g *llmReportGenerator) callLLM(ctx context.Context, prompt string) (string, error) {

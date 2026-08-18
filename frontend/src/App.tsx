@@ -80,7 +80,7 @@ function App() {
               <ul className="feature-list">
                 <li>🎤 Record or upload audio of your observations</li>
                 <li>🗂️ Notes are created automatically for each student</li>
-                <li>📄 Generate report cards that match your writing style</li>
+                <li>📄 Generate report cards in your school's voice</li>
               </ul>
               <label className="consent-label">
                 <input

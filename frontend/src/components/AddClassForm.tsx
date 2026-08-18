@@ -119,7 +119,7 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
         <p className="add-class-hint" data-testid="add-class-hint">
           <strong>Schedule</strong> is optional and groups classes by schedule slot
           (e.g. "Period 1"). The <strong>level</strong> identifies the
-          class and is used to match report-card examples.
+          class and drives its report style.
         </p>
         <div className="add-class-form-row">
           <button type="submit" disabled={submitting || !levelId} data-testid="add-class-submit">

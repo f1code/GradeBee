@@ -44,11 +44,10 @@ defaultTest:
       config:
         temperature: 0
 
-# Shared rubric template — every surviving case grades adherence to the Level's
-# report_instructions, not to the style examples' structure. Examples illustrate
-# tone/vocabulary only; ad-hoc instructions (teacher overrides) rank above the
-# Level's report_instructions. Structural divergence from the examples is not
-# penalised when the output follows report_instructions.
+# Shared rubric template — every case grades adherence to the Level's
+# report_instructions only. Report Examples are removed (#54); ad-hoc
+# instructions (teacher overrides) still rank above the Level's
+# report_instructions.
 rubric_template: &rubric_template |
   Report Specification (the Level's authored instructions — this defines the
   required structure, sections, and content; the report must follow it):
@@ -56,10 +55,6 @@ rubric_template: &rubric_template |
 
   Source notes (ground truth — every statement in the report must be traceable to these):
   {{notes}}
-
-  Style examples (illustrate tone and vocabulary only — do not penalise the report for
-  structural differences from these examples as long as it follows the Report Specification above):
-  {{examples}}
 
   Ad-hoc instructions for this run (override the Report Specification where they conflict, if present):
   {{instructions}}
@@ -69,7 +64,7 @@ rubric_template: &rubric_template |
   {{reference}}
 
   Score 1-5 on:
-  - structure: follows the sections and layout defined in the Report Specification, not the examples
+  - structure: follows the sections and layout defined in the Report Specification
   - grounding: every statement traceable to notes (no invented observations, no fabricated marks,
     absences counts, or other metadata not present in the notes)
   - tone: matches whatever tone the Report Specification and ad-hoc instructions call for
@@ -77,13 +72,12 @@ rubric_template: &rubric_template |
     length limit, a required field, a required behaviour) is followed as instructed
 
 tests:
-  - description: "report: mousy-level structured format with real examples and a paragraph-length ad-hoc instruction"
+  - description: "report: mousy-level structured format with a paragraph-length ad-hoc instruction"
     vars:
       task: build-report-prompt
       student_name: "Lucas"
       class_name: "Linda-Thursday@17:25"
       notes: "file://fixtures/reports/mousy_with_instructions/notes.json"
-      examples: "file://fixtures/reports/mousy_with_instructions/examples.json"
       report_instructions: "file://fixtures/reports/mousy_with_instructions/report_instructions.txt"
       instructions: "file://fixtures/reports/mousy_with_instructions/instructions.txt"
       reference: "file://fixtures/reports/mousy_with_instructions/reference.html"
@@ -97,7 +91,6 @@ tests:
       student_name: "Chloé"
       class_name: "Emma Saturday"
       notes: "file://fixtures/reports/chloe_emma_saturday/notes.json"
-      examples: "file://fixtures/reports/chloe_emma_saturday/examples.json"
       report_instructions: "file://fixtures/reports/chloe_emma_saturday/report_instructions.txt"
       instructions: ""
       reference: "file://fixtures/reports/chloe_emma_saturday/reference.html"
@@ -111,7 +104,6 @@ tests:
       student_name: "Mila"
       class_name: "Oliver Thursday"
       notes: "file://fixtures/reports/mila_oliver_thu/notes.json"
-      examples: "file://fixtures/reports/mila_oliver_thu/examples.json"
       report_instructions: "file://fixtures/reports/mila_oliver_thu/report_instructions.txt"
       instructions: ""
       reference: "file://fixtures/reports/mila_oliver_thu/reference.html"
@@ -125,7 +117,6 @@ tests:
       student_name: "Camille"
       class_name: "Oliver-Group 2 Saturday"
       notes: "file://fixtures/reports/camille_oliver_group2/notes.json"
-      examples: "file://fixtures/reports/camille_oliver_group2/examples.json"
       report_instructions: "file://fixtures/reports/camille_oliver_group2/report_instructions.txt"
       instructions: ""
       reference: "file://fixtures/reports/camille_oliver_group2/reference.html"

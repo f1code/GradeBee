@@ -47,12 +47,6 @@ GROUP BY s.id
 HAVING note_count >= 2
 ORDER BY note_count DESC"
 
-# Report examples keyed by class
-sqlite3 data/gradebee.db "
-SELECT re.id, re.name, rec.class_name, length(re.content)
-FROM report_examples re
-LEFT JOIN report_example_classes rec ON rec.example_id = re.id
-ORDER BY re.id"
 ```
 
 ---
@@ -165,7 +159,6 @@ ORDER BY n.id"
 ```
 backend/evals/fixtures/reports/<fixture_name>/
   notes.json        ← [{date, summary}, ...] from notes table (the LLM input)
-  examples.json     ← [{name, content}, ...] from report_examples (style anchors)
   instructions.txt  ← from reports.instructions (may be empty)
   reference.html    ← from reports.html (cleaned ground-truth output)
 ```
@@ -173,26 +166,19 @@ backend/evals/fixtures/reports/<fixture_name>/
 ### Strategy
 
 1. **Pick a student** with ≥ 2 notes and at least one generated report.
-   Prefer students whose class has matching `report_examples` rows — this
-   exercises the full pipeline including tone-matching.
 
 2. **Build `notes.json`** from all `notes.summary` rows for that student,
    ordered by `date DESC` (newest first) to match production behavior.
 
-3. **Build `examples.json`** by querying `report_examples` joined to
-   `report_example_classes` filtered to the student's class name (or a
-   parent class pattern). Include 2–4 examples maximum to keep context
-   manageable.
-
-4. **Write `instructions.txt`** from `reports.instructions` on the chosen
+3. **Write `instructions.txt`** from `reports.instructions` on the chosen
    report. Leave the file empty if instructions were blank.
 
-5. **Choose the reference report.** When a student has many iterations,
+4. **Choose the reference report.** When a student has many iterations,
    prefer the one with the **longest `html`** among those with a non-empty
    `instructions` field — this tends to be the most developed version.
    Use the `instructions` of that report as `instructions.txt`.
 
-6. **Write `reference.html`** from `reports.html`. Then **clean it**:
+5. **Write `reference.html`** from `reports.html`. Then **clean it**:
    - Replace the real student name with a generic invented name (e.g. "Lucas",
      "Sophie"). Use the **same name** in `promptfooconfig.yaml`'s `student_name`
      and throughout the HTML.
@@ -219,12 +205,6 @@ sqlite3 data/gradebee.db "
 SELECT id, length(html) as html_len, instructions, html
 FROM reports WHERE student_id = <id> ORDER BY id DESC LIMIT 3"
 
-# Matching examples
-sqlite3 data/gradebee.db "
-SELECT re.id, re.name, re.content
-FROM report_examples re
-JOIN report_example_classes rec ON rec.example_id = re.id
-WHERE rec.class_name LIKE '%<teacher_or_class_prefix>%'"
 ```
 
 ---
@@ -263,7 +243,6 @@ After creating files, add a test entry to `backend/evals/promptfooconfig.yaml`.
     student_name: "<invented name matching reference.html>"
     class: "<class name from DB>"
     notes: "file://fixtures/reports/<name>/notes.json"
-    examples: "file://fixtures/reports/<name>/examples.json"
     instructions: "file://fixtures/reports/<name>/instructions.txt"
     reference: "file://fixtures/reports/<name>/reference.html"
   assert:
@@ -271,9 +250,6 @@ After creating files, add a test entry to `backend/evals/promptfooconfig.yaml`.
       value: |
         Source notes (ground truth — every statement in the report must be traceable to these):
         {{notes}}
-
-        Style examples (the report's tone and vocabulary should match these):
-        {{examples}}
 
         Instructions given to the model:
         {{instructions}}
@@ -285,7 +261,7 @@ After creating files, add a test entry to `backend/evals/promptfooconfig.yaml`.
         Score 1-5 on:
         - structure: <expected sections>
         - grounding: every statement traceable to notes (no invented observations)
-        - tone: warm, encouraging, matches examples
+        - tone: warm, encouraging, as instructed
         - length: <any character/paragraph constraints from instructions>
 ```
 

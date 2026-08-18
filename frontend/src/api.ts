@@ -2,7 +2,6 @@ import type {
   ClassWithCount as ClassItem,
   Student as StudentItem,
   Note,
-  ReportExample as ReportExampleItem,
   ReportResult,
   ReportSummary,
   GenerateReportsHTTPResponse as GenerateReportsResponse,
@@ -16,7 +15,6 @@ export type {
   ClassItem,
   StudentItem,
   Note,
-  ReportExampleItem,
   ReportResult,
   ReportSummary,
   GenerateReportsResponse,
@@ -303,91 +301,6 @@ export async function submitTextNotes(
   return body
 }
 
-// --- Report Examples ---
-
-export async function listReportExamples(
-  getToken: () => Promise<string | null>
-): Promise<{ examples: ReportExampleItem[] }> {
-  const token = await getToken()
-  const resp = await fetch(`${apiUrl}/report-examples`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Failed to list examples')
-  return body
-}
-
-export async function uploadReportExample(
-  data: { name: string; content: string } | File,
-  levelNames: string[],
-  getToken: () => Promise<string | null>
-): Promise<ReportExampleItem> {
-  const token = await getToken()
-  let resp: Response
-  if (data instanceof File) {
-    const form = new FormData()
-    form.append('file', data)
-    form.append('levelNames', JSON.stringify(levelNames))
-    resp = await fetch(`${apiUrl}/report-examples`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: form,
-    })
-  } else {
-    resp = await fetch(`${apiUrl}/report-examples`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ ...data, levelNames }),
-    })
-  }
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Failed to upload example')
-  return body
-}
-
-export async function deleteReportExample(
-  id: number,
-  getToken: () => Promise<string | null>
-): Promise<void> {
-  const token = await getToken()
-  const resp = await fetch(`${apiUrl}/report-examples`, {
-    method: 'DELETE',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ id }),
-  })
-  if (!resp.ok) {
-    const body = await resp.json()
-    throw new Error(body.error || 'Failed to delete example')
-  }
-}
-
-export async function updateReportExample(
-  id: number,
-  name: string,
-  content: string,
-  levelNames: string[],
-  getToken: () => Promise<string | null>
-): Promise<ReportExampleItem> {
-  const token = await getToken()
-  const resp = await fetch(`${apiUrl}/report-examples/${id}`, {
-    method: 'PUT',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ name, content, levelNames }),
-  })
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Failed to update example')
-  return body
-}
-
 // --- Reports ---
 
 export async function generateReports(
@@ -566,25 +479,6 @@ export async function getGoogleToken(
   })
   const body = await resp.json()
   if (!resp.ok) throw new Error(body.error || 'Failed to get Google token')
-  return body
-}
-
-export async function importExampleFromDrive(
-  driveFileId: string,
-  fileName: string,
-  getToken: () => Promise<string | null>
-): Promise<ReportExampleItem> {
-  const token = await getToken()
-  const resp = await fetch(`${apiUrl}/drive-import-example`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ fileId: driveFileId, fileName }),
-  })
-  const body = await resp.json()
-  if (!resp.ok) throw new Error(body.error || 'Drive import example failed')
   return body
 }
 
