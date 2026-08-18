@@ -13,14 +13,12 @@ packages:
       - ClassWithCount
       - Level
       - Report
-      - ReportExample
       - ReportSummary
       # List response wrappers
       - ListNotesResponse
       - ListClassesResponse
       - ListStudentsResponse
       - ListReportsResponse
-      - ListExamplesResponse
       - ListLevelsResponse
       # Request/response types
       - ReportResult

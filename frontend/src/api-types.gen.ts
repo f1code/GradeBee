@@ -317,8 +317,7 @@ export interface ClassRepo {
 /**
  * Class represents a row in the classes table. Name and LevelName are not
  * stored — both are derived from the referenced Level's name, so renaming a
- * Level immediately changes every Class's display name (and the key used to
- * match report-card examples).
+ * Level immediately changes every Class's display name.
  */
 export interface Class {
   id: number /* int64 */;
