@@ -46,6 +46,16 @@ echo "[${TIMESTAMP}] Starting backup for {{ app_name }}..."
 sqlite3 "$DB_PATH" ".backup '${TMPFILE}'"
 echo "  SQLite backup created: ${TMPFILE} ($(du -h "$TMPFILE" | cut -f1))"
 
+# --- Checkpoint WAL back into the main DB file ---
+# Bounds WAL growth; non-fatal (a stuck reader can block/fail it without
+# affecting the backup already taken above).
+if sqlite3 "$DB_PATH" "PRAGMA wal_checkpoint(TRUNCATE);" > /tmp/{{ app_name }}-checkpoint.log 2>&1; then
+  echo "  WAL checkpoint: $(cat /tmp/{{ app_name }}-checkpoint.log)"
+else
+  echo "  WAL checkpoint failed (non-fatal): $(cat /tmp/{{ app_name }}-checkpoint.log)"
+fi
+rm -f /tmp/{{ app_name }}-checkpoint.log
+
 # --- Upload to S3 ---
 aws s3 cp "$TMPFILE" "${S3_BUCKET}/${S3_PREFIX}/${TIMESTAMP}.db" --quiet
 echo "  Uploaded to ${S3_BUCKET}/${S3_PREFIX}/${TIMESTAMP}.db"

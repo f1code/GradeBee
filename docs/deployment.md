@@ -173,6 +173,12 @@ window). Each app's backups are stored under `{{ app_name }}/db/` in the S3 buck
 collisions between environments. For longer retention, configure an S3 lifecycle rule on the
 bucket directly.
 
+### WAL checkpointing
+
+After each backup, the script runs `PRAGMA wal_checkpoint(TRUNCATE)` to fold the WAL into the
+main `.db` file and truncate it, bounding WAL growth between checkpoints. Non-fatal on failure
+(e.g. a stuck reader) — check the backup log for "WAL checkpoint failed".
+
 ### Migration note (existing Terraform/Compose host)
 
 If applying this playbook to a host that previously used the Docker Compose layout, the
