@@ -18,10 +18,10 @@ Each class has a **level** (required) and an optional **schedule**.
   multiple classes that share a level but differ by schedule — e.g. a
   "Maths" class with schedules "Period 1" and "Period 2". The schedule is purely
   organizational.
-- **Level** also drives report style. When you upload example report
-  cards, you tag each example with one or more levels. At report
-  generation, GradeBee selects the examples tagged with the level being
-  generated and uses them to match the writing style.
+- **Level** also drives report style. Each level carries Report
+  Instructions — the sections, tone, and content your reports must have.
+  An admin writes them once; every report generated for that level follows
+  them.
 
 ## Technology Stack
 
