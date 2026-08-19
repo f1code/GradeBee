@@ -15,6 +15,7 @@ A mandatory weekday (Monday–Sunday) on every Class — the day of the class's 
 
 **Time slot**:
 An optional free-text label distinguishing sections taught at the same Level and Day (e.g. "Period 1", "Morning", "14:10").
+Can also contain additional days, if the class occurs multiple times a week "14:10 & Fri 16:30"
 _Avoid_: Schedule (legacy name), Group (legacy name), Period (ambiguous — a fixed school-wide timetable slot in some school systems)
 
 **Class**:
