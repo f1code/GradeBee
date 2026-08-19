@@ -24,7 +24,7 @@ func newDBRoster(cr *ClassRepo, sr *StudentRepo, userID string) *dbRoster {
 	return &dbRoster{classRepo: cr, studentRepo: sr, userID: userID}
 }
 
-// ClassNames returns unique composite class names (Level + Schedule) for the user.
+// ClassNames returns unique composite class names (Level + Time slot) for the user.
 func (r *dbRoster) ClassNames(ctx context.Context) ([]string, error) {
 	classes, err := r.classRepo.List(ctx, r.userID)
 	if err != nil {

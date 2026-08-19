@@ -179,7 +179,7 @@ func (r *StudentRepo) FindByNameAndClass(ctx context.Context, name, className, u
 		JOIN classes c ON s.class_id = c.id
 		JOIN levels l ON l.id = c.level_id
 		LEFT JOIN student_aliases sa ON sa.student_id = s.id
-		WHERE l.name || CASE WHEN c.schedule_name <> '' THEN '-' || c.schedule_name ELSE '' END = ?
+		WHERE `+classDisplayNameSQL+` = ?
 		  AND c.user_id = ?
 		  AND (s.name = ? COLLATE NOCASE OR sa.alias = ? COLLATE NOCASE)
 		LIMIT 1`,

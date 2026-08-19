@@ -46,7 +46,7 @@ Keeping docs in sync with code is part of "done". Before considering a task comp
 | When you... | Update... |
 | --- | --- |
 | Add/change an API endpoint, handler, repo, DI wiring, or job queue logic | `backend/ARCHITECTURE.md` |
-| Add a SQL migration or change the schema | `backend/ARCHITECTURE.md` (schema section) |
+| Change the schema | `backend/ARCHITECTURE.md` (Tables / current schema — not individual migration files) |
 | Add a new design token, component pattern, color, or typography rule | `frontend/DESIGN.md` |
 | Add or rename an environment variable | `.env.example` (always) + `README.md` (if user-facing) |
 | Change the tech stack or complete a phase | `README.md` |

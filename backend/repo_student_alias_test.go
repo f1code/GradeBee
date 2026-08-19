@@ -105,8 +105,24 @@ func TestFindByNameAndClass_MatchesAlias(t *testing.T) {
 	require.NoError(t, err)
 
 	// Lookup by alias — should return the canonical student ID
-	id, err := r.students.FindByNameAndClass(ctx, "Alex", "Math", "user1")
+	id, err := r.students.FindByNameAndClass(ctx, "Alex", "Math · Mon", "user1")
 	require.NoError(t, err, "find by alias")
+	assert.Equal(t, s.ID, id)
+}
+
+// TestFindByNameAndClass_MatchesWithTimeSlot checks that lookup resolves for
+// a class name that includes the day and time slot qualifiers
+// (e.g. "Math · Thu · Thursday").
+func TestFindByNameAndClass_MatchesWithTimeSlot(t *testing.T) {
+	ctx, r := testDBAndRepos(t)
+
+	c, err := r.classes.Create(ctx, "test-group", "user1", testLevelID(t, r.classes.db, "test-group", "Math"), "Thursday", "AM")
+	require.NoError(t, err)
+	s, err := r.students.Create(ctx, c.ID, "Alexander")
+	require.NoError(t, err)
+
+	id, err := r.students.FindByNameAndClass(ctx, "Alexander", "Math · Thu · AM", "user1")
+	require.NoError(t, err, "find by name in qualified class")
 	assert.Equal(t, s.ID, id)
 }
 
@@ -121,12 +137,12 @@ func TestFindByNameAndClass_MatchesCaseInsensitive(t *testing.T) {
 	require.NoError(t, err)
 
 	// Case-insensitive alias match
-	id, err := r.students.FindByNameAndClass(ctx, "alex", "Math", "user1")
+	id, err := r.students.FindByNameAndClass(ctx, "alex", "Math · Mon", "user1")
 	require.NoError(t, err, "find by lowercase alias")
 	assert.Equal(t, s.ID, id)
 
 	// Case-insensitive canonical name match
-	id, err = r.students.FindByNameAndClass(ctx, "alexander", "Math", "user1")
+	id, err = r.students.FindByNameAndClass(ctx, "alexander", "Math · Mon", "user1")
 	require.NoError(t, err, "find by lowercase canonical")
 	assert.Equal(t, s.ID, id)
 }
@@ -261,11 +277,11 @@ func TestFindByNameAndClass_AliasNotFoundInDifferentClass(t *testing.T) {
 	require.NoError(t, err)
 
 	// Alex alias exists in Math, not in Science
-	_, err = studentRepo.FindByNameAndClass(ctx, "Alex", "Science", "user1")
+	_, err = studentRepo.FindByNameAndClass(ctx, "Alex", "Science · Mon", "user1")
 	assert.True(t, errors.Is(err, ErrNotFound), "alias should not match across classes, got: %v", err)
 
 	// Should still work for Math
-	id, err := studentRepo.FindByNameAndClass(ctx, "Alex", "Math", "user1")
+	id, err := studentRepo.FindByNameAndClass(ctx, "Alex", "Math · Mon", "user1")
 	require.NoError(t, err)
 	assert.Equal(t, s1.ID, id)
 }

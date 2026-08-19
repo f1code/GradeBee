@@ -76,7 +76,7 @@ tests:
     vars:
       task: build-report-prompt
       student_name: "Lucas"
-      class_name: "Linda-Thursday@17:25"
+      class_name: "Linda · Thu · 17:25"
       notes: "file://fixtures/reports/mousy_with_instructions/notes.json"
       report_instructions: "file://fixtures/reports/mousy_with_instructions/report_instructions.txt"
       instructions: "file://fixtures/reports/mousy_with_instructions/instructions.txt"
@@ -85,11 +85,11 @@ tests:
       - type: llm-rubric
         value: *rubric_template
 
-  - description: "report: Emma Saturday class with Level instructions and multi-note synthesis"
+  - description: "report: Emma · Sat class with Level instructions and multi-note synthesis"
     vars:
       task: build-report-prompt
       student_name: "Chloé"
-      class_name: "Emma Saturday"
+      class_name: "Emma · Sat"
       notes: "file://fixtures/reports/chloe_emma_saturday/notes.json"
       report_instructions: "file://fixtures/reports/chloe_emma_saturday/report_instructions.txt"
       instructions: ""
@@ -98,11 +98,11 @@ tests:
       - type: llm-rubric
         value: *rubric_template
 
-  - description: "report: Oliver Thursday class with Level instructions and mood/behaviour challenges"
+  - description: "report: Oliver · Thu class with Level instructions and mood/behaviour challenges"
     vars:
       task: build-report-prompt
       student_name: "Mila"
-      class_name: "Oliver Thursday"
+      class_name: "Oliver · Thu"
       notes: "file://fixtures/reports/mila_oliver_thu/notes.json"
       report_instructions: "file://fixtures/reports/mila_oliver_thu/report_instructions.txt"
       instructions: ""
@@ -111,11 +111,11 @@ tests:
       - type: llm-rubric
         value: *rubric_template
 
-  - description: "report: Oliver-Group 2 Saturday class with Level instructions and calm/positive profile"
+  - description: "report: Oliver · Sat · Group 2 class with Level instructions and calm/positive profile"
     vars:
       task: build-report-prompt
       student_name: "Camille"
-      class_name: "Oliver-Group 2 Saturday"
+      class_name: "Oliver · Sat · Group 2"
       notes: "file://fixtures/reports/camille_oliver_group2/notes.json"
       report_instructions: "file://fixtures/reports/camille_oliver_group2/report_instructions.txt"
       instructions: ""

@@ -12,6 +12,9 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrDuplicate is returned on unique constraint violations.
 	ErrDuplicate = errors.New("duplicate")
+	// ErrInvalidDay is returned when a Class's day is missing or not one of
+	// the seven canonical weekday names.
+	ErrInvalidDay = errors.New("invalid day")
 )
 
 // ErrDuplicateAlias is returned by AddAlias when the alias collides with an

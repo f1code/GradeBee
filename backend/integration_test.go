@@ -48,8 +48,8 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date: "2026-03-22",
 			Students: []MatchedStudent{
-				{Name: "Alice", ClassName: "Math", QuotedText: "Did great", Confidence: 0.9},
-				{Name: "Bob", ClassName: "Math", QuotedText: "Needs work", Confidence: 0.8},
+				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "Did great", Confidence: 0.9},
+				{Name: "Bob", ClassName: "Math · Mon", QuotedText: "Needs work", Confidence: 0.8},
 			},
 		}},
 		noteCreator:   nc,
@@ -133,7 +133,7 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Date:     "2026-01-01",
-			Students: []MatchedStudent{{Name: "Alice", ClassName: "Math", QuotedText: "ok", Confidence: 0.9}},
+			Students: []MatchedStudent{{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9}},
 		}},
 		noteCreator:    nc,
 		voiceNoteQueue: queue,
@@ -191,7 +191,7 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	doneJob, err := queue.GetJob(ctx, voiceNoteKey("u1", 1))
 	require.NoError(t, err)
 	doneJob.Status = JobStatusDone
-	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1, StudentID: 5, ClassName: "Math"}}
+	doneJob.NoteLinks = []NoteLink{{Name: "Test Student", NoteID: 1, StudentID: 5, ClassName: "Math · Mon"}}
 	require.NoError(t, queue.UpdateJob(ctx, *doneJob))
 
 	// Job 2: failed.

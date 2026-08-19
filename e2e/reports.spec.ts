@@ -8,7 +8,7 @@ async function mockClassesAndStudents(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          classes: [{ id: 1, levelId: 1, levelName: 'Science', name: 'Science', studentCount: 1 }],
+          classes: [{ id: 1, levelId: 1, levelName: 'Science', name: 'Science', day: 'Monday', timeSlot: '', studentCount: 1 }],
         }),
       })
     } else {
@@ -100,8 +100,8 @@ test.describe('Report generation', () => {
     await expect(page.getByTestId('report-result-name')).toContainText('Alice')
   })
 
-  test('class with schedule name resolves Level instructions by levelId, not display name', async ({ page }) => {
-    // Regression test: c.name is "Math — Group A" but the Level is looked up by
+  test('class with time slot resolves Level instructions by levelId, not display name', async ({ page }) => {
+    // Regression test: c.name is "Math · Group A" but the Level is looked up by
     // c.levelId, not by parsing the composed display name.
     await page.route('**/classes', async (route) => {
       if (route.request().method() === 'GET' && !route.request().url().includes('/classes/')) {
@@ -109,7 +109,7 @@ test.describe('Report generation', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            classes: [{ id: 1, levelId: 1, name: 'Math — Group A', levelName: 'Math', scheduleName: 'Group A', studentCount: 1 }],
+            classes: [{ id: 1, levelId: 1, name: 'Math · Mon · Group A', levelName: 'Math', day: 'Monday', timeSlot: 'Group A', studentCount: 1 }],
           }),
         })
       } else {
@@ -134,10 +134,10 @@ test.describe('Report generation', () => {
     await page.getByText('Reports').click()
     await expect(page.getByText('Alice')).toBeVisible({ timeout: 10000 })
 
-    // Select Alice (whose class has a schedule suffix in its display name)
+    // Select Alice (whose class has a time slot suffix in its display name)
     await page.getByText('Alice').click()
 
-    // The Level, looked up by levelId 1 (not the composed name 'Math — Group A'),
+    // The Level, looked up by levelId 1 (not the composed name 'Math · Group A'),
     // has instructions, so the read-only block renders and Generate is enabled.
     await expect(page.getByTestId('level-instructions-blocker')).not.toBeAttached()
     const block = page.getByTestId('level-instructions-block')

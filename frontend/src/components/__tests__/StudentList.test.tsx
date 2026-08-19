@@ -23,6 +23,7 @@ vi.mock('../../api', () => ({
   renameStudent: vi.fn(),
   deleteStudent: vi.fn(),
   listLevels: vi.fn(),
+  WEEKDAYS: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
 }))
 
 const mockListClasses = listClasses as ReturnType<typeof vi.fn>
@@ -46,7 +47,7 @@ describe('StudentList', () => {
   it('renders class groups after fetch', async () => {
     mockListClasses.mockResolvedValueOnce({
       classes: [
-        { id: 1, name: 'Math 101', levelId: 1, levelName: "Math 101", scheduleName: "", studentCount: 2 },
+        { id: 1, name: 'Math 101 · Wed', levelId: 1, levelName: "Math 101", day: "Wednesday", timeSlot: "", studentCount: 2 },
       ],
     })
 
@@ -86,9 +87,9 @@ describe('StudentList', () => {
   it('expands newly created class and shows add-student form', async () => {
     const user = userEvent.setup()
     mockListClasses.mockResolvedValueOnce({
-      classes: [{ id: 1, name: 'Math 101', levelId: 2, levelName: "Math 101", scheduleName: "", studentCount: 2 }],
+      classes: [{ id: 1, name: 'Math 101 · Wed', levelId: 2, levelName: "Math 101", day: "Wednesday", timeSlot: "", studentCount: 2 }],
     })
-    mockCreateClass.mockResolvedValueOnce({ id: 5, name: 'Science', levelId: 1, levelName: "Science", scheduleName: "", studentCount: 0 })
+    mockCreateClass.mockResolvedValueOnce({ id: 5, name: 'Science · Mon', levelId: 1, levelName: "Science", day: "Monday", timeSlot: "", studentCount: 0 })
 
     render(<StudentList />)
 
@@ -101,6 +102,7 @@ describe('StudentList', () => {
       expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
     })
     await user.selectOptions(screen.getByTestId('add-class-level-select'), '1')
+    await user.selectOptions(screen.getByTestId('add-class-day-select'), 'Monday')
     await user.click(screen.getByTestId('add-class-submit'))
 
     await waitFor(() => {

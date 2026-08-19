@@ -250,13 +250,13 @@ button:active,
   max-width: 180px;
 }
 
-.inline-class-edit .inline-edit-group {
+.inline-class-edit .inline-edit-time-slot {
   max-width: 140px;
   font-weight: 400;
   font-size: 0.9em;
 }
 
-.schedule-name-text {
+.time-slot-text {
   font-weight: 400;
   color: var(--ink-muted);
   font-size: 0.9em;

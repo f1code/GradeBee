@@ -29,10 +29,10 @@
 - `background: var(--chalk)`, `border-radius: 12px`, warm box-shadow (`--shadow-md`).
 - Used for: class groups, setup panels, upload states, sign-in card.
 
-### Level and Schedule fields
+### Level and Time slot fields
 The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinct purposes — surface this distinction in helper text:
 - **Level** (required): a `<select>` over the Group's Levels (fetched via `listLevels`), never free text — Teachers pick, they don't type. Also drives report style via that Level's Report Instructions. An empty Level list shows an "ask your admin" message instead of the form.
-- **Schedule** (optional, e.g. "Period 1"): purely organizational free text — groups classes by schedule slot. Shown as `Level — Schedule`. It has no effect on report generation.
+- **Time slot** (optional, e.g. "Period 1", "14:10"): purely organizational free text — groups classes by time slot. Shown as `Level · Time slot`. It has no effect on report generation.
 
 ### Buttons
 - Base `<button>` is primary-styled by default: `background: var(--honey)`, `color: var(--ink)`, shadow, 3D hover lift. No class needed.

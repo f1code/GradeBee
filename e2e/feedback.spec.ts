@@ -13,7 +13,7 @@ async function mockBaseRoutes(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          classes: [{ id: 1, levelId: 1, name: 'Grade 3A', levelName: 'Grade 3A', scheduleName: '', studentCount: 1 }],
+          classes: [{ id: 1, levelId: 1, name: 'Grade 3A · Mon', levelName: 'Grade 3A', day: 'Monday', timeSlot: '', studentCount: 1 }],
         }),
       })
     } else {

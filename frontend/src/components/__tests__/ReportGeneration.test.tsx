@@ -30,7 +30,7 @@ beforeEach(() => {
 
 async function renderWithStudents() {
   mockListClasses.mockResolvedValue({
-    classes: [{ id: 1, name: 'Math 101', levelId: 1, levelName: 'Math 101', scheduleName: '', studentCount: 2 }],
+    classes: [{ id: 1, name: 'Math 101', levelId: 1, levelName: 'Math 101', timeSlot: '', studentCount: 2 }],
   })
   mockListStudents.mockResolvedValue({
     students: [
@@ -102,7 +102,7 @@ describe('ReportGeneration — Level instructions gate', () => {
     studentName = 'Alice'
   ) {
     mockListClasses.mockResolvedValue({
-      classes: [{ id: 1, name: levelName, studentCount: 1, userId: '', levelId: 1, levelName, scheduleName: '', position: 0, createdAt: '' }],
+      classes: [{ id: 1, name: levelName, studentCount: 1, userId: '', levelId: 1, levelName, timeSlot: '', position: 0, createdAt: '' }],
     })
     mockListStudents.mockResolvedValue({
       students: [{ id: 10, name: studentName, classId: 1, createdAt: '', aliases: [] }],
@@ -199,8 +199,8 @@ describe('ReportGeneration — Level instructions gate', () => {
   it('renders one block per distinct Level across multiple selected Levels', async () => {
     mockListClasses.mockResolvedValue({
       classes: [
-        { id: 1, name: 'ClassA', levelId: 1, levelName: 'ClassA', studentCount: 1, userId: '', scheduleName: '', position: 0, createdAt: '' },
-        { id: 2, name: 'ClassB', levelId: 2, levelName: 'ClassB', studentCount: 1, userId: '', scheduleName: '', position: 0, createdAt: '' },
+        { id: 1, name: 'ClassA', levelId: 1, levelName: 'ClassA', studentCount: 1, userId: '', timeSlot: '', position: 0, createdAt: '' },
+        { id: 2, name: 'ClassB', levelId: 2, levelName: 'ClassB', studentCount: 1, userId: '', timeSlot: '', position: 0, createdAt: '' },
       ],
     })
     mockListStudents.mockImplementation((_classId: unknown) => {
@@ -232,7 +232,7 @@ describe('ReportGeneration — Level instructions gate', () => {
 describe('ReportGeneration — Levels load failure', () => {
   it('surfaces a listLevels() failure and disables Generate', async () => {
     mockListClasses.mockResolvedValue({
-      classes: [{ id: 1, name: 'Math 101', levelId: 1, levelName: 'Math 101', scheduleName: '', studentCount: 2 }],
+      classes: [{ id: 1, name: 'Math 101', levelId: 1, levelName: 'Math 101', timeSlot: '', studentCount: 2 }],
     })
     mockListStudents.mockResolvedValue({
       students: [

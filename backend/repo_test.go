@@ -41,9 +41,9 @@ func TestClassRepo_CRUD(t *testing.T) {
 	mathID := testLevelID(t, r.classes.db, "test-group", "Math")
 
 	// Create
-	c, err := r.classes.Create(ctx, "test-group", "user1", mathID, "")
+	c, err := r.classes.Create(ctx, "test-group", "user1", mathID, "Monday", "")
 	require.NoError(t, err, "create")
-	assert.Equal(t, "Math", c.Name)
+	assert.Equal(t, "Math · Mon", c.Name)
 	assert.Equal(t, "user1", c.UserID)
 	assert.NotZero(t, c.ID)
 
@@ -51,19 +51,19 @@ func TestClassRepo_CRUD(t *testing.T) {
 	list, err := r.classes.List(ctx, "user1")
 	require.NoError(t, err, "list")
 	require.Len(t, list, 1)
-	assert.Equal(t, "Math", list[0].Name)
+	assert.Equal(t, "Math · Mon", list[0].Name)
 	assert.Equal(t, 0, list[0].StudentCount)
 
 	// Duplicate
-	_, err = r.classes.Create(ctx, "test-group", "user1", mathID, "")
+	_, err = r.classes.Create(ctx, "test-group", "user1", mathID, "Monday", "")
 	assert.True(t, errors.Is(err, ErrDuplicate), "expected ErrDuplicate, got: %v", err)
 
 	// Rename (change Level)
 	scienceID := testLevelID(t, r.classes.db, "test-group", "Science")
-	require.NoError(t, r.classes.Update(ctx, "test-group", "user1", c.ID, scienceID, ""), "rename")
+	require.NoError(t, r.classes.Update(ctx, "test-group", "user1", c.ID, scienceID, "Monday", ""), "rename")
 
 	// Rename not found
-	err = r.classes.Update(ctx, "test-group", "user1", 999, scienceID, "")
+	err = r.classes.Update(ctx, "test-group", "user1", 999, scienceID, "Monday", "")
 	assert.True(t, errors.Is(err, ErrNotFound), "expected ErrNotFound, got: %v", err)
 
 	// Delete
@@ -75,9 +75,9 @@ func TestClassRepo_CRUD(t *testing.T) {
 	// User isolation
 	aID := testLevelID(t, r.classes.db, "test-group", "A")
 	bID := testLevelID(t, r.classes.db, "test-group", "B")
-	_, err = r.classes.Create(ctx, "test-group", "user1", aID, "")
+	_, err = r.classes.Create(ctx, "test-group", "user1", aID, "Monday", "")
 	require.NoError(t, err, "create A")
-	_, err = r.classes.Create(ctx, "test-group", "user2", bID, "")
+	_, err = r.classes.Create(ctx, "test-group", "user2", bID, "Monday", "")
 	require.NoError(t, err, "create B")
 	l1, err := r.classes.List(ctx, "user1")
 	require.NoError(t, err, "list user1")
@@ -93,12 +93,12 @@ func TestClassRepo_GetByID(t *testing.T) {
 	ctx := context.Background()
 	levelID := testLevelID(t, db, "test-group", "Math 101")
 
-	c, err := repo.Create(ctx, "test-group", "user1", levelID, "")
+	c, err := repo.Create(ctx, "test-group", "user1", levelID, "Monday", "")
 	require.NoError(t, err)
 
 	got, err := repo.GetByID(ctx, c.ID)
 	require.NoError(t, err, "GetByID")
-	assert.Equal(t, "Math 101", got.Name)
+	assert.Equal(t, "Math 101 · Mon", got.Name)
 	assert.Equal(t, "user1", got.UserID)
 
 	_, err = repo.GetByID(ctx, 99999)

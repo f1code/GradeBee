@@ -240,9 +240,9 @@ func TestHandleDeleteLevel_ReferencedByClass_Returns409WithCount(t *testing.T) {
 	db := serviceDeps.GetDB()
 	target := newTestLevel(t, db, "org_a", "Marcia")
 	classRepo := &ClassRepo{db: db}
-	_, err := classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "")
+	_, err := classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "Monday", "")
 	require.NoError(t, err)
-	_, err = classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "AM")
+	_, err = classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "Monday", "AM")
 	require.NoError(t, err)
 
 	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_a", "org:admin")
@@ -265,7 +265,7 @@ func TestHandleDeleteLevel_ReferencedByOneClass_Returns409WithSingularMessage(t 
 	db := serviceDeps.GetDB()
 	target := newTestLevel(t, db, "org_a", "Marcia")
 	classRepo := &ClassRepo{db: db}
-	_, err := classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "")
+	_, err := classRepo.Create(context.Background(), "org_a", "user_1", target.ID, "Monday", "")
 	require.NoError(t, err)
 
 	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_a", "org:admin")

@@ -92,7 +92,7 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 	assert.Equal(t, "Maxence", gen.lastRegenReq.Student)
-	assert.Equal(t, "Thursday Timezone", gen.lastRegenReq.ClassName)
+	assert.Equal(t, "Thursday Timezone · Mon", gen.lastRegenReq.ClassName)
 	assert.Equal(t, "2026-01-01", gen.lastRegenReq.StartDate)
 	assert.Equal(t, "make it shorter", gen.lastRegenReq.Feedback)
 	assert.Equal(t, "be concise", gen.lastRegenReq.Instructions)
@@ -239,7 +239,7 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, int64(77), resp.ID)
 	assert.Equal(t, "Bob", resp.Student)
-	assert.Equal(t, "Science", resp.ClassName)
+	assert.Equal(t, "Science · Mon", resp.ClassName)
 	assert.Equal(t, "2026-02-01", resp.StartDate)
 	assert.Equal(t, "Write three sections.", gen.lastRegenReq.ReportInstructions)
 }
@@ -277,5 +277,5 @@ func TestHandleGetReport_IncludesStudentAndClass(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "Carol", resp.Student)
-	assert.Equal(t, "History", resp.ClassName)
+	assert.Equal(t, "History · Mon", resp.ClassName)
 }

@@ -9,6 +9,7 @@ vi.mock('@clerk/react', () => ({
 vi.mock('../../api', () => ({
   createClass: vi.fn(),
   listLevels: vi.fn(),
+  WEEKDAYS: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
 }))
 
 const mockCreateClass = createClass as ReturnType<typeof vi.fn>
@@ -42,12 +43,16 @@ describe('AddClassForm', () => {
     expect(screen.queryByTestId('add-class-cancel')).not.toBeInTheDocument()
   })
 
-  it('disables submit until a level is chosen', async () => {
+  it('disables submit until a level and day are chosen', async () => {
     render(<AddClassForm onCreated={onCreated} onCancel={onCancel} />)
     await waitFor(() => {
       expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
     })
     expect(screen.getByTestId('add-class-submit')).toBeDisabled()
+    fireEvent.change(screen.getByTestId('add-class-level-select'), { target: { value: '1' } })
+    expect(screen.getByTestId('add-class-submit')).toBeDisabled()
+    fireEvent.change(screen.getByTestId('add-class-day-select'), { target: { value: 'Wednesday' } })
+    expect(screen.getByTestId('add-class-submit')).not.toBeDisabled()
   })
 
   it('shows an ask-admin message when there are no levels', async () => {
@@ -59,7 +64,7 @@ describe('AddClassForm', () => {
   })
 
   it('calls createClass and fires onCreated on submit', async () => {
-    const cls = { id: 1, name: 'Math', studentCount: 0 }
+    const cls = { id: 1, name: 'Math · Wed', studentCount: 0 }
     mockCreateClass.mockResolvedValueOnce(cls)
 
     render(<AddClassForm onCreated={onCreated} onCancel={onCancel} />)
@@ -68,10 +73,11 @@ describe('AddClassForm', () => {
       expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
     })
     fireEvent.change(screen.getByTestId('add-class-level-select'), { target: { value: '1' } })
+    fireEvent.change(screen.getByTestId('add-class-day-select'), { target: { value: 'Wednesday' } })
     fireEvent.click(screen.getByTestId('add-class-submit'))
 
     await waitFor(() => {
-      expect(mockCreateClass).toHaveBeenCalledWith(1, '', expect.any(Function))
+      expect(mockCreateClass).toHaveBeenCalledWith(1, 'Wednesday', '', expect.any(Function))
     })
     expect(onCreated).toHaveBeenCalledWith(cls)
   })
@@ -85,6 +91,7 @@ describe('AddClassForm', () => {
       expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
     })
     fireEvent.change(screen.getByTestId('add-class-level-select'), { target: { value: '1' } })
+    fireEvent.change(screen.getByTestId('add-class-day-select'), { target: { value: 'Wednesday' } })
     fireEvent.click(screen.getByTestId('add-class-submit'))
 
     await waitFor(() => {

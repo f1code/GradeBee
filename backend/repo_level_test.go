@@ -205,9 +205,9 @@ func TestLevelRepo_Delete_ReferencedByClass_ReturnsErrLevelInUseAndPreservesData
 	l, err := levelRepo.Create(t.Context(), "org_a", "Marcia")
 	require.NoError(t, err)
 
-	c1, err := classRepo.Create(t.Context(), "org_a", "user_1", l.ID, "")
+	c1, err := classRepo.Create(t.Context(), "org_a", "user_1", l.ID, "Monday", "")
 	require.NoError(t, err)
-	c2, err := classRepo.Create(t.Context(), "org_a", "user_1", l.ID, "AM")
+	c2, err := classRepo.Create(t.Context(), "org_a", "user_1", l.ID, "Monday", "AM")
 	require.NoError(t, err)
 	s, err := studentRepo.Create(t.Context(), c1.ID, "Alice")
 	require.NoError(t, err)

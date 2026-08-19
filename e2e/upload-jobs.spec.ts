@@ -8,7 +8,7 @@ async function mockClasses(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          classes: [{ id: 1, name: '5A', studentCount: 1 }],
+          classes: [{ id: 1, name: '5A', day: 'Monday', timeSlot: '', studentCount: 1 }],
         }),
       })
     } else {

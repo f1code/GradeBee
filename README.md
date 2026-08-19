@@ -12,12 +12,12 @@ GradeBee helps teachers record voice notes about students and automatically gene
 
 ### Organizing Classes
 
-Each class has a **level** (required) and an optional **schedule**.
+Each class has a **level** (required) and an optional **time slot**.
 
-- **Schedule** lets you run several classes of the same type side by side. Create
-  multiple classes that share a level but differ by schedule — e.g. a
-  "Maths" class with schedules "Period 1" and "Period 2". The schedule is purely
-  organizational.
+- **Time slot** lets you run several classes of the same type side by side. Create
+  multiple classes that share a level but differ by time slot — e.g. a
+  "Maths" class with time slots "Period 1" and "Period 2". The time slot is purely
+  organizational free text.
 - **Level** also drives report style. Each level carries Report
   Instructions — the sections, tone, and content your reports must have.
   An admin writes them once; every report generated for that level follows
