@@ -182,9 +182,9 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
       {activeTab === 'notes' && (
         <>
           <HintBanner storageKey="gradebee:hint:notes">Upload audio — GradeBee processes it in the background and creates notes automatically.</HintBanner>
-          <StudentList />
-          <JobStatus pollNowRef={jobPollNowRef} />
           <AudioUpload onUploadDone={() => jobPollNowRef.current?.()} />
+          <JobStatus pollNowRef={jobPollNowRef} />
+          <StudentList />
         </>
       )}
       {activeTab === 'reports' && (

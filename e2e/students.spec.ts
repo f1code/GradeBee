@@ -26,6 +26,15 @@ test.describe('Student list', () => {
 
     await page.goto('/')
     await expect(page.getByTestId('student-list')).toBeVisible({ timeout: 10000 })
+    await expect(page.getByTestId('audio-upload')).toBeVisible()
+
+    const uploadPrecedesRoster = await page.evaluate(() => {
+      const upload = document.querySelector('[data-testid="audio-upload"]')
+      const list = document.querySelector('[data-testid="student-list"]')
+      if (!upload || !list) return false
+      return (upload.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    })
+    expect(uploadPrecedesRoster).toBe(true)
 
     await expect(page.getByTestId('class-group-1')).toBeVisible()
     await expect(page.getByTestId('class-group-2')).toBeVisible()

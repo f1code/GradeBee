@@ -52,6 +52,16 @@ The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinc
 - Dashed `--honey` border, `--comb` background, `12px` radius.
 - Drag-over: solid border + `--honey-light` bg + glow ring.
 
+### Notes tab stack
+Signed-in Notes tab (`activeTab === 'notes'` in `App.tsx`) is a single column. Do not add a Classes / Students / Record tab; `activeTab` stays `'notes' | 'reports' | 'levels'`.
+
+1. Hint banner (unchanged)
+2. Recording / Add Notes (`AudioUpload`) first
+3. Job status when any jobs exist (`JobStatus` returns `null` otherwise)
+4. Roster (`StudentList`) below — loading, fetch error, and **No Classes Yet** stay in this slot. Class **cards** start collapsed behind the summary toggle at ≤640px; **Your Classes** and **+ Add Class** stay visible. Desktop (`> 640px`) stays expanded.
+
+How It Works onboarding still describes the lifetime workflow (set up classes, then record). That is not the daily screen order.
+
 ### Empty/Info States
 - `.info-box`: centered card with subtle hex pattern overlay.
 
