@@ -1,4 +1,5 @@
-import { motion, AnimatePresence } from 'motion/react'
+import { forwardRef } from 'react'
+import { motion } from 'motion/react'
 
 const steps = [
   {
@@ -23,40 +24,41 @@ const steps = [
   },
 ]
 
-export default function HowItWorks({ onClose }: { onClose: () => void }) {
+const HowItWorks = forwardRef<HTMLDivElement, { onClose: () => void }>(function HowItWorks({ onClose }, ref) {
   return (
-    <AnimatePresence>
+    <motion.div
+      ref={ref}
+      className="how-it-works-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
       <motion.div
-        className="how-it-works-overlay"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
+        className="how-it-works-card card"
+        initial={{ opacity: 0, y: 30, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <motion.div
-          className="how-it-works-card card"
-          initial={{ opacity: 0, y: 30, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 20 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button className="how-it-works-close" onClick={onClose} aria-label="Close">×</button>
-          <h2>How it works</h2>
-          <div className="guide-steps">
-            {steps.map((s) => (
-              <div className="guide-step" key={s.num}>
-                <span className="guide-step-num">{s.num}</span>
-                <div>
-                  <h3>{s.heading}</h3>
-                  <p>{s.desc}</p>
-                </div>
+        <button className="how-it-works-close" onClick={onClose} aria-label="Close">×</button>
+        <h2>How it works</h2>
+        <div className="guide-steps">
+          {steps.map((s) => (
+            <div className="guide-step" key={s.num}>
+              <span className="guide-step-num">{s.num}</span>
+              <div>
+                <h3>{s.heading}</h3>
+                <p>{s.desc}</p>
               </div>
-            ))}
-          </div>
-          <button className="guide-dismiss-btn" onClick={onClose}>Got it</button>
-        </motion.div>
+            </div>
+          ))}
+        </div>
+        <button className="guide-dismiss-btn" onClick={onClose}>Got it</button>
       </motion.div>
-    </AnimatePresence>
+    </motion.div>
   )
-}
+})
+
+export default HowItWorks

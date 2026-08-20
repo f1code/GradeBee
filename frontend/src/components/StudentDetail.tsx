@@ -148,6 +148,7 @@ export default function StudentDetail({ studentId, studentName, className, onCol
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
           >
             <InlineError onDismiss={() => setError(null)}>{error}</InlineError>
           </motion.div>

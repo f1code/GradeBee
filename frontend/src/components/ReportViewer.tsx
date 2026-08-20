@@ -220,6 +220,7 @@ export default function ReportViewer({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
+            style={{ overflow: 'hidden' }}
           >
             <span>⚠️ {error}</span>
           </motion.div>
@@ -278,6 +279,7 @@ export default function ReportViewer({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
           >
             <textarea
               value={thumbComment}
@@ -316,6 +318,7 @@ export default function ReportViewer({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
           >
             <textarea
               value={feedback}

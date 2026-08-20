@@ -198,6 +198,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.25 }}
+            style={{ overflow: 'hidden' }}
           >
             <div className="job-card-row">
               <HoneycombSpinner />
@@ -301,8 +302,9 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
       data-testid="job-done"
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, overflow: 'hidden' }}
+      exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0 }}
       transition={{ duration: 0.2 }}
+      style={{ overflow: 'hidden' }}
     >
       <div className="job-card-row">
         <span className="job-done-icon">✓</span>
@@ -349,6 +351,7 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
+                style={{ overflow: 'hidden' }}
               >
                 <TranscriptReview
                   transcript={job.transcript}

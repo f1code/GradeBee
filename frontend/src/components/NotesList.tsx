@@ -230,6 +230,7 @@ function NoteCard({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
           >
             <textarea
               value={thumbComment}
@@ -273,6 +274,7 @@ function NoteCard({
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.2 }}
+                style={{ overflow: 'hidden' }}
               >
                 <pre className="note-transcript-text">{note.transcript}</pre>
               </motion.div>
@@ -290,6 +292,7 @@ function NoteCard({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden' }}
           >
             <span>Are you sure?</span>
             <div className="delete-confirm-actions">

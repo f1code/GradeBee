@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@clerk/react'
-import { motion } from 'motion/react'
 import { createClass, listLevels, WEEKDAYS, type ClassItem, type LevelItem } from '../api'
 import InlineError from './InlineError'
 
@@ -61,13 +60,9 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
 
   if (levelsStatus === 'ready' && levels.length === 0) {
     return (
-      <motion.div
+      <div
         className="info-box"
         data-testid="add-class-no-levels"
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -8 }}
-        transition={{ duration: 0.2 }}
       >
         <h2>No Levels yet</h2>
         <p>Ask an Admin to add one before creating a class.</p>
@@ -76,18 +71,12 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
             Cancel
           </button>
         )}
-      </motion.div>
+      </div>
     )
   }
 
   return (
-    <motion.div
-      className="add-class-form"
-      initial={{ opacity: 0, y: -8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8 }}
-      transition={{ duration: 0.2 }}
-    >
+    <div className="add-class-form">
       <form onSubmit={handleSubmit} className="add-class-form-fields">
         <div className="add-class-field-group">
           <select
@@ -154,6 +143,6 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
           </InlineError>
         </div>
       )}
-    </motion.div>
+    </div>
   )
 }

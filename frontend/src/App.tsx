@@ -1,6 +1,6 @@
 import { Show, SignInButton, UserButton, useAuth, useUser } from '@clerk/react'
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'motion/react'
+import { motion, AnimatePresence } from 'motion/react'
 import StudentList from './components/StudentList'
 import AudioUpload from './components/AudioUpload'
 import JobStatus from './components/JobStatus'
@@ -107,7 +107,9 @@ function App() {
           <SignedInContent activeTab={activeTab} setActiveTab={setActiveTab} setShowGuide={setShowGuide} />
         </Show>
       </main>
-      {showGuide && <HowItWorks onClose={() => setShowGuide(false)} />}
+      <AnimatePresence>
+        {showGuide && <HowItWorks key="how-it-works" onClose={() => setShowGuide(false)} />}
+      </AnimatePresence>
       <footer className="app-footer">
         <a href="/privacy">Privacy &amp; AI Disclosure</a>
         <span className="app-footer-separator" aria-hidden="true">·</span>

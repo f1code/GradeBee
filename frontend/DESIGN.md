@@ -85,6 +85,9 @@ How It Works and student-detail use a dimmed overlay, chalk card, and × close (
 
 ### Animations
 - Use `motion` library for page-load stagger and state transitions.
+- In-flow show/hide (empty slots, forms, banners, expand/collapse) animates **height** with `overflow: hidden` so the layout box shrinks with the fade. Do not translate `y` on in-flow dismissals — that leaves the layout box in place and causes a bounce when the node unmounts.
+- An empty `.info-box` and its replacement form share one `AnimatePresence mode="wait"` slot so they never occupy space together (roster **No Classes Yet** / add-class, Levels **No Levels yet** / add-level).
+- Overlay/modal exits may still use `y` (they are out of document flow).
 - Honeycomb spinner (`.honeycomb-spinner`) for loading states.
 - Student list cards stagger in on load.
 

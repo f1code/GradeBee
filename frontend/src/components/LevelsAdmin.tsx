@@ -13,6 +13,7 @@ import InlineError from './InlineError'
 import InlineEdit from './InlineEdit'
 import ItemRow from './ItemRow'
 import { HexBullet } from './Icons'
+import CollapsePresence from './CollapsePresence'
 
 type Status = 'loading' | 'error' | 'ready'
 
@@ -134,22 +135,26 @@ export default function LevelsAdmin() {
         Levels are shared across your Group. Report Instructions guide how GradeBee writes report cards for each Level.
       </p>
 
-      <AnimatePresence>
-        {showAdd && (
-          <AddLevelForm
-            existingNames={levels.map(l => l.name)}
-            onCreated={handleCreated}
-            onCancel={() => setShowAdd(false)}
-          />
-        )}
+      <AnimatePresence mode="wait" initial={false}>
+        {showAdd ? (
+          <CollapsePresence key="add-level">
+            <AddLevelForm
+              existingNames={levels.map(l => l.name)}
+              onCreated={handleCreated}
+              onCancel={() => setShowAdd(false)}
+            />
+          </CollapsePresence>
+        ) : levels.length === 0 ? (
+          <CollapsePresence key="empty">
+            <div className="info-box">
+              <h2>No Levels yet</h2>
+              <p>Add your Group's first Level to get started.</p>
+            </div>
+          </CollapsePresence>
+        ) : null}
       </AnimatePresence>
 
-      {levels.length === 0 && !showAdd ? (
-        <div className="info-box">
-          <h2>No Levels yet</h2>
-          <p>Add your Group's first Level to get started.</p>
-        </div>
-      ) : (
+      {levels.length > 0 && (
         <ul className="levels-admin-list">
           {levels.map(level => (
             <li key={level.id}>
@@ -236,11 +241,8 @@ function AddLevelForm({
   }
 
   return (
-    <motion.form
+    <form
       className="add-class-form"
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
       onSubmit={handleSubmit}
     >
       <div className="add-class-form-row">
@@ -266,7 +268,7 @@ function AddLevelForm({
           {apiError}
         </InlineError>
       )}
-    </motion.form>
+    </form>
   )
 }
 

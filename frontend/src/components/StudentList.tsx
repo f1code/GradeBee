@@ -23,6 +23,7 @@ import InlineEdit from './InlineEdit'
 
 import { HexBullet, ChevronIcon, PencilIcon, TrashIcon } from './Icons'
 import ItemRow from './ItemRow'
+import CollapsePresence from './CollapsePresence'
 
 const containerVariants = {
   hidden: {},
@@ -284,22 +285,23 @@ export default function StudentList() {
         </button>
       </div>
 
-      {/* Add class form */}
-      <AnimatePresence>
-        {showAddClass && (
-          <AddClassForm
-            onCreated={handleClassCreated}
-            onCancel={() => setShowAddClass(false)}
-          />
-        )}
+      <AnimatePresence mode="wait" initial={false}>
+        {showAddClass ? (
+          <CollapsePresence key="add-class">
+            <AddClassForm
+              onCreated={handleClassCreated}
+              onCancel={() => setShowAddClass(false)}
+            />
+          </CollapsePresence>
+        ) : classes.length === 0 ? (
+          <CollapsePresence key="empty">
+            <div className="info-box" data-testid="student-list-empty">
+              <h2>No Classes Yet</h2>
+              <p>Add your first class to get started.</p>
+            </div>
+          </CollapsePresence>
+        ) : null}
       </AnimatePresence>
-
-      {classes.length === 0 && !showAddClass && (
-        <div className="info-box" data-testid="student-list-empty">
-          <h2>No Classes Yet</h2>
-          <p>Add your first class to get started.</p>
-        </div>
-      )}
 
       {/* Mobile collapse toggle */}
       {isMobile && classes.length > 0 && (
@@ -348,6 +350,7 @@ export default function StudentList() {
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2 }}
+                        style={{ overflow: 'hidden' }}
                       >
                         <span>Delete <strong>{cls.name}</strong> and all its students?</span>
                         <div className="delete-confirm-actions">
@@ -444,6 +447,7 @@ export default function StudentList() {
                                       animate={{ opacity: 1 }}
                                       exit={{ opacity: 0, height: 0, padding: 0, margin: 0 }}
                                       transition={{ duration: 0.2 }}
+                                      style={{ overflow: 'hidden' }}
                                     >
                                       {editingStudentId === s.id ? (
                                         <InlineEdit
