@@ -61,6 +61,7 @@ describe('AddClassForm', () => {
     await waitFor(() => {
       expect(screen.getByTestId('add-class-no-levels')).toBeInTheDocument()
     })
+    expect(screen.getByRole('heading', { name: 'No Levels yet' })).toBeInTheDocument()
   })
 
   it('calls createClass and fires onCreated on submit', async () => {

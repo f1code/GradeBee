@@ -9,7 +9,7 @@
 | `--honey` | `#E8A317` | Primary accent, buttons, links |
 | `--honey-dark` | `#C4880F` | Hover/pressed states |
 | `--honey-light` | `#FFF3D4` | Hover backgrounds, highlights |
-| `--comb` | `#F5E6C8` | Card backgrounds, drop zone, borders |
+| `--comb` | `#F5E6C8` | Card backgrounds, recording card, borders |
 | `--ink` | `#2C1810` | Primary text |
 | `--ink-muted` | `#7A6B5D` | Secondary text, counts, captions |
 | `--parchment` | `#FBF7F0` | Page background |
@@ -48,9 +48,22 @@ The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinc
 - Color: `var(--honey-dark)`. Underline with faded honey color.
 - Toolbar links are pill-shaped (`.toolbar-link`) with icon + label.
 
-### Drop Zone
-- Dashed `--honey` border, `--comb` background, `12px` radius.
-- Drag-over: solid border + `--honey-light` bg + glow ring.
+### Recording card
+- Large warm card (`.recording-card`): `--comb` background, `12px` radius, `--shadow-md`. Primary idle action on Add Notes. Recording and review reuse the same card (`.recording-panel`).
+- Heading **Record observations live** in Fraunces; supporting copy in `--ink-muted`.
+- Prominent primary **Start recording** button (default honey button) with a recording icon and visible text.
+- While recording: centered **● Recording** status, large tabular timer, muted size, then **Stop** / **Cancel**. The timer is not in the live region.
+- When live recording is unsupported, the card stays and states **Live recording isn't available in this browser.** **Upload audio** becomes the primary button inside the card and is not duplicated below.
+
+### Secondary note-entry actions
+- Label **Or add existing notes** (`.existing-notes-label`) sits under the recording card.
+- `.secondary-actions` is a centered row of equal `.btn-secondary` actions: **Upload audio**, **Select from Drive**, **Enter text**.
+- On mobile (≤640px, or `.secondary-actions--stack`), the row becomes a vertical stack with `min-height: 44px` and full width. The recording card stays first.
+
+### File drop
+- There is no boxed idle drop zone and no copy that advertises drag-and-drop, accepted formats, or the 25 MB limit.
+- File drops are handled at the Notes tab viewport (window listeners while Add Notes is mounted), not on Reports or Levels.
+- While a file drag is over the Notes page, `.notes-drop-overlay` covers the viewport with honey wash (`--honey-light`), a solid `--honey` border, and a glow ring. Copy: **Drop audio to upload**. `pointer-events: none` so it does not steal the drop or flicker on nested targets. Hide it when the drag leaves or the drop completes. Do not show it while recording, reviewing, uploading, or while the Enter text modal is open.
 
 ### Notes tab stack
 Signed-in Notes tab (`activeTab === 'notes'` in `App.tsx`) is a single column. Do not add a Classes / Students / Record tab; `activeTab` stays `'notes' | 'reports' | 'levels'`.
@@ -62,8 +75,13 @@ Signed-in Notes tab (`activeTab === 'notes'` in `App.tsx`) is a single column. D
 
 How It Works onboarding still describes the lifetime workflow (set up classes, then record). That is not the daily screen order.
 
+### Modals
+How It Works and student-detail use a dimmed overlay, chalk card, and × close (`modals.css`). Enter text on Add Notes reuses the How It Works classes (`how-it-works-overlay` / `how-it-works-card` / `how-it-works-close`) rather than a new visual language. Overlay click does **not** dismiss Enter text — only × or Escape. `.paste-text-modal-close` is 44×44 to meet the touch-target minimum.
+
 ### Empty/Info States
-- `.info-box`: centered card with subtle hex pattern overlay.
+- `.info-box`: centered card with subtle hex pattern overlay. Used for Levels, notes list, report history, and roster empties.
+- Roster empty uses the same chrome as the populated list: **Your Classes** + **+ Add Class** sit outside the slot. The slot is either `.info-box` (**No Classes Yet**) or the add-class form — never both, and never wrap the header in `.info-box`.
+- Add-class with no Levels uses `.info-box` (**No Levels yet** / ask an Admin), not `.add-class-form`.
 
 ### Animations
 - Use `motion` library for page-load stagger and state transitions.
@@ -169,7 +187,7 @@ Use for global/navigation-level errors that appear and auto-dismiss or require a
 ### Strategy
 - **Mobile-first column stacking**: flex layouts wrap/stack at narrow widths.
 - **Student list**: collapses on mobile (≤640px) with a summary toggle; expanded on desktop.
-- **Audio upload**: drop zone replaced with prominent stacked action buttons on mobile.
+- **Audio upload**: recording card first; secondary actions in a row on desktop and a 44px stack on mobile.
 - **Note confirmation save bar**: sticky at viewport bottom on mobile with safe-area inset padding.
 - **Safe area insets**: `env(safe-area-inset-bottom)` applied to sticky bars and app padding for iPhone home indicator clearance.
 
@@ -186,7 +204,7 @@ All rules live under `frontend/src/styles/`:
 | `shell.css` | App chrome only: `.app`, header, honeycomb divider, logo, bee-icon, `app-nav`, header-actions, footer |
 | `sign-in.css` | Sign-in page, feature list, consent checkbox |
 | `controls.css` | Buttons, `icon-btn`, `item-row`, cards (incl. `info-box`), forms, `inline-edit`, `delete-confirm`, `flash-error`, `hint-banner`, inline error card |
-| `modals.css` | How It Works modal, student-detail modal shell |
+| `modals.css` | How It Works, student-detail, and Enter text modal shells |
 | `roster-upload.css` | Student list, class group, audio upload, job status, transcript review |
 | `reports.css` | Report generation, viewer, history |
 | `student-detail-notes.css` | Student detail expansion + tabs, student aliases, note editor |

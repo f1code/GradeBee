@@ -27,7 +27,15 @@ Follow the design system documented in `frontend/DESIGN.md` for all UI work. Use
 
 ## Editing Code - Definition of Done
 
-1. After editing **any** code, run lint and test **from the root of the repo** to catch issues:
+1. Use Node **24.13.x** from `.nvmrc` (`package.json` `engines` is `>=24.13.0 <25`). Agent shells often have Homebrew Node 25+ on `PATH`, which breaks jsdom `localStorage` in frontend tests. Before `make lint` / `make test`:
+
+```bash
+eval "$(fnm env)"
+fnm use
+# `node -v` must print v24.13.x
+```
+
+2. After editing **any** code, run lint and test **from the root of the repo** to catch issues:
 
 ```bash
 make lint
@@ -36,7 +44,7 @@ make test
 
 Run this before considering code changes complete.
 
-2. **Docs updated** - see "Documentation Maintenance".
+3. **Docs updated** - see "Documentation Maintenance".
 If unsure whether a doc update is needed, prefer updating the authoritative doc over leaving it stale.
 
 ## Documentation Maintenance

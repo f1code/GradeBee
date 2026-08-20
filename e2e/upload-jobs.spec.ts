@@ -141,10 +141,8 @@ test.describe('Upload and job processing', () => {
     // Click "Try again"
     await page.getByTestId('upload-error').getByRole('button', { name: 'Try again' }).click()
 
-    // Back to idle — drop zone or mobile upload reappears
-    await expect(
-      page.getByTestId('drop-zone').or(page.getByTestId('mobile-upload')),
-    ).toBeVisible({ timeout: 5000 })
+    // Back to idle — recording card reappears
+    await expect(page.getByTestId('recording-card')).toBeVisible({ timeout: 5000 })
   })
 
   test('job status shows active jobs with progress labels', async ({ page }) => {

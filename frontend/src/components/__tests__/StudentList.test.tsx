@@ -70,7 +70,28 @@ describe('StudentList', () => {
     await waitFor(() => {
       expect(screen.getByTestId('student-list-empty')).toBeInTheDocument()
     })
+    expect(screen.getByRole('heading', { name: 'Your Classes' })).toBeInTheDocument()
+    expect(screen.getByTestId('add-class-btn')).toBeInTheDocument()
     expect(screen.getByText('No Classes Yet')).toBeInTheDocument()
+    expect(screen.queryByTestId('add-class-level-select')).not.toBeInTheDocument()
+  })
+
+  it('opens the add class form from the empty state header', async () => {
+    const user = userEvent.setup()
+    mockListClasses.mockResolvedValueOnce({
+      classes: [],
+    })
+
+    render(<StudentList />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('student-list-empty')).toBeInTheDocument()
+    })
+    await user.click(screen.getByTestId('add-class-btn'))
+    await waitFor(() => {
+      expect(screen.getByTestId('add-class-level-select')).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('student-list-empty')).not.toBeInTheDocument()
   })
 
   it('shows error state on fetch failure', async () => {

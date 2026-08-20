@@ -269,27 +269,6 @@ export default function StudentList() {
 
   const totalStudents = classes.reduce((sum, cls) => sum + cls.studentCount, 0)
 
-  // Empty state
-  if (classes.length === 0 && !showAddClass) {
-    return (
-      <motion.div
-        className="student-list info-box"
-        data-testid="student-list-empty"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-      >
-        <h2>No Classes Yet</h2>
-        <p>Add your first class to get started.</p>
-        <AddClassForm onCreated={cls => {
-          setClasses([cls])
-          setExpandedClassIds(new Set([cls.id]))
-          setExpandedStudents(new Map([[cls.id, []]]))
-        }} />
-      </motion.div>
-    )
-  }
-
   return (
     <div className="student-list" data-testid="student-list">
       {/* Header row */}
@@ -315,8 +294,15 @@ export default function StudentList() {
         )}
       </AnimatePresence>
 
+      {classes.length === 0 && !showAddClass && (
+        <div className="info-box" data-testid="student-list-empty">
+          <h2>No Classes Yet</h2>
+          <p>Add your first class to get started.</p>
+        </div>
+      )}
+
       {/* Mobile collapse toggle */}
-      {isMobile && (
+      {isMobile && classes.length > 0 && (
         <button
           className="student-list-collapse-toggle"
           onClick={() => setCollapsed(!collapsed)}

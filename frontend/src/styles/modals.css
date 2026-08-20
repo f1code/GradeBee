@@ -57,6 +57,12 @@
   box-shadow: none;
 }
 
+.how-it-works-close.paste-text-modal-close {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
 /* Student detail modal (from JobStatus note links) */
 .student-modal-overlay {
   position: fixed;
@@ -154,4 +160,3 @@
   font-size: 1rem;
   justify-content: center;
 }
-

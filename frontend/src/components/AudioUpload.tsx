@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { uploadAudio, getGoogleToken, importFromDrive, submitTextNotes } from '../api'
 import { useDrivePicker, AUDIO_MIME_TYPES } from '../hooks/useDrivePicker'
@@ -17,7 +18,7 @@ const SUCCESS_TOAST_MS = 3000
 
 async function runBatchUpload(
   items: { name: string; upload: () => Promise<unknown> }[],
-  onProgress: (index: number, name: string) => void
+  onProgress: (index: number, name: string) => void,
 ): Promise<{ succeeded: number; failed: string[]; lastError: string | null }> {
   const failed: string[] = []
   let succeeded = 0
@@ -36,18 +37,6 @@ async function runBatchUpload(
   return { succeeded, failed, lastError }
 }
 
-function MicIcon() {
-  return (
-    <svg className="drop-zone-icon" width="40" height="40" viewBox="0 0 40 40" fill="none">
-      <rect x="14" y="6" width="12" height="20" rx="6" fill="#E8A317" opacity="0.25" />
-      <rect x="15" y="7" width="10" height="18" rx="5" stroke="#E8A317" strokeWidth="1.5" fill="none" />
-      <path d="M10 22C10 27.523 14.477 32 20 32C25.523 32 30 27.523 30 22" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-      <line x1="20" y1="32" x2="20" y2="36" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="15" y1="36" x2="25" y2="36" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
 function HoneycombSpinner() {
   return (
     <div className="honeycomb-spinner">
@@ -60,7 +49,7 @@ function HoneycombSpinner() {
 
 function DriveIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M8.01 2.56L1.38 14H7.37L14 2.56H8.01Z" fill="#E8A317" opacity="0.7" />
       <path d="M22.62 14H10.38L7.37 19.44H19.61L22.62 14Z" fill="#C4880F" />
       <path d="M14 2.56L22.62 14L19.61 19.44L11 7.56L14 2.56Z" fill="#E8A317" opacity="0.5" />
@@ -70,28 +59,64 @@ function DriveIcon() {
 
 function PasteIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <rect x="5" y="3" width="14" height="18" rx="2" stroke="#E8A317" strokeWidth="1.5" fill="none" />
-      <path d="M9 3V2a1 1 0 011-1h4a1 1 0 011 1v1" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect
+        x="5"
+        y="3"
+        width="14"
+        height="18"
+        rx="2"
+        stroke="#E8A317"
+        strokeWidth="1.5"
+        fill="none"
+      />
+      <path
+        d="M9 3V2a1 1 0 011-1h4a1 1 0 011 1v1"
+        stroke="#E8A317"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
       <line x1="9" y1="9" x2="15" y2="9" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="9" y1="13" x2="15" y2="13" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="9" y1="17" x2="12" y2="17" stroke="#E8A317" strokeWidth="1.5" strokeLinecap="round" />
+      <line
+        x1="9"
+        y1="13"
+        x2="15"
+        y2="13"
+        stroke="#E8A317"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <line
+        x1="9"
+        y1="17"
+        x2="12"
+        y2="17"
+        stroke="#E8A317"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
     </svg>
   )
 }
 
-function RecordIcon() {
+function RecordIcon({ size = 18 }: { size?: number }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle cx="12" cy="12" r="7" fill="#D64545" />
     </svg>
   )
 }
 
 function formatElapsed(seconds: number): string {
-  const mm = Math.floor(seconds / 60).toString().padStart(2, '0')
+  const mm = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, '0')
   const ss = (seconds % 60).toString().padStart(2, '0')
   return `${mm}:${ss}`
+}
+
+function isFileDrag(e: DragEvent): boolean {
+  return Array.from(e.dataTransfer?.types ?? []).includes('Files')
 }
 
 export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => void }) {
@@ -109,18 +134,42 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   const [showPaste, setShowPaste] = useState(false)
   const [pasteText, setPasteText] = useState('')
   const pasteRef = useRef<HTMLTextAreaElement>(null)
+  const pasteBtnRef = useRef<HTMLButtonElement>(null)
+  const restorePasteFocusRef = useRef(false)
   const { openPicker } = useDrivePicker()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const recorder = useAudioRecorder()
   const [recordedFile, setRecordedFile] = useState<File | null>(null)
+  const dragDepthRef = useRef(0)
+  const leaveFrameRef = useRef<number | null>(null)
+
+  const acceptDrop = (status === 'idle' || status === 'error') && !showPaste
 
   useEffect(() => {
-    if (showPaste) {
-      requestAnimationFrame(() => {
-        pasteRef.current?.focus()
-        pasteRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-      })
+    if (!showPaste) return
+    requestAnimationFrame(() => {
+      pasteRef.current?.focus()
+    })
+  }, [showPaste])
+
+  function closePasteModal() {
+    restorePasteFocusRef.current = true
+    setShowPaste(false)
+  }
+
+  useEffect(() => {
+    if (showPaste || !restorePasteFocusRef.current) return
+    restorePasteFocusRef.current = false
+    pasteBtnRef.current?.focus()
+  }, [showPaste])
+
+  useEffect(() => {
+    if (!showPaste) return
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') closePasteModal()
     }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
   }, [showPaste])
 
   function reset() {
@@ -134,55 +183,122 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  function onUploadComplete(count: number) {
-    setStatus('idle')
-    setShowSuccess(true)
-    setSuccessCount(count)
-    setPasteText('')
-    setShowPaste(false)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    onUploadDone?.()
-    setTimeout(() => setShowSuccess(false), SUCCESS_TOAST_MS)
-  }
+  const onUploadComplete = useCallback(
+    (count: number) => {
+      setStatus('idle')
+      setShowSuccess(true)
+      setSuccessCount(count)
+      setPasteText('')
+      setShowPaste(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      onUploadDone?.()
+      setTimeout(() => setShowSuccess(false), SUCCESS_TOAST_MS)
+    },
+    [onUploadDone],
+  )
 
-  async function processFiles(files: File[]) {
-    const oversized = files.filter(f => f.size > MAX_SIZE_BYTES)
-    if (oversized.length > 0) {
-      setError(
-        oversized.length === 1
-          ? `File too large (${(oversized[0].size / 1024 / 1024).toFixed(1)} MB). Max ${MAX_SIZE_MB} MB.`
-          : `${oversized.length} files exceed the ${MAX_SIZE_MB} MB limit.`
-      )
-      setStatus('error')
-      return
-    }
-
-    setError('')
-    setShowSuccess(false)
-    setFailedFiles([])
-    setUploadTotal(files.length)
-
-    setStatus('uploading')
-    const { succeeded, failed, lastError } = await runBatchUpload(
-      files.map(file => ({ name: file.name, upload: () => uploadAudio(file, getToken) })),
-      (index, name) => { setUploadIndex(index); setFileName(name) }
-    )
-
-    if (failed.length > 0) {
-      setFailedFiles(failed)
-      setStatus('error')
-      if (files.length === 1) {
-        setError(lastError ?? 'Something went wrong')
-      } else if (succeeded > 0) {
-        setError(`${succeeded} file${succeeded > 1 ? 's' : ''} uploaded. ${failed.length} failed:`)
-        onUploadDone?.()
-      } else {
-        setError(`All ${files.length} files failed to upload:`)
+  const processFiles = useCallback(
+    async (files: File[]) => {
+      const oversized = files.filter(f => f.size > MAX_SIZE_BYTES)
+      if (oversized.length > 0) {
+        setError(
+          oversized.length === 1
+            ? `File too large (${(oversized[0].size / 1024 / 1024).toFixed(1)} MB). Max ${MAX_SIZE_MB} MB.`
+            : `${oversized.length} files exceed the ${MAX_SIZE_MB} MB limit.`,
+        )
+        setStatus('error')
+        return
       }
-    } else {
-      onUploadComplete(succeeded)
+
+      setError('')
+      setShowSuccess(false)
+      setFailedFiles([])
+      setUploadTotal(files.length)
+
+      setStatus('uploading')
+      const { succeeded, failed, lastError } = await runBatchUpload(
+        files.map(file => ({ name: file.name, upload: () => uploadAudio(file, getToken) })),
+        (index, name) => {
+          setUploadIndex(index)
+          setFileName(name)
+        },
+      )
+
+      if (failed.length > 0) {
+        setFailedFiles(failed)
+        setStatus('error')
+        if (files.length === 1) {
+          setError(lastError ?? 'Something went wrong')
+        } else if (succeeded > 0) {
+          setError(
+            `${succeeded} file${succeeded > 1 ? 's' : ''} uploaded. ${failed.length} failed:`,
+          )
+          onUploadDone?.()
+        } else {
+          setError(`All ${files.length} files failed to upload:`)
+        }
+      } else {
+        onUploadComplete(succeeded)
+      }
+    },
+    [getToken, onUploadComplete, onUploadDone],
+  )
+
+  useEffect(() => {
+    function cancelLeaveHide() {
+      if (leaveFrameRef.current !== null) {
+        cancelAnimationFrame(leaveFrameRef.current)
+        leaveFrameRef.current = null
+      }
     }
-  }
+
+    function onDragEnter(e: DragEvent) {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+      cancelLeaveHide()
+      dragDepthRef.current += 1
+      if (acceptDrop) setDragOver(true)
+    }
+
+    function onDragOver(e: DragEvent) {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+    }
+
+    function onDragLeave(e: DragEvent) {
+      if (!isFileDrag(e)) return
+      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+      if (dragDepthRef.current === 0) {
+        leaveFrameRef.current = requestAnimationFrame(() => {
+          leaveFrameRef.current = null
+          if (dragDepthRef.current === 0) setDragOver(false)
+        })
+      }
+    }
+
+    function onDrop(e: DragEvent) {
+      if (!isFileDrag(e)) return
+      e.preventDefault()
+      cancelLeaveHide()
+      dragDepthRef.current = 0
+      setDragOver(false)
+      if (!acceptDrop) return
+      const files = Array.from(e.dataTransfer?.files ?? [])
+      if (files.length > 0) void processFiles(files)
+    }
+
+    window.addEventListener('dragenter', onDragEnter, true)
+    window.addEventListener('dragover', onDragOver, true)
+    window.addEventListener('dragleave', onDragLeave, true)
+    window.addEventListener('drop', onDrop, true)
+    return () => {
+      cancelLeaveHide()
+      window.removeEventListener('dragenter', onDragEnter, true)
+      window.removeEventListener('dragover', onDragOver, true)
+      window.removeEventListener('dragleave', onDragLeave, true)
+      window.removeEventListener('drop', onDrop, true)
+    }
+  }, [acceptDrop, processFiles])
 
   async function handleDriveImport() {
     setError('')
@@ -190,21 +306,33 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
 
     try {
       const { accessToken } = await getGoogleToken(getToken)
-      const picked = await openPicker(accessToken, { mimeTypes: AUDIO_MIME_TYPES, multiSelect: true, title: 'Select audio files' })
+      const picked = await openPicker(accessToken, {
+        mimeTypes: AUDIO_MIME_TYPES,
+        multiSelect: true,
+        title: 'Select audio files',
+      })
       if (!picked || picked.length === 0) return
 
       setUploadTotal(picked.length)
       setStatus('uploading')
       const { succeeded, failed } = await runBatchUpload(
-        picked.map(item => ({ name: item.name, upload: () => importFromDrive(item.id, item.name, getToken) })),
-        (index, name) => { setUploadIndex(index); setFileName(name) }
+        picked.map(item => ({
+          name: item.name,
+          upload: () => importFromDrive(item.id, item.name, getToken),
+        })),
+        (index, name) => {
+          setUploadIndex(index)
+          setFileName(name)
+        },
       )
 
       if (failed.length > 0) {
         setFailedFiles(failed)
         setStatus('error')
         if (succeeded > 0) {
-          setError(`${succeeded} file${succeeded > 1 ? 's' : ''} uploaded. ${failed.length} failed:`)
+          setError(
+            `${succeeded} file${succeeded > 1 ? 's' : ''} uploaded. ${failed.length} failed:`,
+          )
           onUploadDone?.()
         } else {
           setError(`All ${picked.length} files failed to upload:`)
@@ -220,6 +348,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
 
   async function handlePasteSubmit() {
     if (!pasteText.trim()) return
+    setShowPaste(false)
     setError('')
     setShowSuccess(false)
     setFileName('pasted-text')
@@ -237,22 +366,6 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
     if (files.length > 0) processFiles(files)
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setDragOver(false)
-    const files = Array.from(e.dataTransfer.files ?? [])
-    if (files.length > 0) processFiles(files)
-  }
-
-  function handleDragOver(e: React.DragEvent) {
-    e.preventDefault()
-    setDragOver(true)
-  }
-
-  function handleDragLeave() {
-    setDragOver(false)
   }
 
   async function handleRecordStart() {
@@ -304,159 +417,102 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     >
       <h2>Add Notes</h2>
 
-      <p className="hint">Include level and time slot, and use student names or aliases - we'll match them to your roster.</p>
+      <p className="hint">
+        Include level and time slot, and use student names or aliases - we'll match them to your
+        roster.
+      </p>
       <p className="upload-pii-hint">
         Use first names or initials — avoid full names when possible.
       </p>
       <AnimatePresence mode="wait">
         {(status === 'idle' || status === 'error') && (
           <motion.div
-            key="dropzone"
+            key="idle-actions"
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.25 }}
           >
-            {isMobile ? (
-              <div className="mobile-upload-actions" data-testid="mobile-upload">
-                <button
-                  type="button"
-                  className="mobile-upload-btn"
-                  onClick={() => fileInputRef.current?.click()}
-                  data-testid="mobile-file-btn"
-                >
-                  🎙️ Choose Audio Files
-                </button>
-                <button
-                  type="button"
-                  className="mobile-upload-btn btn-secondary"
-                  onClick={handleDriveImport}
-                  data-testid="drive-import-btn"
-                >
-                  <DriveIcon />
-                  Add from Drive
-                </button>
+            <div
+              className={
+                isMobile ? 'idle-note-actions idle-note-actions--mobile' : 'idle-note-actions'
+              }
+              data-testid={isMobile ? 'mobile-upload' : 'idle-note-actions'}
+            >
+              <div className="recording-card" data-testid="recording-card">
+                {recorder.isSupported ? (
+                  <>
+                    <h3 className="recording-card-heading">Record observations live</h3>
+                    <p className="recording-card-copy">
+                      You can review the recording before it's processed.
+                    </p>
+                    <button type="button" onClick={handleRecordStart} data-testid="record-btn">
+                      <RecordIcon size={20} />
+                      Start recording
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="recording-card-copy">
+                      Live recording isn't available in this browser.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      data-testid="upload-audio-btn"
+                    >
+                      Upload audio
+                    </button>
+                  </>
+                )}
+              </div>
+              <p className="existing-notes-label">Or add existing notes</p>
+              <div
+                className={
+                  isMobile ? 'secondary-actions secondary-actions--stack' : 'secondary-actions'
+                }
+                data-testid="secondary-actions"
+              >
                 {recorder.isSupported && (
                   <button
                     type="button"
-                    className="mobile-upload-btn btn-secondary"
-                    onClick={handleRecordStart}
-                    data-testid="record-btn"
+                    className="btn-secondary"
+                    onClick={() => fileInputRef.current?.click()}
+                    data-testid="upload-audio-btn"
                   >
-                    <RecordIcon />
-                    Record Audio
+                    Upload audio
                   </button>
                 )}
                 <button
                   type="button"
-                  className="mobile-upload-btn btn-secondary"
-                  onClick={() => setShowPaste(!showPaste)}
+                  className="btn-secondary"
+                  onClick={handleDriveImport}
+                  data-testid="drive-import-btn"
+                >
+                  <DriveIcon />
+                  Select from Drive
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  ref={pasteBtnRef}
+                  onClick={() => setShowPaste(true)}
                   data-testid="paste-text-btn"
                 >
                   <PasteIcon />
-                  Paste Text
+                  Enter text
                 </button>
-                <p className="hint">Accepted audio: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB each)</p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="audio/*"
-                  onChange={handleFileChange}
-                  multiple
-                  style={{ display: 'none' }}
-                  data-testid="file-input"
-                />
               </div>
-            ) : (
-              <>
-                <div
-                  className={`drop-zone${dragOver ? ' drag-over' : ''}`}
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onClick={() => fileInputRef.current?.click()}
-                  data-testid="drop-zone"
-                >
-                  <MicIcon />
-                  <p>Drag & drop audio files here, or click to browse</p>
-                  <p className="hint">Accepted: mp3, mp4, m4a, wav, webm (max {MAX_SIZE_MB} MB each)</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept={ACCEPTED_FORMATS}
-                    onChange={handleFileChange}
-                    multiple
-                    style={{ display: 'none' }}
-                    data-testid="file-input"
-                  />
-                </div>
-                <div className="secondary-actions">
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={handleDriveImport}
-                    data-testid="drive-import-btn"
-                  >
-                    <DriveIcon />
-                    Add from Drive
-                  </button>
-                  {recorder.isSupported && (
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={handleRecordStart}
-                      data-testid="record-btn"
-                    >
-                      <RecordIcon />
-                      Record Audio
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => setShowPaste(!showPaste)}
-                    data-testid="paste-text-btn"
-                  >
-                    <PasteIcon />
-                    Paste Text
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Paste text area */}
-            <AnimatePresence>
-              {showPaste && (
-                <motion.div
-                  className="paste-area"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.25 }}
-                  data-testid="paste-area"
-                >
-                  <textarea
-                    ref={pasteRef}
-                    className="paste-textarea"
-                    placeholder="Paste your observations here..."
-                    value={pasteText}
-                    onChange={e => setPasteText(e.target.value)}
-                    rows={6}
-                    data-testid="paste-textarea"
-                  />
-                  <div className="paste-actions">
-                    <button
-                      type="button"
-                      onClick={handlePasteSubmit}
-                      disabled={!pasteText.trim()}
-                      data-testid="paste-submit-btn"
-                    >
-                      Process Notes
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={isMobile ? 'audio/*' : ACCEPTED_FORMATS}
+                onChange={handleFileChange}
+                multiple
+                style={{ display: 'none' }}
+                data-testid="file-input"
+              />
+            </div>
           </motion.div>
         )}
 
@@ -471,32 +527,58 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
             transition={{ duration: 0.25 }}
           >
             <HoneycombSpinner />
-            <p>{fileName === 'pasted-text'
-              ? 'Processing notes...'
-              : uploadTotal > 1
-                ? <>Uploading <strong>{uploadIndex}/{uploadTotal}</strong>: {fileName}...</>
-                : <>Uploading <strong>{fileName}</strong>...</>}</p>
+            <p>
+              {fileName === 'pasted-text' ? (
+                'Processing notes...'
+              ) : uploadTotal > 1 ? (
+                <>
+                  Uploading{' '}
+                  <strong>
+                    {uploadIndex}/{uploadTotal}
+                  </strong>
+                  : {fileName}...
+                </>
+              ) : (
+                <>
+                  Uploading <strong>{fileName}</strong>...
+                </>
+              )}
+            </p>
           </motion.div>
         )}
 
         {status === 'recording' && (
           <motion.div
             key="recording"
-            className="recording-panel"
+            className="recording-card recording-panel"
             data-testid="recording-panel"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
           >
-            <span className="recording-indicator" aria-hidden="true">●</span>
-            <p className="recording-time" data-testid="recording-time">{formatElapsed(recorder.elapsedSeconds)}</p>
-            <p className="hint">{(recorder.recordedBytes / 1024 / 1024).toFixed(1)} MB</p>
+            <p role="status" aria-live="polite" className="recording-status">
+              <span className="recording-indicator" aria-hidden="true">
+                ●
+              </span>
+              Recording
+            </p>
+            <p className="recording-time" data-testid="recording-time" aria-hidden="true">
+              {formatElapsed(recorder.elapsedSeconds)}
+            </p>
+            <p className="recording-size" aria-hidden="true">
+              {(recorder.recordedBytes / 1024 / 1024).toFixed(1)} MB
+            </p>
             <div className="secondary-actions">
               <button type="button" onClick={handleRecordStop} data-testid="record-stop-btn">
                 Stop
               </button>
-              <button type="button" className="btn-secondary" onClick={handleRecordCancel} data-testid="record-cancel-btn">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleRecordCancel}
+                data-testid="record-cancel-btn"
+              >
                 Cancel
               </button>
             </div>
@@ -506,19 +588,26 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
         {status === 'recorded' && recordedFile && (
           <motion.div
             key="recorded"
-            className="recording-panel"
+            className="recording-card recording-panel"
             data-testid="recorded-panel"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.25 }}
           >
-            <p>{recordedFile.name} — {formatElapsed(recorder.elapsedSeconds)}</p>
+            <p role="status" aria-live="polite" className="recording-review-name">
+              {recordedFile.name} — {formatElapsed(recorder.elapsedSeconds)}
+            </p>
             <div className="secondary-actions">
               <button type="button" onClick={handleRecordUpload} data-testid="record-upload-btn">
                 Upload
               </button>
-              <button type="button" className="btn-secondary" onClick={handleRecordDiscard} data-testid="record-discard-btn">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleRecordDiscard}
+                data-testid="record-discard-btn"
+              >
                 Discard
               </button>
             </div>
@@ -541,17 +630,20 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
               ? 'Submitted'
               : successCount > 1
                 ? `${successCount} files uploaded`
-                : 'Uploaded'}! Processing in background.
+                : 'Uploaded'}
+            ! Processing in background.
           </motion.div>
         )}
       </AnimatePresence>
 
       {status === 'error' && (
-        <div className="upload-error" data-testid="upload-error">
+        <div className="upload-error" data-testid="upload-error" role="alert">
           <p>{error}</p>
           {failedFiles.length > 0 && (
             <ul className="upload-error-list">
-              {failedFiles.map((f, i) => <li key={i}>{f}</li>)}
+              {failedFiles.map((f, i) => (
+                <li key={i}>{f}</li>
+              ))}
             </ul>
           )}
           <button className="btn-secondary" onClick={reset} style={{ marginTop: '0.5rem' }}>
@@ -559,6 +651,81 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
           </button>
         </div>
       )}
+
+      <AnimatePresence>
+        {showPaste && (
+          <motion.div
+            className="how-it-works-overlay"
+            data-testid="paste-text-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onDragOver={e => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            onDrop={e => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+          >
+            <motion.div
+              className="how-it-works-card card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="paste-text-modal-heading"
+              initial={{ opacity: 0, y: 30, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              onClick={e => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="how-it-works-close paste-text-modal-close"
+                onClick={closePasteModal}
+                aria-label="Close"
+              >
+                ×
+              </button>
+              <h2 id="paste-text-modal-heading">Enter text</h2>
+              <textarea
+                ref={pasteRef}
+                className="paste-textarea"
+                placeholder="Type or paste your observations here..."
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                rows={6}
+                data-testid="paste-textarea"
+              />
+              <div className="paste-actions">
+                <button
+                  type="button"
+                  onClick={handlePasteSubmit}
+                  disabled={!pasteText.trim()}
+                  data-testid="paste-submit-btn"
+                >
+                  Process Notes
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {dragOver &&
+        acceptDrop &&
+        createPortal(
+          <div
+            className="notes-drop-overlay"
+            data-testid="drop-overlay"
+            role="status"
+            aria-live="polite"
+          >
+            Drop audio to upload
+          </div>,
+          document.body,
+        )}
     </motion.div>
   )
 }

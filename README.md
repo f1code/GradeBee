@@ -65,7 +65,7 @@ GradeBee/
 
 ### Prerequisites
 
-- Node.js 24.13.x
+- Node.js 24.13.x (`.nvmrc`; this repo uses [fnm](https://github.com/Schniz/fnm): `eval "$(fnm env)" && fnm use`)
 - Go 1.24+
 - A [Clerk](https://clerk.com) account configured with Google OAuth and **Organizations enabled**
 - pnpm (enabled via Corepack: `corepack enable`)

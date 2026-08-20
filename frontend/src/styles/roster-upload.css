@@ -3,7 +3,7 @@
 /* --- Student list, class group --- */
 /* --- Student list --- */
 .student-list {
-  margin-top: 0;
+  margin-top: 2rem;
 }
 
 .student-list-header {
@@ -104,7 +104,6 @@
   background: var(--honey-light);
 }
 
-
 /* --- Audio upload (progress, spinner, error) --- */
 /* --- Audio upload --- */
 .audio-upload {
@@ -115,43 +114,118 @@
   margin-bottom: 1rem;
 }
 
-.drop-zone {
-  border: 2px dashed var(--honey);
-  border-radius: var(--radius);
+.recording-card {
   background: var(--comb);
-  padding: 2.5rem 2rem;
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  padding: 2rem 1.5rem;
   text-align: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
 }
 
-.drop-zone:hover {
-  background: var(--honey-light);
-  border-color: var(--honey-dark);
+.recording-card-heading {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.25rem;
+  color: var(--ink);
+  margin: 0 0 0.4rem;
 }
 
-.drop-zone.drag-over {
-  border-style: solid;
+.recording-card-copy {
+  color: var(--ink-muted);
+  margin: 0 0 1.25rem;
+  font-size: 0.95rem;
+}
+
+.recording-card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.existing-notes-label {
+  text-align: center;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin: 1.25rem 0 0.75rem;
+}
+
+.notes-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--honey-light);
+  border: 2px solid var(--honey);
   box-shadow: 0 0 0 4px rgba(232, 163, 23, 0.15);
-}
-
-.drop-zone-icon {
-  margin-bottom: 0.75rem;
-  opacity: 0.7;
-}
-
-.drop-zone p {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
   font-weight: 500;
   color: var(--ink);
-  margin: 0 0 0.35rem;
 }
 
-.drop-zone .hint {
+.recording-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.25rem;
+  color: var(--ink);
+  margin: 0 0 0.5rem;
+}
+
+.recording-indicator {
+  color: #d64545;
+  font-size: 0.85rem;
+  line-height: 1;
+  animation: recordingPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes recordingPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.recording-time {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.recording-size {
+  margin: 0 0 1.25rem;
   font-size: 0.85rem;
   color: var(--ink-muted);
-  font-weight: 400;
+}
+
+.recording-review-name {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink);
+  margin: 0 0 1.25rem;
+  word-break: break-word;
+}
+
+.recording-panel .secondary-actions {
+  margin-top: 0;
+}
+
+.recording-panel .secondary-actions button {
+  min-width: 8rem;
 }
 
 .secondary-actions {
@@ -172,9 +246,14 @@
   gap: 0.4rem;
 }
 
-.paste-area {
-  margin-top: 1rem;
-  overflow: hidden;
+.secondary-actions--stack {
+  flex-direction: column;
+}
+
+.secondary-actions--stack .btn-secondary {
+  max-width: none;
+  width: 100%;
+  min-height: 44px;
 }
 
 .paste-textarea {
@@ -188,7 +267,9 @@
   font-size: 0.95rem;
   color: var(--ink);
   resize: vertical;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   box-sizing: border-box;
 }
 
@@ -264,12 +345,23 @@
   animation: hexPulse 0.9s ease-in-out infinite;
 }
 
-.honeycomb-spinner .hex:nth-child(2) { animation-delay: 0.15s; }
-.honeycomb-spinner .hex:nth-child(3) { animation-delay: 0.3s; }
+.honeycomb-spinner .hex:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.honeycomb-spinner .hex:nth-child(3) {
+  animation-delay: 0.3s;
+}
 
 @keyframes hexPulse {
-  0%, 100% { opacity: 0.25; transform: scale(0.8); }
-  50% { opacity: 1; transform: scale(1); }
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Upload error */
@@ -284,8 +376,6 @@
   padding-left: 1.25rem;
 }
 
-
-/* --- Student-list collapse toggle, mobile upload actions --- */
 /* --- Student list collapse toggle (mobile) --- */
 .student-list-collapse-toggle {
   display: flex;
@@ -313,27 +403,11 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* --- Mobile upload actions --- */
-.mobile-upload-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.mobile-upload-btn {
-  width: 100%;
-  justify-content: center;
-  font-size: 1rem;
-  padding: 0.85rem 1.5rem;
-}
-
-.mobile-upload-actions .hint {
-  font-size: 0.85rem;
-  color: var(--ink-muted);
-  text-align: center;
-}
-
 @media (max-width: 640px) {
+  .paste-textarea {
+    font-size: 1rem;
+  }
+
   .paste-actions {
     flex-direction: column;
     align-items: stretch;
@@ -344,11 +418,25 @@
   }
 }
 
-
 /* --- Responsive: roster/upload --- */
 @media (max-width: 640px) {
   .level-header {
     padding: 0.85rem 1rem;
+  }
+
+  .recording-card button {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .secondary-actions {
+    flex-direction: column;
+  }
+
+  .secondary-actions .btn-secondary {
+    max-width: none;
+    width: 100%;
+    min-height: 44px;
   }
 
   /* Touch-friendly student items */
@@ -395,7 +483,6 @@
   font-size: 1.1rem;
 }
 
-
 /* --- Job status (incl. transcript review) --- */
 /* --- Job Status --- */
 
@@ -403,7 +490,9 @@
   background: var(--chalk);
   border-radius: 12px;
   padding: 1.25rem 1.5rem;
-  box-shadow: 0 1px 4px rgba(44, 24, 16, 0.06), 0 4px 12px rgba(44, 24, 16, 0.04);
+  box-shadow:
+    0 1px 4px rgba(44, 24, 16, 0.06),
+    0 4px 12px rgba(44, 24, 16, 0.04);
   margin-bottom: 1.5rem;
 }
 
@@ -674,7 +763,6 @@
   letter-spacing: 0.04em;
 }
 
-
 .job-dismiss-btn {
   background: none;
   border: none;
@@ -692,7 +780,10 @@
   justify-content: center;
   line-height: 1;
   opacity: 0;
-  transition: opacity 0.15s, background 0.15s, color 0.15s;
+  transition:
+    opacity 0.15s,
+    background 0.15s,
+    color 0.15s;
   box-shadow: none;
 }
 .job-card-done:hover .job-dismiss-btn {
@@ -704,4 +795,3 @@
   box-shadow: none;
   color: var(--ink);
 }
-

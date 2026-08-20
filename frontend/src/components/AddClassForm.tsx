@@ -62,15 +62,15 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
   if (levelsStatus === 'ready' && levels.length === 0) {
     return (
       <motion.div
-        className="add-class-form"
+        className="info-box"
+        data-testid="add-class-no-levels"
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
         transition={{ duration: 0.2 }}
       >
-        <p className="add-class-hint" data-testid="add-class-no-levels">
-          There are no Levels yet — ask an Admin to add one before creating a class.
-        </p>
+        <h2>No Levels yet</h2>
+        <p>Ask an Admin to add one before creating a class.</p>
         {onCancel && (
           <button type="button" className="btn-secondary" onClick={onCancel} data-testid="add-class-cancel">
             Cancel

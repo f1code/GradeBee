@@ -103,6 +103,7 @@ test.describe('Student list', () => {
 
     await page.goto('/')
     await expect(page.getByTestId('student-list-empty')).toBeVisible({ timeout: 10000 })
+    await page.getByTestId('add-class-btn').click()
 
     const submit = page.getByTestId('add-class-submit')
     await expect(submit).toBeDisabled()
@@ -116,7 +117,7 @@ test.describe('Student list', () => {
     await submit.click()
 
     await expect(page.getByTestId('class-group-1')).toBeVisible({ timeout: 10000 })
-    await expect(page.getByText('5A')).toBeVisible()
+    await expect(page.getByTestId('class-group-1').getByText('5A')).toBeVisible()
   })
 
   test('error state shows retry button', async ({ page }) => {
