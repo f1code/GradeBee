@@ -13,6 +13,11 @@ jobs:
     uses: ./.github/workflows/test.yml
     secrets: inherit
 
+  e2e:
+    name: Run E2E tests
+    uses: ./.github/workflows/e2e.yml
+    secrets: inherit
+
   deploy-review-app:
     name: Build, push, and deploy review app
     needs: [test]

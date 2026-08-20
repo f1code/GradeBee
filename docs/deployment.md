@@ -201,6 +201,13 @@ Deployments are automated via GitHub Actions (see `.github/workflows/`):
 | `review-app-deploy.yml` | PR opened/updated | Build image → deploy to `gradebee-pr-<N>` app |
 | `review-app-teardown.yml` | PR closed | `dokku apps:destroy gradebee-pr-<N>` |
 
+Backend/frontend tests and E2E tests run independently. Review-app deployment waits only for
+backend/frontend tests, while production deployment requires both suites to pass. APT-backed
+setup steps have a 10-minute timeout to prevent a degraded package mirror from blocking a
+deployment indefinitely. If one times out, use **Re-run failed jobs** in GitHub Actions; the
+rerun starts on a fresh runner so it does not inherit package-manager locks from the failed
+attempt. An E2E timeout does not block a review app, but a backend/frontend setup timeout does.
+
 ### Required repository secrets
 
 | Secret | Description |
