@@ -42,9 +42,22 @@ func init() {
 	}
 }
 
+// cacheControlFor returns a Cache-Control value for a static path, or empty
+// when the file should keep the default (no explicit cache header).
+func cacheControlFor(urlPath string) string {
+	if strings.HasPrefix(urlPath, "/assets/") {
+		return "public, max-age=31536000, immutable"
+	}
+	if urlPath == "/manifest.json" {
+		return "no-cache"
+	}
+	return ""
+}
+
 // spaHandler returns an http.Handler that serves the embedded SPA:
 //   - existing file under /assets/* → served with immutable cache
-//   - existing file (non-/assets) → served with no special caching
+//   - GET /manifest.json (when the file exists) → Cache-Control: no-cache
+//   - other existing files → no special caching
 //   - anything else → serve index.html (client-side routing fallback)
 func spaHandler() http.Handler {
 	fileServer := http.FileServer(spaFS)
@@ -66,8 +79,8 @@ func spaHandler() http.Handler {
 				stat, statErr := f.Stat()
 				f.Close()
 				if statErr == nil && !stat.IsDir() {
-					if strings.HasPrefix(urlPath, "/assets/") {
-						w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+					if cc := cacheControlFor(urlPath); cc != "" {
+						w.Header().Set("Cache-Control", cc)
 					}
 					fileServer.ServeHTTP(w, r)
 					return

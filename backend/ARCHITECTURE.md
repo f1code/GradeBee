@@ -32,6 +32,7 @@ Anything else falls through to the embedded SPA handler (`spaHandler()` in `stat
 
 Cache headers:
 - `/assets/*` (hashed filenames) → `Cache-Control: public, max-age=31536000, immutable`
+- `/manifest.json` → `Cache-Control: no-cache`
 - SPA fallback (`index.html`) → `Cache-Control: no-cache`
 
 | Method | Path | Auth | Handler | Description |

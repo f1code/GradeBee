@@ -10,6 +10,8 @@ GradeBee helps teachers record voice notes about students and automatically gene
 4. The system transcribes audio, extracts student names, and generates structured notes
 5. On demand, the system aggregates notes into report cards per student
 
+On a phone, use the browser's **Add to Home Screen** / **Install** control. GradeBee supplies the name and parchment bee icon; the app then opens full-screen. Chrome on iOS cannot install a standalone web app -- use Safari on iPhone and iPad.
+
 ### Organizing Classes
 
 Each class has a **level** (required) and an optional **time slot**.
