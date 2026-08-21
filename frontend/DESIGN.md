@@ -57,7 +57,7 @@ The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinc
 
 ### Secondary note-entry actions
 - Label **Or add existing notes** (`.existing-notes-label`) sits under the recording card.
-- `.secondary-actions` is a centered row of equal `.btn-secondary` actions: **Upload audio**, **Select from Drive**, **Enter text**.
+- `.secondary-actions` is a centered row of equal `.btn-secondary` actions: **Upload audio**, **Select from Drive** (only when the user has a linked Google account in Clerk), **Enter text**.
 - On mobile (≤640px, or `.secondary-actions--stack`), the row becomes a vertical stack with `min-height: 44px` and full width. The recording card stays first.
 
 ### File drop

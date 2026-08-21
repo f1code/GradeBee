@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'motion/react'
 import { uploadAudio, getGoogleToken, importFromDrive, submitTextNotes } from '../api'
 import { useDrivePicker, AUDIO_MIME_TYPES } from '../hooks/useDrivePicker'
+import { useHasLinkedGoogleAccount } from '../hooks/useHasLinkedGoogleAccount'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 
@@ -137,6 +138,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
   const pasteBtnRef = useRef<HTMLButtonElement>(null)
   const restorePasteFocusRef = useRef(false)
   const { openPicker } = useDrivePicker()
+  const hasLinkedGoogleAccount = useHasLinkedGoogleAccount()
   const isMobile = useMediaQuery('(max-width: 640px)')
   const recorder = useAudioRecorder()
   const [recordedFile, setRecordedFile] = useState<File | null>(null)
@@ -483,15 +485,17 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
                     Upload audio
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={handleDriveImport}
-                  data-testid="drive-import-btn"
-                >
-                  <DriveIcon />
-                  Select from Drive
-                </button>
+                {hasLinkedGoogleAccount && (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleDriveImport}
+                    data-testid="drive-import-btn"
+                  >
+                    <DriveIcon />
+                    Select from Drive
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn-secondary"

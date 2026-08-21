@@ -14,16 +14,23 @@ vi.mock('../../api', () => ({
   submitTextNotes: (...args: unknown[]) => mockSubmitTextNotes(...args),
 }))
 
+const mockUseMediaQuery = vi.hoisted(() => vi.fn(() => false))
+const mockUseUser = vi.hoisted(() =>
+  vi.fn(() => ({
+    user: { externalAccounts: [{ provider: 'google' }] },
+    isLoaded: true,
+  })),
+)
+
 vi.mock('@clerk/react', () => ({
   useAuth: () => ({ getToken: vi.fn().mockResolvedValue('tok') }),
+  useUser: () => mockUseUser(),
 }))
 
 vi.mock('../../hooks/useDrivePicker', () => ({
   useDrivePicker: () => ({ openPicker: vi.fn().mockResolvedValue(null) }),
   AUDIO_MIME_TYPES: 'audio/mpeg',
 }))
-
-const mockUseMediaQuery = vi.hoisted(() => vi.fn(() => false))
 
 vi.mock('../../hooks/useMediaQuery', () => ({
   useMediaQuery: () => mockUseMediaQuery(),
@@ -85,6 +92,10 @@ describe('AudioUpload', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseMediaQuery.mockReturnValue(false)
+    mockUseUser.mockReturnValue({
+      user: { externalAccounts: [{ provider: 'google' }] },
+      isLoaded: true,
+    })
     // jsdom doesn't implement scrollIntoView
     Element.prototype.scrollIntoView = vi.fn()
   })
@@ -549,6 +560,20 @@ describe('AudioUpload', () => {
       expect(
         within(secondaries).queryByRole('button', { name: 'Start recording' }),
       ).not.toBeInTheDocument()
+    })
+
+    it('hides Select from Drive when no Google account is linked', async () => {
+      mockUseUser.mockReturnValue({ user: { externalAccounts: [] }, isLoaded: true })
+
+      const { default: AudioUpload } = await import('../AudioUpload')
+      render(<AudioUpload />)
+
+      const secondaries = screen.getByTestId('secondary-actions')
+      expect(
+        within(secondaries).queryByRole('button', { name: 'Select from Drive' }),
+      ).not.toBeInTheDocument()
+      expect(within(secondaries).getByRole('button', { name: 'Upload audio' })).toBeInTheDocument()
+      expect(within(secondaries).getByRole('button', { name: 'Enter text' })).toBeInTheDocument()
     })
 
     it('does not show an idle drop zone or format/size advertising copy', async () => {
