@@ -42,9 +42,21 @@
 }
 
 .student-detail-class {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-size: 0.85rem;
   color: var(--ink-muted);
   white-space: nowrap;
+}
+
+.student-detail-move-trigger {
+  color: var(--ink-muted);
+  opacity: 0.7;
+}
+
+.student-detail-move-trigger:hover {
+  opacity: 1;
 }
 
 .student-detail-loading {
@@ -362,6 +374,11 @@
   }
 
   .note-card-actions .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .student-detail-move-trigger {
     min-width: 44px;
     min-height: 44px;
   }

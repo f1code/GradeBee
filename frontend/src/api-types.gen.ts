@@ -350,6 +350,15 @@ export interface ErrDuplicateAlias {
   ConflictStudentName: string;
 }
 /**
+ * ErrDuplicateStudentName is returned by Move when the student's canonical
+ * name collides with an existing student's name or alias in the target
+ * class. ConflictName holds the colliding name so the handler can name it
+ * in the 409 response.
+ */
+export interface ErrDuplicateStudentName {
+  ConflictName: string;
+}
+/**
  * ErrLevelInUse is returned by LevelRepo.Delete when Classes still
  * reference the Level. Count holds how many, so the handler can tell the
  * Admin exactly how many Classes need to move first.

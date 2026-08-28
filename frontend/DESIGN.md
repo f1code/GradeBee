@@ -77,6 +77,7 @@ How It Works onboarding still describes the lifetime workflow (set up classes, t
 
 ### Modals
 How It Works and student-detail use a dimmed overlay, chalk card, and × close (`modals.css`). Enter text on Add Notes reuses the How It Works classes (`how-it-works-overlay` / `how-it-works-card` / `how-it-works-close`) rather than a new visual language. Overlay click does **not** dismiss Enter text — only × or Escape. `.paste-text-modal-close` is 44×44 to meet the touch-target minimum.
+- Move-to-class (`MoveStudentModal.tsx`) follows the same rule: reuses the How It Works shell (`.move-student-modal-close` is 44×44), dismissible by × or Escape only. Target classes are listed as tappable rows grouped under Level headings (`.move-student-level-heading` / `.move-student-class-row`), stripping the repeated `Level ·` prefix from each row's label. A cross-Level pick shows an explicit confirm step with a Report Instructions warning before moving; a same-Level pick moves immediately. The result step (dropped-alias receipt, if any) stays open until the teacher dismisses it — a parent list re-render must never unmount it out from under them.
 
 ### Empty/Info States
 - `.info-box`: centered card with subtle hex pattern overlay. Used for Levels, notes list, report history, and roster empties.

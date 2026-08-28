@@ -45,7 +45,7 @@ Cache headers:
 | GET | `/api/classes/{id}/students` | Yes | `handleListStudents` | List students in a class |
 | POST | `/api/classes/{id}/students` | Yes | `handleCreateStudent` | Add a student |
 | GET | `/api/students` | Yes | `handleGetStudents` | Full roster grouped by class |
-| PUT | `/api/students/{id}` | Yes | `handleUpdateStudent` | Rename / move student |
+| PUT | `/api/students/{id}` | Yes | `handleUpdateStudent` | Rename / move student. Move body: `{classId}`; response adds `droppedAliases: string[]` (omitted when empty) if any of the student's aliases collided with the target class and were dropped. A canonical-name collision in the target class aborts the move with 409 (`student_name_conflict`, `details.conflictStudentName`) |
 | DELETE | `/api/students/{id}` | Yes | `handleDeleteStudent` | Delete student + cascade |
 | GET | `/api/students/{id}/notes` | Yes | `handleListNotes` | List notes for a student |
 | POST | `/api/students/{id}/notes` | Yes | `handleCreateNote` | Create a manual note |
@@ -256,7 +256,7 @@ The `debugAuthMiddleware` enforces that every `/api/` request carries an active 
 | `migrate.go` | Embed + run SQL migrations on startup |
 | `sql/` | Embedded SQL migrations; applied in lexical filename order and tracked in `_migrations` |
 | `repo_class.go` | `ClassRepo` — CRUD for classes, scoped by `group_id` on Create/Update to validate `level_id` belongs to the caller's Group |
-| `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass` (matches canonical name + aliases, case-insensitive), `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases` |
+| `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass` (matches canonical name + aliases, case-insensitive), `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases`. `Move` is transactional: updates `students.class_id` and re-homes `student_aliases.class_id` together, aborting on a canonical-name collision in the target class (`*ErrDuplicateStudentName`) and silently dropping (not blocking on) any of the student's aliases that collide with the target class's names/aliases |
 | `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
 | `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `MarkPurged`, `ListStale` |
@@ -305,6 +305,7 @@ Repo-level errors:
 - `ErrNotFound` — entity not found
 - `ErrDuplicate` — generic unique constraint violation (used by class/student/note repos)
 - `*ErrDuplicateAlias` — alias-specific conflict that carries the canonical name of the student who owns the conflicting alias, so the handler can include it in the 409 `details` field
+- `*ErrDuplicateStudentName` — returned by `StudentRepo.Move` when the student's canonical name collides with a name or alias already in the target class; wraps `ErrDuplicate` (`Unwrap`) so generic `errors.Is(err, ErrDuplicate)` checks still work, while `errors.As` recovers the conflicting name for the 409 `details.conflictStudentName` field
 - `*ErrLevelInUse` — carries the count of Classes still referencing a Level being deleted, so `handleDeleteLevel` can return a 409 stating how many Classes must move first; the DB's `ON DELETE RESTRICT` on `classes.level_id` backs this up but can't name the count itself
 
 ## Observability / Sentry

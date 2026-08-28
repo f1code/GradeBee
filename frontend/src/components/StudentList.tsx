@@ -18,6 +18,7 @@ import {
 import AddClassForm from './AddClassForm'
 import AddStudentForm from './AddStudentForm'
 import StudentDetail from './StudentDetail'
+import MoveStudentModal from './MoveStudentModal'
 import InlineError from './InlineError'
 import InlineEdit from './InlineEdit'
 
@@ -58,6 +59,7 @@ export default function StudentList() {
   const [collapsed, setCollapsed] = useState(isMobile)
   const [expandedStudentId, setExpandedStudentId] = useState<number | null>(null)
   const [levels, setLevels] = useState<LevelItem[]>([])
+  const [movingStudent, setMovingStudent] = useState<{ studentId: number; studentName: string; classId: number; levelId: number } | null>(null)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -218,6 +220,45 @@ export default function StudentList() {
       setClasses(prev => prev.map(c => c.id === classId ? { ...c, studentCount: Math.max(0, c.studentCount - 1) } : c))
     } catch {
       showFlash('Failed to delete student')
+    }
+  }
+
+  async function refetchExpandedClass(classId: number) {
+    setLoadingClassIds(prev => new Set(prev).add(classId))
+    try {
+      const { students } = await listStudents(classId, getToken)
+      setExpandedStudents(prev => new Map(prev).set(classId, students || []))
+    } catch {
+      setFailedClassIds(prev => new Set(prev).add(classId))
+    } finally {
+      setLoadingClassIds(prev => {
+        const s = new Set(prev)
+        s.delete(classId)
+        return s
+      })
+    }
+  }
+
+  function handleStudentMoved(result: { classId: number; className: string; levelId: number; levelName: string; droppedAliases: string[] }) {
+    const moved = movingStudent
+    if (!moved) return
+    const { studentId, classId: sourceClassId } = moved
+    setExpandedStudents(prev => {
+      const m = new Map(prev)
+      m.set(sourceClassId, (m.get(sourceClassId) || []).filter(s => s.id !== studentId))
+      // Drop the target's cached list; if it's already expanded, nothing else
+      // will refetch it (toggleExpand only fetches on the expand transition),
+      // so refetch it directly. Otherwise it refetches on next expand.
+      m.delete(result.classId)
+      return m
+    })
+    setClasses(prev => prev.map(c => {
+      if (c.id === sourceClassId) return { ...c, studentCount: Math.max(0, c.studentCount - 1) }
+      if (c.id === result.classId) return { ...c, studentCount: c.studentCount + 1 }
+      return c
+    }))
+    if (expandedClassIds.has(result.classId)) {
+      refetchExpandedClass(result.classId)
     }
   }
 
@@ -480,6 +521,7 @@ export default function StudentList() {
                                             studentName={s.name}
                                             className={cls.name}
                                             onCollapse={() => setExpandedStudentId(null)}
+                                            onRequestMove={() => setMovingStudent({ studentId: s.id, studentName: s.name, classId: cls.id, levelId: cls.levelId })}
                                           />
                                         </ItemRow>
                                       )}
@@ -515,6 +557,18 @@ export default function StudentList() {
           >
             {flashError}
           </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {movingStudent && (
+          <MoveStudentModal
+            studentId={movingStudent.studentId}
+            studentName={movingStudent.studentName}
+            currentClassId={movingStudent.classId}
+            currentLevelId={movingStudent.levelId}
+            onClose={() => setMovingStudent(null)}
+            onMoved={handleStudentMoved}
+          />
         )}
       </AnimatePresence>
     </div>

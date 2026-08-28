@@ -285,3 +285,124 @@ func TestFindByNameAndClass_AliasNotFoundInDifferentClass(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, s1.ID, id)
 }
+
+// TestMoveStudent_AliasesFollowToTargetClass verifies that Move updates
+// student_aliases.class_id along with students.class_id, so no alias row is
+// left pointing at the old class.
+func TestMoveStudent_AliasesFollowToTargetClass(t *testing.T) {
+	ctx, r := testDBAndRepos(t)
+
+	c1 := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
+	c2 := newTestClass(t, r.classes, "test-group", "user1", "Science", "")
+
+	s, err := r.students.Create(ctx, c1.ID, "Alexander")
+	require.NoError(t, err)
+	a, err := r.students.AddAlias(ctx, s.ID, "Alex")
+	require.NoError(t, err)
+
+	dropped, err := r.students.Move(ctx, s.ID, c2.ID)
+	require.NoError(t, err, "move")
+	assert.Empty(t, dropped)
+
+	got, err := r.students.GetByID(ctx, s.ID)
+	require.NoError(t, err)
+	assert.Equal(t, c2.ID, got.ClassID, "student did not move")
+
+	aliases, err := r.students.ListAliases(ctx, s.ID)
+	require.NoError(t, err)
+	require.Len(t, aliases, 1)
+	assert.Equal(t, c2.ID, aliases[0].ClassID, "alias did not follow the student to the new class")
+	assert.Equal(t, a.Alias, aliases[0].Alias)
+
+	// Old class's alias uniqueness index should no longer see this alias.
+	_, err = r.students.FindByNameAndClass(ctx, "Alex", "Math · Mon", "user1")
+	assert.True(t, errors.Is(err, ErrNotFound), "alias should no longer resolve in the source class")
+}
+
+// TestMoveStudent_NameConflictBlocksMove verifies that moving into a class
+// with a colliding canonical name aborts the move and mutates nothing.
+func TestMoveStudent_NameConflictBlocksMove(t *testing.T) {
+	ctx, r := testDBAndRepos(t)
+
+	c1 := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
+	c2 := newTestClass(t, r.classes, "test-group", "user1", "Science", "")
+
+	s, err := r.students.Create(ctx, c1.ID, "Alexander")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
+	require.NoError(t, err)
+	_, err = r.students.Create(ctx, c2.ID, "Alexander")
+	require.NoError(t, err)
+
+	_, err = r.students.Move(ctx, s.ID, c2.ID)
+	var dupErr *ErrDuplicateStudentName
+	require.ErrorAs(t, err, &dupErr, "expected *ErrDuplicateStudentName, got: %v", err)
+	assert.Equal(t, "Alexander", dupErr.ConflictName)
+	assert.True(t, errors.Is(err, ErrDuplicate), "should still satisfy errors.Is(err, ErrDuplicate)")
+
+	// Nothing mutated: student still in c1, alias still in c1.
+	got, err := r.students.GetByID(ctx, s.ID)
+	require.NoError(t, err)
+	assert.Equal(t, c1.ID, got.ClassID, "student should not have moved")
+	aliases, err := r.students.ListAliases(ctx, s.ID)
+	require.NoError(t, err)
+	require.Len(t, aliases, 1)
+	assert.Equal(t, c1.ID, aliases[0].ClassID, "alias should not have moved")
+}
+
+// TestMoveStudent_NameConflictWithTargetAlias verifies the collision check
+// also catches a target-class alias equal to the moving student's name.
+func TestMoveStudent_NameConflictWithTargetAlias(t *testing.T) {
+	ctx, r := testDBAndRepos(t)
+
+	c1 := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
+	c2 := newTestClass(t, r.classes, "test-group", "user1", "Science", "")
+
+	s, err := r.students.Create(ctx, c1.ID, "Alex")
+	require.NoError(t, err)
+	other, err := r.students.Create(ctx, c2.ID, "Alexander")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, other.ID, "Alex")
+	require.NoError(t, err)
+
+	_, err = r.students.Move(ctx, s.ID, c2.ID)
+	var dupErr *ErrDuplicateStudentName
+	require.ErrorAs(t, err, &dupErr, "expected *ErrDuplicateStudentName, got: %v", err)
+	assert.Equal(t, "Alexander", dupErr.ConflictName)
+}
+
+// TestMoveStudent_CollidingAliasesAreDroppedNotBlocking verifies that an
+// alias-only collision does not block the move: the move succeeds, the
+// colliding alias is dropped, and it is reported to the caller.
+func TestMoveStudent_CollidingAliasesAreDroppedNotBlocking(t *testing.T) {
+	ctx, r := testDBAndRepos(t)
+
+	c1 := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
+	c2 := newTestClass(t, r.classes, "test-group", "user1", "Science", "")
+
+	s, err := r.students.Create(ctx, c1.ID, "Emily")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, s.ID, "Em")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, s.ID, "Emmy")
+	require.NoError(t, err)
+
+	other, err := r.students.Create(ctx, c2.ID, "Emmanuel")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, other.ID, "Em")
+	require.NoError(t, err)
+
+	dropped, err := r.students.Move(ctx, s.ID, c2.ID)
+	require.NoError(t, err, "move should succeed despite alias collision")
+	assert.Equal(t, []string{"Em"}, dropped)
+
+	got, err := r.students.GetByID(ctx, s.ID)
+	require.NoError(t, err)
+	assert.Equal(t, c2.ID, got.ClassID, "student should have moved")
+
+	aliases, err := r.students.ListAliases(ctx, s.ID)
+	require.NoError(t, err)
+	require.Len(t, aliases, 1, "only the non-colliding alias should remain")
+	assert.Equal(t, "Emmy", aliases[0].Alias)
+	assert.Equal(t, c2.ID, aliases[0].ClassID)
+}

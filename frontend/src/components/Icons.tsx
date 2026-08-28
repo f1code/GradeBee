@@ -48,3 +48,11 @@ export function HexBullet() {
     </svg>
   )
 }
+
+export function MoveIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M2 8H13.5M9 3.5L13.5 8L9 12.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}

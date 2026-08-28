@@ -42,6 +42,20 @@ export class AliasConflictError extends Error {
   }
 }
 
+/**
+ * Thrown by moveStudent when the server returns a 409 name conflict.
+ * Contains the canonical name of the student already occupying that name
+ * in the target class.
+ */
+export class MoveConflictError extends Error {
+  conflictStudentName: string
+  constructor(message: string, conflictStudentName: string) {
+    super(message)
+    this.name = 'MoveConflictError'
+    this.conflictStudentName = conflictStudentName
+  }
+}
+
 const apiUrl = import.meta.env.VITE_API_URL
 // The seven weekday names a Class's Day may take, Monday first — mirrors
 // the backend's CHECK constraint (classes.day, sql/014_require_day.sql) and
@@ -173,6 +187,31 @@ export async function renameStudent(
     const body = await resp.json().catch(() => ({}))
     throw new Error(body.error || 'Failed to rename student')
   }
+}
+
+export async function moveStudent(
+  studentId: number,
+  classId: number,
+  getToken: () => Promise<string | null>
+): Promise<{ droppedAliases: string[] }> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/students/${studentId}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ classId }),
+  })
+  const body = await resp.json().catch(() => ({}))
+  if (!resp.ok) {
+    if (resp.status === 409) {
+      const conflictStudentName: string = body.details?.conflictStudentName ?? ''
+      throw new MoveConflictError(body.message || body.error || 'A student with that name already exists in the target class', conflictStudentName)
+    }
+    throw new Error(body.error || 'Failed to move student')
+  }
+  return { droppedAliases: body.droppedAliases ?? [] }
 }
 
 export async function deleteStudent(

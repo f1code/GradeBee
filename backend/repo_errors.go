@@ -33,6 +33,27 @@ func (e *ErrDuplicateAlias) Is(target error) bool {
 	return ok
 }
 
+// ErrDuplicateStudentName is returned by Move when the student's canonical
+// name collides with an existing student's name or alias in the target
+// class. ConflictName holds the colliding name so the handler can name it
+// in the 409 response.
+type ErrDuplicateStudentName struct {
+	ConflictName string
+}
+
+func (e *ErrDuplicateStudentName) Error() string {
+	return fmt.Sprintf("student name conflicts with %q in target class", e.ConflictName)
+}
+
+// Is satisfies errors.Is for target *ErrDuplicateStudentName.
+func (e *ErrDuplicateStudentName) Is(target error) bool {
+	_, ok := target.(*ErrDuplicateStudentName)
+	return ok
+}
+
+// Unwrap lets generic `errors.Is(err, ErrDuplicate)` checks keep working.
+func (e *ErrDuplicateStudentName) Unwrap() error { return ErrDuplicate }
+
 // ErrLevelInUse is returned by LevelRepo.Delete when Classes still
 // reference the Level. Count holds how many, so the handler can tell the
 // Admin exactly how many Classes need to move first.

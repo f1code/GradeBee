@@ -140,7 +140,8 @@ func TestStudentRepo_CRUD(t *testing.T) {
 
 	// Move
 	c2 := newTestClass(t, r.classes, "test-group", "user1", "Science", "")
-	require.NoError(t, r.students.Move(ctx, s.ID, c2.ID), "move")
+	_, err = r.students.Move(ctx, s.ID, c2.ID)
+	require.NoError(t, err, "move")
 	got, err = r.students.GetByID(ctx, s.ID)
 	require.NoError(t, err, "get after move")
 	assert.Equal(t, c2.ID, got.ClassID, "move did not update class")

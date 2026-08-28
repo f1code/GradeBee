@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 )
 
@@ -250,17 +251,32 @@ func handleUpdateStudent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	resp := map[string]interface{}{"status": "updated"}
 	if req.ClassID != nil {
 		if err := verifyClassOwnership(ctx, *req.ClassID, userID); err != nil {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "target class not found"})
 			return
 		}
-		if err := serviceDeps.GetStudentRepo().Move(ctx, id, *req.ClassID); err != nil {
+		dropped, err := serviceDeps.GetStudentRepo().Move(ctx, id, *req.ClassID)
+		if err != nil {
+			var dupErr *ErrDuplicateStudentName
+			if errors.As(err, &dupErr) {
+				writeAPIError(w, r, &apiError{
+					Status:  http.StatusConflict,
+					Code:    "student_name_conflict",
+					Message: fmt.Sprintf("A student named %q already exists in the target class.", dupErr.ConflictName),
+					Details: map[string]string{"conflictStudentName": dupErr.ConflictName},
+				})
+				return
+			}
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 			return
 		}
+		if len(dropped) > 0 {
+			resp["droppedAliases"] = dropped
+		}
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func handleDeleteStudent(w http.ResponseWriter, r *http.Request) {

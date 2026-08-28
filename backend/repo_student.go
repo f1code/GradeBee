@@ -147,17 +147,118 @@ func (r *StudentRepo) Rename(ctx context.Context, id int64, name string) error {
 	return rowsAffectedOrNotFound(res)
 }
 
-// Move transfers a student to a different class.
-func (r *StudentRepo) Move(ctx context.Context, id, newClassID int64) error {
-	res, err := r.db.ExecContext(ctx,
-		"UPDATE students SET class_id = ? WHERE id = ?", newClassID, id)
+// Move transfers a student, and their aliases, to a different class in one
+// transaction. If the student's canonical name collides (case-insensitively)
+// with a name or alias already in the target class, the move is aborted and
+// *ErrDuplicateStudentName is returned; nothing is mutated. Aliases that
+// merely collide with the target class are dropped rather than blocking the
+// move; their text is returned in droppedAliases so the caller can tell the
+// teacher.
+func (r *StudentRepo) Move(ctx context.Context, id, newClassID int64) (droppedAliases []string, err error) {
+	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		if isDuplicateErr(err) {
-			return fmt.Errorf("move student: %w", ErrDuplicate)
-		}
-		return fmt.Errorf("move student: %w", err)
+		return nil, fmt.Errorf("move student: begin tx: %w", err)
 	}
-	return rowsAffectedOrNotFound(res)
+	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+
+	var name string
+	err = tx.QueryRowContext(ctx, "SELECT name FROM students WHERE id = ?", id).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("move student: get student: %w", err)
+	}
+
+	if conflict, err := findNameOrAliasOwner(ctx, tx, newClassID, name, id); err != nil {
+		return nil, fmt.Errorf("move student: check name collision: %w", err)
+	} else if conflict != "" {
+		return nil, &ErrDuplicateStudentName{ConflictName: conflict}
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		"UPDATE students SET class_id = ? WHERE id = ?", newClassID, id); err != nil {
+		if isDuplicateErr(err) {
+			return nil, &ErrDuplicateStudentName{ConflictName: name}
+		}
+		return nil, fmt.Errorf("move student: %w", err)
+	}
+
+	rows, err := tx.QueryContext(ctx,
+		"SELECT id, alias FROM student_aliases WHERE student_id = ?", id)
+	if err != nil {
+		return nil, fmt.Errorf("move student: list aliases: %w", err)
+	}
+	type aliasRow struct {
+		id    int64
+		alias string
+	}
+	var aliases []aliasRow
+	for rows.Next() {
+		var ar aliasRow
+		if err := rows.Scan(&ar.id, &ar.alias); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("move student: scan alias: %w", err)
+		}
+		aliases = append(aliases, ar)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("move student: alias rows: %w", err)
+	}
+	rows.Close()
+
+	for _, ar := range aliases {
+		conflict, err := findNameOrAliasOwner(ctx, tx, newClassID, ar.alias, id)
+		if err != nil {
+			return nil, fmt.Errorf("move student: check alias collision: %w", err)
+		}
+		if conflict != "" {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM student_aliases WHERE id = ?", ar.id); err != nil {
+				return nil, fmt.Errorf("move student: drop colliding alias: %w", err)
+			}
+			droppedAliases = append(droppedAliases, ar.alias)
+			continue
+		}
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE student_aliases SET class_id = ? WHERE id = ?", newClassID, ar.id); err != nil {
+			return nil, fmt.Errorf("move student: update alias class: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("move student: commit: %w", err)
+	}
+	return droppedAliases, nil
+}
+
+// findNameOrAliasOwner returns the canonical name of the student in classID
+// whose name or alias case-insensitively matches value, excluding
+// excludeStudentID. Returns "" if there is no match.
+func findNameOrAliasOwner(ctx context.Context, tx *sql.Tx, classID int64, value string, excludeStudentID int64) (string, error) {
+	var owner string
+	err := tx.QueryRowContext(ctx, `
+		SELECT name FROM students
+		WHERE class_id = ? AND name = ? COLLATE NOCASE AND id != ? LIMIT 1`,
+		classID, value, excludeStudentID).Scan(&owner)
+	if err == nil {
+		return owner, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	err = tx.QueryRowContext(ctx, `
+		SELECT s.name FROM student_aliases sa
+		JOIN students s ON s.id = sa.student_id
+		WHERE sa.class_id = ? AND sa.alias = ? COLLATE NOCASE AND sa.student_id != ? LIMIT 1`,
+		classID, value, excludeStudentID).Scan(&owner)
+	if err == nil {
+		return owner, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return "", err
 }
 
 // Delete removes a student. Notes and aliases cascade via FK.

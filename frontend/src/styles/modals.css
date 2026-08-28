@@ -160,3 +160,85 @@
   font-size: 1rem;
   justify-content: center;
 }
+
+/* ============================================
+   Move Student Modal (reuses how-it-works shell)
+   ============================================ */
+
+.how-it-works-close.move-student-modal-close {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+}
+
+.move-student-modal h2 {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+}
+
+.move-student-level-group {
+  margin-bottom: 1.25rem;
+}
+
+.move-student-level-heading {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+  margin: 0 0 0.5rem;
+}
+
+.move-student-class-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.move-student-class-row {
+  width: 100%;
+  text-align: left;
+  background: var(--parchment);
+  border: 1.5px solid var(--comb);
+  color: var(--ink);
+  box-shadow: none;
+  font-weight: 500;
+  justify-content: flex-start;
+}
+
+.move-student-class-row-label {
+  flex: 1;
+}
+
+.move-student-class-row-chevron {
+  display: inline-flex;
+  color: var(--ink-muted);
+  transform: rotate(-90deg);
+}
+
+.move-student-class-row:hover:not(:disabled) {
+  background: var(--honey-light);
+  border-color: var(--honey);
+  transform: none;
+  box-shadow: none;
+}
+
+.move-student-class-row:hover:not(:disabled) .move-student-class-row-chevron {
+  color: var(--honey-dark);
+}
+
+.move-student-confirm-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.move-student-result button {
+  width: 100%;
+  justify-content: center;
+  margin-top: 1rem;
+}

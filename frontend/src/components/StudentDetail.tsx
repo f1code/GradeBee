@@ -10,6 +10,7 @@ import NoteEditor from './NoteEditor'
 import ReportHistory from './ReportHistory'
 import StudentAliases from './StudentAliases'
 import InlineError from './InlineError'
+import { MoveIcon } from './Icons'
 
 interface StudentDetailProps {
   studentId: number
@@ -17,12 +18,20 @@ interface StudentDetailProps {
   className: string
   onCollapse: () => void
   modal?: boolean
+  /**
+   * Opens the move-to-class picker for this student. Only the roster
+   * (StudentList) supplies this — it owns the class cache and the modal
+   * itself, so it can update the source/target class lists once the move
+   * succeeds. The JobStatus note-link modal never passes it, so the move
+   * trigger never appears there.
+   */
+  onRequestMove?: () => void
 }
 
 type Status = 'loading' | 'error' | 'success'
 type Tab = 'notes' | 'reports'
 
-export default function StudentDetail({ studentId, studentName, className, onCollapse, modal }: StudentDetailProps) {
+export default function StudentDetail({ studentId, studentName, className, onCollapse, modal, onRequestMove }: StudentDetailProps) {
   const { getToken } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('notes')
   const [notes, setNotes] = useState<Note[]>([])
@@ -108,7 +117,20 @@ export default function StudentDetail({ studentId, studentName, className, onCol
         <div className="student-detail-info">
           <div className="student-detail-info-col">
             <h3 className="student-detail-name">{studentName}</h3>
-            <span className="student-detail-class">{className}</span>
+            <span className="student-detail-class">
+              {className}
+              {onRequestMove && (
+                <button
+                  type="button"
+                  className="icon-btn student-detail-move-trigger"
+                  onClick={onRequestMove}
+                  aria-label={`Move ${studentName} to another class`}
+                  data-testid={`move-student-${studentId}`}
+                >
+                  <MoveIcon />
+                </button>
+              )}
+            </span>
             <StudentAliases studentId={studentId} initialAliases={aliases} />
           </div>
         </div>
