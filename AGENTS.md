@@ -42,7 +42,8 @@ make lint
 make test
 ```
 
-Run this before considering code changes complete.
+Run this before considering code changes complete. 
+Do not skip tests, do not run bare `go test`.
 
 3. **Docs updated** - see "Documentation Maintenance".
 If unsure whether a doc update is needed, prefer updating the authoritative doc over leaving it stale.

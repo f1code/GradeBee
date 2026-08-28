@@ -304,7 +304,7 @@ changes almost always touch the static text.
  * branching behaviour inside builder functions that hashing the template alone
  * would not catch).  Format: monotonic integer as string.
  */
-export const PromptVersionTag = "3";
+export const PromptVersionTag = "4";
 
 //////////
 // source: repo_class.go

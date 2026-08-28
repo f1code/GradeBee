@@ -66,7 +66,7 @@ func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 		SystemPrompt: systemPrompt,
 		UserPrompt:   req.Transcript,
 		SchemaName:   "extract_response",
-		Schema:       extractResponseSchema(),
+		Schema:       extractResponseSchema(req.Classes),
 	}, &result)
 	if err != nil {
 		return nil, fmt.Errorf("extraction failed: %w", err)
@@ -97,40 +97,67 @@ func BuildExtractionPrompt(classes []ClassGroup) string {
 }
 
 // extractResponseSchema returns the JSON schema for structured outputs.
-func extractResponseSchema() json.RawMessage {
-	schema := `{
+// class_name is constrained to an enum of the roster's actual class names
+// (from classes) so the model is structurally forced to pick a real class,
+// rather than relying on the prompt instruction alone. If classes is empty
+// (schema-shape tests, or a live extraction whose roster read failed — see
+// voice_note_process.go), class_name falls back to a plain string so the
+// schema never demands an unsatisfiable enum.
+func extractResponseSchema(classes []ClassGroup) json.RawMessage {
+	classNames := make([]string, 0, len(classes))
+	for _, c := range classes {
+		classNames = append(classNames, c.Name)
+	}
+
+	classNameSchema := map[string]any{"type": "string"}
+	if len(classNames) > 0 {
+		classNameSchema["enum"] = classNames
+	}
+
+	candidateSchema := map[string]any{
 		"type": "object",
-		"properties": {
-			"students": {
-				"type": "array",
-				"items": {
-					"type": "object",
-					"properties": {
-						"name": {"type": "string"},
-						"class_name": {"type": "string"},
-						"quoted_text": {"type": "string"},
-						"confidence": {"type": "number"},
-						"candidates": {
-							"type": "array",
-							"items": {
-								"type": "object",
-								"properties": {
-									"name": {"type": "string"},
-									"class_name": {"type": "string"}
-								},
-								"required": ["name", "class_name"],
-								"additionalProperties": false
-							}
-						}
-					},
-					"required": ["name", "class_name", "quoted_text", "confidence", "candidates"],
-					"additionalProperties": false
-				}
-			},
-			"date": {"type": "string"}
+		"properties": map[string]any{
+			"name":       map[string]any{"type": "string"},
+			"class_name": classNameSchema,
 		},
-		"required": ["students", "date"],
-		"additionalProperties": false
-	}`
-	return json.RawMessage(schema)
+		"required":             []string{"name", "class_name"},
+		"additionalProperties": false,
+	}
+
+	studentSchema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"name":        map[string]any{"type": "string"},
+			"class_name":  classNameSchema,
+			"quoted_text": map[string]any{"type": "string"},
+			"confidence":  map[string]any{"type": "number"},
+			"candidates": map[string]any{
+				"type":  "array",
+				"items": candidateSchema,
+			},
+		},
+		"required":             []string{"name", "class_name", "quoted_text", "confidence", "candidates"},
+		"additionalProperties": false,
+	}
+
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"students": map[string]any{
+				"type":  "array",
+				"items": studentSchema,
+			},
+			"date": map[string]any{"type": "string"},
+		},
+		"required":             []string{"students", "date"},
+		"additionalProperties": false,
+	}
+
+	b, err := json.Marshal(schema)
+	if err != nil {
+		// Construction is fully static/programmatic; a marshal error here
+		// means a bug in this function, not a runtime condition to handle.
+		panic(fmt.Sprintf("extractResponseSchema: %v", err))
+	}
+	return json.RawMessage(b)
 }

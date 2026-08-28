@@ -24,7 +24,7 @@ import (
 // PromptVersionTag is bumped manually when non-template logic changes (e.g.
 // branching behaviour inside builder functions that hashing the template alone
 // would not catch).  Format: monotonic integer as string.
-const PromptVersionTag = "3"
+const PromptVersionTag = "4"
 
 // --- Extraction prompt templates ---
 
@@ -53,6 +53,7 @@ Rules:
 - Some roster entries include "(aka ...)" aliases — if a teacher uses an alias, match it to the canonical name and return the canonical name in the "name" field
 - Set confidence 0.0-1.0 for each match. Use >= 0.7 for confident matches.
 - If confidence < 0.7, include up to 3 closest roster matches in "candidates"
+- "class_name" is REQUIRED to be one of the roster's real class names — you cannot leave it blank or invent one. If a student's name exists in more than one class and the transcript does not make clear which class is meant, you must still pick one class_name, but set confidence below 0.5 for that entry so it is not auto-created against a guessed class, and list the other plausible (name, class_name) pairs in "candidates". Only report confidence >= 0.5 for a class_name you are actually sure of.
 - A student is "individually mentioned" ONLY if the teacher uses their name (or a recognizable nickname/variant of their name). Generic group references like "everyone", "all students", "the class" do NOT count as individual mentions.
 - Do NOT create entries for students who are never individually mentioned by name. If a student is only covered by group-level observations (e.g. "the class was loud") but never called out by name, they must NOT appear in the output.
 - For students who ARE individually mentioned by name, their quoted_text MUST include BOTH their individual observations AND any group-level observations from the same transcript/class. This applies to EVERY individually-mentioned student in that class, regardless of where the group observation appears in the transcript (beginning, middle, or end) or which students were named immediately before/after it. Do not attach group observations only to the students mentioned closest to them — propagate them to all named students in the class.
@@ -61,7 +62,7 @@ Rules:
 - For multi-student transcripts, produce a separate entry per student with relevant passages
 - If a mentioned student cannot be matched to any roster entry, do not include them in the output
 - If no students are clearly mentioned, return an empty students array
-- The "class_name" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names.
+- The "class_name" field for each student MUST exactly match one of the class names from the roster above. Do not invent or abbreviate class names — if you are unsure which class a student belongs to, see the confidence/candidates rule above.
 - IMPORTANT: Clean up speech into readable sentences, but do NOT invent observations or editorialize. Stay faithful to what the teacher actually said.
 `
 

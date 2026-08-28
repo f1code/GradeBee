@@ -13,8 +13,13 @@ providers:
       response_format:
         type: json_schema
         json_schema:
-          # Schema mirrors extractResponseSchema() in backend/extract.go.
-          # If ExtractResponse changes, update this block to match.
+          # Schema mirrors extractResponseSchema() in backend/extract.go's
+          # overall shape. Deliberate divergence: in production, class_name
+          # is constrained to an enum of the roster's actual class names
+          # (per-fixture rosters aren't easily templated into this static
+          # provider config), so it stays a plain string here — this eval
+          # does not gate on the enum constraint. Update the rest of this
+          # block if ExtractResponse's shape changes.
           name: extract_response
           strict: true
           schema:
