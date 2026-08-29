@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -212,4 +213,74 @@ func TestHandleRegenerateReport_RefusesUnsetLevelInstructions(t *testing.T) {
 	reports, err := reportRepo.List(ctx, stu.ID)
 	require.NoError(t, err)
 	assert.Len(t, reports, 1, "only the pre-existing report; no new row from the refused regeneration")
+}
+
+// TestHandleGenerateReports_OwnershipArms covers the two ways the ownership
+// check can refuse. Both answer the same uninformative 404 — the caller must
+// not learn whether the student exists — but a check that could not run is an
+// outage and has to stay visible in telemetry, named by id rather than by the
+// student (docs/adr/0003).
+func TestHandleGenerateReports_OwnershipArms(t *testing.T) {
+	newReq := func(t *testing.T, studentID int64) (*http.Request, *bytes.Buffer) {
+		t.Helper()
+		body, err := json.Marshal(map[string]any{
+			"students":  []map[string]any{{"studentId": studentID, "name": "Zephyrine", "className": "Sam"}},
+			"startDate": "2026-01-01",
+			"endDate":   "2026-03-31",
+		})
+		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req = clerkReq(req, "user_abc")
+		ctx, logs := captureLogs(req.Context())
+		return req.WithContext(ctx), logs
+	}
+
+	setDeps := func(db *sql.DB) {
+		serviceDeps = &mockDepsAll{
+			db:          db,
+			classRepo:   &ClassRepo{db: db},
+			studentRepo: &StudentRepo{db: db},
+			reportRepo:  &ReportRepo{db: db},
+			levelRepo:   &LevelRepo{db: db},
+			reportGen: &stubReportGenerator{
+				generateResp: &GenerateReportResponse{ReportID: 42, HTML: "<p>hi</p>"},
+			},
+		}
+	}
+
+	t.Run("student is not the caller's", func(t *testing.T) {
+		db := setupTestDB(t)
+		setDeps(db)
+
+		req, logs := newReq(t, 999999)
+		rec := httptest.NewRecorder()
+		handleGenerateReports(rec, req)
+
+		require.Equal(t, http.StatusNotFound, rec.Code, "body = %s", rec.Body.String())
+		var resp map[string]string
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		assert.Equal(t, "student Zephyrine not found", resp["error"], "the caller should see the name they asked about, not a row id")
+		assert.NotContains(t, logs.String(), "ownership check failed", "a plain ownership miss is not an outage and should not be logged as one")
+	})
+
+	t.Run("ownership check could not run", func(t *testing.T) {
+		db := setupTestDB(t)
+		setDeps(db)
+		require.NoError(t, db.Close())
+
+		req, logs := newReq(t, 1)
+		rec := httptest.NewRecorder()
+		handleGenerateReports(rec, req)
+
+		require.Equal(t, http.StatusNotFound, rec.Code, "an outage must not be distinguishable from a miss by the caller")
+		var resp map[string]string
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+		assert.Equal(t, "student Zephyrine not found", resp["error"])
+
+		out := logs.String()
+		require.Contains(t, out, "ownership check failed", "a failed ownership check vanished from telemetry")
+		assert.Contains(t, out, `"student_id":1`, "the outage record should carry the student id")
+		assert.NotContains(t, out, "Zephyrine", "telemetry must not name the student")
+	})
 }

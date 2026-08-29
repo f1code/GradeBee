@@ -100,6 +100,7 @@ GradeBee is invitation-only. Every user must belong to a **Group** (Clerk Organi
 
 - **Clerk (necessary):** Google sign-in and session cookies are required to use GradeBee.
 - **Sentry (optional diagnostics):** When `VITE_SENTRY_DSN` is set, error reporting, in-app feedback, and short session replays load only after you opt in via the privacy banner. Use **Privacy preferences** in the app footer to change your choice later.
+- **Server logs (necessary):** When `SENTRY_DSN` is set, the server reports its own errors and operational logs without a consent gate. These carry no student name from your roster — students appear as numeric ids. Text you write yourself is the exception: a recording is logged under its own file name, and the comment on a thumbs-down is sent verbatim, so either one names a child if you put a child's name in it. [ADR 0003](docs/adr/0003-no-child-pii-in-telemetry.md) enumerates these and tracks closing them. Browser diagnostics stay opt-in because session replays capture what is on screen.
 
 2. Install dependencies:
 

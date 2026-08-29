@@ -39,8 +39,13 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	userID := job.UserID
 	uploadID := job.UploadID
 
-	// Helper to mark job as failed and return the error.
-	fail := func(step string, err error) error {
+	// failWith marks the job failed and returns the error, writing to two audiences.
+	//
+	// step is telemetry: it is logged here, and the returned error is logged again by
+	// the queue worker, so both reach Sentry and neither may carry a student name
+	// (docs/adr/0003). detail is what the teacher reads — JobStatus renders job.Error
+	// — so it names the student they are entitled to see.
+	failWith := func(step, detail string, err error) error {
 		if errors.Is(err, errNoSpeechDetected) {
 			log.Warn("process voice note failed", "step", step, "key", key, "error", err)
 		} else {
@@ -48,12 +53,18 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		now := time.Now()
 		job.Status = JobStatusFailed
-		job.Error = fmt.Sprintf("%s: %s", step, err.Error())
+		job.Error = fmt.Sprintf("%s: %s", detail, err.Error())
 		job.FailedAt = &now
 		if updateErr := q.UpdateJob(ctx, *job); updateErr != nil {
 			log.Error("process voice note: failed to update job status to failed", "error", updateErr)
 		}
 		return fmt.Errorf("process voice note: %s: %w", step, err)
+	}
+
+	// Helper to mark job as failed and return the error, where the same wording
+	// serves both audiences because no student is named.
+	fail := func(step string, err error) error {
+		return failWith(step, step, err)
 	}
 
 	// --- Step 1: Transcribe (skip if text was pasted) ---
@@ -148,19 +159,23 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	var noteLinks []NoteLink
 	for _, student := range extractResult.Students {
 		if student.Confidence < autoCreateConfidenceThreshold {
+			// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
 			log.Info("process voice note: skipping low-confidence match",
-				"student", student.Name, "confidence", student.Confidence)
+				"key", key, "confidence", student.Confidence)
 			continue
 		}
 
 		studentID, err := studentRepo.FindByNameAndClass(ctx, student.Name, student.ClassName, userID)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
+				// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
 				log.Warn("process voice note: student not found in DB, skipping",
-					"student", student.Name, "class_name", student.ClassName)
+					"key", key, "class_name", student.ClassName)
 				continue
 			}
-			return fail("find student "+student.Name, err)
+			// The failed lookup is the only source of an identifier here, so telemetry
+			// carries none; the teacher still gets the name that failed to resolve.
+			return failWith("find student", "find student "+student.Name, err)
 		}
 
 		result, err := noteCreator.CreateNote(ctx, CreateNoteRequest{
@@ -172,7 +187,10 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			ModelVersion: extractor.Model(),
 		})
 		if err != nil {
-			return fail("create note for "+student.Name, err)
+			return failWith(
+				fmt.Sprintf("create note for student %d", studentID),
+				"create note for "+student.Name,
+				err)
 		}
 		noteLinks = append(noteLinks, NoteLink{
 			Name: student.Name, NoteID: result.NoteID,

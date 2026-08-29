@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -125,8 +126,20 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	var offendingLevels []string
 	for _, s := range req.Students {
 		owns, err := serviceDeps.GetStudentRepo().BelongsToUser(ctx, s.StudentID, userID)
+		if err != nil {
+			// An ownership check that could not run is an outage, not a missing
+			// student. The caller gets the same 404 either way so the answer stays
+			// uninformative, but the outage must not vanish from telemetry.
+			log.Error("generate reports: ownership check failed", "student_id", s.StudentID, "error", err)
+		}
 		if err != nil || !owns {
-			errMsg := fmt.Sprintf("student %d not found", s.StudentID)
+			// Name the student the caller asked about rather than echoing a bare row
+			// id at them. It is their own input coming back, so it discloses nothing.
+			who := strconv.FormatInt(s.StudentID, 10)
+			if s.Name != "" {
+				who = s.Name
+			}
+			errMsg := fmt.Sprintf("student %s not found", who)
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": errMsg})
 			return
 		}
@@ -174,7 +187,7 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			errMsg := fmt.Sprintf("failed to generate report for %s: %s", s.Name, err.Error())
-			log.Error("generate reports: student failed", "student", s.Name, "error", err)
+			log.Error("generate reports: student failed", "student_id", s.StudentID, "error", err)
 			writeJSON(w, http.StatusOK, GenerateReportsHTTPResponse{
 				Reports: reports,
 				Error:   &errMsg,
@@ -309,7 +322,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		ReportInstructions: lvl.ReportInstructions,
 	})
 	if err != nil {
-		log.Error("regenerate report failed", "student", student.Name, "error", err)
+		log.Error("regenerate report failed", "student_id", rpt.StudentID, "error", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}

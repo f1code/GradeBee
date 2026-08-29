@@ -1,14 +1,26 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"testing"
 )
+
+// captureLogs returns a derived context carrying a JSON logger writing into buf,
+// so a test can assert on what a code path logs — and on what it must not log.
+// Context injection rather than SetLogger: no global mutation, so it is safe
+// alongside parallel tests.
+func captureLogs(ctx context.Context) (context.Context, *bytes.Buffer) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	return context.WithValue(ctx, loggerKey, logger), &buf
+}
 
 // stubRoster implements Roster for tests.
 type stubRoster struct {
