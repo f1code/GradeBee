@@ -125,22 +125,14 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	seenLevels := map[string]bool{}
 	var offendingLevels []string
 	for _, s := range req.Students {
-		owns, err := serviceDeps.GetStudentRepo().BelongsToUser(ctx, s.StudentID, userID)
-		if err != nil {
-			// An ownership check that could not run is an outage, not a missing
-			// student. The caller gets the same 404 either way so the answer stays
-			// uninformative, but the outage must not vanish from telemetry.
-			log.Error("generate reports: ownership check failed", "student_id", s.StudentID, "error", err)
+		// Name the student the caller asked about rather than echoing a bare row id
+		// at them. It is their own input coming back, so it discloses nothing — and
+		// requireStudentOwnership keeps it out of the log.
+		who := strconv.FormatInt(s.StudentID, 10)
+		if s.Name != "" {
+			who = s.Name
 		}
-		if err != nil || !owns {
-			// Name the student the caller asked about rather than echoing a bare row
-			// id at them. It is their own input coming back, so it discloses nothing.
-			who := strconv.FormatInt(s.StudentID, 10)
-			if s.Name != "" {
-				who = s.Name
-			}
-			errMsg := fmt.Sprintf("student %s not found", who)
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": errMsg})
+		if !requireStudentOwnership(w, r, s.StudentID, userID, fmt.Sprintf("student %s not found", who)) {
 			return
 		}
 		student, err := serviceDeps.GetStudentRepo().GetByID(ctx, s.StudentID)
@@ -258,10 +250,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify ownership
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(ctx, rpt.StudentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+	if !requireStudentOwnership(w, r, rpt.StudentID, userID, "report not found") {
 		return
 	}
 
@@ -373,9 +362,7 @@ func handleListReports(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+	if !requireStudentOwnership(w, r, studentID, userID, "student not found") {
 		return
 	}
 	reports, err := serviceDeps.GetReportRepo().List(r.Context(), studentID)
@@ -415,9 +402,7 @@ func handleGetReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), rpt.StudentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+	if !requireStudentOwnership(w, r, rpt.StudentID, userID, "report not found") {
 		return
 	}
 	student, err := serviceDeps.GetStudentRepo().GetByID(r.Context(), rpt.StudentID)
@@ -465,9 +450,7 @@ func handleDeleteReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), rpt.StudentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
+	if !requireStudentOwnership(w, r, rpt.StudentID, userID, "report not found") {
 		return
 	}
 	if err := serviceDeps.GetReportRepo().Delete(r.Context(), reportID); err != nil {

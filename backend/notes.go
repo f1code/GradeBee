@@ -78,9 +78,7 @@ func handleListNotes(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+	if !requireStudentOwnership(w, r, studentID, userID, "student not found") {
 		return
 	}
 	notes, err := serviceDeps.GetNoteRepo().List(r.Context(), studentID)
@@ -105,9 +103,7 @@ func handleCreateNote(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+	if !requireStudentOwnership(w, r, studentID, userID, "student not found") {
 		return
 	}
 	var req struct {
@@ -151,10 +147,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	// Verify ownership via student
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), n.StudentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "note not found"})
+	if !requireStudentOwnership(w, r, n.StudentID, userID, "note not found") {
 		return
 	}
 	writeJSON(w, http.StatusOK, n)
@@ -180,9 +173,7 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), n.StudentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "note not found"})
+	if !requireStudentOwnership(w, r, n.StudentID, userID, "note not found") {
 		return
 	}
 	var req struct {
@@ -243,9 +234,7 @@ func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), n.StudentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "note not found"})
+	if !requireStudentOwnership(w, r, n.StudentID, userID, "note not found") {
 		return
 	}
 	if err := serviceDeps.GetNoteRepo().Delete(r.Context(), noteID); err != nil {

@@ -227,9 +227,7 @@ func handleUpdateStudent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), id, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+	if !requireStudentOwnership(w, r, id, userID, "student not found") {
 		return
 	}
 	var req struct {
@@ -290,9 +288,7 @@ func handleDeleteStudent(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
 		return
 	}
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), id, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+	if !requireStudentOwnership(w, r, id, userID, "student not found") {
 		return
 	}
 	if err := serviceDeps.GetStudentRepo().Delete(r.Context(), id); err != nil {

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -362,4 +363,71 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		getLogger().Error("json encode error", "error", err)
 	}
+}
+
+// callerName returns the unqualified name of the handler that called
+// requireStudentOwnership, e.g. "handleGetNote". It labels a log record with its
+// call site without putting any caller-controlled text into telemetry.
+//
+// The skip of 2 (callerName -> requireStudentOwnership -> the handler) assumes this
+// is called directly from requireStudentOwnership. Introducing a wrapper between the
+// two would silently retarget the label to the wrapper's caller rather than fail to
+// compile. TestHandleGenerateReports_OwnershipArms pins the exact value
+// "op":"handleGenerateReports" through a real handler and fails if the depth drifts.
+func callerName() string {
+	pc, _, _, ok := runtime.Caller(2)
+	if !ok {
+		return "unknown"
+	}
+	name := runtime.FuncForPC(pc).Name()
+	if i := strings.LastIndex(name, "."); i >= 0 {
+		name = name[i+1:]
+	}
+	return name
+}
+
+// requireStudentOwnership gates a handler on the caller owning the student, writing
+// the 404 itself when they do not. It returns true only when ownership is confirmed,
+// so call sites read `if !requireStudentOwnership(...) { return }`.
+//
+// It exists because the two ways this check fails are different events that must stay
+// distinguishable in telemetry while staying indistinguishable to the caller:
+//
+//   - the check could not run — an outage, logged at Error. A repo failure must not
+//     vanish behind a 404.
+//   - the check ran and said no — a denial, logged at Warn. BelongsToUser cannot tell
+//     "no such student" from "another teacher's student", so this one record covers a
+//     deletion race against a stale roster, a client bug, and probing alike. Warn
+//     keeps it queryable without paging anyone; the false-positive rate from the
+//     deletion race is still unknown.
+//
+// Both arms write notFoundMsg with the same status, so the response is byte-identical
+// either way and tells the caller nothing about which occurred.
+//
+// notFoundMsg is caller-facing text and may legitimately carry a student name (see
+// handleGenerateReports, which echoes the name the caller itself supplied). It is
+// therefore never logged: telemetry carries student_id only, per ADR 0003.
+//
+// The record names its handler via callerName() rather than r.URL.Path. The request
+// logger carries only request_id, so without some site label all sixteen call sites
+// emit the same undifferentiated line — but the live path is client-controlled text.
+// Routing is prefix-based and pathParam stops at the first "/", so a request such as
+// GET /api/notes/5/<anything> reaches this gate with that trailing segment intact; a
+// caller could park a child's name there and have it logged. The handler name cannot
+// carry caller input at all.
+func requireStudentOwnership(w http.ResponseWriter, r *http.Request, studentID int64, userID, notFoundMsg string) bool {
+	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
+	log := loggerFromRequest(r)
+	switch {
+	case err != nil:
+		log.Error("ownership check failed", "student_id", studentID,
+			"method", r.Method, "op", callerName(), "error", err)
+	case !owns:
+		log.Warn("ownership check denied", "student_id", studentID,
+			"method", r.Method, "op", callerName())
+	default:
+		return true
+	}
+	writeJSON(w, http.StatusNotFound, map[string]string{"error": notFoundMsg})
+	return false
 }

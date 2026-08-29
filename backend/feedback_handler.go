@@ -84,9 +84,7 @@ func handleSubmitFeedback(w http.ResponseWriter, r *http.Request) {
 		studentID = n.StudentID
 	}
 
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(ctx, studentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": req.ArtifactType + " not found"})
+	if !requireStudentOwnership(w, r, studentID, userID, req.ArtifactType+" not found") {
 		return
 	}
 

@@ -261,7 +261,11 @@ func TestHandleGenerateReports_OwnershipArms(t *testing.T) {
 		var resp map[string]string
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 		assert.Equal(t, "student Zephyrine not found", resp["error"], "the caller should see the name they asked about, not a row id")
-		assert.NotContains(t, logs.String(), "ownership check failed", "a plain ownership miss is not an outage and should not be logged as one")
+		out := logs.String()
+		assert.NotContains(t, out, "ownership check failed", "a plain ownership miss is not an outage and should not be logged as one")
+		assert.Contains(t, out, "ownership check denied", "a denied ownership check should still be queryable")
+		assert.Contains(t, out, `"op":"handleGenerateReports"`, "the record should name the handler it came from")
+		assert.NotContains(t, out, "Zephyrine", "telemetry must not name the student")
 	})
 
 	t.Run("ownership check could not run", func(t *testing.T) {

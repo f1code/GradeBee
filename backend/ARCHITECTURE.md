@@ -237,6 +237,34 @@ All CRUD endpoints verify resource ownership:
 4. For student operations: `studentRepo.BelongsToUser(studentID, userID)`
 5. For note/report operations: join through student → class to verify ownership
 
+Steps 4 and 5 go through `requireStudentOwnership(w, r, studentID, userID, notFoundMsg)`
+in `handler.go` — the single gate for "does this caller own this student", used by all
+sixteen call sites. It writes the 404 itself and returns `false`, so handlers read:
+
+```go
+if !requireStudentOwnership(w, r, studentID, userID, "student not found") {
+    return
+}
+```
+
+It exists to keep two events apart that a bare `if err != nil || !owns` collapses into one
+silent 404. A check that *could not run* is an outage and logs at Error; a check that ran
+and *said no* is a denial and logs at Warn — queryable, deliberately not paging, since the
+false-positive rate from a delete race against a stale client roster is unknown. Both arms
+write the identical response, so the caller still cannot tell an outage from a denial from
+a genuine miss.
+
+`notFoundMsg` is the whole caller-facing string rather than a noun, because
+`handleGenerateReports` echoes back the student name the caller supplied. That name is
+never logged: telemetry carries `student_id` only (`docs/adr/0003`).
+
+Each record is labelled with its handler via `callerName()` (an `op` field), not with
+`r.URL.Path`. Routing here is prefix-based and `pathParam` stops at the first `/`, so
+`GET /api/notes/5/<anything>` reaches the gate with that trailing segment intact —
+logging the live path would let a caller plant a child's name in telemetry. The handler
+name cannot carry caller input. Denials land at Warn and production runs at `INFO`
+(`ansible/vars.yml`), so they are retained.
+
 The `debugAuthMiddleware` enforces that every `/api/` request carries an active Clerk Organization (`ActiveOrganizationID != ""`). Requests without an active org receive `403 no_active_org` before reaching any handler.
 
 ## File-by-File Reference
@@ -245,7 +273,7 @@ The `debugAuthMiddleware` enforces that every `/api/` request carries an active 
 |------|---------------|
 | `cmd/server/main.go` | Server entrypoint; loads `.env`, inits Clerk, opens DB, runs migrations, starts queue + cleanup + HTTP. Supports `--migrate-only` flag (open DB, run migrations, exit 0) for Dokku predeploy hook. |
 | `static.go` | Embeds `static/` (frontend dist, copied at Docker build time) via `embed.FS`; provides `spaHandler()` with SPA fallback and cache-control headers |
-| `handler.go` | Routing, CORS, request logging, `Handle` entrypoint, `userIDFromRequest`, `pathParam` |
+| `handler.go` | Routing, CORS, request logging, `Handle` entrypoint, `userIDFromRequest`, `pathParam`, `requireStudentOwnership` |
 | `deps.go` | DI interface, prod implementations, `serviceDeps` variable |
 | `llm_provider.go` | `LLMProvider` interface, request/response types, `LLMTask` enum, `LoadProvider()` factory |
 | `llm_provider_openai.go` | `openaiProvider` — OpenAI chat/vision via go-openai + Whisper transcription |

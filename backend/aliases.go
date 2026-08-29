@@ -33,9 +33,7 @@ func handleListAliases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+	if !requireStudentOwnership(w, r, studentID, userID, "student not found") {
 		return
 	}
 
@@ -65,9 +63,7 @@ func handleAddAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+	if !requireStudentOwnership(w, r, studentID, userID, "student not found") {
 		return
 	}
 
@@ -128,9 +124,7 @@ func handleRemoveAlias(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
-	if err != nil || !owns {
-		writeJSON(w, http.StatusNotFound, map[string]string{"error": "student not found"})
+	if !requireStudentOwnership(w, r, studentID, userID, "student not found") {
 		return
 	}
 
