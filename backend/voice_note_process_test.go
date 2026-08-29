@@ -439,7 +439,7 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 	lowConf := logRecord(t, out, `"reason":"low_confidence"`)
 	assert.Contains(t, lowConf, "process voice note: mention dropped", "both drop sites must share the stable query key")
 	assert.Contains(t, lowConf, `"key":"u1/1"`, "low-confidence drop should carry the job key")
-	assert.Contains(t, lowConf, `"confidence"`, "low-confidence drop should keep the confidence that caused it")
+	assert.Contains(t, lowConf, `"confidence":0.3`, "low-confidence drop should keep the confidence that caused it")
 	// By value, not just by key: 0 is the ambiguous answer here, indistinguishable
 	// from logging the wrong expression, and candidate_count exists to settle whether
 	// a review UI could pre-populate a picker.
@@ -454,7 +454,10 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 	offRoster := logRecord(t, out, `"reason":"no_roster_match"`)
 	assert.Contains(t, offRoster, "process voice note: mention dropped", "both drop sites must share the stable query key")
 	assert.Contains(t, offRoster, `"key":"u1/1"`, "off-roster drop should carry the job key")
-	assert.Contains(t, offRoster, `"class_name"`, "off-roster drop should keep the class it was attributed to")
+	// By value: production names class_name the diagnostic field for this reason —
+	// the one observed production drop of this kind was a malformed class name — so
+	// an empty one would defeat the readout while still passing a presence check.
+	assert.Contains(t, offRoster, `"class_name":"Math · Mon"`, "off-roster drop should keep the class it was attributed to")
 	assert.Contains(t, offRoster, `"user_id":"u1"`, "off-roster drop should carry the user id")
 	assert.Contains(t, offRoster, `"upload_id":1`, "off-roster drop should carry the upload id")
 }
