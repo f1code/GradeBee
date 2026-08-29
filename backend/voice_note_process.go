@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -81,6 +82,9 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		transcript, err = transcriber.Transcribe(ctx, job.FileName, audioFile, classNames)
 		if err != nil {
 			return fail("transcribe", err)
+		}
+		if strings.TrimSpace(transcript) == "" {
+			return fail("transcribe", errors.New("no speech detected in audio"))
 		}
 		job.Transcript = transcript
 

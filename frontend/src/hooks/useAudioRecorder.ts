@@ -92,7 +92,9 @@ export function useAudioRecorder() {
     const generation = startGenerationRef.current
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      // Mono: a second channel doubles the source data and adds nothing for
+      // speech. Bare values are "ideal", so a mono-incapable device still works.
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
 
       if (generation !== startGenerationRef.current) {
         // Cancelled or unmounted while the permission prompt was pending — discard the stream.
@@ -104,7 +106,16 @@ export function useAudioRecorder() {
 
       const mimeType = pickMimeType()
       mimeTypeRef.current = mimeType
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+      // Chromium's MediaRecorder defaults to 128 kbps regardless of channel
+      // count (measured: ~0.9 MB/min), which is far more than transcription
+      // needs and puts a 30-minute session past the 25 MB upload limit. Opus
+      // stays intelligible for speech at 32 kbps; AAC (Safari's audio/mp4) is
+      // less efficient, so it gets more headroom.
+      const audioBitsPerSecond = mimeType.startsWith('audio/mp4') ? 48000 : 32000
+      const recorder = new MediaRecorder(
+        stream,
+        mimeType ? { mimeType, audioBitsPerSecond } : { audioBitsPerSecond },
+      )
       recorder.ondataavailable = (e: BlobEvent) => {
         if (e.data.size > 0) {
           chunksRef.current.push(e.data)

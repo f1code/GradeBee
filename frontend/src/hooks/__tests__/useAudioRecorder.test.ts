@@ -8,9 +8,13 @@ class FakeMediaRecorder {
   mimeType: string
   ondataavailable: ((e: { data: Blob }) => void) | null = null
   onstop: (() => void) | null = null
-  constructor(_stream: MediaStream, options?: { mimeType?: string }) {
+  options?: { mimeType?: string; audioBitsPerSecond?: number }
+  constructor(_stream: MediaStream, options?: { mimeType?: string; audioBitsPerSecond?: number }) {
     this.mimeType = options?.mimeType ?? ''
+    this.options = options
+    FakeMediaRecorder.lastInstance = this
   }
+  static lastInstance: FakeMediaRecorder | null = null
   start() {
     this.state = 'recording'
   }
@@ -96,6 +100,19 @@ describe('useAudioRecorder', () => {
 
     expect(stopTrack).toHaveBeenCalled()
     expect(result.current.isRecording).toBe(false)
+  })
+
+  it('records mono at a capped bitrate so sessions stay under the upload limit', async () => {
+    const { result } = renderHook(() => useAudioRecorder())
+
+    await act(async () => {
+      await result.current.start()
+    })
+
+    // Browser defaults are ~128 kbps (~0.9 MB/min), which pushes a 30-minute
+    // session past the 25 MB upload limit.
+    expect(getUserMedia).toHaveBeenCalledWith({ audio: { channelCount: 1 } })
+    expect(FakeMediaRecorder.lastInstance?.options?.audioBitsPerSecond).toBe(32000)
   })
 
   it('cancelling while the permission prompt is still pending stops the stream once it resolves', async () => {

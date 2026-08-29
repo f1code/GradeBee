@@ -6,6 +6,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,7 @@ func handleTextNotesUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Text = strings.TrimSpace(req.Text)
 	if req.Text == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "text is required"})
 		return

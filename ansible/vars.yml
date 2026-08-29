@@ -23,4 +23,10 @@ app_upload_retention_hours: "168"   # 7 days; quoted so dokku config:set treats 
 app_allowed_origin: "*"
 app_log_level: INFO
 app_log_format: json
+
+# nginx client_max_body_size for the app. Must stay above the backend's own
+# 25 MB upload cap (maxUploadSize in backend/voice_note_upload.go); nginx's
+# unconfigured default is 1m, which rejects voice notes with an HTML 413
+# before the request reaches the container.
+app_client_max_body_size: 26m
 app_environment: production

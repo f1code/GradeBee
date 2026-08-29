@@ -50,6 +50,7 @@ jobs:
             VITE_CLERK_PUBLISHABLE_KEY=${{ vars.VITE_CLERK_PUBLISHABLE_KEY }}
             VITE_GOOGLE_CLIENT_ID=${{ vars.VITE_GOOGLE_CLIENT_ID }}
             VITE_SENTRY_DSN=${{ vars.VITE_SENTRY_DSN }}
+            VITE_SENTRY_ENVIRONMENT=review
             VITE_APP_VERSION=pr-${{ github.event.number }}
             VITE_FEATURE_REPORTS_ADMIN_ONLY=${{ vars.VITE_FEATURE_REPORTS_ADMIN_ONLY }}
 
@@ -88,6 +89,13 @@ jobs:
               OPENAI_API_KEY="$OPENAI_API_KEY" \
               DB_PATH="/data/${APP_NAME}.db" \
               UPLOADS_DIR="/data/uploads"
+
+            # nginx's unconfigured default is 1m, which rejects voice-note
+            # uploads with an HTML 413 before they reach the container. Keep it
+            # just above the backend's 25 MB maxUploadSize. Review apps are not
+            # provisioned by Ansible, so this mirrors ansible/vars.yml
+            # (app_client_max_body_size). The deploy below rebuilds the vhost.
+            dokku nginx:set "$APP_NAME" client-max-body-size 26m
 
             # Deploy the PR image (predeploy script in app.json runs migrations automatically)
             dokku git:from-image "$APP_NAME" "$IMAGE"

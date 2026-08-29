@@ -487,6 +487,7 @@
 /* --- Job Status --- */
 
 .job-status {
+  margin-top: 1.5rem;
   background: var(--chalk);
   border-radius: 12px;
   padding: 1.25rem 1.5rem;

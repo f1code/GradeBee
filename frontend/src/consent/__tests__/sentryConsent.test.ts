@@ -23,8 +23,11 @@ describe('sentryConsent', () => {
     vi.resetModules()
     initMock.mockClear()
     closeMock.mockClear()
+    feedbackIntegrationMock.mockClear()
+    replayIntegrationMock.mockClear()
     isDiagnosticsConsentedMock.mockReturnValue(false)
     vi.stubEnv('VITE_SENTRY_DSN', 'https://example@o0.ingest.sentry.io/1')
+    vi.stubEnv('VITE_SENTRY_ENVIRONMENT', 'production')
   })
 
   afterEach(() => {
@@ -43,8 +46,33 @@ describe('sentryConsent', () => {
     resetSentryConsentStateForTests()
     initSentryIfConsented()
     expect(initMock).toHaveBeenCalledTimes(1)
+    expect(initMock.mock.calls[0][0]).toMatchObject({ environment: 'production' })
     expect(replayIntegrationMock).toHaveBeenCalled()
     expect(feedbackIntegrationMock).toHaveBeenCalled()
+  })
+
+  it('tags review-app events and disables replay outside production', async () => {
+    vi.stubEnv('VITE_SENTRY_ENVIRONMENT', 'review')
+    isDiagnosticsConsentedMock.mockReturnValue(true)
+    const { initSentryIfConsented, resetSentryConsentStateForTests } = await import('../sentryConsent')
+    resetSentryConsentStateForTests()
+    initSentryIfConsented()
+    expect(initMock.mock.calls[0][0]).toMatchObject({
+      environment: 'review',
+      replaysSessionSampleRate: 0,
+      replaysOnErrorSampleRate: 0,
+    })
+    expect(replayIntegrationMock).not.toHaveBeenCalled()
+    expect(feedbackIntegrationMock).toHaveBeenCalled()
+  })
+
+  it('defaults to the development environment when unconfigured', async () => {
+    vi.stubEnv('VITE_SENTRY_ENVIRONMENT', '')
+    isDiagnosticsConsentedMock.mockReturnValue(true)
+    const { initSentryIfConsented, resetSentryConsentStateForTests } = await import('../sentryConsent')
+    resetSentryConsentStateForTests()
+    initSentryIfConsented()
+    expect(initMock.mock.calls[0][0]).toMatchObject({ environment: 'development' })
   })
 
   it('closes Sentry when diagnostics consent is revoked', async () => {

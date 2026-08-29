@@ -6,6 +6,17 @@ let sentryInitialised = false
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined
 
 /**
+ * Deployment environment reported to Sentry ("production", "review", ...).
+ * Review apps share the production project, so this tag is what keeps their
+ * events out of the production views and alert rules. Defaults to
+ * "development" so an untagged local build never masquerades as production.
+ */
+const sentryEnvironment = (import.meta.env.VITE_SENTRY_ENVIRONMENT as string | undefined) || 'development'
+
+/** Session replay is a separate, expensive quota — production only. */
+const replayEnabled = sentryEnvironment === 'production'
+
+/**
  * Initialise Sentry only when diagnostics consent is granted and a DSN is configured.
  * Replay is included only here — never at module load before consent.
  */
@@ -15,15 +26,16 @@ export function initSentryIfConsented(): void {
 
   Sentry.init({
     dsn: sentryDsn,
+    environment: sentryEnvironment,
     release: import.meta.env.VITE_APP_VERSION as string | undefined,
     integrations: [
       Sentry.feedbackIntegration({
         autoInject: false,
       }),
-      Sentry.replayIntegration(),
+      ...(replayEnabled ? [Sentry.replayIntegration()] : []),
     ],
-    replaysSessionSampleRate: 0.01,
-    replaysOnErrorSampleRate: 1.0,
+    replaysSessionSampleRate: replayEnabled ? 0.01 : 0,
+    replaysOnErrorSampleRate: replayEnabled ? 1.0 : 0,
   })
   sentryInitialised = true
 }

@@ -102,6 +102,23 @@
       no_log: true
 
     # ------------------------------------------------------------------
+    # 4. Nginx request limits
+    # Without this, nginx falls back to its own 1 MB client_max_body_size and
+    # rejects voice-note uploads with an HTML 413 before the request ever
+    # reaches the container (no app log, no Sentry event). Keep it just above
+    # the app's own 25 MB limit (maxUploadSize in backend/voice_note_upload.go)
+    # so oversized files get the app's JSON error instead of nginx's HTML page.
+    # ------------------------------------------------------------------
+
+    - name: Set nginx client_max_body_size for audio uploads
+      ansible.builtin.command: "dokku nginx:set {{ app_name }} client-max-body-size {{ app_client_max_body_size }}"
+      changed_when: true
+
+    - name: Rebuild nginx config so the new limit takes effect
+      ansible.builtin.command: "dokku proxy:build-config {{ app_name }}"
+      changed_when: true
+
+    # ------------------------------------------------------------------
     # 5. Per-app backup: script, log file, and cron job
     # Relies on /root/.aws/ already being configured by provision-server.yml.
     # ------------------------------------------------------------------
