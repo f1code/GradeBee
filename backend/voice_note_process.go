@@ -14,6 +14,15 @@ import (
 // Minimum extraction confidence to auto-create a note.
 const autoCreateConfidenceThreshold = 0.5
 
+// Ceiling for the mentions_below_0_7 counter on the completion record. It exists
+// so "is autoCreateConfidenceThreshold set right?" is answerable as a Sentry query
+// rather than as a second observation cycle. It gates nothing.
+//
+// The attribute name hardcodes this value, so changing the const without renaming
+// the attribute silently changes what every saved Sentry query is measuring while
+// the name goes on claiming 0.7. Change both or neither.
+const thresholdHeadroomCeiling = 0.7
+
 // errNoSpeechDetected marks an empty/silent recording. It's a user-input
 // condition, not an application bug, so fail() logs it as a warning instead
 // of an error — keeping it out of Sentry issues while still failing the job.
@@ -157,20 +166,53 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	studentRepo := d.GetStudentRepo()
 
 	var noteLinks []NoteLink
+
+	// Drops are only interpretable as a rate, so the completion record below needs a
+	// denominator and a per-reason breakdown. note_count alone yields notes-created,
+	// never mentions-extracted.
+	mentionsTotal := len(extractResult.Students)
+	var mentionsBelowHeadroom, droppedLowConfidence, droppedNoRosterMatch int
+
 	for _, student := range extractResult.Students {
+		// Counts every mention under the ceiling, including those already under the
+		// auto-create gate — so this is the total at a stricter threshold, not the
+		// additional drops that moving the gate there would cause.
+		if student.Confidence < thresholdHeadroomCeiling {
+			mentionsBelowHeadroom++
+		}
+
 		if student.Confidence < autoCreateConfidenceThreshold {
+			droppedLowConfidence++
+			// "process voice note: mention dropped" is a stable query key: the Sentry
+			// readout filters on this exact string paired with reason, and reason is
+			// already a live attribute elsewhere in this project, so it is not
+			// selective on its own. Both drop sites share the string deliberately;
+			// do not reword either without updating the saved queries.
 			// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
-			log.Info("process voice note: skipping low-confidence match",
-				"key", key, "confidence", student.Confidence)
+			log.Info("process voice note: mention dropped",
+				"reason", "low_confidence",
+				"key", key, "user_id", userID, "upload_id", uploadID,
+				"confidence", student.Confidence,
+				"candidate_count", len(student.Candidates),
+				"class_name", student.ClassName)
 			continue
 		}
 
 		studentID, err := studentRepo.FindByNameAndClass(ctx, student.Name, student.ClassName, userID)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
+				droppedNoRosterMatch++
+				// Same stable query key as the low-confidence site; only reason
+				// separates them. class_name is the diagnostic field here — the one
+				// observed production drop of this kind was a malformed class name,
+				// not a bad student name.
 				// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
-				log.Warn("process voice note: student not found in DB, skipping",
-					"key", key, "class_name", student.ClassName)
+				log.Info("process voice note: mention dropped",
+					"reason", "no_roster_match",
+					"key", key, "user_id", userID, "upload_id", uploadID,
+					"confidence", student.Confidence,
+					"candidate_count", len(student.Candidates),
+					"class_name", student.ClassName)
 				continue
 			}
 			// The failed lookup is the only source of an identifier here, so telemetry
@@ -212,8 +254,21 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		return fmt.Errorf("process voice note: update status to done: %w", err)
 	}
 
+	// mentions_total is the denominator the drop records are read against; 0 also
+	// names the third silent-nothing mode, where extraction returned no mentions at
+	// all and there is consequently nothing to drop.
+	//
+	// This record is the authoritative numerator as well as the denominator: derive the
+	// drop rate from its own dropped_* fields over its own mentions_total. Counting the
+	// per-mention drop records instead mixes populations — a job that fails partway
+	// emits drop records but never reaches this line — and that mistake has already
+	// produced one wrong figure for this task.
 	log.Info("process voice note completed",
 		"key", key, "user_id", userID, "upload_id", uploadID,
-		"note_count", len(noteLinks))
+		"note_count", len(noteLinks),
+		"mentions_total", mentionsTotal,
+		"mentions_below_0_7", mentionsBelowHeadroom,
+		"dropped_low_confidence", droppedLowConfidence,
+		"dropped_no_roster_match", droppedNoRosterMatch)
 	return nil
 }
