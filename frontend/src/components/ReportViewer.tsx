@@ -288,7 +288,15 @@ export default function ReportViewer({
               rows={2}
               className="report-regenerate-textarea"
               data-testid="thumb-down-comment"
+              aria-describedby={`thumb-down-privacy-hint-${reportId}`}
             />
+            <p
+              className="thumb-comment-privacy-hint"
+              id={`thumb-down-privacy-hint-${reportId}`}
+              data-testid="thumb-down-privacy-hint"
+            >
+              Please avoid student names — comments are sent to our diagnostics provider.
+            </p>
             <div className="report-regenerate-actions">
               <button
                 className="btn-sm"

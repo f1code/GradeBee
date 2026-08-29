@@ -25,10 +25,15 @@ interface FeedbackButtonProps {
  *   - Browser + OS user-agent
  *   - App version / release (set in Sentry.init)
  *   - Session Replay (~30 s before submit) when triggered
- *   - Default text-input masking (on by default in Replay)
+ *   - Default masking of all text, inputs and media in Replay
  *
- * Student names: appear only as filenames in the audio-upload flow and are
- * not captured in replay DOM snapshots. Audio URLs are backend-only.
+ * Student names: replay masks all text by default (`maskAllText`,
+ * `maskAllInputs` and `blockAllMedia` are all on unless overridden), so nothing
+ * a teacher can see reaches a replay snapshot, filenames included. The one
+ * unscrubbed channel here is what the teacher types into the widget itself,
+ * which is why `messageLabel` below asks for no student names — the same
+ * accepted exception as the thumbs-down comment box. See
+ * docs/adr/0003-no-child-pii-in-telemetry.md.
  */
 export default function FeedbackButton({ userId, userEmail }: FeedbackButtonProps) {
   const diagnosticsConsented = useDiagnosticsConsent()
@@ -74,6 +79,11 @@ export default function FeedbackButton({ userId, userEmail }: FeedbackButtonProp
     const isBug = type === 'bug'
     const form = await feedback.createForm({
       formTitle: isBug ? 'Report a bug' : 'Suggest a feature',
+      // A label rather than the placeholder: the placeholder vanishes on the
+      // first keystroke, and this is the only mitigation on this path.
+      messageLabel: isBug
+        ? 'What happened? (please avoid student names)'
+        : 'Your idea (please avoid student names)',
       messagePlaceholder: isBug
         ? 'Describe what happened and what you expected instead…'
         : 'What improvement or new feature would help you most?',

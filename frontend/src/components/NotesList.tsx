@@ -239,7 +239,15 @@ function NoteCard({
               rows={2}
               className="report-regenerate-textarea"
               data-testid={`thumb-down-comment-note-${note.id}`}
+              aria-describedby={`thumb-down-privacy-hint-note-${note.id}`}
             />
+            <p
+              className="thumb-comment-privacy-hint"
+              id={`thumb-down-privacy-hint-note-${note.id}`}
+              data-testid={`thumb-down-privacy-hint-note-${note.id}`}
+            >
+              Please avoid student names — comments are sent to our diagnostics provider.
+            </p>
             <div className="report-regenerate-actions">
               <button
                 className="btn-sm"

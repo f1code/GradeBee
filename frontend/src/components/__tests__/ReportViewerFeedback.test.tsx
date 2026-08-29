@@ -54,6 +54,45 @@ describe('ReportViewer thumbs feedback', () => {
     expect(screen.getByText(/thanks for your feedback/i)).toBeInTheDocument()
   })
 
+  // The comment reaches Sentry verbatim and cannot be reliably scrubbed, so the
+  // hint is the only mitigation there is — see docs/adr/0003.
+  it('warns against student names beside the comment box', async () => {
+    const user = await renderViewer()
+    expect(screen.queryByTestId('thumb-down-privacy-hint')).not.toBeInTheDocument()
+
+    await user.click(screen.getByTestId('thumb-down'))
+
+    const hint = screen.getByTestId('thumb-down-privacy-hint')
+    expect(hint).toHaveTextContent(/student names/i)
+    // Announced with the field, not just painted near it — a mitigation a
+    // screen-reader user never hears is not a mitigation.
+    expect(screen.getByTestId('thumb-down-comment')).toHaveAttribute(
+      'aria-describedby',
+      hint.id
+    )
+  })
+
+  // ReportGeneration renders a viewer per report, and AnimatePresence keeps an
+  // outgoing one mounted during its exit — so a document-global id would make
+  // aria-describedby resolve to the wrong element.
+  it('scopes the hint id per report', async () => {
+    const { default: ReportViewer } = await import('../ReportViewer')
+    const user = userEvent.setup()
+    render(
+      <>
+        <ReportViewer reportId={1} html="<p>a</p>" studentName="Alice" />
+        <ReportViewer reportId={2} html="<p>b</p>" studentName="Bo" />
+      </>
+    )
+    const [first, second] = screen.getAllByTestId('thumb-down')
+    await user.click(first)
+    await user.click(second)
+
+    const ids = screen.getAllByTestId('thumb-down-privacy-hint').map(el => el.id)
+    expect(new Set(ids).size).toBe(2)
+    expect(ids.every(Boolean)).toBe(true)
+  })
+
   it('thumbs-down reveals comment textarea', async () => {
     const user = await renderViewer()
     await user.click(screen.getByTestId('thumb-down'))
