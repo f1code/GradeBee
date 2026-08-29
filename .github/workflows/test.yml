@@ -29,6 +29,9 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Frontend typecheck
+        run: pnpm -F frontend typecheck
+
       - name: Install poppler-utils
         run: timeout --kill-after=30s 10m bash -c 'sudo apt-get update && sudo apt-get install -y poppler-utils'
 

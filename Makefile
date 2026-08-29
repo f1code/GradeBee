@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: dev build build-frontend build-backend test clean eval eval-baseline \
+.PHONY: dev build build-frontend build-backend lint test clean eval eval-baseline \
         infra-up infra-server infra-app infra-provision infra
 
 # --- Local development ---
@@ -82,6 +82,7 @@ infra: infra-up infra-provision
 lint:
 	cd backend && $(MAKE) lint
 	cd frontend && pnpm run lint
+	cd frontend && pnpm run typecheck
 
 test:
 	cd backend && $(MAKE) test
