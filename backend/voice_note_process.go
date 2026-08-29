@@ -14,6 +14,11 @@ import (
 // Minimum extraction confidence to auto-create a note.
 const autoCreateConfidenceThreshold = 0.5
 
+// errNoSpeechDetected marks an empty/silent recording. It's a user-input
+// condition, not an application bug, so fail() logs it as a warning instead
+// of an error — keeping it out of Sentry issues while still failing the job.
+var errNoSpeechDetected = errors.New("no speech detected in audio")
+
 // processVoiceNote runs the voice note pipeline for a single job.
 // It is the ProcessFunc for the voice note MemQueue — receives the queue
 // (for status updates) and the job key.
@@ -36,7 +41,11 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 
 	// Helper to mark job as failed and return the error.
 	fail := func(step string, err error) error {
-		log.Error("process voice note failed", "step", step, "key", key, "error", err)
+		if errors.Is(err, errNoSpeechDetected) {
+			log.Warn("process voice note failed", "step", step, "key", key, "error", err)
+		} else {
+			log.Error("process voice note failed", "step", step, "key", key, "error", err)
+		}
 		now := time.Now()
 		job.Status = JobStatusFailed
 		job.Error = fmt.Sprintf("%s: %s", step, err.Error())
@@ -84,7 +93,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			return fail("transcribe", err)
 		}
 		if strings.TrimSpace(transcript) == "" {
-			return fail("transcribe", errors.New("no speech detected in audio"))
+			return fail("transcribe", errNoSpeechDetected)
 		}
 		job.Transcript = transcript
 
