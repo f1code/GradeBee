@@ -64,10 +64,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ext := filepath.Ext(header.Filename)
-	if ext == "" {
-		ext = extensionFromMIME(contentType)
-	}
+	ext := audioExtension(header.Filename, contentType)
 
 	upload, err := dispatchVoiceNote(ctx, userID, header.Filename, ext, contentType, "upload", data)
 	if err != nil {
@@ -76,7 +73,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("upload completed", "user_id", userID, "upload_id", upload.ID, "file_name", header.Filename)
+	log.Info("upload completed", "user_id", userID, "upload_id", upload.ID, "file_ext", ext)
 	writeJSON(w, http.StatusOK, UploadResponse{
 		UploadID: upload.ID,
 		FileName: header.Filename,
@@ -91,6 +88,49 @@ func isAllowedAudioType(contentType string) bool {
 		}
 	}
 	return false
+}
+
+// audioExtension returns the extension to use for a recording, given the name
+// the teacher's file arrived under and its declared MIME type.
+//
+// It is deliberately not `filepath.Ext`, which returns everything after the
+// final dot and so is not a validated extension: `Dr. Manoe 12 sept` has no
+// extension at all, but `filepath.Ext` reads one of ". Manoe 12 sept". That
+// matters twice over, because the result is both logged (ADR 0003: no child
+// name reaches telemetry) and concatenated into the on-disk name by
+// `saveToUploadsDir`, whose path is logged on the cleanup and transcription
+// paths — and, via `*PathError`, inside error strings too.
+//
+// The test is **membership, not shape**. Checking that the trailing segment
+// merely looks like an extension is not enough: `M.` / `Dr.` prefixes are
+// ordinary on this product, and written without a space (`Dr.Manoe`) the given
+// name itself passes any plausible shape rule — most given names we see are
+// short and alphabetic. Only an extension we actually accept is trusted;
+// anything else falls back to the MIME type, which the handler has already
+// validated. Falling back more often is free, because nothing downstream reads
+// the on-disk extension — transcription is handed the teacher's original name.
+func audioExtension(fileName, mimeType string) string {
+	if ext := strings.ToLower(filepath.Ext(fileName)); allowedAudioExts[ext] {
+		return ext
+	}
+	return extensionFromMIME(mimeType)
+}
+
+// allowedAudioExts is the set of extensions a recording may be stored and
+// logged under: exactly the outputs of extensionFromMIME, minus its .bin
+// fallback. Keep the two in step. It is deliberately *not* tied to the
+// caller-facing list in the unsupported-type error above, which is shorter —
+// that list describes what a teacher may upload, and narrowing this set to
+// match it would push accepted formats onto the .bin fallback for no gain.
+var allowedAudioExts = map[string]bool{
+	".mp3":  true,
+	".mp4":  true,
+	".mpeg": true,
+	".mpga": true,
+	".m4a":  true,
+	".wav":  true,
+	".webm": true,
+	".ogg":  true,
 }
 
 // extensionFromMIME returns a file extension for common audio MIME types.

@@ -20,10 +20,13 @@ identifier is genuinely needed. Server-side Sentry identity was already pseudony
 operational data.
 
 The rule is stated for names the system holds — roster entries and what extraction matches
-against them. Free text a *teacher* types is governed separately, and in two different ways: where
-the teacher wrote it to be read (feedback boxes) it is an accepted exception, and where it rides
-along incidentally (recording filenames) it is open non-compliance. See Considered Options and
-Consequences.
+against them. Free text a *teacher* types is governed separately, and the split turns on whether the
+teacher chose to send it. Where they wrote it to be read (feedback boxes) it is an accepted
+exception. Where it rides along incidentally (recording filenames) the rule applies in full: both
+upload paths log `file_ext` rather than the filename, so the format signal a support conversation
+needs survives without the stem a teacher named after a child. What is logged is an extension we
+*accept*, not whatever `filepath.Ext` returns — see Consequences for why that distinction is the
+whole fix. See also Considered Options.
 
 Names still flow where they are the product: the LLM request that writes a report, the API
 response rendered to the teacher who is entitled to see them, and the database.
@@ -42,6 +45,12 @@ response rendered to the teacher who is entitled to see them, and the database.
   it would make basic operational logging opt-in, and it treats the symptom. The reason the
   backend may log without consent is precisely that it carries no child PII — a property this
   ADR establishes rather than assumes.
+- **`upload_id` only, or a hash, in place of the filename.** Rejected in favour of logging
+  `file_ext`, which is already computed and in scope at both sites. `upload_id` alone loses every
+  format signal, and format is what upload and transcription failures turn on. A hash is worse than
+  it looks: a stable hash of a child-named file is a pseudonym that links every event about that
+  child over time, so it trades a readable name for a durable identifier — a different privacy
+  question, not a smaller one. The extension carries the debugging value and nothing about the child.
 - **Scrubbing, gating or dropping the free text a teacher writes** — the thumbs-down comment
   (`ReportViewer.tsx`, `NotesList.tsx` → `sentry.go` feedback context) and the bug-report widget's
   message body (`FeedbackButton.tsx`). Rejected in favour of an explicit exception, the only one
@@ -66,8 +75,8 @@ response rendered to the teacher who is entitled to see them, and the database.
   that describe one identifiable teacher's session; and its text masking is a *default* rather than
   an invariant. Gating the wider, less enumerable surface — the one whose safety no test here
   asserts — is defence in depth. Backend logs are necessary operational telemetry, permitted
-  without a gate because they carry no child PII from the roster — a property this ADR establishes,
-  save the two filename paths listed below.
+  without a gate because they carry no child PII — from the roster or from a recording's own
+  filename — a property this ADR establishes and tests enforce.
 - Debugging a specific child's failed note now goes through `student_id`, resolved against the
   database by someone with access to it. This is deliberate friction, and the reason to keep
   `student_id` on the record rather than dropping identifiers entirely.
@@ -80,11 +89,38 @@ response rendered to the teacher who is entitled to see them, and the database.
 - `TestProcessJob_DropSitesOmitStudentName` enforces the rule on the two drop paths, asserting on
   the name *value* rather than a field name so an interpolated name is caught too. New telemetry
   is expected to carry the same kind of assertion rather than rely on reviewer memory.
-- Two paths remain **known non-compliance**: `voice_note_upload.go` and
-  `voice_note_drive_import.go` log a recording's own `file_name` at `Info`, and
-  `Manoe 12 sept.m4a` is an ordinary filename on this product. Closing them means deciding what a
-  teacher sees instead of their own filename, which is a product question, not a logging one —
-  tracked as #88. Until then, `README.md` states the exception rather than promising an absolute.
+- **A recording's filename is telemetry's problem, not the teacher's.** `TestHandleUpload_OmitsFileName`
+  and `TestHandleDriveImport_OmitsFileName` assert the absence of the name *value* at both upload
+  sites, and assert the completion record still fires, so neither passes because the handler bailed
+  out early. Each also asserts the response body still carries the filename: the teacher recognises
+  their upload by the name they gave it, and stripping their copy would be the regression described
+  two bullets up, not a privacy win.
+- **`filepath.Ext` is not an extension, and swapping the field alone would not have closed this.**
+  It returns everything after the final dot, so `Dr. Manoe 12 sept` — a name with a title prefix and
+  no extension, ordinary on this product — yields `". Manoe 12 sept"`, putting the child's name into
+  the field added to keep it out. The same value is concatenated into the on-disk name by
+  `saveToUploadsDir`, and that path is logged at `voice_note_process.go` (Warn) and
+  `voice_note_cleanup.go` (**Info, on every purge**) — and, because Go's `*PathError` embeds the
+  path in `Error()`, inside `log.Error(..., "error", err)` strings that no field-name grep finds. So
+  the stem had three further routes to Sentry beyond the field this task named.
+- **`audioExtension` tests membership, not shape** — `allowedAudioExts`, the formats this endpoint
+  accepts; anything else falls back to the declared MIME type. This is the part worth remembering,
+  because the shape rule that came first (`^\.[a-z0-9]{1,5}$`) looked sufficient and was not: written
+  without a space, `Dr.Manoe` makes the given name itself pass as an extension, and the names we see
+  are mostly short and alphabetic. A rule that asks whether a string *looks like* a format will keep
+  admitting names that look like formats; only a closed set does not. The fallback is free — nothing
+  downstream reads the on-disk extension, since transcription is handed the teacher's original name.
+- The absence tests run every assertion over six filenames — an accepted extension, an uppercase one,
+  a spaced title prefix, an unspaced one, a trailing segment that is a given name, and a name with no
+  dot — assert on the queued job's `FilePath` as well as the log record, and pick a request MIME type
+  whose fallback differs from the well-formed case, so a helper that ignored the filename entirely
+  would fail rather than pass. The general lesson: a field swap is only as good as the value put in
+  the new field, and a value that also names a file names it everywhere that path is logged.
+- **Residual risk, noted rather than closed:** `job.FileName` still reaches `Transcribe` and the
+  OpenAI/Mistral SDKs. Our wrappers never interpolate it, but an SDK error that echoes the multipart
+  filename would surface through `log.Error(..., "error", err)`. No field-name grep and no absence
+  test in this repo can catch that — it depends on a third party's error strings. Anyone touching the
+  transcription wrappers should treat a returned error as potentially carrying the filename.
 - The **feedback free-text boxes are a deliberate exception**, not an oversight — see Considered
   Options. Both the thumbs-down comment and the bug-report widget message ask for no student
   names, `README.md` says the text is forwarded as written, and tests cover each hint so the

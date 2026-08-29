@@ -142,3 +142,60 @@ func TestHandleDriveImport_HappyPath(t *testing.T) {
 	assert.Equal(t, "audio.mp3", resp.FileName)
 	assert.Len(t, queue.published, 1, "expected 1 queued job")
 }
+
+// TestHandleDriveImport_OmitsFileName locks in ADR 0003 on the import path: the
+// completion record ships to Sentry, and a teacher's own filename routinely names
+// a child ("Manoe 12 sept.mp3"). Asserting the record is still emitted keeps the
+// absence assertion from passing just because the handler bailed out early, and
+// asserting on the name *value* also catches a filename interpolated into the
+// message. The response body is the teacher's copy and keeps the filename.
+func TestHandleDriveImport_OmitsFileName(t *testing.T) {
+	for _, tc := range recordingNames {
+		t.Run(tc.desc, func(t *testing.T) {
+			old := serviceDeps
+			t.Cleanup(func() { serviceDeps = old })
+
+			// audio/mpeg falls back to .mp3, which no case's filename supplies.
+			wantExt := tc.wantExt
+			if wantExt == "" {
+				wantExt = ".mp3"
+			}
+
+			queue := newStubVoiceNoteQueue()
+			serviceDeps = &mockDepsAll{
+				driveClient: &stubDriveClient{
+					meta: &DriveFile{MimeType: "audio/mpeg"},
+					data: io.NopCloser(strings.NewReader("fake audio bytes")),
+				},
+				voiceNoteRepo:  &VoiceNoteRepo{db: setupTestDB(t)},
+				voiceNoteQueue: queue,
+				uploadsDir:     t.TempDir(),
+			}
+
+			req := newDriveImportReq(t, "u1", "fileABC", tc.fileName)
+			ctx, logs := captureLogs(req.Context())
+			rec := httptest.NewRecorder()
+			handleDriveImport(rec, req.WithContext(ctx))
+
+			require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+
+			out := logs.String()
+			require.Contains(t, out, "drive-import completed", "completion was not logged at all")
+			assert.NotContains(t, strings.ToLower(out), "manoe", "drive import leaked a recording's filename into the logs")
+
+			done := logRecord(t, out, "drive-import completed")
+			assert.Contains(t, done, `"file_ext":"`+wantExt+`"`, "completion should carry the extension that replaced the filename")
+			assert.Contains(t, done, `"upload_id"`, "completion should keep the upload id")
+
+			// See the upload test: the same extension is concatenated into the
+			// on-disk name, and that path reaches its own log sites.
+			require.Len(t, queue.published, 1, "expected 1 queued job")
+			assert.NotContains(t, strings.ToLower(queue.published[0].FilePath), "manoe", "disk path leaked the filename's stem")
+			assert.True(t, strings.HasSuffix(queue.published[0].FilePath, wantExt), "disk path should end in the validated extension, got %q", queue.published[0].FilePath)
+
+			// The teacher's copy is a separate string from the telemetry copy: they
+			// recognise the import by the name they gave it.
+			assert.Contains(t, rec.Body.String(), tc.fileName, "response body should still carry the filename")
+		})
+	}
+}

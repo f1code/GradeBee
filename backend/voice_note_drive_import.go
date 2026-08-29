@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"path/filepath"
 	"strings"
 )
 
@@ -92,10 +91,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 		cleanName = req.FileName
 	}
 
-	ext := filepath.Ext(req.FileName)
-	if ext == "" {
-		ext = extensionFromMIME(fileMeta.MimeType)
-	}
+	ext := audioExtension(cleanName, fileMeta.MimeType)
 
 	upload, err := dispatchVoiceNote(ctx, userID, cleanName, ext, fileMeta.MimeType, "drive_import", data)
 	if err != nil {
@@ -104,7 +100,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("drive-import completed", "user_id", userID, "source_file_id", req.FileID, "upload_id", upload.ID, "file_name", cleanName)
+	log.Info("drive-import completed", "user_id", userID, "source_file_id", req.FileID, "upload_id", upload.ID, "file_ext", ext)
 	writeJSON(w, http.StatusOK, DriveImportResponse{
 		UploadID: upload.ID,
 		FileName: cleanName,
