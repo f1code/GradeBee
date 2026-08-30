@@ -79,7 +79,7 @@ func TestHandleUpdateClass_MissingDayRejected(t *testing.T) {
 	body, err := json.Marshal(map[string]any{"levelId": level.ID, "timeSlot": ""})
 	require.NoError(t, err)
 	r := levelsReq("PUT", "/classes/"+itoa(c.ID), body, "org_a", "org:member")
-	r.URL.Path = "/classes/" + itoa(c.ID)
+	r.SetPathValue("id", itoa(c.ID))
 	w := httptest.NewRecorder()
 	handleUpdateClass(w, r)
 

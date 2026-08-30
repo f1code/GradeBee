@@ -71,19 +71,20 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 
 	levelRepo := &LevelRepo{db: db}
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db:          db,
 		classRepo:   classRepo,
 		studentRepo: studentRepo,
 		reportRepo:  reportRepo,
 		reportGen:   gen,
 		levelRepo:   levelRepo,
-	}
+	})
 
 	body, err := json.Marshal(map[string]string{"feedback": "make it shorter"})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost,
 		fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader(body))
+	req.SetPathValue("id", itoa(rpt.ID))
 	req.Header.Set("Content-Type", "application/json")
 	req = clerkReq(req, "user_abc")
 
@@ -117,7 +118,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 
 	levelRepo := &LevelRepo{db: db}
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db:          db,
 		classRepo:   classRepo,
 		studentRepo: studentRepo,
@@ -125,7 +126,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 		reportRepo:  reportRepo,
 		reportGen:   gen,
 		levelRepo:   levelRepo,
-	}
+	})
 
 	reqBody, err := json.Marshal(map[string]any{
 		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "className": "Art"}},
@@ -170,17 +171,18 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 
 func TestHandleRegenerateReport_ReportNotFound(t *testing.T) {
 	db := setupTestDB(t)
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db:          db,
 		classRepo:   &ClassRepo{db: db},
 		studentRepo: &StudentRepo{db: db},
 		reportRepo:  &ReportRepo{db: db},
-	}
+	})
 
 	body, err := json.Marshal(map[string]string{"feedback": "x"})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost,
 		"/reports/99999/regenerate", bytes.NewReader(body))
+	req.SetPathValue("id", "99999")
 	req.Header.Set("Content-Type", "application/json")
 	req = clerkReq(req, "user_abc")
 
@@ -213,14 +215,15 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 	}
 	levelRepo := &LevelRepo{db: db}
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db: db, classRepo: classRepo, studentRepo: studentRepo, reportRepo: reportRepo, reportGen: gen, levelRepo: levelRepo,
-	}
+	})
 
 	body, err := json.Marshal(map[string]string{"feedback": "shorter"})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost,
 		fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader(body))
+	req.SetPathValue("id", itoa(rpt.ID))
 	req.Header.Set("Content-Type", "application/json")
 	req = clerkReq(req, "user_abc")
 
@@ -266,11 +269,12 @@ func TestHandleGetReport_IncludesStudentAndClass(t *testing.T) {
 	rpt := &Report{StudentID: stu.ID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>report</p>"}
 	require.NoError(t, reportRepo.Create(ctx, rpt))
 
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db: db, classRepo: classRepo, studentRepo: studentRepo, reportRepo: reportRepo,
-	}
+	})
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/reports/%d", rpt.ID), http.NoBody)
+	req.SetPathValue("id", itoa(rpt.ID))
 	req = clerkReq(req, "user_abc")
 
 	rec := httptest.NewRecorder()

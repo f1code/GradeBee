@@ -132,11 +132,11 @@ func TestRequireStudentOwnership(t *testing.T) {
 			"an outage must not be distinguishable from a denial by headers")
 	})
 
-	// Routing is prefix-based and pathParam stops at the first "/", so
-	// GET /api/notes/5/<anything> reaches this gate with the trailing segment
-	// intact. If the record ever logged r.URL.Path, a caller could park a child's
-	// name there and have it written to Sentry — the exact bug ADR 0003 exists to
-	// stop. This is what keeps that constraint load-bearing rather than incidental.
+	// The router now 404s a stray trailing segment before any handler runs, but
+	// the gate itself is called with whatever path the request carries. If the
+	// record ever logged r.URL.Path, a caller could park a child's name there and
+	// have it written to Sentry — the exact bug ADR 0003 exists to stop. This is
+	// what keeps that constraint load-bearing rather than incidental.
 	t.Run("a name planted in the request path is never logged", func(t *testing.T) {
 		_, studentID := ownerGateFixture(t, "user_owner")
 		req, logs := gateReqPath(t, "user_intruder", "/api/notes/5/Zephyrine")

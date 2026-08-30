@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -53,7 +54,7 @@ func (r *NoteRepo) GetByID(ctx context.Context, id int64) (Note, error) {
 		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, created_at, updated_at
 		FROM notes WHERE id = ?`, id,
 	).Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.CreatedAt, &n.UpdatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return Note{}, ErrNotFound
 	}
 	if err != nil {

@@ -9,6 +9,9 @@ lint:
 test:
 	go test -v -count=1 ./...
 
+# Live-LLM tests (llm_live_test.go) run as part of `test` when LLM_PROVIDER
+# and the matching API key (OPENAI_API_KEY or MISTRAL_API_KEY) are set, and
+# skip themselves otherwise.
 dev:
 	cd cmd/server && go run .
 

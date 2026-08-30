@@ -63,7 +63,7 @@ func TestGroupIDFromRequest_NoClaims_ReturnsUnauthorized(t *testing.T) {
 	require.Error(t, err)
 	var ae *apiError
 	require.ErrorAs(t, err, &ae)
-	assert.Equal(t, http.StatusForbidden, ae.Status)
+	assert.Equal(t, http.StatusUnauthorized, ae.Status)
 	assert.Equal(t, "unauthorized", ae.Code)
 }
 

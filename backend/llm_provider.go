@@ -10,6 +10,19 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"time"
+)
+
+// Per-operation deadlines applied at the provider boundary so callers never
+// wait indefinitely on a hung upstream. Each provider method wraps its ctx
+// with context.WithTimeout; a caller ctx that already carries a shorter
+// deadline wins naturally.
+const (
+	// llmChatTimeout bounds ChatJSON, ChatText and Vision calls.
+	llmChatTimeout = 120 * time.Second
+	// llmTranscribeTimeout bounds Transcribe calls, which upload audio and
+	// can legitimately run for several minutes.
+	llmTranscribeTimeout = 300 * time.Second
 )
 
 // LLMTask identifies a specific use case for a model selection lookup.

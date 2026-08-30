@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -49,7 +50,7 @@ func (r *LevelRepo) GetByID(ctx context.Context, groupID string, id int64) (Leve
 		"SELECT id, group_id, name, report_instructions, created_at FROM levels WHERE id = ? AND group_id = ?",
 		id, groupID,
 	).Scan(&l.ID, &l.GroupID, &l.Name, &l.ReportInstructions, &l.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return Level{}, ErrNotFound
 	}
 	if err != nil {

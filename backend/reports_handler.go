@@ -86,12 +86,7 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, r, err)
 		return
 	}
 
@@ -99,18 +94,13 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	generator, err := serviceDeps.GetReportGenerator()
 	if err != nil {
 		log.Error("generate reports: init failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 
 	groupID, err := groupIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, r, err)
 		return
 	}
 
@@ -178,7 +168,7 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 			ReportInstructions: p.reportInstructions,
 		})
 		if err != nil {
-			errMsg := fmt.Sprintf("failed to generate report for %s: %s", s.Name, err.Error())
+			errMsg := fmt.Sprintf("failed to generate report for %s", s.Name)
 			log.Error("generate reports: student failed", "student_id", s.StudentID, "error", err)
 			writeJSON(w, http.StatusOK, GenerateReportsHTTPResponse{
 				Reports: reports,
@@ -214,7 +204,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
 	// Extract report ID from URL path
-	reportID, ok := pathParam(r.URL.Path, "/reports/")
+	reportID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report id"})
 		return
@@ -228,12 +218,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, r, err)
 		return
 	}
 
@@ -246,7 +231,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 
@@ -268,12 +253,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 
 	groupID, err := groupIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, r, err)
 		return
 	}
 	lvl, err := serviceDeps.GetLevelRepo().GetByID(ctx, groupID, cls.LevelID)
@@ -289,7 +269,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	generator, err := serviceDeps.GetReportGenerator()
 	if err != nil {
 		log.Error("regenerate report: init failed", "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 
@@ -312,7 +292,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Error("regenerate report failed", "student_id", rpt.StudentID, "error", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 
@@ -354,10 +334,10 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 func handleListReports(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
-	studentID, ok := pathParam(r.URL.Path, "/students/")
+	studentID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
 		return
@@ -367,7 +347,7 @@ func handleListReports(w http.ResponseWriter, r *http.Request) {
 	}
 	reports, err := serviceDeps.GetReportRepo().List(r.Context(), studentID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	if reports == nil {
@@ -385,10 +365,10 @@ type ReportDetail struct {
 func handleGetReport(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
-	reportID, ok := pathParam(r.URL.Path, "/reports/")
+	reportID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report id"})
 		return
@@ -399,7 +379,7 @@ func handleGetReport(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	if !requireStudentOwnership(w, r, rpt.StudentID, userID, "report not found") {
@@ -433,10 +413,10 @@ func handleGetReport(w http.ResponseWriter, r *http.Request) {
 func handleDeleteReport(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
-	reportID, ok := pathParam(r.URL.Path, "/reports/")
+	reportID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid report id"})
 		return
@@ -447,14 +427,14 @@ func handleDeleteReport(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "report not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	if !requireStudentOwnership(w, r, rpt.StudentID, userID, "report not found") {
 		return
 	}
 	if err := serviceDeps.GetReportRepo().Delete(r.Context(), reportID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})

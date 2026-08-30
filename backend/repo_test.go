@@ -240,7 +240,6 @@ func TestReportRepo_CRUD(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrNotFound), "expected not found")
 }
 
-
 func TestVoiceNoteRepo_CRUD(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 

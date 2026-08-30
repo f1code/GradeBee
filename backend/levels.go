@@ -22,13 +22,7 @@ type ListLevelsResponse struct {
 func requireGroup(w http.ResponseWriter, r *http.Request) (groupID string, ok bool) {
 	groupID, err := groupIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if !errors.As(err, &ae) {
-			// defensive fallback - groupIDFromRequest normally returns apiError 
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
-			return "", false
-		}
-		writeAPIError(w, r, ae)
+		writeError(w, r, err)
 		return "", false
 	}
 	return groupID, true
@@ -41,7 +35,7 @@ func handleListLevels(w http.ResponseWriter, r *http.Request) {
 	}
 	levels, err := serviceDeps.GetLevelRepo().List(r.Context(), groupID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	if levels == nil {
@@ -76,7 +70,7 @@ func handleCreateLevel(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": "a Level with this name already exists"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, l)
@@ -91,7 +85,7 @@ func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin role required"})
 		return
 	}
-	id, ok := pathParam(r.URL.Path, "/levels/")
+	id, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid level id"})
 		return
@@ -124,7 +118,7 @@ func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusConflict, map[string]string{"error": "a Level with this name already exists"})
 				return
 			}
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeInternalError(w, r, err)
 			return
 		}
 	}
@@ -134,7 +128,7 @@ func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "level not found"})
 				return
 			}
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			writeInternalError(w, r, err)
 			return
 		}
 	}
@@ -144,7 +138,7 @@ func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "level not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, l)
@@ -159,7 +153,7 @@ func handleDeleteLevel(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin role required"})
 		return
 	}
-	id, ok := pathParam(r.URL.Path, "/levels/")
+	id, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid level id"})
 		return
@@ -178,7 +172,7 @@ func handleDeleteLevel(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusConflict, map[string]string{"error": msg})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})

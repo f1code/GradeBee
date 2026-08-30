@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -41,7 +42,7 @@ func (r *VoiceNoteRepo) GetByID(ctx context.Context, id int64) (VoiceNote, error
 		SELECT id, user_id, file_name, file_path, processed_at, purged_at, created_at
 		FROM voice_notes WHERE id = ?`, id,
 	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return VoiceNote{}, ErrNotFound
 	}
 	if err != nil {

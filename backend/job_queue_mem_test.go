@@ -125,7 +125,53 @@ func TestGenericQueue_WorkerProcessesJob(t *testing.T) {
 	}
 }
 
+// TestGenericQueue_Close_StopsWorkers proves Close blocks until an in-flight
+// handler returns, then unblocks; and that a second Close is a no-op.
 func TestGenericQueue_Close_StopsWorkers(t *testing.T) {
-	q := NewMemQueue[testJob](nil, 2)
-	q.Close()
+	started := make(chan struct{})
+	release := make(chan struct{})
+	q := NewMemQueue[testJob](func(ctx context.Context, q JobQueue[testJob], key string) error {
+		close(started)
+		<-release
+		return nil
+	}, 2)
+
+	require.NoError(t, q.Publish(context.Background(), testJob{Owner: "u1", ID: 1, Status: "queued"}))
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler to start")
+	}
+
+	closed := make(chan struct{})
+	go func() {
+		q.Close()
+		close(closed)
+	}()
+
+	// Handler is still blocked on release, so Close cannot have returned.
+	select {
+	case <-closed:
+		t.Fatal("Close returned while a handler was still running")
+	default:
+	}
+
+	close(release)
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close did not return after the handler finished")
+	}
+
+	// Idempotent: a second Close returns immediately.
+	again := make(chan struct{})
+	go func() {
+		q.Close()
+		close(again)
+	}()
+	select {
+	case <-again:
+	case <-time.After(2 * time.Second):
+		t.Fatal("second Close did not return")
+	}
 }

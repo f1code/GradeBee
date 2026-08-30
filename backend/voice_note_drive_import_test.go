@@ -130,7 +130,7 @@ func TestHandleDriveImport_HappyPath(t *testing.T) {
 		},
 		voiceNoteRepo:  &VoiceNoteRepo{db: db},
 		voiceNoteQueue: queue,
-		uploadsDir:  dir,
+		uploadsDir:     dir,
 	}
 
 	rec := httptest.NewRecorder()

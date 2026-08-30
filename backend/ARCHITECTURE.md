@@ -24,9 +24,9 @@ Go HTTP backend for GradeBee, a teacher tool for managing student rosters, proce
 
 ## Entrypoint & Routing
 
-**`handler.go`** — exports `Handle(w, r)`, the single HTTP handler. Routes use `strings.HasPrefix` + `pathParam()` for parameterized paths.
+**`handler.go`** — exports `Handle(w, r)`, the single HTTP handler. It attaches the request-scoped logger and `X-Request-ID`, serves `/health`, falls through to the SPA for non-`/api/` paths, sets JSON `Content-Type` and CORS headers (answering `OPTIONS` itself), and hands every `/api/` request to `apiMux`.
 
-All API routes live under `/api/*`. The `Handle` function strips the `/api/` prefix, sets JSON `Content-Type` and CORS headers, then dispatches to handlers via a `switch` on the rewritten path. `/health` is exposed at the root (outside `/api/`) for uptime probes.
+**`router.go`** — `newAPIMux(auth)` registers each route on a Go 1.22+ `http.ServeMux` with a method+pattern string (`"PUT /api/classes/{id}"`, `"DELETE /api/students/{id}/aliases/{aliasID}"`), wrapping every handler in `auth` — `clerkAuthMiddleware` in production, `fakeAuth` in tests. Handlers read wildcards with `idParam(r, "id")` (`r.PathValue` parsed to int64). A `"/api/"` catch-all writes the JSON `{"error":"not found"}` 404, and because it always matches, a wrong method on a known path is that same 404 rather than ServeMux's text 405. Patterns match exactly, so `GET /api/notes/5/extra` is a 404 too. `/health` is exposed at the root (outside `/api/`) for uptime probes.
 
 Anything else falls through to the embedded SPA handler (`spaHandler()` in `static.go`), which serves files from the embedded `static/` directory with `try_files`-style fallback to `index.html` for SPA client-side routing.
 
@@ -189,7 +189,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 - `userIDFromRequest(r)` extracts user ID from Clerk session claims (in `handler.go`).
 - `groupIDFromRequest(r)` — extracts the active Clerk Organization ID (`ActiveOrganizationID`) from verified session claims. Returns `403 unauthorized` if claims are absent, `403 no_active_org` if no org is active (user not yet in a Group).
 - `isAdmin(r)` — returns `true` if the session role is `"org:admin"` (uses `SessionClaims.HasRole`).
-- `debugAuthMiddleware` enforces the active-org gate after Clerk JWT verification: any verified request with an empty `ActiveOrganizationID` is rejected with `403 no_active_org` before reaching the handler. `/health` and static routes are outside this middleware.
+- `clerkAuthMiddleware` enforces the active-org gate after Clerk JWT verification: any verified request with an empty `ActiveOrganizationID` is rejected with `403 no_active_org` before reaching the handler. `/health` and static routes are outside this middleware.
 - **Phase 2:** `levels` table is Group-owned and scoped by `group_id` (the active Clerk Organization ID). `LevelRepo` (`repo_level.go`) enforces the Group boundary on every method; `/api/levels` reads are open to any Group member, writes (`POST`/`PUT`/`DELETE`) require `isAdmin(r)`. `classes.level_id` wires Classes to Levels; `ClassRepo.Create`/`Update` validate `level_id` belongs to the caller's Group, rejecting a forged cross-Group reference.
 
 ### LLM Provider (`llm_provider*.go`)
@@ -259,13 +259,12 @@ a genuine miss.
 never logged: telemetry carries `student_id` only (`docs/adr/0003`).
 
 Each record is labelled with its handler via `callerName()` (an `op` field), not with
-`r.URL.Path`. Routing here is prefix-based and `pathParam` stops at the first `/`, so
-`GET /api/notes/5/<anything>` reaches the gate with that trailing segment intact —
-logging the live path would let a caller plant a child's name in telemetry. The handler
-name cannot carry caller input. Denials land at Warn and production runs at `INFO`
-(`ansible/vars.yml`), so they are retained.
+`r.URL.Path`. The router 404s a stray trailing segment before any handler runs, but the
+path is still client-controlled text — logging it would let a caller plant a child's
+name in telemetry. The handler name cannot carry caller input. Denials land at Warn and
+production runs at `INFO` (`ansible/vars.yml`), so they are retained.
 
-The `debugAuthMiddleware` enforces that every `/api/` request carries an active Clerk Organization (`ActiveOrganizationID != ""`). Requests without an active org receive `403 no_active_org` before reaching any handler.
+The `clerkAuthMiddleware` enforces that every `/api/` request carries an active Clerk Organization (`ActiveOrganizationID != ""`). Requests without an active org receive `403 no_active_org` before reaching any handler.
 
 ## File-by-File Reference
 
@@ -273,12 +272,14 @@ The `debugAuthMiddleware` enforces that every `/api/` request carries an active 
 |------|---------------|
 | `cmd/server/main.go` | Server entrypoint; loads `.env`, inits Clerk, opens DB, runs migrations, starts queue + cleanup + HTTP. Supports `--migrate-only` flag (open DB, run migrations, exit 0) for Dokku predeploy hook. |
 | `static.go` | Embeds `static/` (frontend dist, copied at Docker build time) via `embed.FS`; provides `spaHandler()` with SPA fallback and cache-control headers |
-| `handler.go` | Routing, CORS, request logging, `Handle` entrypoint, `userIDFromRequest`, `pathParam`, `requireStudentOwnership` |
+| `handler.go` | `Handle` entrypoint, CORS, request logging, `clerkAuthMiddleware`, `userIDFromRequest`, `requireStudentOwnership`, `callerName`/`callerAt` |
+| `router.go` | `newAPIMux` route table (`http.ServeMux` method+pattern strings), `idParam`, JSON 404 catch-all |
 | `deps.go` | DI interface, prod implementations, `serviceDeps` variable |
 | `llm_provider.go` | `LLMProvider` interface, request/response types, `LLMTask` enum, `LoadProvider()` factory |
 | `llm_provider_openai.go` | `openaiProvider` — OpenAI chat/vision via go-openai + Whisper transcription |
 | `llm_provider_mistral.go` | `mistralProvider` — Mistral chat/vision via OpenAI-compat endpoint + Voxtral transcription via ZaguanLabs SDK |
-| `google.go` | `apiError` type, `writeAPIError`, `newDriveReadClient` (Drive-read-only) |
+| `errors_http.go` | `apiError` type, `writeAPIError`, `writeError`, `writeInternalError` — the error-response contract |
+| `google.go` | `newDriveReadClient` (Drive-read-only) |
 | `auth.go` | `groupIDFromRequest`, `isAdmin` — Clerk org/role helpers; `getGoogleOAuthToken` — Clerk → Google OAuth token |
 | `db.go` | Open SQLite, set PRAGMAs (WAL, busy_timeout, foreign_keys) |
 | `migrate.go` | Embed + run SQL migrations on startup |
@@ -327,7 +328,14 @@ When changing Go structs with `json` tags, regenerate types and commit the updat
 
 ## Error Handling
 
-`apiError` struct (`google.go`) carries HTTP status, machine-readable code, human message, and an optional `Details map[string]string` field for structured context (e.g. `conflictStudentName` on alias collision). Handlers check `errors.As(err, &apiError)` and call `writeAPIError`. All responses are JSON.
+`apiError` struct (`errors_http.go`) carries HTTP status, machine-readable code, human message, and an optional `Details map[string]string` field for structured context (e.g. `conflictStudentName` on alias collision). All responses are JSON.
+
+Handlers hand errors to one of two writers rather than formatting bodies themselves:
+
+- `writeError(w, r, err)` — `*apiError` (bare or wrapped) is written by `writeAPIError` with its own status; `ErrNotFound` becomes a generic 404 `{"error":"not found"}`; anything else is an internal error. It is the one-liner for `userIDFromRequest` / `groupIDFromRequest` failures. Duplicate and in-use errors are *not* mapped: each 409 site builds a body the frontend reads by field, so those branches stay bespoke, as do 404s whose text names the entity (`"note not found"`, `"student Zephyrine not found"`).
+- `writeInternalError(w, r, err)` — the only way to answer 500. The body is always `{"error":"internal server error"}`; the real `err` is logged at Error with `"op"` set to the calling handler's name (via `callerAt`, the sibling of `callerName`) and the method, never the URL path (client-controlled — see `requireStudentOwnership`). `err.Error()` must never reach a 500 body: repo and driver errors name tables, files and hosts. A handler that wants a more specific generic body (`"failed to load student"`) may still write it, but must log the cause itself.
+
+Missing or invalid session is 401 (`code: unauthorized`) from both `userIDFromRequest` and `groupIDFromRequest`; a session with no active organisation is 403 (`no_active_org`), from the auth middleware and `groupIDFromRequest` alike. The frontend treats 401 and 403 identically (session expired).
 
 Repo-level errors:
 - `ErrNotFound` — entity not found

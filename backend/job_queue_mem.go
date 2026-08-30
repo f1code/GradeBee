@@ -16,11 +16,13 @@ type ProcessFunc[T Keyed] func(ctx context.Context, q JobQueue[T], key string) e
 
 // MemQueue is a generic in-memory job queue with a background worker pool.
 type MemQueue[T Keyed] struct {
-	mu      sync.RWMutex
-	jobs    map[string]T
-	work    chan string // job keys
-	process ProcessFunc[T]
-	cancel  context.CancelFunc
+	mu        sync.RWMutex
+	jobs      map[string]T
+	work      chan string // job keys
+	process   ProcessFunc[T]
+	cancel    context.CancelFunc
+	workers   sync.WaitGroup // one Add per worker goroutine
+	closeOnce sync.Once
 }
 
 // NewMemQueue creates a MemQueue and starts worker goroutines.
@@ -34,6 +36,7 @@ func NewMemQueue[T Keyed](process ProcessFunc[T], workers int) *MemQueue[T] {
 		process: process,
 		cancel:  cancel,
 	}
+	q.workers.Add(workers)
 	for i := 0; i < workers; i++ {
 		go q.worker(ctx)
 	}
@@ -41,6 +44,7 @@ func NewMemQueue[T Keyed](process ProcessFunc[T], workers int) *MemQueue[T] {
 }
 
 func (q *MemQueue[T]) worker(ctx context.Context) {
+	defer q.workers.Done()
 	for {
 		select {
 		case <-ctx.Done():
@@ -109,6 +113,12 @@ func (q *MemQueue[T]) DeleteJob(_ context.Context, key string) error {
 	return nil
 }
 
+// Close cancels the worker context and blocks until every worker goroutine
+// has returned, so an in-flight process call finishes (or observes ctx
+// cancellation) before Close returns. Safe to call more than once.
 func (q *MemQueue[T]) Close() {
-	q.cancel()
+	q.closeOnce.Do(func() {
+		q.cancel()
+		q.workers.Wait()
+	})
 }

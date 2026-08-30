@@ -33,14 +33,14 @@ func TestHandleGenerateReports_RefusesUnsetLevelInstructions(t *testing.T) {
 	gen := &stubReportGenerator{
 		generateResp: &GenerateReportResponse{ReportID: 42, HTML: "<p>hi</p>"},
 	}
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db:          db,
 		classRepo:   classRepo,
 		studentRepo: studentRepo,
 		reportRepo:  reportRepo,
 		reportGen:   gen,
 		levelRepo:   levelRepo,
-	}
+	})
 
 	reqBody, err := json.Marshal(map[string]any{
 		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "className": "Sam"}},
@@ -81,14 +81,14 @@ func TestHandleGenerateReports_RefusesWhitespaceOnlyInstructions(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "   \n\t  "))
 
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db:          db,
 		classRepo:   classRepo,
 		studentRepo: studentRepo,
 		reportRepo:  reportRepo,
 		reportGen:   &stubReportGenerator{},
 		levelRepo:   levelRepo,
-	}
+	})
 
 	reqBody, err := json.Marshal(map[string]any{
 		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "className": "Whitespace"}},
@@ -126,14 +126,14 @@ func TestHandleGenerateReports_MixedLevelBatchRefusesWhole(t *testing.T) {
 	stu2, err := studentRepo.Create(ctx, unsetCls.ID, "Bob")
 	require.NoError(t, err)
 
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db:          db,
 		classRepo:   classRepo,
 		studentRepo: studentRepo,
 		reportRepo:  reportRepo,
 		reportGen:   &stubReportGenerator{generateResp: &GenerateReportResponse{ReportID: 1, HTML: "<p>hi</p>"}},
 		levelRepo:   levelRepo,
-	}
+	})
 
 	reqBody, err := json.Marshal(map[string]any{
 		"students": []map[string]any{
@@ -186,19 +186,20 @@ func TestHandleRegenerateReport_RefusesUnsetLevelInstructions(t *testing.T) {
 	}
 	require.NoError(t, reportRepo.Create(ctx, rpt))
 
-	serviceDeps = &mockDepsAll{
+	withDeps(t, &mockDepsAll{
 		db:          db,
 		classRepo:   classRepo,
 		studentRepo: studentRepo,
 		reportRepo:  reportRepo,
 		reportGen:   &stubReportGenerator{},
 		levelRepo:   levelRepo,
-	}
+	})
 
 	body, err := json.Marshal(map[string]string{"feedback": "make it shorter"})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost,
 		fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader(body))
+	req.SetPathValue("id", itoa(rpt.ID))
 	req.Header.Set("Content-Type", "application/json")
 	req = clerkReq(req, "user_abc")
 
@@ -236,8 +237,9 @@ func TestHandleGenerateReports_OwnershipArms(t *testing.T) {
 		return req.WithContext(ctx), logs
 	}
 
-	setDeps := func(db *sql.DB) {
-		serviceDeps = &mockDepsAll{
+	setDeps := func(t *testing.T, db *sql.DB) {
+		t.Helper()
+		withDeps(t, &mockDepsAll{
 			db:          db,
 			classRepo:   &ClassRepo{db: db},
 			studentRepo: &StudentRepo{db: db},
@@ -246,12 +248,12 @@ func TestHandleGenerateReports_OwnershipArms(t *testing.T) {
 			reportGen: &stubReportGenerator{
 				generateResp: &GenerateReportResponse{ReportID: 42, HTML: "<p>hi</p>"},
 			},
-		}
+		})
 	}
 
 	t.Run("student is not the caller's", func(t *testing.T) {
 		db := setupTestDB(t)
-		setDeps(db)
+		setDeps(t, db)
 
 		req, logs := newReq(t, 999999)
 		rec := httptest.NewRecorder()
@@ -270,7 +272,7 @@ func TestHandleGenerateReports_OwnershipArms(t *testing.T) {
 
 	t.Run("ownership check could not run", func(t *testing.T) {
 		db := setupTestDB(t)
-		setDeps(db)
+		setDeps(t, db)
 		require.NoError(t, db.Close())
 
 		req, logs := newReq(t, 1)

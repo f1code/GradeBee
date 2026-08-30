@@ -147,22 +147,63 @@ func TestFindByNameAndClass_MatchesCaseInsensitive(t *testing.T) {
 	assert.Equal(t, s.ID, id)
 }
 
-// TestListWithAliases verifies alias strings are populated in ListWithAliases.
+// TestListWithAliases verifies ListWithAliases folds the single LEFT JOIN
+// query into one entry per student: a student with two aliases (ordered by
+// alias, not insertion), a student with none (non-nil empty Aliases), students
+// ordered by name regardless of creation order, and nothing from another class
+// — even one whose student shares an alias with ours.
 func TestListWithAliases(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
-	s, err := r.students.Create(ctx, c.ID, "Alexander")
+	// Created out of name order so ORDER BY, not insertion, decides.
+	beatrice, err := r.students.Create(ctx, c.ID, "Beatrice")
 	require.NoError(t, err)
-	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
+	alexander, err := r.students.Create(ctx, c.ID, "Alexander")
 	require.NoError(t, err)
-	_, err = r.students.AddAlias(ctx, s.ID, "Xander")
+	// Aliases added out of alphabetical order for the same reason.
+	_, err = r.students.AddAlias(ctx, alexander.ID, "Xander")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, alexander.ID, "Alex")
+	require.NoError(t, err)
+
+	// Another class of the same user with a student + alias that must not leak.
+	other := newTestClass(t, r.classes, "test-group", "user1", "Science", "")
+	dora, err := r.students.Create(ctx, other.ID, "Dora")
+	require.NoError(t, err)
+	_, err = r.students.AddAlias(ctx, dora.ID, "Alex")
 	require.NoError(t, err)
 
 	students, err := r.students.ListWithAliases(ctx, c.ID)
 	require.NoError(t, err)
-	require.Len(t, students, 1)
-	assert.ElementsMatch(t, []string{"Alex", "Xander"}, students[0].Aliases)
+	require.Len(t, students, 2)
+
+	assert.Equal(t, alexander.ID, students[0].ID)
+	assert.Equal(t, "Alexander", students[0].Name)
+	assert.Equal(t, c.ID, students[0].ClassID)
+	assert.Equal(t, []string{"Alex", "Xander"}, students[0].Aliases)
+
+	assert.Equal(t, beatrice.ID, students[1].ID)
+	assert.Equal(t, "Beatrice", students[1].Name)
+	assert.Equal(t, []string{}, students[1].Aliases, "no aliases must be a non-nil empty slice")
+
+	// Cross-class isolation, paired with the presence arm above (Alexander's
+	// "Alex") so the absence can fail.
+	for _, s := range students {
+		assert.NotEqual(t, "Dora", s.Name)
+		assert.NotEqual(t, dora.ID, s.ID)
+	}
+	otherStudents, err := r.students.ListWithAliases(ctx, other.ID)
+	require.NoError(t, err)
+	require.Len(t, otherStudents, 1)
+	assert.Equal(t, "Dora", otherStudents[0].Name)
+	assert.Equal(t, []string{"Alex"}, otherStudents[0].Aliases)
+
+	// Empty class: nil, not an empty slice (handler substitutes []Student{}).
+	empty := newTestClass(t, r.classes, "test-group", "user1", "Art", "")
+	none, err := r.students.ListWithAliases(ctx, empty.ID)
+	require.NoError(t, err)
+	assert.Nil(t, none)
 }
 
 // TestAliasDeleteCascadesWithStudent verifies aliases are deleted when student is deleted.

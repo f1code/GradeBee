@@ -18,7 +18,7 @@ type NoteCreator interface {
 type CreateNoteRequest struct {
 	StudentID    int64
 	StudentName  string
-	QuotedText   string  // Extracted passages from transcript
+	QuotedText   string // Extracted passages from transcript
 	Transcript   string
 	Date         string // YYYY-MM-DD
 	ModelVersion string // LLM model ID that produced this note (empty = NULL)
@@ -69,11 +69,11 @@ type ListNotesResponse struct {
 func handleListNotes(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
 	// Extract student ID from /students/{id}/notes
-	studentID, ok := pathParam(r.URL.Path, "/students/")
+	studentID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
 		return
@@ -83,7 +83,7 @@ func handleListNotes(w http.ResponseWriter, r *http.Request) {
 	}
 	notes, err := serviceDeps.GetNoteRepo().List(r.Context(), studentID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	if notes == nil {
@@ -95,10 +95,10 @@ func handleListNotes(w http.ResponseWriter, r *http.Request) {
 func handleCreateNote(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
-	studentID, ok := pathParam(r.URL.Path, "/students/")
+	studentID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid student id"})
 		return
@@ -121,7 +121,7 @@ func handleCreateNote(w http.ResponseWriter, r *http.Request) {
 		Source:    "manual",
 	}
 	if err := serviceDeps.GetNoteRepo().Create(r.Context(), n); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, n)
@@ -130,10 +130,10 @@ func handleCreateNote(w http.ResponseWriter, r *http.Request) {
 func handleGetNote(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
-	noteID, ok := pathParam(r.URL.Path, "/notes/")
+	noteID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid note id"})
 		return
@@ -144,7 +144,7 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "note not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	if !requireStudentOwnership(w, r, n.StudentID, userID, "note not found") {
@@ -156,10 +156,10 @@ func handleGetNote(w http.ResponseWriter, r *http.Request) {
 func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
-	noteID, ok := pathParam(r.URL.Path, "/notes/")
+	noteID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid note id"})
 		return
@@ -170,7 +170,7 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "note not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	if !requireStudentOwnership(w, r, n.StudentID, userID, "note not found") {
@@ -184,7 +184,7 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := serviceDeps.GetNoteRepo().Update(r.Context(), noteID, req.Summary); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 
@@ -208,7 +208,7 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := serviceDeps.GetNoteRepo().GetByID(r.Context(), noteID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)
@@ -217,10 +217,10 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
-	noteID, ok := pathParam(r.URL.Path, "/notes/")
+	noteID, ok := idParam(r, "id")
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid note id"})
 		return
@@ -231,14 +231,14 @@ func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "note not found"})
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 	if !requireStudentOwnership(w, r, n.StudentID, userID, "note not found") {
 		return
 	}
 	if err := serviceDeps.GetNoteRepo().Delete(r.Context(), noteID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeInternalError(w, r, err)
 		return
 	}
 

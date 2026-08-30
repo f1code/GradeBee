@@ -1,3 +1,8 @@
+// integration_test.go exercises the voice-note pipeline end to end — publish,
+// process, retry, list — against an in-memory queue and DB with stub
+// transcriber/extractor/note-creator. Despite the TestIntegration_ prefix
+// nothing here talks to a real LLM; the live-provider tests live in
+// llm_live_test.go behind the `llm` build tag.
 package handler
 
 import (
@@ -243,98 +248,4 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	assert.ElementsMatch(t, []int64{4, 5, 6}, uploadIDs(resp.Active))
 	assert.ElementsMatch(t, []int64{2}, uploadIDs(resp.Failed))
 	assert.ElementsMatch(t, []int64{1, 3}, uploadIDs(resp.Done))
-}
-
-
-// newTestLLMExtractor creates an LLM extractor, skipping if the active provider's API key is not set.
-func newTestLLMExtractor(t *testing.T) Extractor {
-	t.Helper()
-	provider := requireLiveLLM(t)
-	return newLLMExtractor(provider)
-}
-
-func TestLLM_SingleStudentCorrectClass(t *testing.T) {
-	ext := newTestLLMExtractor(t)
-	classes := []ClassGroup{
-		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
-		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}, {Name: "Diana Lee"}}},
-	}
-
-	result, err := ext.Extract(t.Context(), ExtractRequest{
-		Transcript: "Alice Johnson demonstrated excellent problem-solving skills on today's algebra quiz. She scored 95% and helped her classmates understand the quadratic formula.",
-		Classes:    classes,
-	})
-	require.NoError(t, err)
-	require.Len(t, result.Students, 1, "got %+v", result.Students)
-	assert.Equal(t, "Alice Johnson", result.Students[0].Name)
-	assert.Equal(t, "Math 101", result.Students[0].ClassName)
-}
-
-func TestLLM_MultiStudentDifferentClasses(t *testing.T) {
-	ext := newTestLLMExtractor(t)
-	// Bob appears in both rosters — the LLM must use transcript context to pick the right class.
-	classes := []ClassGroup{
-		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
-		{Name: "Science 202", Students: []ClassStudent{{Name: "Bob Smith"}, {Name: "Diana Lee"}}},
-	}
-
-	result, err := ext.Extract(t.Context(), ExtractRequest{
-		Transcript: "Today I observed two students. In Math 101, Bob Smith was very engaged during the fractions lesson and volunteered to solve problems on the board. In Science 202, Diana Lee conducted her chemistry experiment carefully and wrote detailed lab notes.",
-		Classes:    classes,
-	})
-	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(result.Students), 2, "got %+v", result.Students)
-
-	found := map[string]string{}
-	for _, s := range result.Students {
-		found[s.Name] = s.ClassName
-	}
-	assert.Equal(t, "Math 101", found["Bob Smith"])
-	assert.Equal(t, "Science 202", found["Diana Lee"])
-}
-
-func TestLLM_UnknownClassSkipped(t *testing.T) {
-	ext := newTestLLMExtractor(t)
-	classes := []ClassGroup{
-		{Name: "Math 101", Students: []ClassStudent{{Name: "Alice Johnson"}, {Name: "Bob Smith"}}},
-		{Name: "Science 202", Students: []ClassStudent{{Name: "Charlie Brown"}}},
-	}
-
-	result, err := ext.Extract(t.Context(), ExtractRequest{
-		Transcript: "Report card for Tommy Wilson, Art 303. Tommy shows great creativity in his paintings and participates actively in class discussions about art history.",
-		Classes:    classes,
-	})
-	require.NoError(t, err)
-
-	// Tommy Wilson is not in any roster class. The extractor should return no students
-	// (or possibly empty results). It must NOT invent a class name.
-	validClasses := map[string]bool{"Math 101": true, "Science 202": true}
-	for _, s := range result.Students {
-		assert.True(t, validClasses[s.ClassName], "student %q assigned to invalid class %q", s.Name, s.ClassName)
-	}
-}
-
-func TestLLM_PartialNameMatch(t *testing.T) {
-	ext := newTestLLMExtractor(t)
-	classes := []ClassGroup{
-		{Name: "English 101", Students: []ClassStudent{{Name: "Alexander Hamilton"}, {Name: "Elizabeth Bennet"}}},
-		{Name: "History 201", Students: []ClassStudent{{Name: "Theodore Roosevelt"}}},
-	}
-
-	result, err := ext.Extract(t.Context(), ExtractRequest{
-		Transcript: "Alex Hamilton wrote an outstanding essay on democracy today. His arguments were well-structured and his writing has improved significantly this semester.",
-		Classes:    classes,
-	})
-	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(result.Students), 1)
-
-	var found bool
-	for _, s := range result.Students {
-		if s.Name == "Alexander Hamilton" {
-			found = true
-			assert.Equal(t, "English 101", s.ClassName)
-			break
-		}
-	}
-	assert.True(t, found, "Alexander Hamilton not found in results: %+v", result.Students)
 }

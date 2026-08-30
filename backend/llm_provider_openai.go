@@ -33,6 +33,8 @@ func (p *openaiProvider) Name() string { return "openai" }
 func (p *openaiProvider) Model(task LLMTask) string { return p.models[task] }
 
 func (p *openaiProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
+	defer cancel()
 	model := p.models[LLMTaskExtraction]
 	resp, err := p.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: model,
@@ -63,6 +65,8 @@ func (p *openaiProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out 
 }
 
 func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
+	defer cancel()
 	resp, err := p.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: p.models[LLMTaskReport],
 		Messages: []openai.ChatCompletionMessage{
@@ -79,6 +83,8 @@ func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (str
 }
 
 func (p *openaiProvider) Vision(ctx context.Context, req VisionRequest, out any) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
+	defer cancel()
 	model := p.models[LLMTaskVision]
 	b64 := encodeImageBase64(req.ImageData)
 	dataURL := fmt.Sprintf("data:%s;base64,%s", req.MediaType, b64)
@@ -124,6 +130,8 @@ func (p *openaiProvider) Vision(ctx context.Context, req VisionRequest, out any)
 }
 
 func (p *openaiProvider) Transcribe(ctx context.Context, req TranscribeRequest) (TranscribeResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, llmTranscribeTimeout)
+	defer cancel()
 	// OpenAI Whisper: pass context bias as a comma-separated prompt string.
 	var prompt string
 	if len(req.ContextBias) > 0 {

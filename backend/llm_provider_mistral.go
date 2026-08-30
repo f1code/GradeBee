@@ -34,8 +34,10 @@ func newMistralProvider(apiKey, baseURL string, models map[LLMTask]string) *mist
 	cfg := openai.DefaultConfig(apiKey)
 	cfg.BaseURL = baseURL
 
-	// ZaguanLabs client for Voxtral transcription.
-	audioClient := mistralSDK.NewMistralClientDefault(apiKey)
+	// ZaguanLabs client for Voxtral transcription. Its Transcribe method takes
+	// no ctx, so the per-attempt HTTP timeout is the only cancellation it
+	// honours; align it with llmTranscribeTimeout (see Transcribe below).
+	audioClient := mistralSDK.NewMistralClient(apiKey, mistralSDK.Endpoint, mistralSDK.DefaultMaxRetries, llmTranscribeTimeout)
 
 	return &mistralProvider{
 		chatClient:  openai.NewClientWithConfig(cfg),
@@ -49,6 +51,8 @@ func (p *mistralProvider) Name() string { return "mistral" }
 func (p *mistralProvider) Model(task LLMTask) string { return p.models[task] }
 
 func (p *mistralProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
+	defer cancel()
 	model := p.models[LLMTaskExtraction]
 	resp, err := p.chatClient.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: model,
@@ -79,6 +83,8 @@ func (p *mistralProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out
 }
 
 func (p *mistralProvider) ChatText(ctx context.Context, req ChatTextRequest) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
+	defer cancel()
 	resp, err := p.chatClient.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
 		Model: p.models[LLMTaskReport],
 		Messages: []openai.ChatCompletionMessage{
@@ -95,6 +101,8 @@ func (p *mistralProvider) ChatText(ctx context.Context, req ChatTextRequest) (st
 }
 
 func (p *mistralProvider) Vision(ctx context.Context, req VisionRequest, out any) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
+	defer cancel()
 	model := p.models[LLMTaskVision]
 	b64 := encodeImageBase64(req.ImageData)
 	dataURL := fmt.Sprintf("data:%s;base64,%s", req.MediaType, b64)
@@ -183,15 +191,42 @@ func sanitiseContextBias(terms []string) []string {
 	return result
 }
 
+// Transcribe runs Voxtral transcription bounded by llmTranscribeTimeout.
+//
+// mistral-go/v2 (v2.4.4) exposes no ctx-aware Transcribe variant: the SDK
+// builds its own http.Request without a context and only honours the
+// http.Client timeout it was constructed with. To still respect ctx we run
+// the SDK call in a goroutine and select on ctx.Done(); on cancellation the
+// caller returns immediately but the underlying HTTP call keeps running
+// until the SDK's own timeout (set to llmTranscribeTimeout) expires, at
+// which point the goroutine exits and its result is discarded.
 func (p *mistralProvider) Transcribe(ctx context.Context, req TranscribeRequest) (TranscribeResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, llmTranscribeTimeout)
+	defer cancel()
+
 	bias := sanitiseContextBias(req.ContextBias)
 	model := p.models[LLMTaskTranscription]
 
-	resp, err := p.audioClient.Transcribe(model, req.Audio, req.Filename, &mistralSDK.TranscriptionRequest{
-		ContextBias: bias,
-	})
-	if err != nil {
-		return TranscribeResponse{}, fmt.Errorf("voxtral transcription failed: %w", err)
+	type result struct {
+		resp *mistralSDK.TranscriptionResponse
+		err  error
 	}
-	return TranscribeResponse{Text: resp.Text}, nil
+	// Buffered so the goroutine never leaks if ctx wins the select.
+	done := make(chan result, 1)
+	go func() {
+		resp, err := p.audioClient.Transcribe(model, req.Audio, req.Filename, &mistralSDK.TranscriptionRequest{
+			ContextBias: bias,
+		})
+		done <- result{resp: resp, err: err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		return TranscribeResponse{}, fmt.Errorf("voxtral transcription failed: %w", ctx.Err())
+	case r := <-done:
+		if r.err != nil {
+			return TranscribeResponse{}, fmt.Errorf("voxtral transcription failed: %w", r.err)
+		}
+		return TranscribeResponse{Text: r.resp.Text}, nil
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/clerk/clerk-sdk-go/v2/user"
@@ -20,7 +21,7 @@ import (
 func groupIDFromRequest(r *http.Request) (string, error) {
 	claims, ok := clerk.SessionClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		return "", &apiError{Status: http.StatusForbidden, Code: "unauthorized", Message: "missing or invalid session"}
+		return "", &apiError{Status: http.StatusUnauthorized, Code: "unauthorized", Message: "missing or invalid session"}
 	}
 	if claims.ActiveOrganizationID == "" {
 		return "", &apiError{Status: http.StatusForbidden, Code: "no_active_org", Message: "no active organization \u2014 ask your admin for an invitation"}
@@ -39,8 +40,14 @@ func isAdmin(r *http.Request) bool {
 	return claims.HasRole("org:admin")
 }
 
+// clerkTokenTimeout bounds the Clerk API call that fetches a user's Google
+// OAuth token. It is a small metadata request; anything slower is a fault.
+const clerkTokenTimeout = 15 * time.Second
+
 // getGoogleOAuthToken retrieves the Google OAuth access token for a user from Clerk.
 func getGoogleOAuthToken(ctx context.Context, userID string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, clerkTokenTimeout)
+	defer cancel()
 	log := loggerFromContext(ctx)
 	clerkSecretKey := os.Getenv("CLERK_SECRET_KEY")
 	if clerkSecretKey == "" {

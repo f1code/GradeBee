@@ -44,6 +44,7 @@ func TestImplicitSignal_EditAutoNote(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPut,
 		fmt.Sprintf("/notes/%d", n.ID), bytes.NewReader(body))
+	req.SetPathValue("id", itoa(n.ID))
 	req = withClerkUser(req, "user1")
 
 	rec := httptest.NewRecorder()
@@ -76,6 +77,7 @@ func TestImplicitSignal_EditAutoNote_NoChangeNoPowder(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPut,
 		fmt.Sprintf("/notes/%d", n.ID), bytes.NewReader(body))
+	req.SetPathValue("id", itoa(n.ID))
 	req = withClerkUser(req, "user1")
 	rec := httptest.NewRecorder()
 	handleUpdateNote(rec, req)
@@ -100,6 +102,7 @@ func TestImplicitSignal_EditManualNote_NoFeedback(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPut,
 		fmt.Sprintf("/notes/%d", n.ID), bytes.NewReader(body))
+	req.SetPathValue("id", itoa(n.ID))
 	req = withClerkUser(req, "user1")
 	rec := httptest.NewRecorder()
 	handleUpdateNote(rec, req)
@@ -124,6 +127,7 @@ func TestImplicitSignal_DeleteAutoNote(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodDelete,
 		fmt.Sprintf("/notes/%d", noteID), http.NoBody)
+	req.SetPathValue("id", itoa(noteID))
 	req = withClerkUser(req, "user1")
 	rec := httptest.NewRecorder()
 	handleDeleteNote(rec, req)
@@ -153,6 +157,7 @@ func TestImplicitSignal_DeleteManualNote_NoFeedback(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodDelete,
 		fmt.Sprintf("/notes/%d", noteID), http.NoBody)
+	req.SetPathValue("id", itoa(noteID))
 	req = withClerkUser(req, "user1")
 	rec := httptest.NewRecorder()
 	handleDeleteNote(rec, req)

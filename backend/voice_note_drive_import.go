@@ -3,7 +3,6 @@ package handler
 
 import (
 	"encoding/json"
-	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -32,12 +31,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		var ae *apiError
-		if errors.As(err, &ae) {
-			writeAPIError(w, r, ae)
-			return
-		}
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, r, err)
 		return
 	}
 

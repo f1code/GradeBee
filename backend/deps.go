@@ -43,16 +43,16 @@ type deps interface {
 
 // prodDeps is the real implementation backed by SQLite repos.
 type prodDeps struct {
-	db             *sql.DB
-	classRepo      *ClassRepo
-	studentRepo    *StudentRepo
-	noteRepo       *NoteRepo
-	reportRepo     *ReportRepo
-	voiceNoteRepo  *VoiceNoteRepo
-	feedbackRepo   *ArtifactFeedbackRepo
-	levelRepo      *LevelRepo
-	uploadsDir     string
-	provider       LLMProvider
+	db            *sql.DB
+	classRepo     *ClassRepo
+	studentRepo   *StudentRepo
+	noteRepo      *NoteRepo
+	reportRepo    *ReportRepo
+	voiceNoteRepo *VoiceNoteRepo
+	feedbackRepo  *ArtifactFeedbackRepo
+	levelRepo     *LevelRepo
+	uploadsDir    string
+	provider      LLMProvider
 }
 
 func (p *prodDeps) GetTranscriber() (Transcriber, error) {
@@ -90,15 +90,15 @@ func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (DriveClie
 	return &googleDriveClient{svc: svc}, nil
 }
 
-func (p *prodDeps) GetDB() *sql.DB                              { return p.db }
-func (p *prodDeps) GetClassRepo() *ClassRepo                    { return p.classRepo }
-func (p *prodDeps) GetStudentRepo() *StudentRepo                { return p.studentRepo }
-func (p *prodDeps) GetNoteRepo() *NoteRepo                      { return p.noteRepo }
-func (p *prodDeps) GetReportRepo() *ReportRepo                  { return p.reportRepo }
-func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo            { return p.voiceNoteRepo }
-func (p *prodDeps) GetFeedbackRepo() *ArtifactFeedbackRepo      { return p.feedbackRepo }
-func (p *prodDeps) GetLevelRepo() *LevelRepo                    { return p.levelRepo }
-func (p *prodDeps) GetUploadsDir() string                       { return p.uploadsDir }
+func (p *prodDeps) GetDB() *sql.DB                         { return p.db }
+func (p *prodDeps) GetClassRepo() *ClassRepo               { return p.classRepo }
+func (p *prodDeps) GetStudentRepo() *StudentRepo           { return p.studentRepo }
+func (p *prodDeps) GetNoteRepo() *NoteRepo                 { return p.noteRepo }
+func (p *prodDeps) GetReportRepo() *ReportRepo             { return p.reportRepo }
+func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo       { return p.voiceNoteRepo }
+func (p *prodDeps) GetFeedbackRepo() *ArtifactFeedbackRepo { return p.feedbackRepo }
+func (p *prodDeps) GetLevelRepo() *LevelRepo               { return p.levelRepo }
+func (p *prodDeps) GetUploadsDir() string                  { return p.uploadsDir }
 
 // Voice note queue singleton, initialised at startup via InitVoiceNoteQueue.
 var voiceNoteQueueInstance JobQueue[VoiceNoteJob]

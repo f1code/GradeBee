@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
+
+	sqlite "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 var (
@@ -71,12 +73,14 @@ func (e *ErrLevelInUse) Is(target error) bool {
 	return ok
 }
 
-// isDuplicateErr checks if a SQLite error is a UNIQUE constraint violation.
+// isDuplicateErr reports whether err is a SQLite UNIQUE constraint violation,
+// matched on the driver's extended result code rather than message text.
 func isDuplicateErr(err error) bool {
-	if err == nil {
+	var se *sqlite.Error
+	if !errors.As(err, &se) {
 		return false
 	}
-	return strings.Contains(err.Error(), "UNIQUE constraint failed")
+	return se.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
 }
 
 // rowsAffectedOrNotFound checks RowsAffected and returns ErrNotFound if 0.

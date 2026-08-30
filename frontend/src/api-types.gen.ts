@@ -20,6 +20,15 @@ export interface AliasResponse {
 }
 
 //////////
+// source: auth.go
+/*
+auth.go provides helpers for retrieving authenticated user information from
+Clerk: the Google OAuth access token for Drive/Sheets, and org-level helpers
+for extracting the active Clerk Organization ID and role (Phase 1 tenancy).
+*/
+
+
+//////////
 // source: deps.go
 /*
 deps.go defines the dependency-injection interface used by HTTP handlers.
@@ -46,6 +55,15 @@ export interface DriveFile {
  * they can be tested without a real HTTP server.
  */
 export type DriveClient = any;
+
+//////////
+// source: errors_http.go
+/*
+errors_http.go holds the HTTP error-response contract: the apiError type that
+carries a status through the call stack, and the writers that turn any error
+into a JSON body without leaking internal text to the caller.
+*/
+
 
 //////////
 // source: extract.go
@@ -96,15 +114,6 @@ export interface StudentCandidate {
 /*
 feedback_handler.go handles POST /api/feedback for explicit thumbs ratings
 on generated reports and auto-extracted notes.
-*/
-
-
-//////////
-// source: google.go
-/*
-google.go provides shared HTTP error helpers and a Drive-read-only client
-constructor for the /drive-import endpoint. The full Google Sheets/Docs
-clients have been removed — all data is now in SQLite.
 */
 
 
@@ -335,6 +344,17 @@ export interface Class {
  */
 export interface ClassWithCount extends Class {
   studentCount: number /* int */;
+}
+/**
+ * ClassWithStudents is a Class with its students, each with aliases loaded.
+ */
+export interface ClassWithStudents {
+  Class: Class;
+  /**
+   * Students is ordered by name, nil when the class has none; each
+   * student's Aliases is non-nil and ordered by alias.
+   */
+  Students: Student[];
 }
 
 //////////
@@ -648,6 +668,15 @@ The Roster is used by the upload processing pipeline to get class names
 export type Roster = any;
 
 //////////
+// source: router.go
+/*
+router.go registers every /api/ route on a Go 1.22+ http.ServeMux using
+method+pattern strings, so path parameters come from r.PathValue and an
+unmatched path or method is a 404 rather than a prefix over-match.
+*/
+
+
+//////////
 // source: sentry.go
 /*
 sentry.go initialises the Sentry SDK and exposes helpers for capturing
@@ -792,9 +821,10 @@ export interface VoiceNoteJob {
 // source: voice_note_jobs.go
 /*
 voice_note_jobs.go handles the voice note job endpoints:
-  GET  /voice-notes/jobs         — list jobs grouped by status
-  POST /voice-notes/jobs/retry   — retry failed jobs
-  POST /voice-notes/jobs/dismiss — dismiss completed/failed jobs
+
+	GET  /voice-notes/jobs         — list jobs grouped by status
+	POST /voice-notes/jobs/retry   — retry failed jobs
+	POST /voice-notes/jobs/dismiss — dismiss completed/failed jobs
 */
 
 /**

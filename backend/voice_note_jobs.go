@@ -1,7 +1,8 @@
 // voice_note_jobs.go handles the voice note job endpoints:
-//   GET  /voice-notes/jobs         — list jobs grouped by status
-//   POST /voice-notes/jobs/retry   — retry failed jobs
-//   POST /voice-notes/jobs/dismiss — dismiss completed/failed jobs
+//
+//	GET  /voice-notes/jobs         — list jobs grouped by status
+//	POST /voice-notes/jobs/retry   — retry failed jobs
+//	POST /voice-notes/jobs/dismiss — dismiss completed/failed jobs
 package handler
 
 import (
@@ -25,7 +26,7 @@ func handleJobList(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := clerk.SessionClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
 	userID := claims.Subject
@@ -89,7 +90,7 @@ func handleJobRetry(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := clerk.SessionClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
 	userID := claims.Subject
@@ -144,7 +145,7 @@ func handleJobDismiss(w http.ResponseWriter, r *http.Request) {
 
 	claims, ok := clerk.SessionClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
 	userID := claims.Subject

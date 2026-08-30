@@ -38,9 +38,10 @@ func (r *dbRoster) ClassNames(ctx context.Context) ([]string, error) {
 }
 
 // Students returns the full roster grouped by class, with aliases included
-// so the extraction prompt can match nicknames/variants.
+// so the extraction prompt can match nicknames/variants. One query for the
+// whole roster; nil when the user has no classes.
 func (r *dbRoster) Students(ctx context.Context) ([]ClassGroup, error) {
-	classes, err := r.classRepo.List(ctx, r.userID)
+	classes, err := r.classRepo.ListWithStudents(ctx, r.userID)
 	if err != nil {
 		return nil, err
 	}
@@ -48,17 +49,13 @@ func (r *dbRoster) Students(ctx context.Context) ([]ClassGroup, error) {
 		return nil, nil
 	}
 
-	var result []ClassGroup
-	for _, c := range classes {
-		students, err := r.studentRepo.ListWithAliases(ctx, c.ID)
-		if err != nil {
-			return nil, err
-		}
-		cg := ClassGroup{Name: c.Name, Students: make([]ClassStudent, len(students))}
-		for j, s := range students {
+	result := make([]ClassGroup, len(classes))
+	for i, c := range classes {
+		cg := ClassGroup{Name: c.Name, Students: make([]ClassStudent, len(c.Students))}
+		for j, s := range c.Students {
 			cg.Students[j] = ClassStudent{Name: s.Name, Aliases: s.Aliases}
 		}
-		result = append(result, cg)
+		result[i] = cg
 	}
 	return result, nil
 }

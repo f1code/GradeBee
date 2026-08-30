@@ -38,7 +38,7 @@ func handleTextNotesUpload(w http.ResponseWriter, r *http.Request) {
 
 	userID, err := userIDFromRequest(r)
 	if err != nil {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "unauthorized"})
+		writeError(w, r, err)
 		return
 	}
 

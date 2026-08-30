@@ -51,24 +51,49 @@ func (r *StudentRepo) List(ctx context.Context, classID int64) ([]Student, error
 	return result, rows.Err()
 }
 
-// ListWithAliases returns all students in a class with their aliases loaded.
+// ListWithAliases returns all students in a class with their aliases loaded,
+// ordered by name; each student's Aliases is non-nil and ordered by alias.
+// One query: students LEFT JOIN student_aliases, folded by foldStudentAliasRow.
 func (r *StudentRepo) ListWithAliases(ctx context.Context, classID int64) ([]Student, error) {
-	students, err := r.List(ctx, classID)
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT s.id, s.class_id, s.name, s.created_at, sa.alias
+		FROM students s
+		LEFT JOIN student_aliases sa ON sa.student_id = s.id
+		WHERE s.class_id = ?
+		ORDER BY s.name, s.id, sa.alias`, classID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list students with aliases: %w", err)
 	}
-	for i := range students {
-		aliases, err := r.ListAliases(ctx, students[i].ID)
-		if err != nil {
-			return nil, err
+	defer rows.Close()
+
+	var result []Student
+	for rows.Next() {
+		var s Student
+		var alias sql.NullString
+		if err := rows.Scan(&s.ID, &s.ClassID, &s.Name, &s.CreatedAt, &alias); err != nil {
+			return nil, fmt.Errorf("scan student with alias: %w", err)
 		}
-		names := make([]string, len(aliases))
-		for j, a := range aliases {
-			names[j] = a.Alias
-		}
-		students[i].Aliases = names
+		result = foldStudentAliasRow(result, s, alias)
 	}
-	return students, nil
+	return result, rows.Err()
+}
+
+// foldStudentAliasRow folds one row of a students LEFT JOIN student_aliases
+// query, ordered by student then alias, into students: a row whose student id
+// differs from the last entry's appends that student with a non-nil, empty
+// Aliases; a non-NULL alias is appended to the last entry, which — given the
+// ordering — is always the student it belongs to.
+func foldStudentAliasRow(students []Student, s Student, alias sql.NullString) []Student {
+	n := len(students)
+	if n == 0 || students[n-1].ID != s.ID {
+		s.Aliases = []string{}
+		students = append(students, s)
+		n++
+	}
+	if alias.Valid {
+		students[n-1].Aliases = append(students[n-1].Aliases, alias.String)
+	}
+	return students
 }
 
 // GetByID returns a single student by ID (aliases not loaded).
@@ -77,7 +102,7 @@ func (r *StudentRepo) GetByID(ctx context.Context, id int64) (Student, error) {
 	err := r.db.QueryRowContext(ctx,
 		"SELECT id, class_id, name, created_at FROM students WHERE id = ?", id,
 	).Scan(&s.ID, &s.ClassID, &s.Name, &s.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return Student{}, ErrNotFound
 	}
 	if err != nil {
@@ -285,7 +310,7 @@ func (r *StudentRepo) FindByNameAndClass(ctx context.Context, name, className, u
 		  AND (s.name = ? COLLATE NOCASE OR sa.alias = ? COLLATE NOCASE)
 		LIMIT 1`,
 		className, userID, name, name).Scan(&id)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return 0, ErrNotFound
 	}
 	if err != nil {
@@ -302,7 +327,7 @@ func (r *StudentRepo) BelongsToUser(ctx context.Context, studentID int64, userID
 		JOIN classes c ON s.class_id = c.id
 		WHERE s.id = ? AND c.user_id = ?`,
 		studentID, userID).Scan(&exists)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {

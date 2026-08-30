@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -60,7 +61,7 @@ func (r *ReportRepo) GetByID(ctx context.Context, id int64) (Report, error) {
 		SELECT id, student_id, start_date, end_date, html, instructions, model_version, prompt_hash, created_at
 		FROM reports WHERE id = ?`, id,
 	).Scan(&rpt.ID, &rpt.StudentID, &rpt.StartDate, &rpt.EndDate, &rpt.HTML, &rpt.Instructions, &rpt.ModelVersion, &rpt.PromptHash, &rpt.CreatedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return Report{}, ErrNotFound
 	}
 	if err != nil {

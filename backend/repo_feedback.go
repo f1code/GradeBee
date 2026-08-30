@@ -16,7 +16,7 @@ type ArtifactFeedbackRepo struct{ db *sql.DB }
 // ArtifactFeedback represents a single feedback event.
 type ArtifactFeedback struct {
 	ID            int64
-	ArtifactType  string  // 'report' | 'note'
+	ArtifactType  string // 'report' | 'note'
 	ArtifactID    int64
 	Rating        string  // 'up' | 'down'
 	Signal        string  // 'explicit' | 'regenerated' | 'edited' | 'deleted'

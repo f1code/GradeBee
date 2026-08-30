@@ -27,7 +27,7 @@ type ExtractRequest struct {
 // ExtractResponse is the structured output from extraction.
 type ExtractResponse struct {
 	Students []MatchedStudent `json:"students"`
-	Date string `json:"date"`
+	Date     string           `json:"date"`
 }
 
 // MatchedStudent is a single student extraction result.

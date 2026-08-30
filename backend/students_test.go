@@ -30,6 +30,7 @@ func putUpdateStudentRequest(t *testing.T, studentID int64, body map[string]any)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPut,
 		fmt.Sprintf("/students/%d", studentID), bytes.NewReader(b))
+	req.SetPathValue("id", itoa(studentID))
 	req.Header.Set("Content-Type", "application/json")
 	reqCtx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: "user1"},

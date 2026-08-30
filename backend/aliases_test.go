@@ -36,6 +36,7 @@ func TestHandleAddAlias_Conflict(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost,
 		fmt.Sprintf("/students/%d/aliases", s1.ID), bytes.NewReader(body))
+	req.SetPathValue("id", itoa(s1.ID))
 	req.Header.Set("Content-Type", "application/json")
 	reqCtx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: "user1"},
@@ -78,6 +79,7 @@ func TestHandleAddAlias_Success(t *testing.T) {
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost,
 		fmt.Sprintf("/students/%d/aliases", s.ID), bytes.NewReader(body))
+	req.SetPathValue("id", itoa(s.ID))
 	req.Header.Set("Content-Type", "application/json")
 	reqCtx := clerk.ContextWithSessionClaims(req.Context(), &clerk.SessionClaims{
 		RegisteredClaims: clerk.RegisteredClaims{Subject: "user1"},

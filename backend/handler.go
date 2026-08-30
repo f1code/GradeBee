@@ -5,12 +5,9 @@ package handler
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"runtime"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,28 +20,15 @@ import (
 
 func init() {
 	// Ensure the Clerk SDK has the secret key for JWT verification.
-	key := os.Getenv("CLERK_SECRET_KEY")
-	slog.Info("clerk init",
-		"key_set", key != "",
-		"key_len", len(key),
-		"key_prefix", safePrefix(key, 12),
-	)
-	if key != "" {
+	if key := os.Getenv("CLERK_SECRET_KEY"); key != "" {
 		clerk.SetKey(key)
 	}
 }
 
-// safePrefix returns the first n bytes of s, or s if shorter.
-func safePrefix(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
-}
-
-// debugAuthMiddleware wraps a handler with Clerk JWT verification and logs
-// detailed information when authentication fails.
-func debugAuthMiddleware(next http.Handler) http.Handler {
+// clerkAuthMiddleware wraps a handler with Clerk JWT verification and the
+// active-Organisation check. Failures log the token's kid/issuer/expiry only —
+// never the subject, the header, or anything about the secret key.
+func clerkAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log := loggerFromRequest(r)
 
@@ -62,20 +46,11 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		var expiry, issuedAt string
+		var expiry string
 		if decoded.Expiry != nil {
 			expiry = time.Unix(*decoded.Expiry, 0).UTC().Format(time.RFC3339)
 		}
-		if decoded.IssuedAt != nil {
-			issuedAt = time.Unix(*decoded.IssuedAt, 0).UTC().Format(time.RFC3339)
-		}
-		log.Info("auth: jwt decoded",
-			"kid", decoded.KeyID,
-			"issuer", decoded.Issuer,
-			"subject", decoded.Subject,
-			"expires", expiry,
-			"issued_at", issuedAt,
-		)
+		log.Debug("auth: jwt decoded", "kid", decoded.KeyID, "expires", expiry)
 
 		// Tag the Sentry scope with the authenticated user so events can be
 		// correlated to a specific user in the Sentry dashboard.
@@ -102,31 +77,13 @@ func debugAuthMiddleware(next http.Handler) http.Handler {
 		inner.ServeHTTP(w, r)
 
 		if !verified {
-			secretKey := os.Getenv("CLERK_SECRET_KEY")
 			log.Warn("auth: clerk verification failed",
 				"kid", decoded.KeyID,
 				"issuer", decoded.Issuer,
-				"clerk_secret_key_set", secretKey != "",
-				"clerk_secret_key_len", len(secretKey),
-				"clerk_secret_key_prefix", truncate(secretKey, 12),
-				"now_utc", time.Now().UTC().Format(time.RFC3339),
 				"token_expired", decoded.Expiry != nil && time.Unix(*decoded.Expiry, 0).Before(time.Now()),
 			)
-			if decoded.KeyID != "" {
-				_, jwkErr := jwt.GetJSONWebKey(r.Context(), &jwt.GetJSONWebKeyParams{KeyID: decoded.KeyID})
-				if jwkErr != nil {
-					log.Warn("auth: jwk fetch failed", "kid", decoded.KeyID, "error", fmt.Sprintf("%v", jwkErr))
-				} else {
-					log.Info("auth: jwk fetch succeeded", "kid", decoded.KeyID)
-				}
-			}
 		}
 	})
-}
-
-// authHandler wraps a handler function with auth middleware.
-func authHandler(fn http.HandlerFunc) http.Handler {
-	return debugAuthMiddleware(http.HandlerFunc(fn))
 }
 
 // statusRecorder wraps ResponseWriter to capture status code.
@@ -153,32 +110,14 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 func userIDFromRequest(r *http.Request) (string, error) {
 	claims, ok := clerk.SessionClaimsFromContext(r.Context())
 	if !ok || claims == nil {
-		return "", &apiError{Status: http.StatusForbidden, Code: "unauthorized", Message: "missing or invalid session"}
+		return "", &apiError{Status: http.StatusUnauthorized, Code: "unauthorized", Message: "missing or invalid session"}
 	}
 	return claims.Subject, nil
 }
 
-// pathParam extracts a numeric ID from a URL path segment.
-// e.g. pathParam("classes/42/students", "classes/", "/students") returns 42.
-func pathParam(path, prefix string) (int64, bool) {
-	rest := strings.TrimPrefix(path, prefix)
-	if rest == path {
-		return 0, false
-	}
-	// rest is "42/students" or "42"
-	idx := strings.Index(rest, "/")
-	idStr := rest
-	if idx >= 0 {
-		idStr = rest[:idx]
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return 0, false
-	}
-	return id, true
-}
-
-// Handle is the main HTTP entrypoint, used by cmd/server/main.go.
+// Handle is the main HTTP entrypoint, used by cmd/server/main.go. It owns the
+// request-scoped logger, the health probe, the SPA fallthrough and CORS; every
+// /api/ request is then dispatched by apiMux (see router.go).
 func Handle(w http.ResponseWriter, r *http.Request) {
 	reqID := uuid.New().String()
 	reqLogger := getLogger().With("request_id", reqID)
@@ -217,130 +156,18 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Strip /api/ prefix so existing case branches keep matching.
-	path := strings.TrimPrefix(rawPath, "api/")
-
-	// Rewrite r.URL.Path so handlers using pathParam() don't need to know about /api/.
-	r2 := r.Clone(r.Context())
-	r2.URL.Path = "/" + path
-	r = r2
-
 	rec := &statusRecorder{ResponseWriter: w, status: 0}
 	start := time.Now()
 
-	if path != "" {
-		authHeader := r.Header.Get("Authorization")
-		reqLogger.Debug("incoming request",
-			"path", path,
-			"has_auth_header", authHeader != "",
-			"auth_header_len", len(authHeader),
-			"auth_header_prefix", truncate(authHeader, 20),
-		)
-	}
-
-	// Route matching
-	switch {
-	// Classes CRUD
-	case path == "classes" && r.Method == http.MethodGet:
-		authHandler(handleListClasses).ServeHTTP(rec, r)
-	case path == "classes" && r.Method == http.MethodPost:
-		authHandler(handleCreateClass).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "classes/") && !strings.Contains(strings.TrimPrefix(path, "classes/"), "/") && r.Method == http.MethodPut:
-		authHandler(handleUpdateClass).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "classes/") && !strings.Contains(strings.TrimPrefix(path, "classes/"), "/") && r.Method == http.MethodDelete:
-		authHandler(handleDeleteClass).ServeHTTP(rec, r)
-
-	// Levels CRUD (Group-owned; write endpoints admin-gated in the handler)
-	case path == "levels" && r.Method == http.MethodGet:
-		authHandler(handleListLevels).ServeHTTP(rec, r)
-	case path == "levels" && r.Method == http.MethodPost:
-		authHandler(handleCreateLevel).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "levels/") && !strings.Contains(strings.TrimPrefix(path, "levels/"), "/") && r.Method == http.MethodPut:
-		authHandler(handleUpdateLevel).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "levels/") && !strings.Contains(strings.TrimPrefix(path, "levels/"), "/") && r.Method == http.MethodDelete:
-		authHandler(handleDeleteLevel).ServeHTTP(rec, r)
-
-	// Students under class
-	case strings.HasPrefix(path, "classes/") && strings.HasSuffix(path, "/students") && r.Method == http.MethodGet:
-		authHandler(handleListStudents).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "classes/") && strings.HasSuffix(path, "/students") && r.Method == http.MethodPost:
-		authHandler(handleCreateStudent).ServeHTTP(rec, r)
-
-	// Students by ID
-	case strings.HasPrefix(path, "students/") && !strings.Contains(strings.TrimPrefix(path, "students/"), "/") && r.Method == http.MethodPut:
-		authHandler(handleUpdateStudent).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "students/") && !strings.Contains(strings.TrimPrefix(path, "students/"), "/") && r.Method == http.MethodDelete:
-		authHandler(handleDeleteStudent).ServeHTTP(rec, r)
-
-	// Aliases under student
-	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/aliases") && r.Method == http.MethodGet:
-		authHandler(handleListAliases).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/aliases") && r.Method == http.MethodPost:
-		authHandler(handleAddAlias).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "students/") && strings.Contains(path, "/aliases/") && r.Method == http.MethodDelete:
-		authHandler(handleRemoveAlias).ServeHTTP(rec, r)
-
-	// Notes under student
-	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/notes") && r.Method == http.MethodGet:
-		authHandler(handleListNotes).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/notes") && r.Method == http.MethodPost:
-		authHandler(handleCreateNote).ServeHTTP(rec, r)
-
-	// Notes by ID
-	case strings.HasPrefix(path, "notes/") && r.Method == http.MethodGet:
-		authHandler(handleGetNote).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "notes/") && r.Method == http.MethodPut:
-		authHandler(handleUpdateNote).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "notes/") && r.Method == http.MethodDelete:
-		authHandler(handleDeleteNote).ServeHTTP(rec, r)
-
-	// Reports
-	case path == "reports" && r.Method == http.MethodPost:
-		authHandler(handleGenerateReports).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "reports/") && strings.HasSuffix(path, "/regenerate") && r.Method == http.MethodPost:
-		authHandler(handleRegenerateReport).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "students/") && strings.HasSuffix(path, "/reports") && r.Method == http.MethodGet:
-		authHandler(handleListReports).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "reports/") && r.Method == http.MethodGet:
-		authHandler(handleGetReport).ServeHTTP(rec, r)
-	case strings.HasPrefix(path, "reports/") && r.Method == http.MethodDelete:
-		authHandler(handleDeleteReport).ServeHTTP(rec, r)
-
-	// Voice note upload + Drive import
-	case path == "voice-notes/upload" && r.Method == http.MethodPost:
-		authHandler(handleUpload).ServeHTTP(rec, r)
-	case path == "text-notes/upload" && r.Method == http.MethodPost:
-		authHandler(handleTextNotesUpload).ServeHTTP(rec, r)
-	case path == "voice-notes/drive-import" && r.Method == http.MethodPost:
-		authHandler(handleDriveImport).ServeHTTP(rec, r)
-
-	// Google token (for Drive Picker)
-	case path == "google-token" && r.Method == http.MethodGet:
-		authHandler(handleGoogleToken).ServeHTTP(rec, r)
-
-	// Artifact feedback (explicit thumbs ratings)
-	case path == "feedback" && r.Method == http.MethodPost:
-		authHandler(handleSubmitFeedback).ServeHTTP(rec, r)
-
-	// Voice note jobs
-	case path == "voice-notes/jobs" && r.Method == http.MethodGet:
-		authHandler(handleJobList).ServeHTTP(rec, r)
-	case path == "voice-notes/jobs/retry" && r.Method == http.MethodPost:
-		authHandler(handleJobRetry).ServeHTTP(rec, r)
-	case path == "voice-notes/jobs/dismiss" && r.Method == http.MethodPost:
-		authHandler(handleJobDismiss).ServeHTTP(rec, r)
-
-	default:
-		writeJSON(rec, http.StatusNotFound, map[string]string{"error": "not found"})
-	}
+	apiMux.ServeHTTP(rec, r)
 
 	duration := time.Since(start).Milliseconds()
-	logAttrs := []any{"method", r.Method, "path", "/api/" + path, "status", rec.status, "duration_ms", duration}
+	logAttrs := []any{"method", r.Method, "path", r.URL.Path, "status", rec.status, "duration_ms", duration}
 	switch {
 	case rec.status == 401 || rec.status == 403:
 		logAttrs = append(logAttrs,
 			"has_auth_header", r.Header.Get("Authorization") != "",
-			"auth_header_prefix", truncate(r.Header.Get("Authorization"), 20),
+			"auth_header_prefix", safePrefix(r.Header.Get("Authorization"), 20),
 		)
 		reqLogger.Warn("request completed (auth failure)", logAttrs...)
 	case rec.status >= 400:
@@ -350,8 +177,8 @@ func Handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// truncate returns the first n characters of s, or s if shorter.
-func truncate(s string, n int) string {
+// safePrefix returns the first n bytes of s, or s if shorter.
+func safePrefix(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
@@ -375,7 +202,15 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 // compile. TestHandleGenerateReports_OwnershipArms pins the exact value
 // "op":"handleGenerateReports" through a real handler and fails if the depth drifts.
 func callerName() string {
-	pc, _, _, ok := runtime.Caller(2)
+	return callerAt(2)
+}
+
+// callerAt returns the unqualified function name skip frames above the function
+// that called callerAt: callerAt(0) names that function itself, callerAt(1) its
+// caller. writeInternalError and writeError use it to label a 500 with the
+// handler that gave up.
+func callerAt(skip int) string {
+	pc, _, _, ok := runtime.Caller(skip + 1)
 	if !ok {
 		return "unknown"
 	}
@@ -411,10 +246,10 @@ func callerName() string {
 // The record names its handler via callerName() rather than r.URL.Path. The request
 // logger carries only request_id, so without some site label all sixteen call sites
 // emit the same undifferentiated line — but the live path is client-controlled text.
-// Routing is prefix-based and pathParam stops at the first "/", so a request such as
-// GET /api/notes/5/<anything> reaches this gate with that trailing segment intact; a
-// caller could park a child's name there and have it logged. The handler name cannot
-// carry caller input at all.
+// The router only matches exact patterns now, so a stray trailing segment is a 404
+// before any handler runs; still, the {id} wildcard itself is caller-supplied, and
+// a handler may be invoked directly (tests, or a future route) with any path at all.
+// The handler name cannot carry caller input, whatever the path holds.
 func requireStudentOwnership(w http.ResponseWriter, r *http.Request, studentID int64, userID, notFoundMsg string) bool {
 	owns, err := serviceDeps.GetStudentRepo().BelongsToUser(r.Context(), studentID, userID)
 	log := loggerFromRequest(r)

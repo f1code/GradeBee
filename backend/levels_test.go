@@ -139,8 +139,7 @@ func TestHandleUpdateLevel_RenameCollision_Returns409WithClearMessage(t *testing
 	body, err := json.Marshal(map[string]string{"name": "Marcia"})
 	require.NoError(t, err)
 	r := levelsReq(http.MethodPut, "/levels/", body, "org_a", "org:admin")
-	// pathParam reads from r.URL.Path, set directly since httptest.NewRequest parsed "/levels/".
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleUpdateLevel(w, r)
 
@@ -157,7 +156,7 @@ func TestHandleUpdateLevel_TeacherWriteRefused(t *testing.T) {
 	body, err := json.Marshal(map[string]string{"name": "New Name"})
 	require.NoError(t, err)
 	r := levelsReq(http.MethodPut, "/levels/"+itoa(target.ID), body, "org_a", "org:member")
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleUpdateLevel(w, r)
 
@@ -171,7 +170,7 @@ func TestHandleUpdateLevel_ReportInstructions(t *testing.T) {
 	body, err := json.Marshal(map[string]string{"reportInstructions": "Focus on fluency."})
 	require.NoError(t, err)
 	r := levelsReq(http.MethodPut, "/levels/"+itoa(target.ID), body, "org_a", "org:admin")
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleUpdateLevel(w, r)
 
@@ -188,7 +187,7 @@ func TestHandleUpdateLevel_CrossGroup_NotFound(t *testing.T) {
 	body, err := json.Marshal(map[string]string{"name": "New Name"})
 	require.NoError(t, err)
 	r := levelsReq(http.MethodPut, "/levels/"+itoa(target.ID), body, "org_b", "org:admin")
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleUpdateLevel(w, r)
 
@@ -200,7 +199,7 @@ func TestHandleDeleteLevel_AdminSucceeds(t *testing.T) {
 	target := newTestLevel(t, serviceDeps.GetDB(), "org_a", "Marcia")
 
 	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_a", "org:admin")
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleDeleteLevel(w, r)
 
@@ -212,7 +211,7 @@ func TestHandleDeleteLevel_TeacherRefused(t *testing.T) {
 	target := newTestLevel(t, serviceDeps.GetDB(), "org_a", "Marcia")
 
 	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_a", "org:member")
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleDeleteLevel(w, r)
 
@@ -228,7 +227,7 @@ func TestHandleDeleteLevel_CrossGroup_NotFound(t *testing.T) {
 	target := newTestLevel(t, serviceDeps.GetDB(), "org_a", "Marcia")
 
 	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_b", "org:admin")
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleDeleteLevel(w, r)
 
@@ -246,7 +245,7 @@ func TestHandleDeleteLevel_ReferencedByClass_Returns409WithCount(t *testing.T) {
 	require.NoError(t, err)
 
 	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_a", "org:admin")
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleDeleteLevel(w, r)
 
@@ -269,7 +268,7 @@ func TestHandleDeleteLevel_ReferencedByOneClass_Returns409WithSingularMessage(t 
 	require.NoError(t, err)
 
 	r := levelsReq(http.MethodDelete, "/levels/"+itoa(target.ID), nil, "org_a", "org:admin")
-	r.URL.Path = "/levels/" + itoa(target.ID)
+	r.SetPathValue("id", itoa(target.ID))
 	w := httptest.NewRecorder()
 	handleDeleteLevel(w, r)
 
