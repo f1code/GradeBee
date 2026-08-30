@@ -92,6 +92,7 @@ func TestScrubBeforeSend_ScrubbsRequestBody(t *testing.T) {
 			Cookies:     "session=abc",
 			Headers: map[string]string{
 				"Authorization": "Bearer tok",
+				"Cookie":        "session=abc",
 				"Content-Type":  "application/json",
 			},
 		},

@@ -22,9 +22,9 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	voiceNoteRepo := &VoiceNoteRepo{db: db}
 
 	cls := newTestClass(t, classRepo, "test-group", "int-user", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
+	alice, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
 	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Bob")
+	bob, err := studentRepo.Create(t.Context(), cls.ID, "Bob")
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
@@ -80,8 +80,15 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", 1))
 	require.NoError(t, err, "get job after process")
 	assert.Equal(t, JobStatusDone, got.Status)
-	assert.Len(t, got.NoteLinks, 2)
-	assert.Len(t, nc.calls, 2)
+	// Each link must point at the resolved student, with name and class in
+	// their own fields — a count alone passes with them transposed.
+	assert.Equal(t, []NoteLink{
+		{Name: "Alice", NoteID: 1, StudentID: alice.ID, ClassName: "Math · Mon"},
+		{Name: "Bob", NoteID: 2, StudentID: bob.ID, ClassName: "Math · Mon"},
+	}, got.NoteLinks)
+	require.Len(t, nc.calls, 2)
+	assert.Equal(t, alice.ID, nc.calls[0].StudentID)
+	assert.Equal(t, bob.ID, nc.calls[1].StudentID)
 }
 
 func TestIntegration_PublishToFailure(t *testing.T) {
@@ -204,8 +211,18 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 	failedJob.FailedAt = &now
 	require.NoError(t, queue.UpdateJob(ctx, *failedJob))
 
-	// Job 3: still queued.
+	// Job 3: done as well — two done, one failed, three active, so no two
+	// buckets share a size and a swapped case body cannot go unnoticed.
 	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 3, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	doneJob2, err := queue.GetJob(ctx, voiceNoteKey("u1", 3))
+	require.NoError(t, err)
+	doneJob2.Status = JobStatusDone
+	require.NoError(t, queue.UpdateJob(ctx, *doneJob2))
+
+	// Jobs 4-6: still in flight.
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 4, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 5, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 6, Status: JobStatusQueued, CreatedAt: time.Now()}))
 
 	old := serviceDeps
 	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
@@ -223,9 +240,9 @@ func TestIntegration_ListJobsDuringProcessing(t *testing.T) {
 
 	var resp JobListResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp), "decode")
-	assert.Len(t, resp.Active, 1)
-	assert.Len(t, resp.Failed, 1)
-	assert.Len(t, resp.Done, 1)
+	assert.ElementsMatch(t, []int64{4, 5, 6}, uploadIDs(resp.Active))
+	assert.ElementsMatch(t, []int64{2}, uploadIDs(resp.Failed))
+	assert.ElementsMatch(t, []int64{1, 3}, uploadIDs(resp.Done))
 }
 
 

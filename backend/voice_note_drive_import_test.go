@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -178,6 +179,8 @@ func TestHandleDriveImport_OmitsFileName(t *testing.T) {
 			handleDriveImport(rec, req.WithContext(ctx))
 
 			require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+			var resp DriveImportResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 
 			out := logs.String()
 			require.Contains(t, out, "drive-import completed", "completion was not logged at all")
@@ -185,7 +188,8 @@ func TestHandleDriveImport_OmitsFileName(t *testing.T) {
 
 			done := logRecord(t, out, "drive-import completed")
 			assert.Contains(t, done, `"file_ext":"`+wantExt+`"`, "completion should carry the extension that replaced the filename")
-			assert.Contains(t, done, `"upload_id"`, "completion should keep the upload id")
+			// Closed with the trailing comma so "upload_id":1 cannot match "upload_id":12.
+			assert.Contains(t, done, `"upload_id":`+strconv.FormatInt(resp.UploadID, 10)+`,`, "completion should carry the id the caller was handed")
 
 			// See the upload test: the same extension is concatenated into the
 			// on-disk name, and that path reaches its own log sites.

@@ -306,3 +306,12 @@ func newTestClass(t *testing.T, cr *ClassRepo, groupID, userID, levelName, timeS
 	}
 	return c
 }
+
+// uploadIDs projects a bucket down to the ids that identify its jobs.
+func uploadIDs(jobs []VoiceNoteJob) []int64 {
+	ids := make([]int64, 0, len(jobs))
+	for _, j := range jobs {
+		ids = append(ids, j.UploadID)
+	}
+	return ids
+}

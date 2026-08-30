@@ -108,7 +108,7 @@ func TestRequireStudentOwnership(t *testing.T) {
 		require.Contains(t, out, "ownership check failed", "a failed ownership check vanished from telemetry")
 		assert.Contains(t, out, `"level":"ERROR"`, "an outage is not routine")
 		assert.Contains(t, out, `"student_id":`+strconv.FormatInt(studentID, 10), "the outage should carry the student id")
-		assert.Contains(t, out, `"error":`, "the outage should carry the underlying failure")
+		assert.Contains(t, out, `"error":"check student ownership: sql: database is closed"`, "the outage should carry the underlying failure")
 		assert.NotContains(t, out, "Zephyrine", "telemetry must not name the student")
 	})
 

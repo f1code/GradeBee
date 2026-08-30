@@ -65,15 +65,21 @@ func TestHandleUpdateStudent_MoveConflict(t *testing.T) {
 
 	require.Equal(t, http.StatusConflict, rec.Code, "body: %s", rec.Body.String())
 
+	body := rec.Body.Bytes()
 	var resp struct {
 		Error   string            `json:"error"`
 		Message string            `json:"message"`
 		Details map[string]string `json:"details"`
 	}
-	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	require.NoError(t, json.Unmarshal(body, &resp))
 	assert.Equal(t, "student_name_conflict", resp.Error)
 	assert.NotEmpty(t, resp.Message)
 	assert.Equal(t, "Alexander", resp.Details["conflictStudentName"])
+
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(body, &raw))
+	_, hasDropped := raw["droppedAliases"]
+	assert.False(t, hasDropped, "an aborted move must not report dropped aliases")
 
 	// Nothing mutated.
 	got, err := studentRepo.GetByID(ctx, s.ID)

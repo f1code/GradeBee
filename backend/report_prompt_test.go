@@ -14,12 +14,16 @@ func TestBuildReportPrompt_AdHocInstructionsOverrideSpec(t *testing.T) {
 	assert.Contains(t, prompt, "be extra concise")
 }
 
-// TestBuildReportPrompt_NoDanglingStyleHeaderWithoutExamples verifies the
-// Style & Layout Guide header itself is absent when no examples are
-// provided — the header must not appear detached from its body.
-func TestBuildReportPrompt_NoDanglingStyleHeaderWithoutExamples(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", "")
-	assert.NotContains(t, prompt, "Style & Layout Guide")
+// TestBuildReportPrompt_InstructionsSectionOnlyWhenGiven verifies the
+// Teacher's Instructions header is emitted only alongside a body — an empty
+// instruction set must not leave a dangling header. The positive arm proves
+// the header string is the one the function really writes.
+func TestBuildReportPrompt_InstructionsSectionOnlyWhenGiven(t *testing.T) {
+	without := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", "")
+	assert.NotContains(t, without, reportInstructionsHeader)
+
+	with := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "be extra concise", "")
+	assert.Contains(t, with, reportInstructionsHeader+"be extra concise")
 }
 
 // TestBuildReportPrompt_NotesRemainSoleSourceOfFacts verifies the base
@@ -29,10 +33,13 @@ func TestBuildReportPrompt_NotesRemainSoleSourceOfFacts(t *testing.T) {
 	assert.Contains(t, prompt, "student notes are the sole source of facts")
 }
 
-// TestBuildReportPrompt_NoStyleFallbackWithoutExamples verifies there's no
-// styleless "write a professional narrative" fallback fragment left — the
-// mandatory Report Specification replaces it.
-func TestBuildReportPrompt_NoStyleFallbackWithoutExamples(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", "")
-	assert.NotContains(t, prompt, "Write a professional, warm report card narrative")
+// TestBuildReportPrompt_FeedbackSectionOnlyWhenGiven verifies the previous-
+// draft feedback header is emitted only on regeneration, when feedback is
+// present, and carries the feedback text when it is.
+func TestBuildReportPrompt_FeedbackSectionOnlyWhenGiven(t *testing.T) {
+	without := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", "")
+	assert.NotContains(t, without, reportFeedbackHeader)
+
+	with := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", "make it shorter")
+	assert.Contains(t, with, reportFeedbackHeader+"make it shorter")
 }

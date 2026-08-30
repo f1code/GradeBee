@@ -359,6 +359,30 @@ touches a student is expected to carry a test asserting the name's absence, as
 - `setupTestDB(t)` creates an in-memory SQLite DB with migrations for handler tests.
 - Run: `make test` / `make lint`
 
+### Assertions must be able to fail
+
+A 2026-08 mutation audit (task #92) found ~17 assertions across telemetry, reports, jobs and
+students that passed while checking less than their name claimed — every one the same idiom:
+assert the envelope, skip the content. Three rules, each with an in-tree template:
+
+1. **Assert by value, not by shape.** Decoding a field and never comparing it (`resp.HTML`
+   read, not asserted), or checking a log line for `"upload_id"` rather than
+   `"upload_id":`+the real id, cannot fail when the field is wired to the wrong source.
+   Template: `TestHandleRegenerateReport_ResponseShape` (`reports_regen_test.go`) — every
+   decoded field compared, including the regenerated body vs. the stored one.
+2. **Make expected values distinct.** Three buckets that each expect length 1 stay green
+   when two of them are swapped. Size fixtures so no two counters can be confused —
+   `TestProcessJob_CompletionRecordCountsMentions` (7/2/1/4/3) and `TestJobList_GroupsByStatus`
+   (3/2/1, asserted by upload id) — and prefer asserting the members over the count.
+3. **Pair every absence with a presence.** `NotContains` on a string the code never emits,
+   or on a fixture that never held the key (`sentry_test.go`'s `Cookie`), proves nothing.
+   Put the thing in the fixture so the code has to remove it, and assert the positive arm
+   in the same test: `TestBuildReportPrompt_InstructionsSectionOnlyWhenGiven`,
+   `students_test.go`'s `map[string]any` + key-presence check for an omitted field.
+
+When in doubt, apply the named mutation (swap two fields, blank a value, delete the guard) and
+confirm the suite fails; a fix without that evidence is not a fix.
+
 ## Environment Variables
 
 | Variable | Required | Purpose |

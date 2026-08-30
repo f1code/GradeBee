@@ -112,7 +112,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	require.NoError(t, err)
 
 	gen := &stubReportGenerator{
-		generateResp: &GenerateReportResponse{ReportID: 42, HTML: "<p>hi</p>"},
+		generateResp: &GenerateReportResponse{ReportID: 42, HTML: "<p>hi</p>", CreatedAt: "2026-04-02T00:00:00Z"},
 	}
 
 	levelRepo := &LevelRepo{db: db}
@@ -160,8 +160,11 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	assert.Equal(t, int64(42), r.ID)
 	assert.Equal(t, stu.ID, r.StudentID)
 	assert.Equal(t, "Alice", r.Student)
+	assert.Equal(t, "Art", r.ClassName)
+	assert.Equal(t, "<p>hi</p>", r.HTML)
 	assert.Equal(t, "2026-01-01", r.StartDate)
 	assert.Equal(t, "2026-03-31", r.EndDate)
+	assert.Equal(t, "2026-04-02T00:00:00Z", r.CreatedAt)
 	assert.Equal(t, "Write three sections.", gen.lastGenReq.ReportInstructions)
 }
 
@@ -238,9 +241,15 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, int64(77), resp.ID)
+	assert.Equal(t, stu.ID, resp.StudentID)
 	assert.Equal(t, "Bob", resp.Student)
 	assert.Equal(t, "Science · Mon", resp.ClassName)
+	// The regenerated body, not the stored "<p>old</p>" — returning the stale
+	// report is the one failure this endpoint exists to not have.
+	assert.Equal(t, "<p>new</p>", resp.HTML)
 	assert.Equal(t, "2026-02-01", resp.StartDate)
+	assert.Equal(t, "2026-02-28", resp.EndDate)
+	assert.Equal(t, "2026-04-03T00:00:00Z", resp.CreatedAt)
 	assert.Equal(t, "Write three sections.", gen.lastRegenReq.ReportInstructions)
 }
 

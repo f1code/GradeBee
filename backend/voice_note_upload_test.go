@@ -2,12 +2,14 @@ package handler
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"strings"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -140,6 +142,8 @@ func TestHandleUpload_OmitsFileName(t *testing.T) {
 			handleUpload(rec, req.WithContext(ctx))
 
 			require.Equal(t, http.StatusOK, rec.Code, "body: %s", rec.Body.String())
+			var resp UploadResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 
 			out := logs.String()
 			require.Contains(t, out, "upload completed", "completion was not logged at all")
@@ -149,7 +153,8 @@ func TestHandleUpload_OmitsFileName(t *testing.T) {
 
 			done := logRecord(t, out, "upload completed")
 			assert.Contains(t, done, `"file_ext":"`+wantExt+`"`, "completion should carry the extension that replaced the filename")
-			assert.Contains(t, done, `"upload_id"`, "completion should keep the upload id")
+			// Closed with the trailing comma so "upload_id":1 cannot match "upload_id":12.
+			assert.Contains(t, done, `"upload_id":`+strconv.FormatInt(resp.UploadID, 10)+`,`, "completion should carry the id the caller was handed")
 
 			// The on-disk name is built by concatenating this same extension, and
 			// that path is logged by the cleanup and transcription paths — and, via

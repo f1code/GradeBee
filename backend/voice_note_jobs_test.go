@@ -30,6 +30,10 @@ func TestJobList_GroupsByStatus(t *testing.T) {
 	queue.jobs[voiceNoteKey("u1", 2)] = VoiceNoteJob{UserID: "u1", UploadID: 2, Status: JobStatusTranscribing, CreatedAt: now.Add(-1 * time.Minute)}
 	queue.jobs[voiceNoteKey("u1", 3)] = VoiceNoteJob{UserID: "u1", UploadID: 3, Status: JobStatusDone, CreatedAt: now.Add(-2 * time.Minute)}
 	queue.jobs[voiceNoteKey("u1", 4)] = VoiceNoteJob{UserID: "u1", UploadID: 4, Status: JobStatusFailed, Error: "boom", CreatedAt: now.Add(-3 * time.Minute)}
+	// Bucket sizes are deliberately distinct (3/2/1): with every bucket at 1,
+	// swapping the done and failed case bodies leaves the assertions green.
+	queue.jobs[voiceNoteKey("u1", 5)] = VoiceNoteJob{UserID: "u1", UploadID: 5, Status: JobStatusExtracting, CreatedAt: now.Add(-4 * time.Minute)}
+	queue.jobs[voiceNoteKey("u1", 6)] = VoiceNoteJob{UserID: "u1", UploadID: 6, Status: JobStatusDone, CreatedAt: now.Add(-5 * time.Minute)}
 
 	old := serviceDeps
 	serviceDeps = &mockDepsAll{voiceNoteQueue: queue}
@@ -43,9 +47,9 @@ func TestJobList_GroupsByStatus(t *testing.T) {
 
 	var resp JobListResponse
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
-	assert.Len(t, resp.Active, 2)
-	assert.Len(t, resp.Done, 1)
-	assert.Len(t, resp.Failed, 1)
+	assert.ElementsMatch(t, []int64{1, 2, 5}, uploadIDs(resp.Active))
+	assert.ElementsMatch(t, []int64{3, 6}, uploadIDs(resp.Done))
+	assert.ElementsMatch(t, []int64{4}, uploadIDs(resp.Failed))
 }
 
 func TestJobList_EmptyUser(t *testing.T) {
