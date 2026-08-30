@@ -53,7 +53,22 @@ cd backend && make eval-baseline
 | `MISTRAL_API_KEY` | Yes (for Mistral) | Required when `LLM_PROVIDER=mistral` |
 | `LLM_PROVIDER` | No | `"openai"` (default for evals) or `"mistral"`; selects which API key is required |
 
-> Model selection lives in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml` (`providers[].id`). To test a different model, change the `id:` field there. Adding a new report model only requires editing the providers list in `promptfooconfig.report.yaml`.
+> Model selection lives in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml` (`providers[].id`). To test a different model, add a provider there — but see "Which model the evals grade" below before touching a canonical one.
+
+## Which model the evals grade
+
+Each config runs a **canonical** provider plus any number of **comparison** providers.
+
+| Config | Canonical label | Model | Tracked by `diff-baseline.js` |
+|---|---|---|---|
+| `promptfooconfig.extract.yaml` | `gradebee-extract` | `mistral-medium-2508` | yes (★) |
+| `promptfooconfig.report.yaml` | `gradebee-report` | `mistral-medium-2508` | yes (★) |
+
+The canonical provider must grade the model **production actually runs** — `defaultModels()` in `backend/llm_provider.go`, which resolves to `mistral-medium-2508` for both extraction and report generation. `diff-baseline.js` counts regressions on canonical rows alone, so a canonical provider pinned to anything else means the regression signal describes a model we do not ship. That is exactly what happened before: the extraction config graded `mistral-small-2603` for its whole life while production ran `mistral-medium-2508`.
+
+`TestEvalConfigsTrackProductionModels` in `backend/evals_config_test.go` parses both configs and fails if a canonical provider's `id` drifts from `defaultModels()`. It needs no API key and runs under `make test`. It checks the Mistral defaults only — the configs hardcode `mistral:`-prefixed provider ids, so a deployment overriding `LLM_PROVIDER` or `LLM_MODEL_*` is outside what this guard can see. **If you deliberately change a production model, update `defaultModels()` and the config together, then regenerate the baseline.**
+
+Comparison providers are unconstrained — they exist to measure other models and the test ignores them. `gradebee-extract-small` (`mistral-small-2603`) is kept as the weaker model: a prompt change that outgrows it shows up as a widening gap against the canonical row before it costs anything in production. Note that extraction providers pin no `temperature`, so comparison scores move a little between runs; treat small deltas on non-canonical rows as noise.
 
 ## Debugging a single case
 

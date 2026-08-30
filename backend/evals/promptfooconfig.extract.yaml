@@ -5,11 +5,16 @@ prompts:
   - label: gradebee-prompt
     raw: exec:../bin/eval-cli
 
-# Provider — native Mistral provider with structured output (json_schema).
+# Providers — native Mistral providers with structured output (json_schema).
+#
+# gradebee-extract is the canonical provider: diff-baseline.js tracks it for
+# regressions, so it must stay pinned to the model production actually runs.
+# TestEvalConfigsTrackProductionModels (backend/evals_config_test.go) fails if
+# it drifts from defaultModels() in llm_provider.go.
 providers:
-  - id: mistral:mistral-small-2603
+  - id: mistral:mistral-medium-2508
     label: gradebee-extract
-    config:
+    config: &extract_schema
       response_format:
         type: json_schema
         json_schema:
@@ -48,6 +53,13 @@ providers:
               date: { type: string }
             required: [students, date]
             additionalProperties: false
+
+  # Comparison provider. Not tracked for regressions — it is the weaker model,
+  # kept so a prompt change that outgrows mistral-small shows up as a widening
+  # gap against the canonical row before it reaches production's model.
+  - id: mistral:mistral-small-2603
+    label: gradebee-extract-small
+    config: *extract_schema
 
 # Default options: use a stronger judge model for llm-rubric assertions.
 defaultTest:
