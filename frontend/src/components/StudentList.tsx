@@ -26,6 +26,10 @@ import { HexBullet, ChevronIcon, PencilIcon, TrashIcon } from './Icons'
 import ItemRow from './ItemRow'
 import CollapsePresence from './CollapsePresence'
 
+function sameAliases(a: string[] | undefined, b: string[]): boolean {
+  return (a?.length ?? 0) === b.length && (a ?? []).every((name, i) => name === b[i])
+}
+
 const containerVariants = {
   hidden: {},
   visible: {
@@ -139,6 +143,19 @@ export default function StudentList() {
     })
     // Update count
     setClasses(prev => prev.map(c => c.id === classId ? { ...c, studentCount: c.studentCount + 1 } : c))
+  }
+
+  function handleAliasesChanged(classId: number, studentId: number, aliases: string[]) {
+    setExpandedStudents(prev => {
+      const students = prev.get(classId)
+      const current = students?.find(s => s.id === studentId)
+      // Skip the no-op report the detail panel makes when it first loads,
+      // so expanding a student does not re-render the whole roster.
+      if (!students || !current || sameAliases(current.aliases, aliases)) return prev
+      const m = new Map(prev)
+      m.set(classId, students.map(s => s.id === studentId ? { ...s, aliases } : s))
+      return m
+    })
   }
 
   async function handleRenameClass(classId: number, newLevelId: number, newDay: string, newTimeSlot: string) {
@@ -522,6 +539,7 @@ export default function StudentList() {
                                             className={cls.name}
                                             onCollapse={() => setExpandedStudentId(null)}
                                             onRequestMove={() => setMovingStudent({ studentId: s.id, studentName: s.name, classId: cls.id, levelId: cls.levelId })}
+                                            onAliasesChange={aliases => handleAliasesChanged(cls.id, s.id, aliases)}
                                           />
                                         </ItemRow>
                                       )}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
@@ -26,12 +26,19 @@ interface StudentDetailProps {
    * trigger never appears there.
    */
   onRequestMove?: () => void
+  /**
+   * Reports the student's alias names once they have loaded, and after every
+   * add or remove. The roster keeps its own copy for the collapsed "AKA"
+   * line, so it needs to hear about edits made in here. The JobStatus
+   * note-link modal omits it — it has no roster behind it to keep in step.
+   */
+  onAliasesChange?: (aliases: string[]) => void
 }
 
 type Status = 'loading' | 'error' | 'success'
 type Tab = 'notes' | 'reports'
 
-export default function StudentDetail({ studentId, studentName, className, onCollapse, modal, onRequestMove }: StudentDetailProps) {
+export default function StudentDetail({ studentId, studentName, className, onCollapse, modal, onRequestMove, onAliasesChange }: StudentDetailProps) {
   const { getToken } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('notes')
   const [notes, setNotes] = useState<Note[]>([])
@@ -41,6 +48,20 @@ export default function StudentDetail({ studentId, studentName, className, onCol
   const [savingNew, setSavingNew] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [aliases, setAliases] = useState<AliasResponse[]>([])
+  const [aliasesLoaded, setAliasesLoaded] = useState(false)
+
+  // Held in a ref because the roster builds this callback inside a render-time
+  // map, so it is a new function every render; depending on it directly would
+  // refire the effect on every roster render.
+  const onAliasesChangeRef = useRef(onAliasesChange)
+  useEffect(() => { onAliasesChangeRef.current = onAliasesChange }, [onAliasesChange])
+  // Gated on the fetch having succeeded: `aliases` is empty until then, and
+  // reporting that emptiness would wipe the caller's own copy — permanently,
+  // if the fetch fails or the panel closes before it resolves.
+  useEffect(() => {
+    if (!aliasesLoaded) return
+    onAliasesChangeRef.current?.(aliases.map(a => a.alias))
+  }, [aliases, aliasesLoaded])
 
   const fetchNotes = useCallback(async () => {
     setStatus('loading')
@@ -52,6 +73,7 @@ export default function StudentDetail({ studentId, studentName, className, onCol
       ])
       setNotes(fetched || [])
       setAliases(fetchedAliases || [])
+      setAliasesLoaded(true)
       setStatus('success')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load notes')
@@ -131,7 +153,7 @@ export default function StudentDetail({ studentId, studentName, className, onCol
                 </button>
               )}
             </span>
-            <StudentAliases studentId={studentId} initialAliases={aliases} />
+            <StudentAliases studentId={studentId} aliases={aliases} onAliasesChange={setAliases} />
           </div>
         </div>
         {activeTab === 'notes' && (

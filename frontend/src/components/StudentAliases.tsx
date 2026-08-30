@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import { addAlias, removeAlias, AliasConflictError, type AliasResponse } from '../api'
@@ -6,13 +6,18 @@ import InlineError from './InlineError'
 
 interface StudentAliasesProps {
   studentId: number
-  /** Initial alias list — {id, alias} pairs from the student response */
-  initialAliases: AliasResponse[]
+  /**
+   * The student's aliases. Owned by the parent, which loads them
+   * asynchronously — holding a copy here would freeze the list at whatever
+   * the parent had on first render (usually empty).
+   */
+  aliases: AliasResponse[]
+  /** Applies an add or remove to the parent's list. */
+  onAliasesChange: Dispatch<SetStateAction<AliasResponse[]>>
 }
 
-export default function StudentAliases({ studentId, initialAliases }: StudentAliasesProps) {
+export default function StudentAliases({ studentId, aliases, onAliasesChange }: StudentAliasesProps) {
   const { getToken } = useAuth()
-  const [aliases, setAliases] = useState<AliasResponse[]>(initialAliases)
   const [adding, setAdding] = useState(false)
   const [input, setInput] = useState('')
   const [saving, setSaving] = useState(false)
@@ -31,7 +36,9 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
     setConflictAlias(null)
     try {
       const a = await addAlias(studentId, trimmed, getToken)
-      setAliases(prev => [...prev, a])
+      onAliasesChange((prev) =>
+        [...prev, a].sort((x, y) => x.alias.localeCompare(y.alias)),
+      )
       setInput('')
       setAdding(false)
     } catch (err) {
@@ -54,7 +61,7 @@ export default function StudentAliases({ studentId, initialAliases }: StudentAli
     setConflictAlias(null)
     try {
       await removeAlias(studentId, aliasId, getToken)
-      setAliases(prev => prev.filter(a => a.id !== aliasId))
+      onAliasesChange(prev => prev.filter(a => a.id !== aliasId))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove alias')
     } finally {
