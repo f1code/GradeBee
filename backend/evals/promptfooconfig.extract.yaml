@@ -109,6 +109,19 @@ tests:
           expected: file://fixtures/extraction/fuzzy_name_matching/expected.json
           metric: precision_recall
 
+  - description: "extraction: keeps each student's note free of other students' observations"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/cross_student_bleed/transcript.txt"
+      classes: "file://fixtures/extraction/cross_student_bleed/classes.json"
+    assert:
+      - type: is-json
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/cross_student_bleed/expected.json
+          metric: attribution
+
   - description: "extraction: applies group observation only to relevant class"
     vars:
       task: build-extract-prompt

@@ -242,6 +242,61 @@ Specific note: Tommy helped me organize the materials, which was great.`
 		"Tommy QuotedText missing group observation. Got: %s", tommy.QuotedText)
 }
 
+// TestExtractNoCrossStudentBleed verifies that an observation about one named
+// student never lands in another named student's note. Production regression:
+// "Edgar was doing great, but today Anouk was not doing that good" produced
+// the full transcript under both Edgar and Anouk, because the prompt's
+// group-observation propagation rule had no counterweight forbidding another
+// student's individual observation.
+//
+// This is deliberately the smallest transcript that shows the bug — two
+// students, one assertion each way. Wider shapes (a "whereas" sentence naming
+// three students at once) are covered by the cross_student_bleed eval fixture,
+// which is graded rather than gated; piling them in here only grows the
+// assertion surface of a live-model test.
+func TestExtractNoCrossStudentBleed(t *testing.T) {
+	provider := requireLiveLLM(t)
+	extractor := newLLMExtractor(provider)
+
+	// No collective referent anywhere, so the two halves must not be shared.
+	transcript := "Oliver Thursday. Edgar was doing great, but today Anouk was not doing that good."
+
+	req := ExtractRequest{
+		Transcript: transcript,
+		Classes: []ClassGroup{
+			{
+				Name: "Oliver \u00b7 Thu",
+				Students: []ClassStudent{
+					{Name: "Anouk"},
+					{Name: "Edgar"},
+				},
+			},
+		},
+	}
+
+	result, err := extractor.Extract(context.Background(), req)
+	require.NoError(t, err, "Extract failed")
+
+	byName := make(map[string]MatchedStudent, len(result.Students))
+	for _, s := range result.Students {
+		byName[s.Name] = s
+	}
+
+	edgar, ok := byName["Edgar"]
+	require.True(t, ok, "Edgar should be extracted, got %v", result.Students)
+	assert.True(t, contains(edgar.QuotedText, "doing great"),
+		"Edgar QuotedText missing his own observation. Got: %s", edgar.QuotedText)
+	assert.NotContains(t, edgar.QuotedText, "Anouk",
+		"Edgar QuotedText leaked Anouk's observation. Got: %s", edgar.QuotedText)
+
+	anouk, ok := byName["Anouk"]
+	require.True(t, ok, "Anouk should be extracted, got %v", result.Students)
+	assert.True(t, contains(anouk.QuotedText, "not doing that good"),
+		"Anouk QuotedText missing her own observation. Got: %s", anouk.QuotedText)
+	assert.NotContains(t, anouk.QuotedText, "Edgar",
+		"Anouk QuotedText leaked Edgar's observation. Got: %s", anouk.QuotedText)
+}
+
 // TestExtractGroupObservationsMultiClass verifies that group-level observations
 // are scoped to the class being discussed, not applied across all classes.
 func TestExtractGroupObservationsMultiClass(t *testing.T) {

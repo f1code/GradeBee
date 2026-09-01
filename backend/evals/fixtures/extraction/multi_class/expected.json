@@ -3,17 +3,38 @@
     {
       "name": "Noah Jensen",
       "class_name": "Class A",
-      "must_quote_substrings": ["improvement in his writing", "sentence structure"]
+      "must_quote_substrings": [
+        "improvement in his writing",
+        "sentence structure"
+      ],
+      "must_not_quote_substrings": [
+        "science experiment",
+        "off task"
+      ]
     },
     {
       "name": "Sophie Nguyen",
       "class_name": "Class B",
-      "must_quote_substrings": ["science experiment", "thoughtful questions"]
+      "must_quote_substrings": [
+        "science experiment",
+        "thoughtful questions"
+      ],
+      "must_not_quote_substrings": [
+        "improvement in his writing",
+        "off task"
+      ]
     },
     {
       "name": "Jacob Williams",
       "class_name": "Class B",
-      "must_quote_substrings": ["off task", "disturbing others"]
+      "must_quote_substrings": [
+        "off task",
+        "disturbing others"
+      ],
+      "must_not_quote_substrings": [
+        "improvement in his writing",
+        "science experiment"
+      ]
     }
   ],
   "must_not_extract": []

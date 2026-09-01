@@ -5,8 +5,16 @@
  *   - precision: (correctly extracted students) / (total extracted students)
  *   - recall:    (correctly extracted students) / (expected students)
  *   - voice_preservation: every must_quote_substring appears verbatim in quoted_text
+ *   - attribution: no must_not_quote_substring appears in that student's quoted_text
  *
- * The assertion passes (score >= 0.7) if all three sub-scores pass their thresholds.
+ * The assertion passes (score >= 0.7) if all four sub-scores pass their thresholds.
+ *
+ * must_not_quote_substrings is the per-student counterpart of the global
+ * must_not_extract: it catches cross-student bleed, where one student's
+ * quoted_text swallows an observation the teacher made about a different
+ * student. precision/recall only compare the *set* of extracted names, so
+ * without this the whole transcript can land under every student and still
+ * score 1.00.
  *
  * Expected fixture shape (expected.json):
  * {
@@ -14,7 +22,8 @@
  *     {
  *       "name": "Alice",
  *       "class": "Grade 3A",
- *       "must_quote_substrings": ["did great in math today"]
+ *       "must_quote_substrings": ["did great in math today"],
+ *       "must_not_quote_substrings": ["Bob was quiet"]
  *     }
  *   ],
  *   "must_not_extract": ["The principal stopped by"]
@@ -111,6 +120,26 @@ module.exports = async (output, context) => {
   totalScore += voiceScore;
   numMetrics++;
 
+  // --- Attribution (no cross-student bleed) ---
+  let attributionScore = 1;
+  for (const exp of expectedStudents) {
+    const ext = extracted.find((e) => normalise(e.name) === normalise(exp.name));
+    if (!ext) continue; // already counted in recall
+
+    for (const substring of exp.must_not_quote_substrings || []) {
+      const reMatch = substring.match(/^\/(.+)\/([gimsuy]*)$/);
+      const matches = reMatch
+        ? new RegExp(reMatch[1], reMatch[2]).test(ext.quoted_text || '')
+        : (ext.quoted_text || '').includes(substring);
+      if (matches) {
+        attributionScore = 0;
+        reasons.push(`FAIL: "${substring}" leaked into quoted_text for ${exp.name}`);
+      }
+    }
+  }
+  totalScore += attributionScore;
+  numMetrics++;
+
   // --- Must-not-extract check ---
   for (const forbidden of mustNotExtract) {
     const leaked = extracted.some(
@@ -123,7 +152,7 @@ module.exports = async (output, context) => {
   }
 
   const avgScore = numMetrics > 0 ? Math.max(0, totalScore / numMetrics) : 0;
-  const pass = precision >= 0.7 && recall >= 0.7 && voiceScore === 1;
+  const pass = precision >= 0.7 && recall >= 0.7 && voiceScore === 1 && attributionScore === 1;
 
   return {
     pass,

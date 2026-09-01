@@ -90,7 +90,7 @@ evals/
   promptfooconfig.extract.yaml    extraction test suite
   promptfooconfig.report.yaml     report test suite
   baseline.json                   pinned baseline scores (committed, merged extract+report)
-  scoring/extraction.js           custom JS scorer (precision/recall + voice preservation)
+  scoring/extraction.js           custom JS scorer (precision/recall + voice preservation + attribution)
   scripts/diff-baseline.js        baseline diff reporter (Node, always exits 0)
   scripts/merge-results.js        merges multiple result JSONs into one
   results/                        per-run result JSONs (git-ignored)
@@ -98,12 +98,32 @@ evals/
     extraction/<case>/
       transcript.txt              teacher audio transcript (synthetic)
       classes.json                class roster
-      expected.json               expected students + must_quote_substrings
+      expected.json               expected students + must_quote_substrings / must_not_quote_substrings
     reports/<case>/
       notes.json                  student notes
       report_instructions.txt     Level's report specification — required for any live test case, drives structure/content
       instructions.txt            ad-hoc per-run instructions (optional; override report_instructions where they conflict)
 ```
+
+## Extraction scoring axes
+
+`scoring/extraction.js` grades four axes; the assertion passes only if all four do.
+
+| Axis | Fixture field | What it catches |
+| --- | --- | --- |
+| precision / recall | `expected_students[].name` | the wrong set of students was extracted |
+| voice_preservation | `must_quote_substrings` | a student's own observation was dropped or paraphrased away |
+| attribution | `must_not_quote_substrings` | cross-student bleed — another student's observation landed in this entry |
+| (global) | `must_not_extract` | forbidden content leaked into any entry |
+
+`must_not_quote_substrings` is the per-student counterpart of `must_not_extract`.
+It exists because precision/recall compare only the *set* of extracted names: a
+run that copies the whole transcript into every student's `quoted_text` scores a
+perfect 1.00 on them. That is exactly how the cross-student bleed regression
+reached production unnoticed, so every new multi-student fixture should carry
+`must_not_quote_substrings` listing the other named students.
+
+Both substring fields accept a plain substring or `/pattern/flags` regex syntax.
 
 ## Adding a fixture
 

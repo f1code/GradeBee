@@ -3,12 +3,26 @@
     {
       "name": "Olivia Chen",
       "class_name": "Class B",
-      "must_quote_substrings": ["finished early", "fractions worksheet"]
+      "must_quote_substrings": [
+        "finished early",
+        "fractions worksheet"
+      ],
+      "must_not_quote_substrings": [
+        "not turning in homework",
+        "Marcus"
+      ]
     },
     {
       "name": "Marcus Davis",
       "class_name": "Class B",
-      "must_quote_substrings": ["not turning in homework", "fractions worksheet"]
+      "must_quote_substrings": [
+        "not turning in homework",
+        "fractions worksheet"
+      ],
+      "must_not_quote_substrings": [
+        "finished early",
+        "Olivia"
+      ]
     }
   ],
   "must_not_extract": []

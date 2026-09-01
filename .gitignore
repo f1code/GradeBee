@@ -38,6 +38,7 @@ docs/superpowers/
 
 # Ansible secrets (vault-encrypted or plaintext — never commit)
 ansible/secrets.yml
+ansible/deploy_pub_key*
 ansible/inventory
 backend/bin/
 .pi-subagents/

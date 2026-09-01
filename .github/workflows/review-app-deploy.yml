@@ -7,6 +7,20 @@ on:
       - reopened
       - synchronize
 
+# Serialise every run for a single PR. The deploy job takes a Dokku deploy lock
+# on the review app, so two runs overlapping — two pushes in quick succession,
+# or an "opened" event followed straight away by a "synchronize" — race for that
+# lock and the loser fails.
+#
+# cancel-in-progress is deliberately false. Cancelling a superseded run would
+# save CI minutes, but a cancellation landing mid-deploy is precisely what
+# strands the lock and half-advances the app's git repo (see the ps:rebuild
+# fallback below). Queueing costs a few minutes; cancelling costs a wedged
+# review app.
+concurrency:
+  group: review-app-pr-${{ github.event.number }}
+  cancel-in-progress: false
+
 jobs:
   test:
     name: Run tests
@@ -98,7 +112,16 @@ jobs:
             dokku nginx:set "$APP_NAME" client-max-body-size 26m
 
             # Deploy the PR image (predeploy script in app.json runs migrations automatically)
-            dokku git:from-image "$APP_NAME" "$IMAGE"
+            #
+            # git:from-image is not atomic: it advances the app's internal git
+            # repo to the new image *before* deploying it. A run that dies after
+            # that point — a deploy-lock collision, a cancelled job — leaves the
+            # repo advanced with the image never released, and every later
+            # attempt exits 1 with "No changes detected, skipping git commit".
+            # Re-running cannot clear that state. ps:rebuild redeploys from the
+            # source already staged in the repo, which is exactly what the
+            # failure message tells you to run.
+            dokku git:from-image "$APP_NAME" "$IMAGE" || dokku ps:rebuild "$APP_NAME"
             dokku letsencrypt:set ${APP_NAME} email $LETSENCRYPT_EMAIL
             dokku letsencrypt:enable ${APP_NAME}
 
