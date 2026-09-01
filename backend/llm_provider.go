@@ -6,11 +6,15 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"time"
+
+	"github.com/getsentry/sentry-go"
+	"github.com/getsentry/sentry-go/attribute"
 )
 
 // Per-operation deadlines applied at the provider boundary so callers never
@@ -86,6 +90,82 @@ type LLMProvider interface {
 	Vision(ctx context.Context, req VisionRequest, out any) (rawJSON string, err error)
 	// Transcribe converts audio to text with optional context bias terms.
 	Transcribe(ctx context.Context, req TranscribeRequest) (TranscribeResponse, error)
+}
+
+// Sentry metric names for the provider boundary. Named for the call, not the
+// model's output quality — nothing here measures whether the answer was good.
+const (
+	metricLLMCallDuration = "llm.call.duration"
+	metricLLMCallCount    = "llm.call.count"
+	metricLLMCallErrors   = "llm.call.errors"
+)
+
+// instrumentedProvider wraps an LLMProvider to emit Sentry metrics (call
+// latency, call count, and errors split by kind) at the provider boundary.
+// Wrapping here, rather than in each concrete provider, covers openaiProvider
+// and mistralProvider identically without touching either. Metrics no-op
+// automatically when Sentry is not initialised: sentry.NewMeter returns a
+// noop meter whenever no client is bound to the hub (see TestRecordLLMCall_NoopWhenSentryUninitialised).
+type instrumentedProvider struct {
+	LLMProvider
+}
+
+func instrumentProvider(p LLMProvider) LLMProvider {
+	return &instrumentedProvider{LLMProvider: p}
+}
+
+func (p *instrumentedProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (string, error) {
+	start := time.Now()
+	raw, err := p.LLMProvider.ChatJSON(ctx, req, out)
+	recordLLMCall(ctx, p.LLMProvider, LLMTaskExtraction, start, err)
+	return raw, err
+}
+
+func (p *instrumentedProvider) ChatText(ctx context.Context, req ChatTextRequest) (string, error) {
+	start := time.Now()
+	text, err := p.LLMProvider.ChatText(ctx, req)
+	recordLLMCall(ctx, p.LLMProvider, LLMTaskReport, start, err)
+	return text, err
+}
+
+func (p *instrumentedProvider) Vision(ctx context.Context, req VisionRequest, out any) (string, error) {
+	start := time.Now()
+	raw, err := p.LLMProvider.Vision(ctx, req, out)
+	recordLLMCall(ctx, p.LLMProvider, LLMTaskVision, start, err)
+	return raw, err
+}
+
+func (p *instrumentedProvider) Transcribe(ctx context.Context, req TranscribeRequest) (TranscribeResponse, error) {
+	start := time.Now()
+	resp, err := p.LLMProvider.Transcribe(ctx, req)
+	recordLLMCall(ctx, p.LLMProvider, LLMTaskTranscription, start, err)
+	return resp, err
+}
+
+// recordLLMCall emits call duration, call count, and (on failure) an error
+// count split by kind, tagged by task/model/provider. PII-free by
+// construction: only durations, counts, model IDs, and task names.
+func recordLLMCall(ctx context.Context, p LLMProvider, task LLMTask, start time.Time, err error) {
+	meter := sentry.NewMeter(ctx)
+	attrs := sentry.WithAttributes(
+		attribute.String("task", string(task)),
+		attribute.String("model", p.Model(task)),
+		attribute.String("provider", p.Name()),
+	)
+
+	meter.Distribution(metricLLMCallDuration, float64(time.Since(start).Milliseconds()), sentry.WithUnit(sentry.UnitMillisecond), attrs)
+	meter.Count(metricLLMCallCount, 1, attrs)
+
+	if err != nil {
+		kind := "other"
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			kind = "deadline_exceeded"
+		case errors.Is(err, context.Canceled):
+			kind = "canceled"
+		}
+		meter.Count(metricLLMCallErrors, 1, attrs, sentry.WithAttributes(attribute.String("kind", kind)))
+	}
 }
 
 // defaultModels returns sensible default model IDs for each provider + task
@@ -165,5 +245,5 @@ func LoadProvider() (LLMProvider, error) {
 		"vision", p.Model(LLMTaskVision),
 		"transcription", p.Model(LLMTaskTranscription),
 	)
-	return p, nil
+	return instrumentProvider(p), nil
 }

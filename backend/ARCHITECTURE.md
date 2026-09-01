@@ -348,6 +348,37 @@ Repo-level errors:
 
 `github.com/getsentry/sentry-go` v0.46.2. `InitSentry()` (`sentry.go`) reads `SENTRY_DSN` / `SENTRY_RELEASE` / `SENTRY_ENVIRONMENT` at startup — no-op if DSN is empty. `sentryhttp` middleware wraps the top-level handler in `main.go` (auto-captures panics; `Repanic: true`). Authenticated requests are tagged with the Clerk user ID. `BeforeSend` scrubs request bodies, query strings, cookies, auth headers, and name-shaped strings from exception values. `captureFeedback()` is available for non-error feedback events (task #19). DSN, release, and environment are baked into the Docker image via `VITE_SENTRY_DSN` / `VITE_APP_VERSION` / `VITE_SENTRY_ENVIRONMENT` build-args.
 
+### LLM Provider Metrics
+
+`instrumentProvider()` (`llm_provider.go`) wraps the `LLMProvider` returned by `LoadProvider()`
+so `openaiProvider` and `mistralProvider` are both covered without either implementation
+knowing about metrics. It uses `sentry.NewMeter(ctx)` — opt-out (`ClientOptions.DisableMetrics`,
+never set by `InitSentry()`), so no config change was needed. `NewMeter` returns a noop meter
+whenever no client is bound to the hub, which is why these metrics no-op cleanly when
+`SENTRY_DSN` is unset in local dev (`TestRecordLLMCall_NoopWhenSentryUninitialised`).
+
+Every `ChatJSON` / `ChatText` / `Vision` / `Transcribe` call emits, tagged with `task`
+(`LLMTask`: `extraction` / `report` / `vision` / `transcription`), `model`
+(`provider.Model(task)`) and `provider` (`provider.Name()`):
+
+- `llm.call.duration` — Distribution, milliseconds, call latency.
+- `llm.call.count` — Count, always emitted, one per call.
+- `llm.call.errors` — Count, emitted only on failure, with an additional `kind` attribute:
+  `deadline_exceeded` (`errors.Is(err, context.DeadlineExceeded)` — the 120s chat / 300s
+  transcribe deadlines in `llm_provider.go`), `canceled` (`context.Canceled` — caller
+  disconnects, job shutdown), or `other`. On the Mistral transcribe path specifically, the
+  SDK's own `http.Client` timeout races the ctx deadline (both set to `llmTranscribeTimeout`,
+  `llm_provider_mistral.go`); if the SDK timeout wins, its error does not satisfy
+  `errors.Is(err, context.DeadlineExceeded)` and lands in `other` instead — pre-existing to how
+  the SDK is wired, not introduced by this instrumentation.
+
+These measure the provider boundary's operational health, not answer quality — the three
+attributes this code sets are durations, counts, model IDs, and task names, never a prompt,
+transcript, or student name. 
+
+Production LLM quality signals live in `artifact_feedback` and the eval harness
+(`backend/evals/`) instead.
+
 ### Structured Logs
 
 `InitLogger()` (`logger.go`) must be called after `InitSentry()`. When `SENTRY_DSN` is set it builds a `slog.NewMultiHandler` combining the stdout handler with a `sentryslog` handler (`github.com/getsentry/sentry-go/slog`). All `log.Info/Warn/Error` call sites are unchanged. Default `sentryslog` behaviour: `Debug`/`Info`/`Warn` → Sentry structured log entry only; `Error`/`Fatal` → structured log entry **and** a Sentry event (Issue).
