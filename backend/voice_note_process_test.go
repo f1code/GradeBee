@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -395,7 +396,7 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
-		extractor: &stubExtractor{result: &ExtractResponse{
+		extractor: &stubExtractor{model: "test-model-v1", result: &ExtractResponse{
 			Date: "2026-01-01",
 			Students: []MatchedStudent{
 				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9},
@@ -450,6 +451,10 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 	assert.Contains(t, lowConf, `"user_id":"u1"`, "low-confidence drop should carry the user id")
 	assert.Contains(t, lowConf, `"upload_id":1`, "low-confidence drop should carry the upload id")
 	assert.Contains(t, lowConf, `"class_name"`, "both drop records should carry the same field set")
+	// Model and prompt version turn a bare drop rate into a figure attributable to a
+	// specific model/prompt change (#96).
+	assert.Contains(t, lowConf, `"model":"test-model-v1"`, "low-confidence drop should carry the model that produced the extraction")
+	assert.Contains(t, lowConf, promptHashAttr, "low-confidence drop should carry the extraction prompt hash")
 
 	offRoster := logRecord(t, out, `"reason":"no_roster_match"`)
 	assert.Contains(t, offRoster, "process voice note: mention dropped", "both drop sites must share the stable query key")
@@ -460,6 +465,8 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 	assert.Contains(t, offRoster, `"class_name":"Math · Mon"`, "off-roster drop should keep the class it was attributed to")
 	assert.Contains(t, offRoster, `"user_id":"u1"`, "off-roster drop should carry the user id")
 	assert.Contains(t, offRoster, `"upload_id":1`, "off-roster drop should carry the upload id")
+	assert.Contains(t, offRoster, `"model":"test-model-v1"`, "off-roster drop should carry the model that produced the extraction")
+	assert.Contains(t, offRoster, promptHashAttr, "off-roster drop should carry the extraction prompt hash")
 }
 
 // TestProcessJob_CompletionRecordCountsMentions covers the denominator half of the
@@ -490,7 +497,7 @@ func TestProcessJob_CompletionRecordCountsMentions(t *testing.T) {
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
-		extractor: &stubExtractor{result: &ExtractResponse{
+		extractor: &stubExtractor{model: "test-model-v1", result: &ExtractResponse{
 			Date: "2026-01-01",
 			Students: []MatchedStudent{
 				// 2 notes: on the roster and over the gate. Bram is also under the
@@ -524,7 +531,10 @@ func TestProcessJob_CompletionRecordCountsMentions(t *testing.T) {
 	// every mention under 0.7 regardless of outcome is the point: this is the total at
 	// a stricter gate, not the extra drops moving the gate there would cause.
 	assert.Contains(t, done, `"mentions_below_0_7":3`, "headroom counter should span kept and dropped mentions alike")
-
+	// Model and prompt version turn the drop rate into a figure attributable to a
+	// specific model/prompt change (#96).
+	assert.Contains(t, done, `"model":"test-model-v1"`, "completion record should carry the model that produced the extraction")
+	assert.Contains(t, done, promptHashAttr, "completion record should carry the extraction prompt hash")
 }
 
 // TestProcessJob_CompletionRecordNamesZeroMentionMode covers the third
@@ -565,6 +575,17 @@ func TestProcessJob_CompletionRecordNamesZeroMentionMode(t *testing.T) {
 	assert.Contains(t, done, `"dropped_no_roster_match":0`)
 	assert.NotContains(t, out, "mention dropped", "no mentions means nothing to drop")
 }
+
+// wantExtractionPromptHash recomputes the expected hash from the prompt templates
+// via hashPrompt, independently of the ExtractionPromptHash package var — so a
+// mutation that blanks that var, or that logs some other package's hash (e.g.
+// ReportPromptHash) instead, is caught rather than passing on a same-value or
+// right-shape coincidence.
+var wantExtractionPromptHash = hashPrompt(extractionPromptPrefix + "<<<roster>>>" + extractionPromptSuffix)
+
+// promptHashAttr is the exact expected prompt_hash attribute as it appears in a
+// log line.
+var promptHashAttr = fmt.Sprintf(`"prompt_hash":%q`, wantExtractionPromptHash)
 
 // logRecord returns the single captured record whose message contains substr,
 // so assertions apply to one record rather than to the whole log.

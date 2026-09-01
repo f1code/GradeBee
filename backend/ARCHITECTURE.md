@@ -352,6 +352,11 @@ Repo-level errors:
 
 `InitLogger()` (`logger.go`) must be called after `InitSentry()`. When `SENTRY_DSN` is set it builds a `slog.NewMultiHandler` combining the stdout handler with a `sentryslog` handler (`github.com/getsentry/sentry-go/slog`). All `log.Info/Warn/Error` call sites are unchanged. Default `sentryslog` behaviour: `Debug`/`Info`/`Warn` → Sentry structured log entry only; `Error`/`Fatal` → structured log entry **and** a Sentry event (Issue).
 
+In `voice_note_process.go`, the two `process voice note: mention dropped` records and the
+`process voice note completed` record carry `model` (`extractor.Model()`) and `prompt_hash`
+(`ExtractionPromptHash`, `prompts_version.go`) — the same values stamped on the note row
+(task #96).
+
 **No student names in log attributes or error strings** — see
 [ADR 0003](../docs/adr/0003-no-child-pii-in-telemetry.md). Log `student_id`, or the job key on the
 voice-note paths, and let the reader resolve it against the DB. `BeforeSend`'s name-shaped-string

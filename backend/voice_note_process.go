@@ -194,7 +194,8 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 				"key", key, "user_id", userID, "upload_id", uploadID,
 				"confidence", student.Confidence,
 				"candidate_count", len(student.Candidates),
-				"class_name", student.ClassName)
+				"class_name", student.ClassName,
+				"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 			continue
 		}
 
@@ -212,7 +213,8 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 					"key", key, "user_id", userID, "upload_id", uploadID,
 					"confidence", student.Confidence,
 					"candidate_count", len(student.Candidates),
-					"class_name", student.ClassName)
+					"class_name", student.ClassName,
+					"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 				continue
 			}
 			// The failed lookup is the only source of an identifier here, so telemetry
@@ -269,6 +271,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		"mentions_total", mentionsTotal,
 		"mentions_below_0_7", mentionsBelowHeadroom,
 		"dropped_low_confidence", droppedLowConfidence,
-		"dropped_no_roster_match", droppedNoRosterMatch)
+		"dropped_no_roster_match", droppedNoRosterMatch,
+		"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	return nil
 }
