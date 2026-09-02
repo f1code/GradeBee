@@ -5,6 +5,7 @@ import type { Note } from '../api'
 import { submitFeedback } from '../api'
 import { PencilIcon, TrashIcon, ThumbUpIcon, ThumbDownIcon } from './Icons'
 import NoteEditor from './NoteEditor'
+import { formatNoteDate } from '../lib/date'
 import AIBadge from './AIBadge'
 
 interface NotesListProps {
@@ -14,12 +15,6 @@ interface NotesListProps {
   editingNoteId: number | null
   onSaveEdit: (noteId: number, summary: string) => Promise<void>
   onCancelEdit: () => void
-}
-
-function formatDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  const d = new Date(year, month - 1, day)
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
 
 const containerVariants = {
@@ -69,7 +64,7 @@ export default function NotesList({
     >
       {grouped.map(group => (
         <div key={group.date} className="notes-date-group">
-          <h4 className="notes-date-heading">{formatDate(group.date)}</h4>
+          <h4 className="notes-date-heading">{formatNoteDate(group.date)}</h4>
           {group.notes.map(note => (
             <NoteCard
               key={note.id}

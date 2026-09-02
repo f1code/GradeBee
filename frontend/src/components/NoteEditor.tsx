@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion } from 'motion/react'
+import { formatNoteDate } from '../lib/date'
 
 interface NoteEditorProps {
   mode: 'create' | 'edit'
@@ -79,16 +80,34 @@ export default function NoteEditor({
     >
         <div className="note-editor-fields">
           <div className="note-editor-date-row">
-            <label className="note-editor-label" htmlFor="note-date">Date</label>
-            <input
-              id="note-date"
-              type="date"
-              value={date}
-              onChange={e => setDate(e.target.value)}
-              readOnly={mode === 'edit'}
-              className="note-editor-date"
-              data-testid="note-editor-date"
-            />
+            {mode === 'edit' ? (
+              // Static text, not a readonly input: `readonly` does not disable the
+              // calendar picker on <input type="date"> in Chrome, so the teacher could
+              // change the date, save, and watch it revert — every layer below drops it
+              // (NotesList passes only the summary). A <label for> may only point at a
+              // form control, so this branch labels the value with a plain span.
+              <>
+                <span className="note-editor-label">Date</span>
+                <span
+                  className="note-editor-date note-editor-date-static"
+                  data-testid="note-editor-date"
+                >
+                  {formatNoteDate(date)}
+                </span>
+              </>
+            ) : (
+              <>
+                <label className="note-editor-label" htmlFor="note-date">Date</label>
+                <input
+                  id="note-date"
+                  type="date"
+                  value={date}
+                  onChange={e => setDate(e.target.value)}
+                  className="note-editor-date"
+                  data-testid="note-editor-date"
+                />
+              </>
+            )}
           </div>
           <div className="note-editor-summary-row">
             <label className="note-editor-label" htmlFor="note-summary">Observation</label>

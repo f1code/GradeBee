@@ -51,7 +51,6 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Date: "2026-03-22",
 			Students: []MatchedStudent{
 				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "Did great", Confidence: 0.9},
 				{Name: "Bob", ClassName: "Math · Mon", QuotedText: "Needs work", Confidence: 0.8},
@@ -144,7 +143,6 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 		transcriber: failingTranscriber,
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Date:     "2026-01-01",
 			Students: []MatchedStudent{{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9}},
 		}},
 		noteCreator:    nc,

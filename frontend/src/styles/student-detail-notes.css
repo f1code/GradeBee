@@ -259,7 +259,7 @@
   box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
 }
 
-.note-editor-date[readonly] {
+.note-editor-date-static {
   background: var(--parchment);
   color: var(--ink-muted);
   cursor: default;

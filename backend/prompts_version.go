@@ -36,13 +36,12 @@ transcript about student observations.
 Your task:
 1. Identify which students are mentioned in the transcript
 2. Match each mentioned name to the student roster below (handle phonetic/partial matches)
-3. Extract the date if mentioned (format YYYY-MM-DD), otherwise leave empty
-4. Split the transcript into individual observations and attribute each one to a single
+3. Split the transcript into individual observations and attribute each one to a single
    owner: one named student, or the class as a whole. A single sentence often carries
    several observations about different students ("Raul struggled, whereas Erwan was on
    fire and Lucien kept interrupting" is three separate observations) — split it at the
    clause level rather than treating the sentence as one unit.
-5. Write a summary per student from the observations owned by that student, plus the
+4. Write a summary per student from the observations owned by that student, plus the
    observations owned by their class
    - Clean up speech artifacts (false starts, filler words, repetitions) into clear
      sentences

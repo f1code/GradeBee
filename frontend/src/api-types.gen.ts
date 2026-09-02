@@ -89,7 +89,6 @@ export interface ExtractRequest {
  */
 export interface ExtractResponse {
   students: MatchedStudent[];
-  date: string;
 }
 /**
  * MatchedStudent is a single student extraction result.

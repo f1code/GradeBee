@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"time"
 )
 
 // Extractor takes a transcript + student roster and returns structured extraction.
@@ -27,7 +26,6 @@ type ExtractRequest struct {
 // ExtractResponse is the structured output from extraction.
 type ExtractResponse struct {
 	Students []MatchedStudent `json:"students"`
-	Date     string           `json:"date"`
 }
 
 // MatchedStudent is a single student extraction result.
@@ -70,11 +68,6 @@ func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 	}, &result)
 	if err != nil {
 		return nil, fmt.Errorf("extraction failed: %w", err)
-	}
-
-	// Default date to today if not extracted.
-	if result.Date == "" {
-		result.Date = time.Now().Format("2006-01-02")
 	}
 
 	return &result, nil
@@ -147,9 +140,8 @@ func extractResponseSchema(classes []ClassGroup) json.RawMessage {
 				"type":  "array",
 				"items": studentSchema,
 			},
-			"date": map[string]any{"type": "string"},
 		},
-		"required":             []string{"students", "date"},
+		"required":             []string{"students"},
 		"additionalProperties": false,
 	}
 

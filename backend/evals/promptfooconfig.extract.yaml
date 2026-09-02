@@ -50,8 +50,7 @@ providers:
                         additionalProperties: false
                   required: [name, class_name, quoted_text, confidence, candidates]
                   additionalProperties: false
-              date: { type: string }
-            required: [students, date]
+            required: [students]
             additionalProperties: false
 
   # Comparison provider. Not tracked for regressions — it is the weaker model,

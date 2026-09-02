@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 )
 
 // NoteCreator creates notes in the database.
@@ -112,6 +113,13 @@ func handleCreateNote(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Summary == "" || req.Date == "" {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "date and summary are required"})
+		return
+	}
+	// notes.date is a bare TEXT column compared with BETWEEN by the report query, so a
+	// non-date string here silently excludes the note from every report instead of
+	// erroring. The UI sends <input type="date">, but the API is reachable directly.
+	if _, err := time.Parse(time.DateOnly, req.Date); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "date must be YYYY-MM-DD"})
 		return
 	}
 	n := &Note{
