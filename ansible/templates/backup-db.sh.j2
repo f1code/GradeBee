@@ -16,30 +16,32 @@ BACKUP_RETENTION=30  # number of backups to keep
 # Set in ansible/secrets.yml. Leave empty to disable (e.g. staging).
 SENTRY_CRONS_URL="{{ sentry_crons_url | default('') }}"
 
-CHECK_IN_ID=""
+# Generated client-side: the ingest endpoint replies 202 with an empty body,
+# so there's no server-assigned id to scrape from the response. Sentry
+# matches check-ins by the check_in_id field in the body, not by URL path
+# (a path-segment PUT 404s against this ingest host).
+CHECK_IN_ID="$(uuidgen)"
 
 # Close out the check-in opened below, rather than opening a new, unrelated
 # one — otherwise the start and finish never get linked in Sentry.
 sentry_checkin() {
   local status="$1"
-  if [ -n "${SENTRY_CRONS_URL}" ] && [ -n "${CHECK_IN_ID}" ]; then
-    curl -sf "${SENTRY_CRONS_URL}${CHECK_IN_ID}/" \
-      -X PUT -H 'Content-Type: application/json' \
+  if [ -n "${SENTRY_CRONS_URL}" ]; then
+    curl -sf "${SENTRY_CRONS_URL}" \
+      -X POST -H 'Content-Type: application/json' \
       --max-time 5 \
-      -d "{\"status\":\"${status}\"}" \
+      -d "{\"check_in_id\":\"${CHECK_IN_ID}\",\"status\":\"${status}\"}" \
       -o /dev/null || true
   fi
 }
 
 # Notify Sentry the job is starting; upsert the monitor config on first run.
-# Capture the check-in id so the closing call above can update this same
-# check-in instead of creating a second, orphaned one.
 if [ -n "${SENTRY_CRONS_URL}" ]; then
-  SENTRY_RESPONSE=$(curl -sf "${SENTRY_CRONS_URL}" \
+  curl -sf "${SENTRY_CRONS_URL}" \
     -X POST -H 'Content-Type: application/json' \
     --max-time 5 \
-    -d '{"monitor_config":{"schedule":{"type":"crontab","value":"0 */6 * * *"},"checkin_margin":30,"max_runtime":10,"timezone":"UTC"},"status":"in_progress"}') || SENTRY_RESPONSE=""
-  CHECK_IN_ID=$(echo "${SENTRY_RESPONSE}" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    -d "{\"check_in_id\":\"${CHECK_IN_ID}\",\"monitor_config\":{\"schedule\":{\"type\":\"crontab\",\"value\":\"0 */6 * * *\"},\"checkin_margin\":30,\"max_runtime\":10,\"timezone\":\"UTC\"},\"status\":\"in_progress\"}" \
+    -o /dev/null || true
 fi
 
 # On any error, notify Sentry and exit non-zero.
