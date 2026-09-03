@@ -13,4 +13,7 @@ allowBuilds:
   puppeteer: true
   sharp: false
 catalog:
+  # Must track .nvmrc / engines — types ahead of the runtime let a
+  # typecheck pass on an API the runtime does not have.
+  '@types/node': ^24.10.1
   typescript: ~6.0.2

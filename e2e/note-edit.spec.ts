@@ -1,5 +1,5 @@
 import { setupClerkTestingToken } from '@clerk/testing/playwright'
-import { test, expect, Page } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 /**
  * Note editor date coverage. A note's date is fixed once the note exists: the

@@ -1,5 +1,5 @@
 import { setupClerkTestingToken } from '@clerk/testing/playwright'
-import { test, expect, Page } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 /**
  * Move-to-class e2e coverage. Like the other authenticated specs, the backend

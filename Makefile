@@ -83,6 +83,7 @@ lint:
 	cd backend && $(MAKE) lint
 	cd frontend && pnpm run lint
 	cd frontend && pnpm run typecheck
+	pnpm run typecheck:e2e
 
 test:
 	cd backend && $(MAKE) test

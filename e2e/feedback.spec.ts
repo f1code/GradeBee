@@ -1,5 +1,5 @@
 import { setupClerkTestingToken } from '@clerk/testing/playwright'
-import { test, expect, Page } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 // Implicit feedback signals on auto-extracted notes: the backend reads an edit
 // or a delete of an auto note as a judgement on the extraction, so what the

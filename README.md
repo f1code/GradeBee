@@ -133,6 +133,9 @@ pnpm run test:e2e
 
 # Run with Playwright's interactive UI
 pnpm run test:e2e:ui
+
+# Typecheck the specs without running them (also part of `make lint` and CI)
+pnpm run typecheck:e2e
 ```
 
 The `VITE_CLERK_PUBLISHABLE_KEY` (in `frontend/.env`) and `CLERK_SECRET_KEY` (in `.env`) must be set for the Clerk testing token integration to work.

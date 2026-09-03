@@ -11,11 +11,13 @@
     "dev:backend": "cd backend/cmd/server && go run .",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json",
     "prepare": "husky"
   },
   "devDependencies": {
     "@clerk/testing": "^2.2.4",
     "@playwright/test": "^1.61.1",
+    "@types/node": "catalog:",
     "concurrently": "^9.2.3",
     "dotenv": "^17.4.2",
     "husky": "^9.1.7",

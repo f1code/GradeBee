@@ -1,5 +1,5 @@
 import { setupClerkTestingToken } from '@clerk/testing/playwright'
-import { test, expect, Page } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 
 async function mockClassesAndStudents(page: Page) {
   await page.route('**/classes', async (route) => {
