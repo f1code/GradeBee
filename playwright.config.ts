@@ -28,7 +28,12 @@ export default defineConfig({
     },
     {
       name: 'authenticated',
-      testMatch: /(drive-setup|students|move-student|note-edit|upload-jobs|reports)\.spec\.ts/,
+      // Catch-all, minus the specs that run in the projects above. Enumerating
+      // specs by name here let feedback.spec.ts sit in e2e/ for months without
+      // ever running; a new spec now joins this project by default, and a spec
+      // filed in the wrong project fails loudly instead of silently not running.
+      testMatch: /\.spec\.ts$/,
+      testIgnore: /(signed-out|api-health)\.spec\.ts/,
       use: {
         ...devices['Desktop Chrome'],
         storageState: 'playwright/.clerk/user.json',
