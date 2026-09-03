@@ -51,6 +51,7 @@ export default defineConfig({
     {
       command: 'pnpm run dev:backend',
       url: 'http://localhost:8080/health',
+      timeout: 120_000,
       reuseExistingServer: !process.env.CI,
     },
   ],
