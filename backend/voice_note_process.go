@@ -11,18 +11,6 @@ import (
 	"time"
 )
 
-// Minimum extraction confidence to auto-create a note.
-const autoCreateConfidenceThreshold = 0.5
-
-// Ceiling for the mentions_below_0_7 counter on the completion record. It exists
-// so "is autoCreateConfidenceThreshold set right?" is answerable as a Sentry query
-// rather than as a second observation cycle. It gates nothing.
-//
-// The attribute name hardcodes this value, so changing the const without renaming
-// the attribute silently changes what every saved Sentry query is measuring while
-// the name goes on claiming 0.7. Change both or neither.
-const thresholdHeadroomCeiling = 0.7
-
 // errNoSpeechDetected marks an empty/silent recording. It's a user-input
 // condition, not an application bug, so fail() logs it as a warning instead
 // of an error — keeping it out of Sentry issues while still failing the job.
@@ -198,13 +186,13 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	noteCreator := d.GetNoteCreator()
 	studentRepo := d.GetStudentRepo()
 
-	var noteLinks []NoteLink
+	// One note per child, and the passages the done card gets back. The card
+	// hands the passages to the assemble endpoint when the teacher picks a
+	// class, so a recording read against the wrong roster has a way out — which
+	// is exactly the recording whose passages all reached nobody.
+	notes, passages := assemblePassages(extractResult.Passages)
 
-	// Every mention the model returned, whether or not it became a note. The
-	// done card hands these back to the assemble endpoint when the teacher
-	// picks a class, so a recording read against the wrong roster has a way
-	// out; a mention dropped below is exactly the one that needs it.
-	passages := make([]JobPassage, 0, len(extractResult.Students))
+	var noteLinks []NoteLink
 
 	// The note's date is the day the teacher recorded, which is the day the job was
 	// created at upload (voice_note_dispatch.go) — not time.Now(). Processing is queued
@@ -223,75 +211,63 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 
 	// Drops are only interpretable as a rate, so the completion record below needs a
 	// denominator and a per-reason breakdown. note_count alone yields notes-created,
-	// never mentions-extracted.
-	mentionsTotal := len(extractResult.Students)
-	var mentionsBelowHeadroom, droppedLowConfidence, droppedNoRosterMatch int
+	// never passages-extracted.
+	kinds := countKinds(extractResult.Passages)
+	droppedNoRosterMatch, droppedUnattributed := 0, 0
 
-	for _, student := range extractResult.Students {
-		passage := JobPassage{
-			Kind: PassageChild,
-			// The label as the model wrote it. It is canonical against the
-			// roster the model was shown, which on a recording filed to the
-			// wrong class is the wrong roster — MatchStudent re-resolves it
-			// against the class the teacher picks.
-			SpokenLabels: []string{student.Name},
-			Summary:      student.QuotedText,
-		}
-
-		// Counts every mention under the ceiling, including those already under the
-		// auto-create gate — so this is the total at a stricter threshold, not the
-		// additional drops that moving the gate there would cause.
-		if student.Confidence < thresholdHeadroomCeiling {
-			mentionsBelowHeadroom++
-		}
-
-		if student.Confidence < autoCreateConfidenceThreshold {
-			droppedLowConfidence++
-			// "process voice note: mention dropped" is a stable query key: the Sentry
-			// readout filters on this exact string paired with reason, and reason is
-			// already a live attribute elsewhere in this project, so it is not
-			// selective on its own. Both drop sites share the string deliberately;
-			// do not reword either without updating the saved queries.
-			// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
-			log.Info("process voice note: mention dropped",
-				"reason", "low_confidence",
-				"key", key, "user_id", userID, "upload_id", uploadID,
-				"confidence", student.Confidence,
-				"candidate_count", len(student.Candidates),
-				"class_name", student.ClassName,
-				"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
-			passages = append(passages, passage)
+	// Every passage about one child that reached none, counted once and logged
+	// once. Under the old contract this was the low-confidence drop; there is
+	// no confidence score any more, and a passage nobody is named in is not a
+	// low-confidence guess about who — it is the recording not saying. A group
+	// passage is not counted: it has no student because it belongs to all of
+	// them.
+	for _, p := range passages {
+		if p.Kind != PassageUnknown && !(p.Kind == PassageChild && p.Student == "") {
 			continue
 		}
+		droppedUnattributed++
+		// "process voice note: mention dropped" is a stable query key: the Sentry
+		// readout filters on this exact string paired with reason, and reason is
+		// already a live attribute elsewhere in this project, so it is not
+		// selective on its own. Both drop sites share the string deliberately;
+		// do not reword either without updating the saved queries.
+		// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
+		log.Info("process voice note: mention dropped",
+			"reason", "unattributed",
+			"key", key, "user_id", userID, "upload_id", uploadID,
+			"kind", string(p.Kind),
+			"label_count", len(p.SpokenLabels),
+			"class_name", extractResult.ClassName,
+			"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
+	}
 
-		studentID, err := studentRepo.FindByNameAndClass(ctx, student.Name, student.ClassName, userID)
+	for _, n := range notes {
+		studentID, err := studentRepo.FindByNameAndClass(ctx, n.Name, extractResult.ClassName, userID)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
 				droppedNoRosterMatch++
-				// Same stable query key as the low-confidence site; only reason
-				// separates them. class_name is the diagnostic field here — the one
-				// observed production drop of this kind was a malformed class name,
-				// not a bad student name.
+				// Same stable query key as the unattributed site; only reason
+				// separates them. Pass 2's schema constrains the student to
+				// this class's roster, so reaching here means the roster read
+				// and this lookup disagree — a child deleted mid-run.
 				// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
 				log.Info("process voice note: mention dropped",
 					"reason", "no_roster_match",
 					"key", key, "user_id", userID, "upload_id", uploadID,
-					"confidence", student.Confidence,
-					"candidate_count", len(student.Candidates),
-					"class_name", student.ClassName,
+					"passage_count", n.Passages,
+					"class_name", extractResult.ClassName,
 					"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
-				passages = append(passages, passage)
 				continue
 			}
 			// The failed lookup is the only source of an identifier here, so telemetry
 			// carries none; the teacher still gets the name that failed to resolve.
-			return failWith("find student", "find student "+student.Name, err)
+			return failWith("find student", "find student "+n.Name, err)
 		}
 
 		result, err := noteCreator.CreateNote(ctx, CreateNoteRequest{
 			StudentID:    studentID,
-			StudentName:  student.Name,
-			QuotedText:   student.QuotedText, // Changed from Summary
+			StudentName:  n.Name,
+			QuotedText:   n.Summary,
 			Transcript:   transcript,
 			Date:         noteDate,
 			ModelVersion: extractor.Model(),
@@ -299,15 +275,13 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		if err != nil {
 			return failWith(
 				fmt.Sprintf("create note for student %d", studentID),
-				"create note for "+student.Name,
+				"create note for "+n.Name,
 				err)
 		}
 		noteLinks = append(noteLinks, NoteLink{
-			Name: student.Name, NoteID: result.NoteID,
-			StudentID: studentID, ClassName: student.ClassName,
+			Name: n.Name, NoteID: result.NoteID,
+			StudentID: studentID, ClassName: extractResult.ClassName,
 		})
-		passage.Student = student.Name
-		passages = append(passages, passage)
 	}
 
 	// --- Done ---
@@ -320,37 +294,49 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	job.NoteLinks = noteLinks
 	job.Passages = passages
 	job.ClassName = singleClass(noteLinks)
-	job.NoNotesReason = noNotesReason(len(noteLinks), len(passages))
+	job.NoNotesReason = noNotesReason(len(noteLinks), passages)
 	job.Error = ""
 	job.FailedAt = nil
 	if err := q.UpdateJob(ctx, *job); err != nil {
 		return fmt.Errorf("process voice note: update status to done: %w", err)
 	}
 
-	// mentions_total is the denominator the drop records are read against; 0 also
-	// names the third silent-nothing mode, where extraction returned no mentions at
-	// all and there is consequently nothing to drop.
+	// passages_total is the denominator the drop records are read against; 0 also
+	// names the third silent-nothing mode, where extraction cut the recording into
+	// nothing at all and there is consequently nothing to drop. The per-kind counts
+	// beside it say which shape a recording came back as, which is what tells a
+	// prompt regression (every block unknown) from a quiet recording.
+	//
+	// These attribute names replaced mentions_total, mentions_below_0_7 and
+	// dropped_low_confidence when the two-pass contract landed (#125). There is no
+	// confidence score any more, so any saved Sentry query on those three is
+	// measuring a field nothing writes.
 	//
 	// This record is the authoritative numerator as well as the denominator: derive the
-	// drop rate from its own dropped_* fields over its own mentions_total. Counting the
-	// per-mention drop records instead mixes populations — a job that fails partway
+	// drop rate from its own dropped_* fields over its own passages_total. Counting the
+	// per-passage drop records instead mixes populations — a job that fails partway
 	// emits drop records but never reaches this line — and that mistake has already
 	// produced one wrong figure for this task.
 	log.Info("process voice note completed",
 		"key", key, "user_id", userID, "upload_id", uploadID,
 		"note_count", len(noteLinks),
-		"mentions_total", mentionsTotal,
-		"mentions_below_0_7", mentionsBelowHeadroom,
-		"dropped_low_confidence", droppedLowConfidence,
+		"passages_total", len(extractResult.Passages),
+		"passages_child", kinds[PassageChild],
+		"passages_unknown", kinds[PassageUnknown],
+		"passages_group", kinds[PassageGroup],
+		"passages_none", kinds[PassageNone],
+		"dropped_unattributed", droppedUnattributed,
 		"dropped_no_roster_match", droppedNoRosterMatch,
 		"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	return nil
 }
 
 // singleClass names the class a recording's notes were filed under, or "" when
-// they went to more than one. The card shows it, and a recording spanning two
-// classes has no single answer — saying one of them would be a guess about
-// which one the teacher meant.
+// there are none. Pass 1 pins one class for the whole recording, so the links
+// can no longer disagree; the loop stays because "" for a recording that
+// created nothing is the answer the card needs — it is what makes the class
+// picker appear, and naming a class nothing was filed under would take that
+// away.
 func singleClass(links []NoteLink) string {
 	name := ""
 	for _, l := range links {

@@ -362,9 +362,24 @@ func TestAssembleNotes_GroupsPassagesByChild(t *testing.T) {
 }
 
 func TestNoNotesReason(t *testing.T) {
-	assert.Empty(t, noNotesReason(1, 3))
-	assert.Equal(t, NoNotesNobodyNamed, noNotesReason(0, 0))
-	assert.Equal(t, NoNotesNoNameMatched, noNotesReason(0, 3))
+	named := []JobPassage{{Kind: PassageChild, SpokenLabels: []string{"Polly"}, Summary: "x"}}
+	unnamed := []JobPassage{{Kind: PassageUnknown, Summary: "x"}, {Kind: PassageGroup, Summary: "y"}}
+
+	assert.Empty(t, noNotesReason(1, named))
+	assert.Equal(t, NoNotesNobodyNamed, noNotesReason(0, nil))
+	assert.Equal(t, NoNotesNoNameMatched, noNotesReason(0, named))
+	// The case the passage contract adds: blocks the recording never named
+	// anybody in. They are not names that missed the roster, and no class the
+	// teacher picks can resolve them — so this must not read as no_name_matched,
+	// which is what puts the class picker on the card.
+	assert.Equal(t, NoNotesNobodyNamed, noNotesReason(0, unnamed))
+	// A mixed recording still offers the pick, for the one name that could land.
+	assert.Equal(t, NoNotesNoNameMatched, noNotesReason(0, append(append([]JobPassage{}, unnamed...), named...)))
+	// A label the model put on a passage that should carry none, and that is a
+	// pronoun rather than a name. MatchStudent stop-lists it, so no class the
+	// teacher picks can resolve it — it must not count as a spoken name.
+	pronoun := []JobPassage{{Kind: PassageGroup, SpokenLabels: []string{"She"}, Summary: "x"}}
+	assert.Equal(t, NoNotesNobodyNamed, noNotesReason(0, pronoun))
 }
 
 func TestUploadDay(t *testing.T) {

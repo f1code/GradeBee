@@ -66,7 +66,15 @@ func TestRunPromptMode_UnknownTask(t *testing.T) {
 func TestRunBuildExtractPrompt(t *testing.T) {
 	ec := evalContext{Vars: mustRawMap(map[string]interface{}{
 		"transcript": "Alice read well today.",
-		"classes":    []interface{}{},
+		"class_name": "Grade 3A",
+		"classes": []interface{}{
+			map[string]interface{}{"name": "Grade 3A", "students": []interface{}{
+				map[string]interface{}{"name": "Alice Chen"},
+			}},
+			map[string]interface{}{"name": "Grade 3B", "students": []interface{}{
+				map[string]interface{}{"name": "Bob Ruiz"},
+			}},
+		},
 	})}
 	out, err := captureOutput(func() error { return runBuildExtractPrompt(ec) })
 	require.NoError(t, err)
@@ -74,9 +82,41 @@ func TestRunBuildExtractPrompt(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "system", msgs[0]["role"])
-	assert.NotEmpty(t, msgs[0]["content"])
+	// The roster in the prompt is the named class alone. A prompt carrying
+	// every class would grade a contract production does not run.
+	assert.Contains(t, msgs[0]["content"], "Alice Chen")
+	assert.NotContains(t, msgs[0]["content"], "Bob Ruiz")
 	assert.Equal(t, "user", msgs[1]["role"])
 	assert.Equal(t, "Alice read well today.", msgs[1]["content"])
+}
+
+// The class is the fixture's answer for what pass 1 pins, so a missing or
+// unknown one is a broken test row, not a prompt to build anyway.
+func TestRunBuildExtractPrompt_ClassNameRequired(t *testing.T) {
+	classes := []interface{}{
+		map[string]interface{}{"name": "Grade 3A", "students": []interface{}{}},
+	}
+
+	t.Run("missing", func(t *testing.T) {
+		ec := evalContext{Vars: mustRawMap(map[string]interface{}{
+			"transcript": "Alice read well today.",
+			"classes":    classes,
+		})}
+		err := runBuildExtractPrompt(ec)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "class_name is required")
+	})
+
+	t.Run("not one of the fixture's classes", func(t *testing.T) {
+		ec := evalContext{Vars: mustRawMap(map[string]interface{}{
+			"transcript": "Alice read well today.",
+			"class_name": "Grade 9Z",
+			"classes":    classes,
+		})}
+		err := runBuildExtractPrompt(ec)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Grade 9Z")
+	})
 }
 
 func TestRunBuildExtractPrompt_MissingTranscript(t *testing.T) {

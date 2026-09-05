@@ -1,5 +1,5 @@
 {
-  "_comment": "Note from production after #99, with synthetic names. A group observation whose content is a date reached nobody: 'Kids repeated after me how to say the date. For example, today is Wednesday, the 26th of August, 2026.' sat in every child's note before the flip and in none of them after, not even the unattributed log. The 'none' bullet lists both 'the date' and 'vocabulary the children are being taught', and this run is superficially both — but the children are the subject, so it is a group observation. This fixture pins that the date the children SAY reaches every child, while the date in the header ('Wednesday  Quentin 1520') stays 'none'. Transcript spelling 'Teodor' against roster 'Theodor' reproduces the real spelling drift on purpose: the fuzzy matcher must still reach the child. The negatives are what stop the date being bought back cheaply. Marking every clause 'group' would put all four required substrings in all seven notes and pass on the positives alone, so each of the two child spans carries the other's opening as a must-not: 'did very well' is Tobin and Marlo's, 'were able to repeat' is the other five's. '/did very well/' and not '/did well/' — the shared tail says 'They did well.' twice. 'Quentin 1520' on Tobin and Marlo pins the header itself as 'none'; the scorer reads quoted_text only, so it cannot false-positive off class_name. Multi-name subject clauses land verbatim here by design — narrowing 'Percy, Dax, Teodor, Wren, Sable were able to repeat.' down to one child per note is #118, which extends this fixture and will replace the verbatim expectation with its own.",
+  "_comment": "Note from production after #99, with synthetic names. A group observation whose content is a date reached nobody: 'Kids repeated after me how to say the date. For example, today is Wednesday, the 26th of August, 2026.' sat in every child's note before the flip and in none of them after, not even the unattributed log. The 'none' bullet lists both 'the date' and 'vocabulary the children are being taught', and this run is superficially both — but the children are the subject, so it is a group observation. This fixture pins that the date the children SAY reaches every child, while the date in the header ('Wednesday  Quentin 1520') stays 'none'. Transcript spelling 'Teodor' against roster 'Theodor' reproduces the real spelling drift on purpose: the fuzzy matcher must still reach the child. The negatives are what stop the date being bought back cheaply. Marking every clause 'group' would put all four required substrings in all seven notes and pass on the positives alone, so each of the two child spans carries the other's opening as a must-not: 'did very well' is Tobin and Marlo's, 'were able to repeat' is the other five's. '/did very well/' and not '/did well/' — the shared tail says 'They did well.' twice. 'Quentin 1520' on Tobin and Marlo pins the header itself as 'none'; the scorer reads quoted_text only, so it cannot false-positive off class_name. Multi-name subject clauses no longer land verbatim: #125's per-child rule returns a shared observation once per child, and the model writes it in that child's person ('Teodor was able to repeat'), so the substrings are '/able to repeat/' rather than the transcript's plural. The axis is unchanged — Theodor's own clause must reach his note and must reach no other child's — and the looser form is on the negatives too, so a bleed in the singular cannot slip past a positive that would catch it.",
   "expected_students": [
     {
       "name": "Tobin",
@@ -11,7 +11,7 @@
         "/knew the numbers/"
       ],
       "must_not_quote_substrings": [
-        "/were able to repeat/",
+        "/able to repeat/",
         "/Quentin 1520/"
       ]
     },
@@ -25,7 +25,7 @@
         "/knew the numbers/"
       ],
       "must_not_quote_substrings": [
-        "/were able to repeat/",
+        "/able to repeat/",
         "/Quentin 1520/"
       ]
     },
@@ -63,7 +63,7 @@
         "/26th of August/",
         "/warm-up activities/",
         "/knew the numbers/",
-        "/were able to repeat/"
+        "/able to repeat/"
       ],
       "must_not_quote_substrings": [
         "/did very well/"

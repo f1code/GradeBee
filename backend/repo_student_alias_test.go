@@ -223,25 +223,25 @@ func TestAliasDeleteCascadesWithStudent(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrNotFound), "alias should be cascade-deleted, got: %v", err)
 }
 
-// TestBuildExtractionPrompt_AliasesIncluded verifies that aliases appear in the prompt.
-func TestBuildExtractionPrompt_AliasesIncluded(t *testing.T) {
-	classes := []ClassGroup{
-		{
-			Name: "Period 1",
-			Students: []ClassStudent{
-				{Name: "Alexander", Aliases: []string{"Alex", "Xander"}},
-				{Name: "Katherine"},
-			},
+// TestBuildPassagePrompt_AliasesIncluded verifies that a teacher's aliases
+// reach the prompt: they are the spellings the teacher actually says out loud,
+// and the roster is in front of the model to spell a spoken name correctly.
+func TestBuildPassagePrompt_AliasesIncluded(t *testing.T) {
+	class := ClassGroup{
+		Name: "Period 1",
+		Students: []ClassStudent{
+			{Name: "Alexander", Aliases: []string{"Alex", "Xander"}},
+			{Name: "Katherine"},
 		},
 	}
-	prompt := BuildExtractionPrompt(classes)
+	prompt := BuildPassagePrompt(class)
 
-	assert.True(t, strings.Contains(prompt, "Alexander (aka Alex, Xander)"),
+	assert.True(t, strings.Contains(prompt, "- Alexander (also called Alex, Xander)"),
 		"prompt missing alias line, got: %s", prompt)
-	assert.True(t, strings.Contains(prompt, "Katherine (class_name Period 1)"),
+	assert.True(t, strings.Contains(prompt, "- Katherine\n"),
 		"prompt missing no-alias line, got: %s", prompt)
-	assert.True(t, strings.Contains(prompt, "return the canonical name"),
-		"prompt missing alias instruction, got: %s", prompt)
+	assert.True(t, strings.Contains(prompt, "match a spoken name to the listed child it most plausibly is"),
+		"prompt missing the instruction the aliases serve, got: %s", prompt)
 }
 
 // TestRemoveAlias_WrongStudent verifies alias ID is scoped to the student.

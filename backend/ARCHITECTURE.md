@@ -106,16 +106,22 @@ User uploads audio
         │    transcript to voice_notes.transcript (text jobs too);
         │    a failed write fails the job (retry skips transcription)
         │
-        ├─ Step 2: Extract (status → "extracting")
-        │    Send transcript + student roster to LLM provider
-        │    → per-student observations (name, class, quoted_text, confidence)
-        │    Note: quoted_text contains verbatim passages from the transcript.
-        │    Stored in the notes table `summary` column (legacy name, no migration needed).
+        ├─ Step 2: Extract (status → "extracting"), two LLM calls
+        │    Pass 1: the teacher's class list alone → the class this
+        │      recording is about (enum of their class names, no "")
+        │    Pass 2: the transcript against that one class's roster
+        │      → passages (kind, spoken_labels, student, summary)
+        │    A child passage whose spoken labels are all pronouns is
+        │      demoted to unknown before anything reads its student
         │
         ├─ Step 3: Create Notes (status → "creating_notes")
-        │    For each student with confidence ≥ 0.5:
-        │      Resolve name → student ID via FindByNameAndClass
-        │      Create note in SQLite via dbNoteCreator
+        │    Fold passages into one note per child (voice_note_passages.go):
+        │      child + roster student → that child's note, in spoken order
+        │      child with no student, unknown → nobody; stays on the card
+        │      group → every child this recording already reached
+        │      none  → dropped, and kept off the card entirely
+        │    Resolve name → student ID via FindByNameAndClass
+        │    Create note in SQLite via dbNoteCreator
         │
         └─ Done (status → "done", mark voice note processed)
 ```
@@ -178,7 +184,7 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 | `deps` | `deps.go` | `prodDeps` | Top-level DI container |
 | `Roster` | `roster.go` | `dbRoster` | Read student data from DB |
 | `Transcriber` | `transcriber.go` | `providerTranscriber` | Audio→text via LLMProvider (Voxtral or Whisper) |
-| `Extractor` | `extract.go` | `llmExtractor` | Transcript→student extraction via LLMProvider |
+| `Extractor` | `extract.go` | `llmExtractor` | Transcript→passages, in two LLM calls: the class, then that class's children |
 | `NoteCreator` | `notes.go` | `dbNoteCreator` | Create notes in SQLite |
 | `ReportGenerator` | `report_generator.go` | `llmReportGenerator` | LLM-based report card generation (HTML output) |
 | `JobQueue[VoiceNoteJob]` | `job_queue.go` | `MemQueue[VoiceNoteJob]` | Generic in-memory async job queue with worker pool |
@@ -305,7 +311,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `transcriber.go` | `Transcriber` interface + `providerTranscriber` (delegates to LLMProvider) |
 | `voice_note_drive_import.go` | POST /voice-notes/drive-import — download from Drive → disk + voice_notes table + dispatch job |
 | `google_token.go` | GET /google-token — return user's Google OAuth access token |
-| `extract.go` | `Extractor` interface + `llmExtractor` for transcript analysis |
+| `extract.go` | `Extractor` interface + `llmExtractor`: both extraction passes, their schemas, and the pronoun guard |
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers |
 | `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output) |
 | `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections: the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
@@ -316,6 +322,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `job_queue_mem.go` | `MemQueue[T]` — generic in-memory `JobQueue` implementation with worker pool |
 | `voice_note_job.go` | `VoiceNoteJob` type, job status constants, `NoteLink`, `JobPassage`, the `NoNotes*` reasons |
 | `voice_note_process.go` | `processVoiceNote` pipeline (transcribe→extract→notes) |
+| `voice_note_passages.go` | `assemblePassages`: extraction's passages → one note per child, and the card's passage list. Pure |
 | `voice_note_cleanup.go` | Background goroutine to delete voice note rows, transcripts and any leftover audio after retention |
 | `voice_note_jobs.go` | GET /voice-notes/jobs, POST /voice-notes/jobs/retry, POST /voice-notes/jobs/dismiss — voice note job list, retry, dismiss handlers |
 | `voice_note_assemble.go` | POST /voice-notes/{uploadId}/assemble — re-resolve a recording's passages against a class the teacher picked |
@@ -396,6 +403,16 @@ In `voice_note_process.go`, the two `process voice note: mention dropped` record
 (`ExtractionPromptHash`, `prompts_version.go`) — the same values stamped on the note row
 (task #96).
 
+The two-pass contract (#125) renamed what those records count, and any saved Sentry
+query on the old names is now reading a field nothing writes. There is no confidence
+score in the contract, so `dropped_low_confidence`, `mentions_total` and
+`mentions_below_0_7` are gone. The drop reasons are now `unattributed` (a passage about
+one child that reached none of them) and `no_roster_match` (a child the roster lookup
+could not find). The completion record carries `passages_total` with a per-kind
+breakdown — `passages_child`, `passages_unknown`, `passages_group`, `passages_none` —
+plus `dropped_unattributed` and `dropped_no_roster_match`. The per-kind counts are what
+separate a prompt regression (every block `unknown`) from a quiet recording.
+
 **No student names in log attributes or error strings** — see
 [ADR 0003](../docs/adr/0003-no-child-pii-in-telemetry.md). Log `student_id`, or the job key on the
 voice-note paths, and let the reader resolve it against the DB. `BeforeSend`'s name-shaped-string
@@ -471,6 +488,7 @@ backend/evals/
   promptfooconfig.yaml          promptfoo test suite
   baseline.json                 pinned baseline scores (committed to repo)
   scoring/extraction.js         custom JS precision/recall + voice-preservation scorer
+  scoring/assemble.js           folds pass-2 passages into per-child notes before scoring
   scripts/diff-baseline.js      baseline diff reporter (Node, always exits 0)
   results/                      per-run result JSONs (git-ignored)
   fixtures/
@@ -508,20 +526,22 @@ cd backend && make eval-baseline   # runs eval then copies latest result to base
 
 ### How it works
 
-`make eval` builds `bin/eval-cli` (from `cmd/eval-cli/`), then invokes promptfoo. For each test case, promptfoo calls eval-cli as an **exec-prompt function** (passing a single JSON arg), and eval-cli returns a messages array — no LLM call. Promptfoo sends the messages to its native OpenAI provider (with structured output schema for extraction), scores the response, and writes results. Model selection lives entirely in `promptfooconfig.yaml`; `EVAL_MODEL` is no longer read.
+`make eval` builds `bin/eval-cli` (from `cmd/eval-cli/`), then invokes promptfoo. For each test case, promptfoo calls eval-cli as an **exec-prompt function** (passing a single JSON arg), and eval-cli returns a messages array — no LLM call. Promptfoo sends the messages to its native provider (with structured output schema for extraction), folds an extraction response into per-child notes with `scoring/assemble.js`, scores the result, and writes it out. Model selection lives entirely in the config files; `EVAL_MODEL` is no longer read.
+
+Extraction rows grade **pass 2 only** — promptfoo makes one call per test, so each fixture names the class pass 1 is taken to have pinned, in `vars.class_name`. See `backend/evals/README.md`, "What extraction grades".
 
 Debug a single case:
 ```bash
 cd backend
 make bin/eval-cli
-./bin/eval-cli '{"vars":{"transcript":"Alice","classes":[]},"config":{"task":"build-extract-prompt"}}'
+./bin/eval-cli '{"vars":{"transcript":"Alice read well.","class_name":"Grade 3A","classes":[{"name":"Grade 3A","students":[{"name":"Alice Chen"}]}]},"config":{"task":"build-extract-prompt"}}'
 ```
 
 ### Eval CLI (`cmd/eval-cli`)
 
 | Config task | Reads from `vars` | Builds |
 |---|---|---|
-| `build-extract-prompt` | `transcript`, `classes` | `BuildExtractionPrompt` → messages array (system + user) |
+| `build-extract-prompt` | `transcript`, `classes`, `class_name` | `BuildPassagePrompt` for the named class → messages array (system + user) |
 | `build-report-prompt` | `student_name`, `class`, `notes`, `report_instructions`, `instructions` | `BuildReportPrompt` → messages array (user only) |
 
 Model selection and the actual LLM call belong to promptfoo, not eval-cli.

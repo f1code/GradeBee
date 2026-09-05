@@ -66,49 +66,6 @@ into a JSON body without leaking internal text to the caller.
 
 
 //////////
-// source: extract.go
-/*
-extract.go defines the Extractor interface and its LLM implementation.
-The extractor takes a transcript and student roster, returning structured
-per-student extraction results with fuzzy name matching and confidence scores.
-*/
-
-/**
- * Extractor takes a transcript + student roster and returns structured extraction.
- */
-export type Extractor = any;
-/**
- * ExtractRequest is the input to an extraction call.
- */
-export interface ExtractRequest {
-  Transcript: string;
-  Classes: ClassGroup[];
-}
-/**
- * ExtractResponse is the structured output from extraction.
- */
-export interface ExtractResponse {
-  students: MatchedStudent[];
-}
-/**
- * MatchedStudent is a single student extraction result.
- */
-export interface MatchedStudent {
-  name: string;
-  class_name: string;
-  quoted_text: string; // Extracted passages from transcript, unchanged
-  confidence: number /* float64 */;
-  candidates?: StudentCandidate[];
-}
-/**
- * StudentCandidate is a possible roster match for a low-confidence extraction.
- */
-export interface StudentCandidate {
-  name: string;
-  class_name: string;
-}
-
-//////////
 // source: feedback_handler.go
 /*
 feedback_handler.go handles POST /api/feedback for explicit thumbs ratings
@@ -379,7 +336,7 @@ changes almost always touch the static text.
  * branching behaviour inside builder functions that hashing the template alone
  * would not catch).  Format: monotonic integer as string.
  */
-export const PromptVersionTag = "4";
+export const PromptVersionTag = "5";
 
 //////////
 // source: repo_class.go
@@ -928,20 +885,37 @@ export interface NoteLink {
   className: string;
 }
 /**
- * PassageKind says what a passage is about. The single-call extractor produces
- * only child passages; the kind is on the wire because #125's contract adds a
- * group passage and the card must not need a new field to render it.
+ * PassageKind says what a passage is about. Extraction returns all four, and
+ * what the pipeline does with each is in voice_note_process.go.
  */
 export type PassageKind = string;
 /**
- * PassageChild is a passage about one named child.
+ * PassageChild: the teacher is talking about one child and says who.
  */
 export const PassageChild: PassageKind = "child";
 /**
+ * PassageUnknown: the teacher is talking about one child, but no name was
+ * spoken for them — only a pronoun, or a name matching nobody on the
+ * class's roster. Its summary reaches the unattributed list, never a note.
+ */
+export const PassageUnknown: PassageKind = "unknown";
+/**
+ * PassageGroup: a statement about the class as a whole. It joins the note
+ * of every child this recording already reached.
+ */
+export const PassageGroup: PassageKind = "group";
+/**
+ * PassageNone: not an observation about children — the spoken header, a
+ * greeting, thinking aloud. Dropped at assembly and never put on a job, so
+ * a recording holding nothing but a header still reads as nobody named
+ * rather than offering the class picker over one empty passage.
+ */
+export const PassageNone: PassageKind = "none";
+/**
  * JobPassage is one stretch of the recording as the pipeline read it, on the
- * wire for the done card. It is a placeholder that #125 will own: it carries
- * what the class picker has to hand back and nothing else, so no consumer
- * depends on a shape the two-pass contract is going to replace.
+ * wire for the done card. It is ExtractedPassage in camelCase, minus nothing:
+ * the two types are separate because one is the model's contract and the other
+ * is this API's, and a single struct cannot carry both spellings.
  */
 export interface JobPassage {
   kind: PassageKind;
@@ -1015,10 +989,15 @@ export interface JobListResponse {
 }
 
 //////////
-// source: voice_note_process.go
+// source: voice_note_passages.go
 /*
-voice_note_process.go implements the voice note processing pipeline
-(transcribe → extract → create notes). Called by MemQueue workers.
+voice_note_passages.go folds the passages extraction returned into the notes
+a recording produces and the passage list its done card carries.
+
+Pure: no repo, no model, no clock. The pipeline (voice_note_process.go) does
+the I/O around it, and the rules live here because they are the whole of
+what a recording means — which stretch of speech reaches which child, and
+which reaches nobody.
 */
 
 

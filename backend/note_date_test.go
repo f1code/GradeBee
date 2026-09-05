@@ -44,8 +44,9 @@ func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Students: []MatchedStudent{
-				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "Did great", Confidence: 0.9},
+			ClassName: "Math · Mon",
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "Did great"},
 			},
 		}},
 		noteCreator:   nc,
@@ -73,19 +74,21 @@ func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
 		"note should carry the upload day, not the processing day")
 }
 
-// The extraction schema no longer asks the model for a date, so a model that
+// Neither extraction pass asks the model for a date, so a model that
 // volunteers one cannot reach the database.
-func TestExtractResponseSchema_HasNoDateField(t *testing.T) {
-	raw := extractResponseSchema([]ClassGroup{{Name: "Math"}})
+func TestExtractionSchemas_HaveNoDateField(t *testing.T) {
+	classes := []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}}
 
-	var schema struct {
-		Properties map[string]json.RawMessage `json:"properties"`
-		Required   []string                   `json:"required"`
+	for name, raw := range map[string]json.RawMessage{
+		"pass 1": classPickSchema(classes),
+		"pass 2": passageSchema(classes[0]),
+	} {
+		t.Run(name, func(t *testing.T) {
+			// Substring, not a parse: a date field nested anywhere in the
+			// schema is as reachable as one at the top.
+			assert.NotContains(t, string(raw), `"date"`)
+		})
 	}
-	require.NoError(t, json.Unmarshal(raw, &schema))
-
-	assert.NotContains(t, schema.Properties, "date")
-	assert.NotContains(t, schema.Required, "date")
 }
 
 // The UI sends <input type="date">, but the endpoint is reachable directly and

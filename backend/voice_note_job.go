@@ -23,11 +23,10 @@ const (
 // wrong, and the wrong thing to do next.
 //
 // The class one is the reason this exists: a recording the model cannot pin to
-// a class leaves every name with no roster to resolve against. The single-call
-// extractor never sets it — its schema constrains class_name to an enum of the
-// teacher's own classes, so a class is always pinned — and the constant is on
-// the wire for the two-pass contract (#125) that can decline. The class picker
-// does not wait for it; see noNotesReason below.
+// a class leaves every name with no roster to resolve against. Nothing sets it
+// yet — pass 1's enum carries the teacher's class names and no "", so a class
+// is always pinned. #127 adds that one enum value and this constant becomes
+// reachable. The class picker does not wait for it; see noNotesReason below.
 const (
 	// NoNotesNobodyNamed: the recording named no child at all. Nothing to do.
 	NoNotesNobodyNamed = "nobody_named"
@@ -49,18 +48,31 @@ type NoteLink struct {
 	ClassName string `json:"className"`
 }
 
-// PassageKind says what a passage is about. The single-call extractor produces
-// only child passages; the kind is on the wire because #125's contract adds a
-// group passage and the card must not need a new field to render it.
+// PassageKind says what a passage is about. Extraction returns all four, and
+// what the pipeline does with each is in voice_note_process.go.
 type PassageKind string
 
-// PassageChild is a passage about one named child.
-const PassageChild PassageKind = "child"
+const (
+	// PassageChild: the teacher is talking about one child and says who.
+	PassageChild PassageKind = "child"
+	// PassageUnknown: the teacher is talking about one child, but no name was
+	// spoken for them — only a pronoun, or a name matching nobody on the
+	// class's roster. Its summary reaches the unattributed list, never a note.
+	PassageUnknown PassageKind = "unknown"
+	// PassageGroup: a statement about the class as a whole. It joins the note
+	// of every child this recording already reached.
+	PassageGroup PassageKind = "group"
+	// PassageNone: not an observation about children — the spoken header, a
+	// greeting, thinking aloud. Dropped at assembly and never put on a job, so
+	// a recording holding nothing but a header still reads as nobody named
+	// rather than offering the class picker over one empty passage.
+	PassageNone PassageKind = "none"
+)
 
 // JobPassage is one stretch of the recording as the pipeline read it, on the
-// wire for the done card. It is a placeholder that #125 will own: it carries
-// what the class picker has to hand back and nothing else, so no consumer
-// depends on a shape the two-pass contract is going to replace.
+// wire for the done card. It is ExtractedPassage in camelCase, minus nothing:
+// the two types are separate because one is the model's contract and the other
+// is this API's, and a single struct cannot carry both spellings.
 type JobPassage struct {
 	Kind PassageKind `json:"kind"`
 	// SpokenLabels is each name this passage is about, as the extraction model

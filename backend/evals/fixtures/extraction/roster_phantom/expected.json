@@ -1,0 +1,19 @@
+{
+  "_comment": "Note 694's shape at the roster order that produces the phantom. Three children run together: the first block names nobody, the second speaks a name ('Polly') that fits nobody on the roster, and only the third is nameable. Anaëlle is first on the roster and never named — that is the slot an unnamed 'she' block falls into, measured 8/10 without the prompt's no-elimination rules and 0/10 with them. The header's level name is garbled the way speech-to-text garbles it ('Loud vine' for 'Ludivine'), and is forbidden here because a header is not an observation about a child. Forbids the unowned blocks' content, not names: nobody owns those sentences, so they must land in no entry at all. Every phrase is unique to its block and cannot arise by paraphrasing Séverin's own sentences.",
+  "expected_students": [
+    {
+      "name": "Séverin",
+      "class_name": "Ludivine · Thu · 16.15",
+      "must_quote_substrings": ["/little active/"],
+      "must_not_quote_substrings": ["Bunny", "magnets"]
+    }
+  ],
+  "must_not_extract": [
+    "knocking on the boxes",
+    "putting Bunny up and down",
+    "laughing and giggling",
+    "the magnets",
+    "lining them up",
+    "Loud vine"
+  ]
+}

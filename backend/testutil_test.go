@@ -134,7 +134,9 @@ func (m *mockDepsAll) GetFeedbackRepo() *ArtifactFeedbackRepo { return m.feedbac
 func (m *mockDepsAll) GetLevelRepo() *LevelRepo               { return m.levelRepo }
 func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploadsDir }
 
-// stubExtractor implements Extractor for tests.
+// stubExtractor implements Extractor for tests. Extract answers with result;
+// ExtractPassages answers with the same passages, so a caller that skips pass 1
+// sees what a caller that ran it would.
 type stubExtractor struct {
 	result *ExtractResponse
 	err    error
@@ -143,6 +145,16 @@ type stubExtractor struct {
 
 func (s *stubExtractor) Extract(_ context.Context, _ ExtractRequest) (*ExtractResponse, error) {
 	return s.result, s.err
+}
+
+func (s *stubExtractor) ExtractPassages(_ context.Context, _ string, _ ClassGroup) ([]ExtractedPassage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	if s.result == nil {
+		return nil, nil
+	}
+	return s.result.Passages, nil
 }
 
 func (s *stubExtractor) Model() string {

@@ -52,8 +52,9 @@ type AssembleNotesResponse struct {
 // so a caller can put words the model never wrote behind the model's name, and
 // editing them away then feeds the implicit thumbs-down (notes.go,
 // isModelWritten). The blast radius is the caller's own notes, which is why
-// this ships: there is nowhere to store passages to check against in v1. #125
-// closes it by re-running the extraction itself instead of trusting the body.
+// this ships: there is nowhere to store passages to check against in v1. #127
+// closes it by re-running extraction's second pass against the picked class
+// (Extractor.ExtractPassages) instead of trusting the body.
 func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
 
@@ -223,11 +224,12 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 			"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	}
 
+	painted := repaintPassages(req.Passages, students)
 	resp := AssembleNotesResponse{
 		ClassName:     req.ClassName,
 		NoteLinks:     noteLinks,
-		Passages:      repaintPassages(req.Passages, students),
-		NoNotesReason: noNotesReason(len(noteLinks), len(req.Passages)),
+		Passages:      painted,
+		NoNotesReason: noNotesReason(len(noteLinks), painted),
 	}
 
 	// If the job is still queued, the card's next poll must agree with what was
@@ -270,11 +272,14 @@ type resolvedPassage struct {
 // resolvePassages resolves every spoken label against one class's roster and
 // groups what the recording said by the child it reached.
 //
-// Grouping is what stops a child getting two notes from one recording: the
-// single-call extractor already returns one passage per child, but a group
-// passage naming three children — the shape #125 adds — would otherwise land a
-// note per passage per child. Order follows first mention, so the notes come
-// out in the order the teacher spoke.
+// It is the picker's own resolution path, and it is not the pipeline's: a
+// group passage carries no spoken label, so the loop below skips it and the
+// class-wide observation the pipeline fans out to every child is silently lost
+// on a re-pick. #127 removes the asymmetry by re-running pass 2 against the
+// picked class and calling assemblePassages, the way the pipeline does.
+//
+// Grouping is what stops a child getting two notes from one recording. Order
+// follows first mention, so the notes come out in the order the teacher spoke.
 func resolvePassages(passages []JobPassage, students []ClassStudent) []resolvedPassage {
 	var out []resolvedPassage
 	at := map[string]int{}
@@ -345,18 +350,47 @@ func classStudents(classes []ClassGroup, name string) ([]ClassStudent, bool) {
 }
 
 // noNotesReason says why a done recording holds no note, or "" when it holds
-// one. NoNotesClassUnclear is not reachable from here or from the pipeline:
-// main's extraction schema constrains class_name to an enum of the teacher's
-// own classes, so a class is always pinned and the model cannot decline. #125's
-// two-pass contract is what sets it; the constant and the card's message for it
-// are already on the wire so that lands as a value, not as a feature.
-func noNotesReason(noteCount, passageCount int) string {
+// one.
+//
+// The question it answers is not "were there passages" but "did the recording
+// speak a name". A passage with no spoken label — an unknown block, a
+// class-wide statement — is not a name that missed the roster, and saying so
+// would tell the teacher to fix an alias that does not exist. It also gates the
+// class picker (JobStatus.tsx): only a spoken name can resolve differently
+// against a class the teacher picks, so a recording that spoke none has nothing
+// for a pick to do, and offering one would be a button that cannot work.
+//
+// NoNotesClassUnclear is not reachable from here or from the pipeline: pass 1's
+// schema constrains the class to an enum of the teacher's own classes with no
+// "", so a class is always pinned and the model cannot decline. #127 adds that
+// one enum value and this becomes reachable; the constant and the card's
+// message for it are already on the wire so that lands as a value, not as a
+// feature.
+func noNotesReason(noteCount int, passages []JobPassage) string {
 	switch {
 	case noteCount > 0:
 		return ""
-	case passageCount == 0:
+	case !anySpokenLabel(passages):
 		return NoNotesNobodyNamed
 	default:
 		return NoNotesNoNameMatched
 	}
+}
+
+// anySpokenLabel reports whether the recording spoke a name for anybody.
+//
+// hasSpokenName, not a length check: it is the same rule the pronoun guard
+// applies (extract.go), so the two cannot drift. The guard only inspects child
+// passages, and nothing makes the model obey the prompt's "empty list for
+// unknown, group and none" — a group passage that came back labelled "She"
+// would otherwise count as a name here, offer the class picker, and be
+// stop-listed by MatchStudent the moment the teacher picked. Which is the
+// futile picker this predicate exists to prevent.
+func anySpokenLabel(passages []JobPassage) bool {
+	for _, p := range passages {
+		if hasSpokenName(p.SpokenLabels) {
+			return true
+		}
+	}
+	return false
 }

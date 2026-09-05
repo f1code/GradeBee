@@ -52,9 +52,10 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Students: []MatchedStudent{
-				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "Did great", Confidence: 0.9},
-				{Name: "Bob", ClassName: "Math · Mon", QuotedText: "Needs work", Confidence: 0.8},
+			ClassName: "Math · Mon",
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "Did great"},
+				{Kind: PassageChild, SpokenLabels: []string{"Bob"}, Student: "Bob", Summary: "Needs work"},
 			},
 		}},
 		noteCreator:   nc,
@@ -145,7 +146,8 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 		transcriber: failingTranscriber,
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Students: []MatchedStudent{{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9}},
+			ClassName: "Math · Mon",
+			Passages:  []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"}},
 		}},
 		noteCreator:    nc,
 		voiceNoteQueue: queue,

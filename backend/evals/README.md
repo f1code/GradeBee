@@ -23,7 +23,7 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
    bin/eval-cli '{"vars":{...},"config":{"task":"build-report-prompt"}}'
    ```
 3. eval-cli outputs a JSON messages array (no LLM call): `[{"role":"system","content":"..."},{"role":"user","content":"..."}]`
-4. promptfoo sends the messages to the native provider (with structured output schema for extraction) and scores the response against the assertions.
+4. promptfoo sends the messages to the native provider (with structured output schema for extraction), folds the extraction response into notes with `scoring/assemble.js`, and scores the result against the assertions.
 5. Results from both configs are merged into a single combined JSON.
 6. `make eval` prints a diff vs the pinned baseline.
 
@@ -77,7 +77,7 @@ cd backend
 make bin/eval-cli
 
 # Build extraction prompt (exec-prompt mode)
-./bin/eval-cli '{"vars":{"transcript":"Alice read well today.","classes":[{"name":"Grade 3A","students":["Alice Chen"]}]},"config":{"task":"build-extract-prompt"}}'
+./bin/eval-cli '{"vars":{"transcript":"Alice read well today.","class_name":"Grade 3A","classes":[{"name":"Grade 3A","students":[{"name":"Alice Chen"}]}]},"config":{"task":"build-extract-prompt"}}'
 
 # Build report prompt (exec-prompt mode)
 ./bin/eval-cli '{"vars":{"student_name":"Alice Chen","class_name":"Grade 3A","notes":[{"date":"2026-01-15","summary":"Strong reading fluency."}],"report_instructions":"Two sections: Progress, Behaviour. Each with a Comment paragraph.","instructions":""},"config":{"task":"build-report-prompt"}}'
@@ -99,6 +99,7 @@ evals/
       transcript.txt              teacher audio transcript (synthetic)
       classes.json                class roster
       expected.json               expected students + must_quote_substrings / must_not_quote_substrings
+  scoring/assemble.js             folds pass-2 passages into per-child notes before scoring
     reports/<case>/
       notes.json                  student notes
       report_instructions.txt     Level's report specification — required for any live test case, drives structure/content
@@ -147,35 +148,74 @@ reached production unnoticed, so every new multi-student fixture should carry
 
 Both substring fields accept a plain substring or `/pattern/flags` regex syntax.
 
-## Fixtures #125 owns
+## What extraction grades
 
-Five extraction fixtures arrived with the port (#126) and one was rewritten by
-it. All six describe a contract this branch does not implement: the model is
-allowed to decline a class rather than guess, and the recording is cut into
-passages before names are resolved. Today's extractor constrains `class_name`
-to a JSON-schema enum of the teacher's own classes, so it cannot decline. #125
-lands that contract; these rows are what it will be measured against, and a red
-one here is not a new regression.
+Extraction is two model calls in production (#125): pass 1 names the class
+from the class list alone, pass 2 reads the transcript against that one class's
+roster and returns passages. **This harness grades pass 2 only.** promptfoo
+makes one call per test, and pass 1 is a different prompt against a different
+schema, so each fixture names the class pass 1 is taken to have pinned, in
+`vars.class_name`. Pass 1 measured 93/93 on `mistral-medium-2508` over 31
+samples; the case it exists for is declining a recording it cannot place, which
+this contract does not have — that is #127.
 
-Their `_comment` fields were written against that contract and name types this
-branch does not have (`AssembleNotes`, spans, clause arithmetic). Read them as
-the fixture's provenance — which real note it came from and what it is for —
-not as a description of how the code under test works today.
+`scoring/assemble.js` sits between the model and the scorer. Pass 2 returns
+passages; `expected.json` and the four scoring axes describe notes. The
+transform folds one into the other, applying the same pronoun guard and
+assembly rules as production — it is the JavaScript twin of `guardPassages`
+(`backend/extract.go`) and `assemblePassages`
+(`backend/voice_note_passages.go`). Change one, change both, or the eval stops
+grading what ships.
 
-Scores are `gradebee-extract` (`mistral-medium-2508`), one run on 2026-09-05.
+Scores are `gradebee-extract` (`mistral-medium-2508`), the run pinned in
+`baseline.json` on 2026-09-05.
 
-| Fixture | Score | State on this contract | Goes green when |
-| --- | --- | --- | --- |
-| `multi_class` (rewritten) | 0.500 | red — two classes named inline, no header identifying either. It expects **zero** notes: a wrong class files one child's observations under another child. The enum forces a class, so the model always picks one. | The model may decline a class (#125). |
-| `date_drill` | 0.000 | red — a group observation whose content is a date belongs in every child's note. Nothing today attaches one stretch of speech to a whole class. | Group passages land (#125). |
-| `pronoun_run_bleed` | 0.333 | red — three children run together; two blocks are owned by nobody and must reach no note at all. Without a passage boundary the model has no unit to leave unattributed. | Passages land (#125). |
-| `shared_clause` | 1.000 | green — one sentence, two children, a different observation about each. It passes here because nothing constrains the model to one summary per sentence; under a passage contract that constraint returns. Kept as a guard: #125 must not lose it. | — |
-| `full_name_roster` | 1.000 | green — roster names are full names, the teacher speaks first names. | — |
-| `numbered_roster` | 1.000 | green — two children share a first name, enrolled as `Arthur 1` and `Arthur 2`. | — |
+| Fixture | Score | State |
+| --- | --- | --- |
+| `voice_preservation` | 1.000 | green |
+| `cross_student_bleed` | 1.000 | green |
+| `group_observation` | 1.000 | green |
+| `shared_clause` | 1.000 | green |
+| `full_name_roster` | 1.000 | green |
+| `numbered_roster` | 1.000 | green |
+| `pronoun_run_bleed` | 1.000 | green — was 0.333. Two blocks are owned by nobody; passages are the unit that lets them reach no note. 5 runs in 5. |
+| `date_drill` | 1.000 | green — was 0.000. A group passage reaches every child the recording named. 5 runs in 5. |
+| `roster_phantom` | 1.000 | green — new. Note 694's shape at the roster order that produces the phantom. 5 runs in 5. |
+| `fuzzy_name_matching` | 0.800 | **red — was 1.000.** See below. |
+| `multi_class` | 0.500 | red by design. It expects zero notes from a recording naming two classes, and pass 1's enum carries no `""`, so a class is always pinned. Goes green when the model may decline (#127). |
 
-`baseline.json` still holds the pre-#126 rows and is deliberately **not**
-regenerated here — the new rows would freeze this contract's numbers as the
-thing to beat. #125 regenerates it once the two-pass contract lands.
+### The one regression: `fuzzy_name_matching`
+
+"Liana and Lucie did well. They did well with Marcia's playing, Marcia's
+jumping." should come back once per child with the same summary. The model
+splits it instead: Lucie gets both sentences and Lina gets only "Liana did
+well", so Lina's note loses her half. Measured 2 runs in 8 green on
+`mistral-medium-2508`; every other axis of that fixture, including resolving
+`Inaia`→`Inaya` and `Liana`→`Lina`, is unaffected.
+
+It is a cost of the contract, not of the wording: the per-child rule is the
+text measured at 0/10 roster phantoms, and re-tuning it re-opens #99. The row
+is pinned at 0.800 in `baseline.json`, so `diff-baseline` will not raise it
+again — **#128 owns it**, together with the rest of what #125 left behind.
+
+### `roster_phantom` and the negative it is paired with
+
+`roster_phantom` is green with the prompt's no-elimination rules and the Go
+guard. The other half — red without the rules and with the guard off — is not a
+row here: a promptfoo row that must fail is a trap for the next reader, and the
+rules-off prompt text does not exist in the shipped code to point a row at. The
+measurement lives in
+`research/2026-09-05-123-summaries-vs-spans/RESULTS.md`: on note 694's real
+transcript, the unnamed block was filed under a listed child **8 runs in 10**
+without the rules and **0 in 10** with them, and the guard removed 100% of what
+was left across 280 runs with no false positive.
+
+### Known trap: `LOG_LEVEL`
+
+`make eval` exports the repo's `.env`, and promptfoo reads `LOG_LEVEL`. The
+project sets `LOG_LEVEL=DEBUG`, which is not one of promptfoo's levels, and it
+then prints nothing at all — no table, no summary, exit 0. Run
+`LOG_LEVEL= make eval`, or unset it, if the output is empty.
 
 ## Adding a fixture
 

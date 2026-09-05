@@ -200,9 +200,11 @@ describe('JobStatus', () => {
   })
 
   // The flow the class picker exists for: names were spoken, the recording was
-  // read against the wrong roster and nobody got a note. Gated on that, not on
-  // a decline reason — main's extraction schema forces a class from an enum of
-  // the teacher's own classes, so nothing here can decline (#125 changes that).
+  // read against the wrong roster and nobody got a note. Gated on that reason
+  // and not on a passage count, because the passage contract (#125) returns
+  // passages that named nobody — a pronoun-only block, a class-wide remark —
+  // which no picked class can resolve. Not gated on class_unclear either:
+  // pass 1's enum carries no "", so nothing can decline yet (#127).
   describe('class picker', () => {
     // Typed like doneCard above, and for the same reason: a rename in the Go
     // types must break `tsc -b` here rather than pass against a dead shape.
@@ -285,6 +287,20 @@ describe('JobStatus', () => {
     it.each([
       ['notes were made', { ...noNoteCard, noteLinks: [{ name: 'Alice', noteId: 1, studentId: 11, className: 'Tuesday' }], noNotesReason: undefined }],
       ['nobody was named', { ...noNoteCard, passages: [], noNotesReason: NoNotesNobodyNamed }],
+      // The case the passage contract adds: the recording produced passages,
+      // and not one of them speaks a name. A class picked here has nothing to
+      // resolve, so the picker would be a button that cannot work.
+      [
+        'the passages name nobody',
+        {
+          ...noNoteCard,
+          passages: [
+            { kind: 'unknown' as const, summary: 'She knocked on the boxes.' },
+            { kind: 'group' as const, summary: 'Everyone worked hard.' },
+          ],
+          noNotesReason: NoNotesNobodyNamed,
+        },
+      ],
     ])('offers no picker when %s', async (_name, card) => {
       mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [card] })
 

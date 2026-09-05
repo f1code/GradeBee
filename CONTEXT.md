@@ -41,6 +41,13 @@ _Avoid_: User (too generic)
 **Note**:
 A per-student observation extracted from a voice or text upload.
 
+**Passage**:
+One stretch of a recording as extraction read it: who it is about, the names the teacher actually spoke for them, and a summary in the teacher's own voice. Four kinds — about one named **child**, about one child the recording never names (**unknown**), about the class as a whole (**group**), or **none** (a spoken header, a greeting). Passages are the unit a Note is built from: a child's passages join into their Note, group passages join every Note the recording produced, and a passage that reaches nobody stays unattributed and becomes no Note at all.
+_Avoid_: Mention (what the previous contract extracted — one entry per student, not a stretch of speech), clause, span
+
+**Unattributed**:
+A passage that reached no Student: the recording named nobody in it, or named somebody the Class's roster does not answer for. It keeps the teacher's words and is what the class picker re-resolves when a recording was read against the wrong Class.
+
 **Report**:
 An LLM-generated report card for one Student, drawing on their Notes and the Level's Report Instructions.
 
@@ -62,6 +69,7 @@ _Avoid_: Additional instructions (legacy UI label)
 - A **Class** references exactly one **Level** (`level_id`), a mandatory **Day**, and carries an optional free-text **Time slot**; the (Level, Day, Time slot) triple is unique per teacher.
 - A **Level** belongs to exactly one **Group**.
 - A **Student** belongs to exactly one **Class**.
+- A recording yields **Passages**; each **Note** is built from the Passages that reached one Student, and a Passage that reached none is **Unattributed**.
 
 ## Flagged ambiguities
 

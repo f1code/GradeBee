@@ -398,11 +398,18 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
   // wrong roster, and picking the class is the way out. Not gated on
   // class_unclear, which nothing on this branch sets — see noNotesMessage.
   //
+  // The reason, not the passage count. A recording can come back with passages
+  // that named nobody — a block the teacher only ever said "she" about, a
+  // class-wide remark — and no class picked here can resolve those, because
+  // there is no spoken name to resolve. The server says which case it is
+  // (noNotesReason, voice_note_assemble.go); counting passages instead would
+  // put up a button that cannot work.
+  //
   // It stays up after a pick that made no note. Picking the wrong one of two
   // sibling classes is the mistake this path exists to undo; without a local
   // assembled result here the picker would vanish and there would be no second
   // attempt.
-  const needsClass = noteCount === 0 && (view.passages?.length ?? 0) > 0
+  const needsClass = noteCount === 0 && view.noNotesReason === NoNotesNoNameMatched
 
   async function pickClass(className: string) {
     setAssembled(await assembleNotes(job.uploadId, className, view.passages ?? [], getToken))

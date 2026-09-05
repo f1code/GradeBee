@@ -18,39 +18,37 @@ providers:
       response_format:
         type: json_schema
         json_schema:
-          # Schema mirrors extractResponseSchema() in backend/extract.go's
-          # overall shape. Deliberate divergence: in production, class_name
-          # is constrained to an enum of the roster's actual class names
-          # (per-fixture rosters aren't easily templated into this static
-          # provider config), so it stays a plain string here — this eval
-          # does not gate on the enum constraint. Update the rest of this
-          # block if ExtractResponse's shape changes.
-          name: extract_response
+          # Pass 2's schema, mirroring passageSchema() in backend/extract.go.
+          # Property order is the model's generation order under structured
+          # output, and spoken_labels before student is what stops the model
+          # picking a child and then inventing a label for it — keep them in
+          # this order.
+          #
+          # Deliberate divergence, the same one already accepted for the old
+          # contract's class_name: in production `student` is an enum of the
+          # pinned class's roster, and a static provider config cannot
+          # template a per-fixture roster. scoring/assemble.js resolves the
+          # value against the fixture's roster instead. Measured before
+          # settling for it: over 16 runs of fuzzy_name_matching the enum
+          # changed no score and the model returned no name off the roster
+          # without it. Update this block if ExtractedPassage's shape changes.
+          name: passages
           strict: true
           schema:
             type: object
             properties:
-              students:
+              observations:
                 type: array
                 items:
                   type: object
                   properties:
-                    name:        { type: string }
-                    class_name:  { type: string }
-                    quoted_text: { type: string }
-                    confidence:  { type: number }
-                    candidates:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          name:  { type: string }
-                          class_name: { type: string }
-                        required: [name, class_name]
-                        additionalProperties: false
-                  required: [name, class_name, quoted_text, confidence, candidates]
+                    kind:          { type: string, enum: [child, unknown, group, none] }
+                    spoken_labels: { type: array, items: { type: string } }
+                    student:       { type: string }
+                    summary:       { type: string }
+                  required: [kind, spoken_labels, student, summary]
                   additionalProperties: false
-            required: [students]
+            required: [observations]
             additionalProperties: false
 
   # Comparison provider. Not tracked for regressions — it is the weaker model,
@@ -60,9 +58,19 @@ providers:
     label: gradebee-extract-small
     config: *extract_schema
 
-# Default options: use a stronger judge model for llm-rubric assertions.
+# Default options for every row.
+#
+# transform folds pass 2's passages into the per-child notes scoring/extraction.js
+# grades — it is the JavaScript twin of guardPassages (backend/extract.go) and
+# assemblePassages (backend/voice_note_passages.go). It runs before the
+# assertions, so every row below is scored on what a teacher would read, not on
+# the model's raw output. See the header of scoring/assemble.js.
+#
+# The judge model is for the report config's llm-rubric assertions; extraction
+# is scored by the custom scorer.
 defaultTest:
   options:
+    transform: file://scoring/assemble.js
     provider:
       id: openai:chat:gpt-5.5
       config:
@@ -74,21 +82,27 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/voice_preservation/transcript.txt"
       classes: "file://fixtures/extraction/voice_preservation/classes.json"
+      class_name: "Class A"
     assert:
-      - type: is-json
       - type: javascript
         value: file://scoring/extraction.js
         config:
           expected: file://fixtures/extraction/voice_preservation/expected.json
           metric: voice_preservation
 
-  - description: "extraction: identifies correct students across two classes"
+  # Red on this contract and expected to stay red: it names two classes inline
+  # with no header identifying either, and expects zero notes because a wrong
+  # class files one child's observations under another. Pass 1's enum carries
+  # no "", so a class is always pinned and pass 2 writes notes against it.
+  # #127 turns the decline on; do not chase this row here.
+
+  - description: "extraction: a two-class recording needs a decline it cannot make yet"
     vars:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/multi_class/transcript.txt"
       classes: "file://fixtures/extraction/multi_class/classes.json"
+      class_name: "Class A"
     assert:
-      - type: is-json
       - type: javascript
         value: file://scoring/extraction.js
         config:
@@ -100,8 +114,8 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/fuzzy_name_matching/transcript.txt"
       classes: "file://fixtures/extraction/fuzzy_name_matching/classes.json"
+      class_name: "Marcia · Wed · 14:10"
     assert:
-      - type: is-json
       - type: javascript
         value: file://scoring/extraction.js
         config:
@@ -113,8 +127,8 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/cross_student_bleed/transcript.txt"
       classes: "file://fixtures/extraction/cross_student_bleed/classes.json"
+      class_name: "Oliver · Thu"
     assert:
-      - type: is-json
       - type: javascript
         value: file://scoring/extraction.js
         config:
@@ -126,8 +140,8 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/group_observation/transcript.txt"
       classes: "file://fixtures/extraction/group_observation/classes.json"
+      class_name: "Class B"
     assert:
-      - type: is-json
       - type: javascript
         value: file://scoring/extraction.js
         config:
@@ -139,6 +153,7 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/pronoun_run_bleed/transcript.txt"
       classes: "file://fixtures/extraction/pronoun_run_bleed/classes.json"
+      class_name: "Marta · Wed · 17.45"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -154,6 +169,7 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/shared_clause/transcript.txt"
       classes: "file://fixtures/extraction/shared_clause/classes.json"
+      class_name: "Sandrine · Tue · 16.30"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -166,6 +182,7 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/full_name_roster/transcript.txt"
       classes: "file://fixtures/extraction/full_name_roster/classes.json"
+      class_name: "Class A"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -182,6 +199,7 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/numbered_roster/transcript.txt"
       classes: "file://fixtures/extraction/numbered_roster/classes.json"
+      class_name: "Class A"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -203,9 +221,29 @@ tests:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/date_drill/transcript.txt"
       classes: "file://fixtures/extraction/date_drill/classes.json"
+      class_name: "Quentin · Wed · 15.20"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
         config:
           expected: file://fixtures/extraction/date_drill/expected.json
           metric: voice_preservation
+
+  # Note 694's shape at the roster order that produces the phantom (#125). The
+  # unnamed "she" block must reach no note: the prompt's no-elimination rules
+  # take that from 8/10 to 0/10, and the Go guard — mirrored in
+  # scoring/assemble.js — catches whatever is left. Anaëlle is first on the
+  # roster and never named, which is the slot the block used to fall into.
+
+  - description: "extraction: an unnamed block is not filed under the first child on the roster"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/roster_phantom/transcript.txt"
+      classes: "file://fixtures/extraction/roster_phantom/classes.json"
+      class_name: "Ludivine · Thu · 16.15"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/roster_phantom/expected.json
+          metric: attribution

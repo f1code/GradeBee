@@ -6,6 +6,12 @@ packages:
     exclude_files:
       - "job_queue.go"
       - "job_queue_mem.go"
+      # The model's contract is not this API's. Nothing on the wire carries an
+      # ExtractRequest, an ExtractResponse or an ExtractedPassage, and emitting
+      # them put Go-cased field names in a file that is meant to describe what
+      # the frontend actually receives. The done card's view of a passage is
+      # JobPassage (voice_note_job.go), which arrives via VoiceNoteJob.
+      - "extract.go"
     include_types:
       # Core entities
       - Note
@@ -33,10 +39,6 @@ packages:
       - VoiceNoteJob
       - NoteLink
       - JobListResponse
-      # Extraction types
-      - ExtractRequest
-      - ExtractResponse
-      - MatchedStudent
-      - StudentCandidate
+      # Roster shapes the eval fixtures are typed against.
       - ClassGroup
       - ClassStudent

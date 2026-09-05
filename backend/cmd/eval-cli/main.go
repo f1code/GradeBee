@@ -70,10 +70,22 @@ func runPromptMode(jsonArg string) error {
 	}
 }
 
-// runBuildExtractPrompt outputs a promptfoo messages array for extraction.
+// runBuildExtractPrompt outputs a promptfoo messages array for extraction's
+// second pass: the passages, against one class's roster.
+//
+// Only pass 2. promptfoo owns the model call and makes one per test, and pass 1
+// is a different prompt against a different schema — so the fixture says which
+// class pass 1 is taken to have pinned, in vars.class_name, and this builds the
+// prompt that follows. Pass 1 is not graded here: it measured 93/93 on this
+// model over 31 samples, and the case it exists for is the decline, which this
+// contract does not have (#127).
 func runBuildExtractPrompt(ec evalContext) error {
 	var classes []handler.ClassGroup
 	if err := ec.unmarshalVar("classes", &classes); err != nil {
+		return err
+	}
+	var className string
+	if err := ec.unmarshalVar("class_name", &className); err != nil {
 		return err
 	}
 	var transcript string
@@ -83,11 +95,21 @@ func runBuildExtractPrompt(ec evalContext) error {
 	if transcript == "" {
 		return fmt.Errorf("vars.transcript is required")
 	}
-	systemPrompt := handler.BuildExtractionPrompt(classes)
-	return writeJSON([]map[string]string{
-		{"role": "system", "content": systemPrompt},
-		{"role": "user", "content": transcript},
-	})
+	// Named, never defaulted to the only class: a fixture with one class would
+	// pass either way, and the two-class fixtures are exactly the ones where
+	// which class was pinned is the thing under test.
+	if className == "" {
+		return fmt.Errorf("vars.class_name is required: name the class pass 1 pins for this fixture")
+	}
+	for _, c := range classes {
+		if c.Name == className {
+			return writeJSON([]map[string]string{
+				{"role": "system", "content": handler.BuildPassagePrompt(c)},
+				{"role": "user", "content": transcript},
+			})
+		}
+	}
+	return fmt.Errorf("vars.class_name %q is not one of the classes in vars.classes", className)
 }
 
 // runBuildReportPrompt outputs a promptfoo messages array for report generation.

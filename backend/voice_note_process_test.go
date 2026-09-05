@@ -50,9 +50,10 @@ func TestProcessJob_HappyPath(t *testing.T) {
 		},
 		extractor: &stubExtractor{
 			result: &ExtractResponse{
-				Students: []MatchedStudent{
-					{Name: "Alice", ClassName: "Math · Mon", QuotedText: "Did great", Confidence: 0.9},
-					{Name: "Bob", ClassName: "Math · Mon", QuotedText: "Needs improvement", Confidence: 0.8},
+				ClassName: "Math · Mon",
+				Passages: []ExtractedPassage{
+					{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "Did great"},
+					{Kind: PassageChild, SpokenLabels: []string{"Bob"}, Student: "Bob", Summary: "Needs improvement"},
 				},
 			},
 		},
@@ -80,10 +81,10 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	assert.Len(t, nc.calls, 2)
 	assert.Equal(t, []string{"Math"}, transcriber.gotBias, "transcriber should receive class names as context bias")
 
-	// The done card's wire surface. Every mention becomes a passage whether or
-	// not it became a note, and the ones that did carry the child they reached
-	// — that is what stops the card offering a class picker over notes that
-	// already exist.
+	// The done card's wire surface. Every passage extraction returned is here
+	// whether or not it became a note, and the ones that did carry the child
+	// they reached — that is what stops the card offering a class picker over
+	// notes that already exist.
 	require.Len(t, got.Passages, 2)
 	assert.Equal(t, []JobPassage{
 		{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "Did great"},
@@ -174,7 +175,8 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Students: []MatchedStudent{{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9}},
+			ClassName: "Math · Mon",
+			Passages:  []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"}},
 		}},
 		noteCreator:   &stubNoteCreator{err: io.ErrUnexpectedEOF},
 		studentRepo:   studentRepo,
@@ -208,7 +210,11 @@ func TestProcessJob_AlreadyProcessed(t *testing.T) {
 	assert.Equal(t, JobStatusDone, got.Status, "status changed, should remain done")
 }
 
-func TestProcessJob_WrongClassSkipped(t *testing.T) {
+// TestProcessJob_StudentMissingFromRosterSkipped: pass 2's schema constrains
+// student to the pinned class's roster, so a name that the lookup cannot find
+// means the roster read and the lookup disagreed — a child deleted mid-run. It
+// costs that child their note and nobody else theirs.
+func TestProcessJob_StudentMissingFromRosterSkipped(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
@@ -229,9 +235,10 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Students: []MatchedStudent{
-				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9},
-				{Name: "Alice", ClassName: "WrongClass", QuotedText: "hallucinated", Confidence: 0.9},
+			ClassName: "Math · Mon",
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"},
+				{Kind: PassageChild, SpokenLabels: []string{"Ghost"}, Student: "Ghost", Summary: "vanished"},
 			},
 		}},
 		noteCreator:   nc,
@@ -241,22 +248,26 @@ func TestProcessJob_WrongClassSkipped(t *testing.T) {
 
 	ctx := context.Background()
 	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
-	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)), "processVoiceNote should succeed despite wrong class")
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)), "processVoiceNote should succeed despite a student the lookup cannot find")
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
 	require.NoError(t, err)
 	assert.Equal(t, JobStatusDone, got.Status)
-	assert.Len(t, nc.calls, 1, "note creator calls: wrong class should be skipped")
+	assert.Len(t, nc.calls, 1, "note creator calls: the missing student should be skipped")
 
-	// The dropped mention is still a passage, with no child on it: it is
-	// exactly the one a class pick can rescue.
+	// The passage stays as extraction wrote it, name and all. It says what the
+	// model read the recording as, not what the note store managed to do with
+	// it — and its spoken label is what a class pick re-resolves.
 	require.Len(t, got.Passages, 2)
 	assert.Equal(t, "Alice", got.Passages[0].Student)
-	assert.Empty(t, got.Passages[1].Student)
-	assert.Equal(t, "hallucinated", got.Passages[1].Summary)
+	assert.Equal(t, "Ghost", got.Passages[1].Student)
+	assert.Equal(t, "vanished", got.Passages[1].Summary)
 }
 
-func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
+// TestProcessJob_UnattributedPassagesReachNobody: the two ways a passage can
+// be about a child and reach none of them. There is no confidence score to
+// gate on any more — either the recording named the child or it did not.
+func TestProcessJob_UnattributedPassagesReachNobody(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
@@ -279,9 +290,13 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Students: []MatchedStudent{
-				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9},
-				{Name: "Maybe", ClassName: "Math · Mon", QuotedText: "unsure", Confidence: 0.3},
+			ClassName: "Math · Mon",
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"},
+				// A name was spoken and nobody on the roster fits it.
+				{Kind: PassageChild, SpokenLabels: []string{"Polly"}, Student: "", Summary: "unsure"},
+				// No name was spoken at all.
+				{Kind: PassageUnknown, Student: "", Summary: "she got on with it"},
 			},
 		}},
 		noteCreator:   nc,
@@ -292,17 +307,24 @@ func TestProcessJob_LowConfidenceSkipped(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)))
-	assert.Len(t, nc.calls, 1, "note creator calls: low confidence should be skipped")
+	assert.Len(t, nc.calls, 1, "note creator calls: a passage naming nobody should reach nobody")
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
 	require.NoError(t, err)
-	require.Len(t, got.Passages, 2)
+	require.Len(t, got.Passages, 3)
 	assert.Equal(t, "Alice", got.Passages[0].Student)
-	assert.Empty(t, got.Passages[1].Student, "a mention dropped below the confidence gate reached nobody")
+	assert.Empty(t, got.Passages[1].Student, "a spoken name matching nobody reached nobody")
+	// The label survives on the unmatched name and not on the unknown: one has
+	// something for a class pick to re-resolve, the other never said a name.
+	assert.Equal(t, []string{"Polly"}, got.Passages[1].SpokenLabels)
+	assert.Empty(t, got.Passages[2].Student)
+	assert.Empty(t, got.Passages[2].SpokenLabels)
 }
 
-// TestProcessJob_QuotedTextPassedToNoteCreator verifies that QuotedText from
-// extraction flows through to CreateNoteRequest without modification.
+// TestProcessJob_QuotedTextPassedToNoteCreator verifies that a passage's
+// summary flows through to CreateNoteRequest without modification. The summary
+// is the note's visible text, so anything rewriting it here rewrites what the
+// teacher reads under the model's name.
 func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
@@ -330,8 +352,9 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Students: []MatchedStudent{
-				{Name: "Alice", ClassName: "Math · Mon", QuotedText: rawQuote, Confidence: 0.95},
+			ClassName: "Math · Mon",
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: rawQuote},
 			},
 		}},
 		noteCreator:   nc,
@@ -376,7 +399,8 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			Students: []MatchedStudent{{Name: "Alice", ClassName: "Math · Mon", QuotedText: "did well", Confidence: 0.9}},
+			ClassName: "Math · Mon",
+			Passages:  []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "did well"}},
 		}},
 		noteCreator:   nc,
 		studentRepo:   studentRepo,
@@ -407,7 +431,7 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 }
 
 // TestProcessJob_PersistsTranscriptWithoutNotes covers the case #80 depends on: every
-// mention dropped, zero notes created, and the transcript is still on the
+// passage reached nobody, zero notes created, and the transcript is still on the
 // voice_notes row. Before this, notes.transcript was the only copy, so a job that
 // created no note left the teacher's words nowhere.
 func TestProcessJob_PersistsTranscriptWithoutNotes(t *testing.T) {
@@ -428,10 +452,12 @@ func TestProcessJob_PersistsTranscriptWithoutNotes(t *testing.T) {
 		transcriber: &stubTranscriber{result: "Nobody on the roster did anything"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			// One roster miss, one below the confidence gate: both drop paths, no note.
-			Students: []MatchedStudent{
-				{Name: "Unknown", ClassName: "Math · Mon", QuotedText: "x", Confidence: 0.9},
-				{Name: "Unknown", ClassName: "Math · Mon", QuotedText: "y", Confidence: 0.1},
+			ClassName: "Math · Mon",
+			// A spoken name nobody answers to, and a block with no name at all:
+			// both ways to reach nobody, no note.
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Polly"}, Student: "", Summary: "x"},
+				{Kind: PassageUnknown, Student: "", Summary: "y"},
 			},
 		}},
 		noteCreator:   nc,
@@ -629,17 +655,14 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{model: "test-model-v1", result: &ExtractResponse{
-			Students: []MatchedStudent{
-				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9},
-				// Dropped: below the auto-create confidence threshold. The candidates are
-				// what candidate_count counts, and their names must not escape either.
-				{Name: "Quillon", ClassName: "Math · Mon", QuotedText: "unsure", Confidence: 0.3,
-					Candidates: []StudentCandidate{
-						{Name: "Quintus", ClassName: "Math · Mon"},
-						{Name: "Quiller", ClassName: "Math · Mon"},
-					}},
-				// Dropped: confidently extracted, but not on the roster.
-				{Name: "Zephyrine", ClassName: "Math · Mon", QuotedText: "hallucinated", Confidence: 0.9},
+			ClassName: "Math · Mon",
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"},
+				// Dropped: a name was spoken and nobody on the roster fits it. The
+				// spoken label is the teacher's word for a child and must not escape.
+				{Kind: PassageChild, SpokenLabels: []string{"Quillon"}, Student: "", Summary: "unsure"},
+				// Dropped: named a child the lookup cannot find.
+				{Kind: PassageChild, SpokenLabels: []string{"Zephyrine"}, Student: "Zephyrine", Summary: "vanished"},
 			},
 		}},
 		noteCreator:   nc,
@@ -650,64 +673,64 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 	ctx, logs := captureLogs(context.Background())
 	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)))
-	require.Len(t, nc.calls, 1, "note creator calls: both low-confidence and off-roster students should be dropped")
+	require.Len(t, nc.calls, 1, "note creator calls: both the unattributed and the off-roster passage should be dropped")
 
 	out := logs.String()
 	// Both sites emit one shared message string, so a record is identified by its
 	// reason rather than by its message.
-	require.Contains(t, out, `"reason":"low_confidence"`, "low-confidence drop was not logged at all")
+	require.Contains(t, out, `"reason":"unattributed"`, "unattributed drop was not logged at all")
 	require.Contains(t, out, `"reason":"no_roster_match"`, "off-roster drop was not logged at all")
 
-	assert.NotContains(t, out, "Quillon", "low-confidence drop leaked a student name into the logs")
+	assert.NotContains(t, out, "Quillon", "unattributed drop leaked a spoken label into the logs")
 	assert.NotContains(t, out, "Zephyrine", "off-roster drop leaked a student name into the logs")
-	// Only the count of candidate matches may escape, never the candidates themselves.
-	assert.NotContains(t, out, "Quintus", "candidate_count leaked a candidate's name into the logs")
-	assert.NotContains(t, out, "Quiller", "candidate_count leaked a candidate's name into the logs")
 
 	// key is fmt.Sprintf("%s/%d", userID, uploadID) (voice_note_job.go), so it is
 	// redundant with the user_id/upload_id fields beside it. It is asserted for
 	// field-set uniformity with the completion record, not because it is the only
 	// thing tying a drop to a teacher and an upload — it no longer is.
-	lowConf := logRecord(t, out, `"reason":"low_confidence"`)
-	assert.Contains(t, lowConf, "process voice note: mention dropped", "both drop sites must share the stable query key")
-	assert.Contains(t, lowConf, `"key":"u1/1"`, "low-confidence drop should carry the job key")
-	assert.Contains(t, lowConf, `"confidence":0.3`, "low-confidence drop should keep the confidence that caused it")
-	// By value, not just by key: 0 is the ambiguous answer here, indistinguishable
-	// from logging the wrong expression, and candidate_count exists to settle whether
-	// a review UI could pre-populate a picker.
-	assert.Contains(t, lowConf, `"candidate_count":2`, "low-confidence drop should carry the number of candidate matches")
+	unattributed := logRecord(t, out, `"reason":"unattributed"`)
+	assert.Contains(t, unattributed, "process voice note: mention dropped", "both drop sites must share the stable query key")
+	assert.Contains(t, unattributed, `"key":"u1/1"`, "unattributed drop should carry the job key")
+	// By value, not just by key: kind separates a passage that spoke a name
+	// nobody answers to from one that spoke no name at all, which are different
+	// problems with different fixes.
+	assert.Contains(t, unattributed, `"kind":"child"`, "unattributed drop should say which kind of passage reached nobody")
+	// 0 is the ambiguous answer here, indistinguishable from logging the wrong
+	// expression, so assert the count by value.
+	assert.Contains(t, unattributed, `"label_count":1`, "unattributed drop should carry how many labels were spoken")
 	// The Change spec names user_id and upload_id explicitly, and class_name is here
 	// so both drop records carry an identical field set and aggregate cleanly. Locked
 	// by assertion so neither can be dropped as redundant-looking noise.
-	assert.Contains(t, lowConf, `"user_id":"u1"`, "low-confidence drop should carry the user id")
-	assert.Contains(t, lowConf, `"upload_id":1`, "low-confidence drop should carry the upload id")
-	assert.Contains(t, lowConf, `"class_name"`, "both drop records should carry the same field set")
+	assert.Contains(t, unattributed, `"user_id":"u1"`, "unattributed drop should carry the user id")
+	assert.Contains(t, unattributed, `"upload_id":1`, "unattributed drop should carry the upload id")
+	assert.Contains(t, unattributed, `"class_name"`, "both drop records should carry the same field set")
 	// Model and prompt version turn a bare drop rate into a figure attributable to a
 	// specific model/prompt change (#96).
-	assert.Contains(t, lowConf, `"model":"test-model-v1"`, "low-confidence drop should carry the model that produced the extraction")
-	assert.Contains(t, lowConf, promptHashAttr, "low-confidence drop should carry the extraction prompt hash")
+	assert.Contains(t, unattributed, `"model":"test-model-v1"`, "unattributed drop should carry the model that produced the extraction")
+	assert.Contains(t, unattributed, promptHashAttr, "unattributed drop should carry the extraction prompt hash")
 
 	offRoster := logRecord(t, out, `"reason":"no_roster_match"`)
 	assert.Contains(t, offRoster, "process voice note: mention dropped", "both drop sites must share the stable query key")
 	assert.Contains(t, offRoster, `"key":"u1/1"`, "off-roster drop should carry the job key")
-	// By value: production names class_name the diagnostic field for this reason —
-	// the one observed production drop of this kind was a malformed class name — so
-	// an empty one would defeat the readout while still passing a presence check.
-	assert.Contains(t, offRoster, `"class_name":"Math · Mon"`, "off-roster drop should keep the class it was attributed to")
+	// By value: class_name is the diagnostic field for this reason, and it is
+	// now the class pass 1 pinned for the whole recording — an empty one would
+	// defeat the readout while still passing a presence check.
+	assert.Contains(t, offRoster, `"class_name":"Math · Mon"`, "off-roster drop should keep the class the recording was pinned to")
 	assert.Contains(t, offRoster, `"user_id":"u1"`, "off-roster drop should carry the user id")
 	assert.Contains(t, offRoster, `"upload_id":1`, "off-roster drop should carry the upload id")
 	assert.Contains(t, offRoster, `"model":"test-model-v1"`, "off-roster drop should carry the model that produced the extraction")
 	assert.Contains(t, offRoster, promptHashAttr, "off-roster drop should carry the extraction prompt hash")
 }
 
-// TestProcessJob_CompletionRecordCountsMentions covers the denominator half of the
+// TestProcessJob_CompletionRecordCountsPassages covers the denominator half of the
 // drop instrumentation: a bare count of drops cannot be read as a rate, so the
-// completion record has to say how many mentions extraction produced.
+// completion record has to say how many passages extraction produced, and of
+// which kinds.
 //
-// Every expected value is deliberately distinct — 7/2/1/4/3 — because counters that
-// all happen to be 1 cannot catch a counter wired to the wrong variable. The
-// fixture is sized for that discrimination, not for realism.
-func TestProcessJob_CompletionRecordCountsMentions(t *testing.T) {
+// Every expected value is deliberately distinct — 9/2/5/2/1/1/3/1 — because
+// counters that all happen to be 1 cannot catch a counter wired to the wrong
+// variable. The fixture is sized for that discrimination, not for realism.
+func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
@@ -730,18 +753,23 @@ func TestProcessJob_CompletionRecordCountsMentions(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{model: "test-model-v1", result: &ExtractResponse{
-			Students: []MatchedStudent{
-				// 2 notes: on the roster and over the gate. Bram is also under the
-				// headroom ceiling, so "below 0.7" cannot be read as "was dropped".
-				{Name: "Alice", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9},
-				{Name: "Bram", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.65},
-				// 1 low-confidence drop, under the headroom ceiling.
-				{Name: "Quillon", ClassName: "Math · Mon", QuotedText: "unsure", Confidence: 0.3},
-				// 4 off-roster drops; only Wim is under the headroom ceiling.
-				{Name: "Zephyrine", ClassName: "Math · Mon", QuotedText: "hallucinated", Confidence: 0.9},
-				{Name: "Xander", ClassName: "Math · Mon", QuotedText: "hallucinated", Confidence: 0.95},
-				{Name: "Yara", ClassName: "Math · Mon", QuotedText: "hallucinated", Confidence: 0.85},
-				{Name: "Wim", ClassName: "Math · Mon", QuotedText: "hallucinated", Confidence: 0.55},
+			ClassName: "Math · Mon",
+			Passages: []ExtractedPassage{
+				// 5 child passages. Alice's three fold into one note, so
+				// passages_child cannot be read as a note count.
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"},
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "still ok"},
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok again"},
+				{Kind: PassageChild, SpokenLabels: []string{"Bram"}, Student: "Bram", Summary: "ok"},
+				// Reached nobody: a spoken name matching no child on the roster.
+				{Kind: PassageChild, SpokenLabels: []string{"Quillon"}, Student: "", Summary: "unsure"},
+				// 2 more that reached nobody, with no name spoken at all.
+				{Kind: PassageUnknown, Summary: "she got on with it"},
+				{Kind: PassageUnknown, Summary: "and then she stopped"},
+				// 1 group passage, which joins both notes rather than dropping.
+				{Kind: PassageGroup, Summary: "everyone worked hard"},
+				// 1 header, dropped before it reaches the card.
+				{Kind: PassageNone, Summary: "Math, Monday, four fifteen"},
 			},
 		}},
 		noteCreator:   nc,
@@ -754,25 +782,29 @@ func TestProcessJob_CompletionRecordCountsMentions(t *testing.T) {
 	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)))
 
 	done := logRecord(t, logs.String(), "process voice note completed")
-	assert.Contains(t, done, `"mentions_total":7`, "denominator should count every mention extraction returned")
-	assert.Contains(t, done, `"note_count":2`, "only roster-matched mentions over the gate become notes")
-	assert.Contains(t, done, `"dropped_low_confidence":1`)
-	assert.Contains(t, done, `"dropped_no_roster_match":4`)
-	// Bram (0.65, kept) + Quillon (0.3, dropped) + Wim (0.55, dropped) = 3. Counting
-	// every mention under 0.7 regardless of outcome is the point: this is the total at
-	// a stricter gate, not the extra drops moving the gate there would cause.
-	assert.Contains(t, done, `"mentions_below_0_7":3`, "headroom counter should span kept and dropped mentions alike")
+	assert.Contains(t, done, `"passages_total":9`, "denominator should count every passage extraction returned, header included")
+	assert.Contains(t, done, `"note_count":2`, "one note per child, however many passages reached them")
+	assert.Contains(t, done, `"passages_child":5`)
+	assert.Contains(t, done, `"passages_unknown":2`)
+	assert.Contains(t, done, `"passages_group":1`)
+	assert.Contains(t, done, `"passages_none":1`)
+	// Quillon's passage plus the two unknowns. A group passage has no student
+	// because it belongs to every child, so it is not a drop.
+	assert.Contains(t, done, `"dropped_unattributed":3`, "a passage about one child that reached none of them is the drop")
+	// Both children are on the roster, so nothing fails the lookup: 0 has to be
+	// distinguishable from the counter never being wired.
+	assert.Contains(t, done, `"dropped_no_roster_match":0`)
 	// Model and prompt version turn the drop rate into a figure attributable to a
 	// specific model/prompt change (#96).
 	assert.Contains(t, done, `"model":"test-model-v1"`, "completion record should carry the model that produced the extraction")
 	assert.Contains(t, done, promptHashAttr, "completion record should carry the extraction prompt hash")
 }
 
-// TestProcessJob_CompletionRecordNamesZeroMentionMode covers the third
-// silent-nothing mode: extraction returns no mentions at all, so the job completes
-// with no notes and no drops. It is indistinguishable from a job whose mentions
-// were all dropped unless mentions_total says so.
-func TestProcessJob_CompletionRecordNamesZeroMentionMode(t *testing.T) {
+// TestProcessJob_CompletionRecordNamesZeroPassageMode covers the third
+// silent-nothing mode: extraction cut the recording into nothing at all, so the
+// job completes with no notes and no drops. It is indistinguishable from a job
+// whose passages all reached nobody unless passages_total says so.
+func TestProcessJob_CompletionRecordNamesZeroPassageMode(t *testing.T) {
 	db := setupTestDB(t)
 	studentRepo := &StudentRepo{db: db}
 	classRepo := &ClassRepo{db: db}
@@ -801,11 +833,11 @@ func TestProcessJob_CompletionRecordNamesZeroMentionMode(t *testing.T) {
 
 	out := logs.String()
 	done := logRecord(t, out, "process voice note completed")
-	assert.Contains(t, done, `"mentions_total":0`, "zero-mention mode is what mentions_total:0 names")
+	assert.Contains(t, done, `"passages_total":0`, "zero-passage mode is what passages_total:0 names")
 	assert.Contains(t, done, `"note_count":0`)
-	assert.Contains(t, done, `"dropped_low_confidence":0`)
+	assert.Contains(t, done, `"dropped_unattributed":0`)
 	assert.Contains(t, done, `"dropped_no_roster_match":0`)
-	assert.NotContains(t, out, "mention dropped", "no mentions means nothing to drop")
+	assert.NotContains(t, out, "mention dropped", "no passages means nothing to drop")
 }
 
 // wantExtractionPromptHash recomputes the expected hash from the prompt templates
@@ -813,7 +845,9 @@ func TestProcessJob_CompletionRecordNamesZeroMentionMode(t *testing.T) {
 // mutation that blanks that var, or that logs some other package's hash (e.g.
 // ReportPromptHash) instead, is caught rather than passing on a same-value or
 // right-shape coincidence.
-var wantExtractionPromptHash = hashPrompt(extractionPromptPrefix + "<<<roster>>>" + extractionPromptSuffix)
+var wantExtractionPromptHash = hashPrompt(
+	classPickPrompt + "<<<classes>>>" + classPickPromptSuffix +
+		"<<<pass2>>>" + passagePromptPrefix + "<<<roster>>>")
 
 // promptHashAttr is the exact expected prompt_hash attribute as it appears in a
 // log line.
@@ -843,8 +877,9 @@ func TestProcessJob_FailurePathsOmitStudentName(t *testing.T) {
 			transcriber: &stubTranscriber{result: "transcript"},
 			roster:      &stubRoster{},
 			extractor: &stubExtractor{result: &ExtractResponse{
-				Students: []MatchedStudent{
-					{Name: "Zephyrine", ClassName: "Math · Mon", QuotedText: "ok", Confidence: 0.9},
+				ClassName: "Math · Mon",
+				Passages: []ExtractedPassage{
+					{Kind: PassageChild, SpokenLabels: []string{"Zephyrine"}, Student: "Zephyrine", Summary: "ok"},
 				},
 			}},
 			noteCreator:   nc,
@@ -951,19 +986,27 @@ func newTestAudio(t *testing.T) string {
 func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
-		mentions   []MatchedStudent
+		passages   []ExtractedPassage
 		wantReason string
 		wantClass  string
 		wantCount  int
 	}{
 		{
 			name:       "nobody named",
-			mentions:   nil,
+			passages:   nil,
+			wantReason: NoNotesNobodyNamed,
+		},
+		{
+			// A header and nothing else. The none passage is dropped before the
+			// card sees it, so this reads as nobody named rather than offering
+			// a class picker over a passage there is nothing to pick for.
+			name:       "the recording is only a header",
+			passages:   []ExtractedPassage{{Kind: PassageNone, Summary: "Math, Monday, four fifteen"}},
 			wantReason: NoNotesNobodyNamed,
 		},
 		{
 			name:       "named, but nobody on the roster",
-			mentions:   []MatchedStudent{{Name: "Nobody", ClassName: "WrongClass", QuotedText: "said something", Confidence: 0.9}},
+			passages:   []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Polly"}, Summary: "said something"}},
 			wantReason: NoNotesNoNameMatched,
 			wantCount:  1,
 		},
@@ -986,7 +1029,7 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 			d := &mockDepsAll{
 				transcriber:   &stubTranscriber{result: "transcript"},
 				roster:        &stubRoster{},
-				extractor:     &stubExtractor{result: &ExtractResponse{Students: tc.mentions}},
+				extractor:     &stubExtractor{result: &ExtractResponse{ClassName: "Math · Mon", Passages: tc.passages}},
 				noteCreator:   &stubNoteCreator{},
 				studentRepo:   studentRepo,
 				voiceNoteRepo: voiceNoteRepo,
@@ -1006,9 +1049,10 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 	}
 }
 
-// The card shows one class or none. A recording whose notes went to two classes
-// has no single answer, and naming one of them would be a guess about which the
-// teacher meant.
+// The card shows one class or none. Pass 1 pins one class for the whole
+// recording, so the two-class rows are no longer reachable from the pipeline —
+// they stay because "" is the answer the class picker needs, and a helper that
+// quietly started naming the first class would take it away.
 func TestSingleClass(t *testing.T) {
 	link := func(class string) NoteLink { return NoteLink{Name: "x", ClassName: class} }
 	for _, tc := range []struct {
