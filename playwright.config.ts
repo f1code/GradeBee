@@ -8,7 +8,18 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // One retry locally as well. Roughly one run in five fails a single spec on a
+  // first page load that never renders: the whole app sits inside Clerk's
+  // <Show>, so a slow load always looks like a random spec not finding its
+  // container. It clusters in a fresh worktree's first runs, and the only
+  // condition it reproduced under was a cold vite dep cache (1 of 5 runs with
+  // node_modules/.vite cleared; 12 warm-cache runs never failed, including cold
+  // servers, a full make test, and two suites at once). Cause not pinned
+  // further — the trace kept on retry is the passing attempt's.
+  //
+  // Playwright still reports a passing retry as flaky, so an intermittent bug
+  // stays visible rather than being swallowed.
+  retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 1 : undefined,
   reporter: 'html',
   use: {
