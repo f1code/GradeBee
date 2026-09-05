@@ -10,6 +10,14 @@
 package handler
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -80,10 +88,13 @@ func TestLLM_PinsTheClassFromTheHeader(t *testing.T) {
 	assert.Equal(t, []string{"Alice Johnson"}, notedChildren(result))
 }
 
-// A recording spanning two classes gets one roster, and the children of the
-// other fall to unattributed rather than into a wrong child's note. That is the
-// deliberate cost of pass 1 pinning one class with no decline; the decline is
-// #127. Checked against 22 real recordings: none genuinely spans two classes.
+// A recording spanning two classes reaches no child of the wrong one. Since
+// #127 pass 1 may answer "" here — two classes named is one of the two measured
+// decline triggers — and either answer is safe: a decline reaches nobody at
+// all, and a pin reaches only children of the class it pinned. What must never
+// happen is a child of the other class picking up an observation.
+//
+// Checked against 22 real recordings: none genuinely spans two classes.
 func TestLLM_TwoClassesInOneRecordingKeepsOneRoster(t *testing.T) {
 	ext := newTestLLMExtractor(t)
 	classes := []ClassGroup{
@@ -97,9 +108,13 @@ func TestLLM_TwoClassesInOneRecordingKeepsOneRoster(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Contains(t, []string{"Math 101", "Science 202"}, result.ClassName)
+	if result.ClassName == "" {
+		assert.Empty(t, result.Passages, "a decline stops before pass 2")
+		return
+	}
+
 	pinned, ok := findClass(classes, result.ClassName)
-	require.True(t, ok)
+	require.True(t, ok, "pass 1 must not invent a class")
 
 	// Whoever got a note is on the pinned class's roster. Nobody is filed under
 	// a class the recording did not put them in.
@@ -112,10 +127,10 @@ func TestLLM_TwoClassesInOneRecordingKeepsOneRoster(t *testing.T) {
 	}
 }
 
-// A recording about a class the teacher does not have. Pass 1's enum has no ""
-// yet, so it pins one anyway (#127 is what lets it decline) — but pass 2's
-// student enum is that class's roster, so no child of it can pick up the
-// observation.
+// A recording about a class the teacher does not have. Pass 1 either declines
+// or pins one of the teacher's own — it can never invent Art 303 — and pass 2's
+// student enum is the pinned class's roster, so no child of it can pick up the
+// observation either way.
 func TestLLM_ChildOffEveryRosterReachesNobody(t *testing.T) {
 	ext := newTestLLMExtractor(t)
 	classes := []ClassGroup{
@@ -129,7 +144,7 @@ func TestLLM_ChildOffEveryRosterReachesNobody(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Contains(t, []string{"Math 101", "Science 202"}, result.ClassName, "pass 1 must not invent a class")
+	assert.Contains(t, []string{"", "Math 101", "Science 202"}, result.ClassName, "pass 1 must not invent a class")
 	assert.Empty(t, notedChildren(result), "no child of the teacher's own classes was named")
 }
 
@@ -272,4 +287,175 @@ laughing and giggling the whole time. Rémi was a little active today with the m
 	assert.NotContains(t, notedChildren(result), "Capucine", "an unnamed block was filed under a listed child")
 	assert.Contains(t, notedChildren(result), "Rémi", "the one named child should still get their note")
 	assert.NotContains(t, noteOf(t, result, "Rémi"), "Bunny", "the unowned block reached the named child's note")
+}
+
+// --- The decline, and the pick that undoes it (#127) ---
+
+// multiClassFixture reads the eval fixture a decline is measured on: one
+// recording naming two classes inline, with no header identifying either.
+//
+// Read from disk rather than inlined. It left promptfoo when extraction became
+// two calls — the pass-2 builder needs a class_name var and this fixture's
+// class is the thing under test — so this is the only place it is still
+// exercised, and a copy here would drift from the file the eval README points
+// at.
+func multiClassFixture(t *testing.T) (transcript string, classes []ClassGroup) {
+	t.Helper()
+	dir := filepath.Join("evals", "fixtures", "extraction", "multi_class")
+	raw, err := os.ReadFile(filepath.Join(dir, "transcript.txt"))
+	require.NoError(t, err)
+	rosterJSON, err := os.ReadFile(filepath.Join(dir, "classes.json"))
+	require.NoError(t, err)
+	require.NoError(t, json.Unmarshal(rosterJSON, &classes))
+	return strings.TrimSpace(string(raw)), classes
+}
+
+// The decline itself. Pass 1 runs against the real classPickSchema — the enum
+// this task added "" to — and the recording names two classes with no header,
+// so it must return "" rather than guessing one.
+//
+// Not a promptfoo row: every promptfoo route re-implements the schema, and this
+// task's whole change is one value inside classPickSchema. Testing a replica of
+// it would test the wrong thing.
+//
+// The empty passage list matters as much as the empty class name. A total
+// extraction failure also yields no notes, and it must not score as a correct
+// decline.
+func TestLLM_DeclinesWhenNoHeaderPinsOneClass(t *testing.T) {
+	ext := newTestLLMExtractor(t)
+	transcript, classes := multiClassFixture(t)
+
+	result, err := ext.Extract(t.Context(), ExtractRequest{Transcript: transcript, Classes: classes})
+	require.NoError(t, err, "a decline is a finished recording, not a failed one")
+
+	assert.Empty(t, result.ClassName, "two classes named and no header: pass 1 must decline")
+	assert.Empty(t, result.Passages, "a decline stops before pass 2")
+}
+
+// The acceptance this task exists for, through the real route: a declined
+// recording the teacher files to a class produces the notes the pipeline
+// produces when pass 1 pins that same class.
+//
+// Not string equality — a live model rewords between runs, and a test that
+// fires on drift rather than on regression is a flake. The student set, the
+// note count, and the phrases the fixture's own expected.json names.
+func TestLLM_PickingTheClassOnADeclinedRecordingMakesThePipelineNotes(t *testing.T) {
+	ext := newTestLLMExtractor(t)
+	transcript, fixture := multiClassFixture(t)
+	w := newLiveAssembleWorld(t, transcript, fixture)
+	classA := w.classes[0]
+
+	// What the pipeline makes of the same recording when its header pins the
+	// class. This is the yardstick: the header is the only difference.
+	pinned, err := ext.Extract(t.Context(), ExtractRequest{
+		Transcript: classA.Name + ". " + transcript,
+		Classes:    w.classes,
+	})
+	require.NoError(t, err)
+	require.Equal(t, classA.Name, pinned.ClassName, "the yardstick run must pin the class")
+	wantNotes, _ := assemblePassages(pinned.Passages)
+	require.NotEmpty(t, wantNotes, "the yardstick made no note; passages: %+v", pinned.Passages)
+
+	// And now the declined recording, filed by hand through the endpoint.
+	rec := w.serve(t, t.Context(), "u1", w.uploadID, AssembleNotesRequest{ClassName: classA.Name})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp AssembleNotesResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, classA.Name, resp.ClassName)
+
+	got := make([]string, len(resp.NoteLinks))
+	for i, l := range resp.NoteLinks {
+		got[i] = l.Name
+	}
+	want := make([]string, len(wantNotes))
+	for i, n := range wantNotes {
+		want[i] = n.Name
+	}
+	assert.ElementsMatch(t, want, got, "the pick must reach the children the pipeline reaches")
+
+	// Each note holds what the recording said about that child. The fixture's
+	// must_not_extract list is the phrases belonging to the other class; the
+	// two below are Noah's, and they are the whole of what Class A was told.
+	require.Len(t, resp.NoteLinks, 1)
+	notes, err := w.noteRepo.List(t.Context(), resp.NoteLinks[0].StudentID)
+	require.NoError(t, err)
+	require.Len(t, notes, 1)
+	assert.True(t, contains(notes[0].Summary, "writing") || contains(notes[0].Summary, "sentence"),
+		"the note lost what the recording said: %q", notes[0].Summary)
+	assert.False(t, contains(notes[0].Summary, "science experiment"),
+		"another class's observation reached this note: %q", notes[0].Summary)
+}
+
+// liveAssembleWorld is one teacher, the fixture's classes, and a declined
+// recording, wired to the live extractor and driven through the real router.
+//
+// The route is the point. The eval harness would exercise neither it, nor the
+// ownership gates, nor the job update — and this task's change is as much where
+// pass 2 runs as what it returns.
+type liveAssembleWorld struct {
+	noteRepo *NoteRepo
+	uploadID int64
+	// classes is the roster as the database composes it — a class name is level
+	// plus time slot, so it is not the fixture's own string. Both the pick and
+	// the pipeline run it reads must use these, or they are not comparable.
+	classes []ClassGroup
+}
+
+func newLiveAssembleWorld(t *testing.T, transcript string, classes []ClassGroup) *liveAssembleWorld {
+	t.Helper()
+	ctx := t.Context()
+	db := setupTestDB(t)
+	classRepo := &ClassRepo{db: db}
+	studentRepo := &StudentRepo{db: db}
+	noteRepo := &NoteRepo{db: db}
+	voiceNotes := &VoiceNoteRepo{db: db}
+
+	for _, c := range classes {
+		cls := newTestClass(t, classRepo, "test-group", "u1", c.Name, "")
+		for _, s := range c.Students {
+			_, err := studentRepo.Create(ctx, cls.ID, s.Name)
+			require.NoError(t, err)
+		}
+	}
+
+	vn, err := voiceNotes.Create(ctx, "u1", "declined.m4a", "/nowhere/declined.m4a")
+	require.NoError(t, err)
+	require.NoError(t, voiceNotes.SetTranscript(ctx, vn.ID, transcript))
+
+	queue := newStubVoiceNoteQueue()
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{
+		UserID: "u1", UploadID: vn.ID, FileName: "declined.m4a",
+		Status: JobStatusDone, NoNotesReason: NoNotesClassUnclear,
+	}))
+
+	roster := newDBRoster(classRepo, studentRepo, "u1")
+	withDeps(t, &mockDepsAll{
+		db:             db,
+		classRepo:      classRepo,
+		studentRepo:    studentRepo,
+		noteRepo:       noteRepo,
+		voiceNoteRepo:  voiceNotes,
+		voiceNoteQueue: queue,
+		roster:         roster,
+		extractor:      newTestLLMExtractor(t),
+		noteCreator:    newDBNoteCreator(noteRepo),
+	})
+
+	stored, err := roster.Students(ctx)
+	require.NoError(t, err)
+	require.Len(t, stored, len(classes))
+	return &liveAssembleWorld{noteRepo: noteRepo, uploadID: vn.ID, classes: stored}
+}
+
+func (w *liveAssembleWorld) serve(t *testing.T, ctx context.Context, user string, uploadID int64, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/api/voice-notes/%d/assemble", uploadID), bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	newAPIMux(fakeAuth(user, "test-group", "org:member")).ServeHTTP(rec, req.WithContext(ctx))
+	return rec
 }

@@ -16,10 +16,13 @@
 // no-elimination rules hold — 0/10 phantoms against 8/10 without them
 // (research/2026-09-05-123-summaries-vs-spans, arm V1).
 //
-// Name resolution stays with the model here: it sees the transcript, and on a
-// small roster it beats MatchStudent on garbled names (70 agreements, 0
-// disagreements, 7 the model alone resolved). MatchStudent is the second pass
-// for a recording read against the wrong class — see voice_note_assemble.go.
+// Name resolution stays with the model, and only with the model: it sees the
+// transcript, and on a small roster it beats MatchStudent on garbled names (70
+// agreements, 0 disagreements, 7 the model alone resolved). Since #127 the
+// class picker runs this same pass 2 rather than re-matching by hand, so
+// MatchStudent has no caller on any live path — it is kept, with its corpus,
+// for the passage-level student picker that would let a teacher assign an
+// unattributed passage themselves.
 package handler
 
 import (
@@ -93,10 +96,16 @@ func (e *llmExtractor) Model() string {
 
 // Extract runs both passes and returns the guarded passages.
 //
+// An empty ClassName on the way out means the class was not pinned, and the
+// caller puts the class picker on the card. Two paths reach it: pass 1 declined,
+// and the teacher has no classes at all.
+//
 // A roster read that returned nothing short-circuits: there is no class to pin
 // and no child to reach, and an enum of no values is not a schema the provider
 // will accept. The caller tolerates a failed roster read (voice_note_process.go
-// logs and continues), so this is a real path, not a defensive one.
+// logs and continues), so this is a real path, not a defensive one. That teacher
+// gets the same card as a decline — "the class wasn't clear", with a picker
+// under it saying they have no classes yet, which is the real next action.
 func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*ExtractResponse, error) {
 	if len(req.Classes) == 0 {
 		return &ExtractResponse{}, nil
@@ -114,11 +123,20 @@ func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 		return nil, fmt.Errorf("extraction pass 1 failed: %w", err)
 	}
 
+	if pass1.ClassName == "" {
+		// The decline. The header was missing, or it named more than one class,
+		// and the prompt tells the model to say so rather than guess. No pass 2:
+		// there is no roster to run it against. The caller reads the empty class
+		// name and puts the class picker on the card
+		// (voice_note_process.go).
+		return &ExtractResponse{}, nil
+	}
+
 	class, ok := findClass(req.Classes, pass1.ClassName)
 	if !ok {
-		// The pass-1 schema is a strict enum over these very names, so this is
-		// a provider that ignored it. Failing loudly beats returning no notes
-		// and calling the recording empty.
+		// The pass-1 schema is a strict enum over these very names plus "", so
+		// this is a provider that ignored it. Failing loudly beats returning no
+		// notes and calling the recording empty.
 		return nil, fmt.Errorf("extraction pass 1 returned class %q, which is not on the roster", pass1.ClassName)
 	}
 
@@ -225,18 +243,19 @@ func findClass(classes []ClassGroup, name string) (ClassGroup, bool) {
 }
 
 // classPickSchema is pass 1's schema: one field, constrained to the teacher's
-// own class names.
+// own class names plus "".
 //
-// The enum does not carry "", so the model cannot decline and always pins a
-// class — even though classPickPromptSuffix tells it to return "" when no
-// class is identifiable. That inert instruction is deliberate: #127 turns the
-// decline on by adding "" here, and everything else about both passes stays
-// as it is.
+// The "" is the decline, and it is the whole of #127's model-facing change:
+// classPickPromptSuffix already told the model to return it when no class is
+// identifiable, and until this value existed the instruction could not be
+// obeyed. It goes last, which is where the measured probe put it
+// (research/2026-09-05-123-summaries-vs-spans, classNamesEnum).
 func classPickSchema(classes []ClassGroup) json.RawMessage {
-	names := make([]string, 0, len(classes))
+	names := make([]string, 0, len(classes)+1)
 	for _, c := range classes {
 		names = append(names, c.Name)
 	}
+	names = append(names, "")
 	return jsonObject(
 		field("type", "object"),
 		field("properties", map[string]any{

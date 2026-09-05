@@ -335,8 +335,16 @@ changes almost always touch the static text.
  * PromptVersionTag is bumped manually when non-template logic changes (e.g.
  * branching behaviour inside builder functions that hashing the template alone
  * would not catch).  Format: monotonic integer as string.
+ * 6: #127 added "" to pass 1's enum. Only the schema changed, so
+ * ExtractionPromptHash could not move on its own — and it is stamped into every
+ * note row and every recovery log line.
+ * The tag is shared, so a bump re-stamps ReportPromptHash too even when no
+ * report template moved. Report rows written before and after this bump carry
+ * different hashes for identical prompts; nothing is keyed on it beyond the
+ * stamp, so this only means a quality readout grouped by hash shows one prompt
+ * in two buckets.
  */
-export const PromptVersionTag = "5";
+export const PromptVersionTag = "6";
 
 //////////
 // source: repo_class.go
@@ -774,37 +782,47 @@ voice_note_assemble.go implements POST /api/voice-notes/{uploadId}/assemble:
 the teacher picks the class the recording should have been read against, and
 the notes the pipeline would have made then exist (#115).
 
-No model call. The passages come back from the done card exactly as the
-extraction returned them; only the class is new, so the work is re-resolving
-each spoken label against that class's roster — the same MatchStudent the
-rest of the pipeline resolves with.
+It runs extraction's second pass itself (#127). Two recordings reach it and
+one call serves both: a decline, where pass 1 could not pin a class so pass 2
+never ran and this is its deferred first run; and a recording filed against
+the wrong sibling class, where pass 2 ran against the wrong roster and this
+runs it against the right one.
+
+The pass and the fold are the pipeline's own — ExtractPassages and
+assemblePassages — so there is one resolution path for a recording, not two.
 */
 
 /**
  * AssembleNotesRequest is the body of the assemble call: the class the teacher
- * picked, and the card's own passages handed straight back.
- * The passages are JobPassage, not a parallel request type. Both sides of this
- * API are camelCase, so the type the card received is the type it can post —
- * a second type would exist only to be converted to the first.
+ * picked, and nothing else.
+ * The card no longer posts its passages back. They were the note's visible
+ * text, stamped with the extraction model's id under source `reviewed` — so a
+ * caller could put words the model never wrote behind the model's name. Running
+ * pass 2 here means the summaries stamped with the model's id are ones the
+ * model produced in this request.
  */
 export interface AssembleNotesRequest {
   className: string;
-  passages: JobPassage[];
 }
 /**
  * AssembleNotesResponse is the done card, repainted. It carries what the job
  * JSON carries at completion, so the card renders as a normal done card whether
- * or not the job is still in the queue.
+ * or not the job is still in the queue — and it says what the job says, so a
+ * refresh does not contradict it.
  */
 export interface AssembleNotesResponse {
   className: string;
   noteLinks: NoteLink[];
   passages: JobPassage[];
   /**
-   * NoNotesReason is empty once a note exists; a pick whose names all miss
-   * the chosen roster comes back no_name_matched.
+   * NoNotesReason is empty once a note exists; a pick that filed nothing comes
+   * back with the reason the card already had, since nothing changed.
    */
   noNotesReason?: string;
+  /**
+   * CanPickClass gates the card's class picker, exactly as it does on the job.
+   */
+  canPickClass?: boolean;
 }
 
 //////////
@@ -962,9 +980,21 @@ export interface VoiceNoteJob {
   passages?: JobPassage[];
   /**
    * NoNotesReason is set only on a done job that created no note, to one of
-   * the NoNotes* constants. Empty whenever a note was created.
+   * the NoNotes* constants. Empty whenever a note was created. It says WHY,
+   * and nothing else: it is not the card's instruction about what to offer.
    */
   noNotesReason?: string;
+  /**
+   * CanPickClass says whether picking a class could still rescue this
+   * recording, and it is the card's gate for the class picker.
+   * Separate from NoNotesReason on purpose. The two answer different
+   * questions — a cause and an affordance — and folding them left the card
+   * deciding an affordance by listing the causes it knew about, so a new
+   * cause silently removed the picker. It also forced the assemble handler to
+   * name a cause it could not know in order to keep the picker up. The server
+   * decides this; the card obeys it.
+   */
+  canPickClass?: boolean;
   error?: string;
   failedAt?: string;
 }

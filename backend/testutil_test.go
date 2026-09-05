@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 )
@@ -137,24 +139,67 @@ func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploads
 // stubExtractor implements Extractor for tests. Extract answers with result;
 // ExtractPassages answers with the same passages, so a caller that skips pass 1
 // sees what a caller that ran it would.
+//
+// It is safe for concurrent use: the assemble route runs pass 2 itself, and the
+// test that pins one set of notes per double-submit posts twice at once.
 type stubExtractor struct {
 	result *ExtractResponse
 	err    error
 	model  string
+
+	// passagesFn, when set, answers pass 2 for the class it is handed, so a
+	// test can give one roster a recording it resolves and another the same
+	// recording resolving nobody.
+	passagesFn func(ClassGroup) []ExtractedPassage
+	// blockPass2, when set, holds pass 2 open until it is closed. It is how a
+	// test keeps the assemble lock taken while a second request arrives.
+	blockPass2 chan struct{}
+
+	mu           sync.Mutex
+	passageCalls []ClassGroup
+	// deadline is the deadline the last pass-2 context carried, if any. The
+	// assemble route bounds the model call on its own; without this the stub
+	// would discard the context and that bound would be untested.
+	deadline    time.Time
+	hasDeadline bool
 }
 
 func (s *stubExtractor) Extract(_ context.Context, _ ExtractRequest) (*ExtractResponse, error) {
 	return s.result, s.err
 }
 
-func (s *stubExtractor) ExtractPassages(_ context.Context, _ string, _ ClassGroup) ([]ExtractedPassage, error) {
+func (s *stubExtractor) ExtractPassages(ctx context.Context, _ string, class ClassGroup) ([]ExtractedPassage, error) {
+	s.mu.Lock()
+	s.passageCalls = append(s.passageCalls, class)
+	s.deadline, s.hasDeadline = ctx.Deadline()
+	s.mu.Unlock()
+	if s.blockPass2 != nil {
+		<-s.blockPass2
+	}
 	if s.err != nil {
 		return nil, s.err
+	}
+	if s.passagesFn != nil {
+		return s.passagesFn(class), nil
 	}
 	if s.result == nil {
 		return nil, nil
 	}
 	return s.result.Passages, nil
+}
+
+// lastDeadline returns the deadline the most recent pass-2 context carried.
+func (s *stubExtractor) lastDeadline() (time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.deadline, s.hasDeadline
+}
+
+// calls returns the classes pass 2 has been run against, in order.
+func (s *stubExtractor) calls() []ClassGroup {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]ClassGroup{}, s.passageCalls...)
 }
 
 func (s *stubExtractor) Model() string {
@@ -187,6 +232,9 @@ func (s *stubNoteCreator) CreateNote(_ context.Context, req CreateNoteRequest) (
 
 // stubVoiceNoteQueue implements JobQueue[VoiceNoteJob] for tests.
 type stubVoiceNoteQueue struct {
+	// mu guards both fields: the assemble route can be posted to twice at once,
+	// and the real queue is a shared process-wide object.
+	mu        sync.Mutex
 	jobs      map[string]VoiceNoteJob
 	published []VoiceNoteJob
 }
@@ -196,12 +244,16 @@ func newStubVoiceNoteQueue() *stubVoiceNoteQueue {
 }
 
 func (q *stubVoiceNoteQueue) Publish(_ context.Context, job VoiceNoteJob) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	q.jobs[job.JobKey()] = job
 	q.published = append(q.published, job)
 	return nil
 }
 
 func (q *stubVoiceNoteQueue) GetJob(_ context.Context, key string) (*VoiceNoteJob, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	job, ok := q.jobs[key]
 	if !ok {
 		return nil, fmt.Errorf("job not found: %s", key)
@@ -210,11 +262,15 @@ func (q *stubVoiceNoteQueue) GetJob(_ context.Context, key string) (*VoiceNoteJo
 }
 
 func (q *stubVoiceNoteQueue) UpdateJob(_ context.Context, job VoiceNoteJob) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	q.jobs[job.JobKey()] = job
 	return nil
 }
 
 func (q *stubVoiceNoteQueue) ListJobs(_ context.Context, ownerID string) ([]VoiceNoteJob, error) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	prefix := ownerID + "/"
 	var jobs []VoiceNoteJob
 	for k, j := range q.jobs {
@@ -226,6 +282,8 @@ func (q *stubVoiceNoteQueue) ListJobs(_ context.Context, ownerID string) ([]Voic
 }
 
 func (q *stubVoiceNoteQueue) DeleteJob(_ context.Context, key string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
 	delete(q.jobs, key)
 	return nil
 }

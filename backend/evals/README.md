@@ -156,8 +156,8 @@ roster and returns passages. **This harness grades pass 2 only.** promptfoo
 makes one call per test, and pass 1 is a different prompt against a different
 schema, so each fixture names the class pass 1 is taken to have pinned, in
 `vars.class_name`. Pass 1 measured 93/93 on `mistral-medium-2508` over 31
-samples; the case it exists for is declining a recording it cannot place, which
-this contract does not have — that is #127.
+samples. The case it exists for — declining a recording it cannot place (#127)
+— is graded in Go, not here: see `multi_class` below.
 
 `scoring/assemble.js` sits between the model and the scorer. Pass 2 returns
 passages; `expected.json` and the four scoring axes describe notes. The
@@ -182,7 +182,16 @@ Scores are `gradebee-extract` (`mistral-medium-2508`), the run pinned in
 | `date_drill` | 1.000 | green — was 0.000. A group passage reaches every child the recording named. 5 runs in 5. |
 | `roster_phantom` | 1.000 | green — new. Note 694's shape at the roster order that produces the phantom. 5 runs in 5. |
 | `fuzzy_name_matching` | 0.800 | **red — was 1.000.** See below. |
-| `multi_class` | 0.500 | red by design. It expects zero notes from a recording naming two classes, and pass 1's enum carries no `""`, so a class is always pinned. Goes green when the model may decline (#127). |
+
+`multi_class` is no longer a row here. #127 gave pass 1 a `""` to return, so the
+fixture's right answer is a decline — and a decline is pass 1's, while every row
+in this config is a pass-2 row: `build-extract-prompt` is the pass-2 builder and
+takes a `class_name` var, which is the very thing that fixture withholds. It
+moved to `backend/llm_live_test.go`
+(`TestLLM_DeclinesWhenNoHeaderPinsOneClass`), which builds the real
+`classPickSchema` — the one function #127 changed — where a promptfoo row would
+score a re-implementation of it. The fixture files stay where they are; that
+test reads them.
 
 ### The one regression: `fuzzy_name_matching`
 
@@ -226,6 +235,17 @@ then prints nothing at all — no table, no summary, exit 0. Run
 ## Baseline lifecycle
 
 `baseline.json` is a single committed file overwritten by `make eval-baseline`. The PR diff is the audit trail for deliberate score changes.
+
+**One exception on record.** #127 removed the `multi_class` row rather than changing a
+score, and it was cut out of `baseline.json` by hand instead of regenerating. A full
+`make eval-baseline` was run first and rejected: the extraction rows came back identical,
+while four `report:` rows dropped 1.0–1.5 on the canonical provider — movement #127 cannot
+cause, since it changed one const and some comments in `prompts_version.go` and the report
+templates are byte-identical. A `--no-cache` re-run of the report eval came back at
+baseline, confirming judge variance, and pinning the low run would have hidden the next
+real report regression. `diff-baseline.js` keys on description plus provider, so dropping
+two rows is a safe edit; the `prompt.raw` the file stores is pass 2's, which #127 does not
+touch. Prefer regenerating. If you hand-edit, say so here.
 
 ## Report instructions authority
 

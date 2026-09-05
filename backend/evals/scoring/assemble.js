@@ -20,7 +20,8 @@
  *  - Pass 1 does not run. promptfoo makes one call per test, so the fixture
  *    names the class pass 1 is taken to have pinned, in `vars.class_name`.
  *    Pass 1 measured 93/93 on this model over 31 samples; the case it exists
- *    for is the decline, which this contract does not have (#127).
+ *    for — declining a recording it cannot place — has no `class_name` to
+ *    give, so it is graded in Go (backend/llm_live_test.go), not here.
  *  - `student` is a plain string in the eval's schema, not an enum of the
  *    class roster — a static provider config cannot template a per-fixture
  *    roster. So `student` is resolved here by folded exact match against the

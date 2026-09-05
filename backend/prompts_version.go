@@ -24,7 +24,16 @@ import (
 // PromptVersionTag is bumped manually when non-template logic changes (e.g.
 // branching behaviour inside builder functions that hashing the template alone
 // would not catch).  Format: monotonic integer as string.
-const PromptVersionTag = "5"
+// 6: #127 added "" to pass 1's enum. Only the schema changed, so
+// ExtractionPromptHash could not move on its own — and it is stamped into every
+// note row and every recovery log line.
+//
+// The tag is shared, so a bump re-stamps ReportPromptHash too even when no
+// report template moved. Report rows written before and after this bump carry
+// different hashes for identical prompts; nothing is keyed on it beyond the
+// stamp, so this only means a quality readout grouped by hash shows one prompt
+// in two buckets.
+const PromptVersionTag = "6"
 
 // --- Extraction prompt templates ---
 //
@@ -45,13 +54,11 @@ time. Match it to one of:
 
 // classPickPromptSuffix closes pass 1, after the class names.
 //
-// It tells the model to return "" when no class is identifiable, and this
-// task's schema has no "" in its enum — so the instruction cannot be obeyed
-// and the model always pins. That is deliberate. Measured live on
-// mistral-medium-2508 against the two-class multi_class fixture: the no-""
-// enum pins 3/3 with no error and no degradation, and the same prompt with ""
-// added to the enum declines. #127 turns the decline on by adding that one
-// enum value, and needs this text already in place.
+// It tells the model to return "" when no class is identifiable, and since #127
+// classPickSchema's enum carries "" so the instruction can be obeyed. Measured
+// live on mistral-medium-2508 against the two-class multi_class fixture: the
+// no-"" enum pins 3/3, the same prompt with "" in the enum declines. The text
+// did not change between those two measurements and does not change here.
 const classPickPromptSuffix = `
 If the header is missing, or does not clearly identify exactly one of the classes listed,
 return "" — an empty string — rather than guessing.

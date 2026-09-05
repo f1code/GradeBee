@@ -23,10 +23,10 @@ const (
 // wrong, and the wrong thing to do next.
 //
 // The class one is the reason this exists: a recording the model cannot pin to
-// a class leaves every name with no roster to resolve against. Nothing sets it
-// yet — pass 1's enum carries the teacher's class names and no "", so a class
-// is always pinned. #127 adds that one enum value and this constant becomes
-// reachable. The class picker does not wait for it; see noNotesReason below.
+// a class leaves every name with no roster to resolve against. Pass 1 declines
+// by returning "" from an enum that carries it, and the pipeline sets this
+// reason off that empty class name — not through noNotesReason, which sees no
+// passages on a decline and would answer nobody_named.
 const (
 	// NoNotesNobodyNamed: the recording named no child at all. Nothing to do.
 	NoNotesNobodyNamed = "nobody_named"
@@ -108,10 +108,21 @@ type VoiceNoteJob struct {
 	ClassName string       `json:"className,omitempty"`
 	Passages  []JobPassage `json:"passages,omitempty"`
 	// NoNotesReason is set only on a done job that created no note, to one of
-	// the NoNotes* constants. Empty whenever a note was created.
-	NoNotesReason string     `json:"noNotesReason,omitempty"`
-	Error         string     `json:"error,omitempty"`
-	FailedAt      *time.Time `json:"failedAt,omitempty"`
+	// the NoNotes* constants. Empty whenever a note was created. It says WHY,
+	// and nothing else: it is not the card's instruction about what to offer.
+	NoNotesReason string `json:"noNotesReason,omitempty"`
+	// CanPickClass says whether picking a class could still rescue this
+	// recording, and it is the card's gate for the class picker.
+	//
+	// Separate from NoNotesReason on purpose. The two answer different
+	// questions — a cause and an affordance — and folding them left the card
+	// deciding an affordance by listing the causes it knew about, so a new
+	// cause silently removed the picker. It also forced the assemble handler to
+	// name a cause it could not know in order to keep the picker up. The server
+	// decides this; the card obeys it.
+	CanPickClass bool       `json:"canPickClass,omitempty"`
+	Error        string     `json:"error,omitempty"`
+	FailedAt     *time.Time `json:"failedAt,omitempty"`
 }
 
 // JobKey implements Keyed.

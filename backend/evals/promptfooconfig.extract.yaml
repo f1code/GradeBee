@@ -90,24 +90,11 @@ tests:
           expected: file://fixtures/extraction/voice_preservation/expected.json
           metric: voice_preservation
 
-  # Red on this contract and expected to stay red: it names two classes inline
-  # with no header identifying either, and expects zero notes because a wrong
-  # class files one child's observations under another. Pass 1's enum carries
-  # no "", so a class is always pinned and pass 2 writes notes against it.
-  # #127 turns the decline on; do not chase this row here.
-
-  - description: "extraction: a two-class recording needs a decline it cannot make yet"
-    vars:
-      task: build-extract-prompt
-      transcript: "file://fixtures/extraction/multi_class/transcript.txt"
-      classes: "file://fixtures/extraction/multi_class/classes.json"
-      class_name: "Class A"
-    assert:
-      - type: javascript
-        value: file://scoring/extraction.js
-        config:
-          expected: file://fixtures/extraction/multi_class/expected.json
-          metric: precision_recall
+  # multi_class is not here. Every row is a pass-2 row — build-extract-prompt is
+  # the pass-2 builder and needs a class_name var — and that fixture's class is
+  # the thing under test: it names two classes inline with no header, and the
+  # right answer is pass 1 declining. It is asserted against the real
+  # classPickSchema in backend/llm_live_test.go instead. See README.md.
 
   - description: "extraction: fuzzy name matching (Inaia→Inaya, Liana→Lina)"
     vars:

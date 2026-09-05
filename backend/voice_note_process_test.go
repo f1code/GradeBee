@@ -981,11 +981,13 @@ func newTestAudio(t *testing.T) string {
 }
 
 // A recording that named children and gave none of them a note is what the
-// class picker is offered on, so the reason has to say which of the two silent
-// outcomes it was.
+// class picker is offered on, so the reason has to say which of the three
+// silent outcomes it was.
 func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
+		name string
+		// pass1Class is what extraction pinned. Empty is the decline.
+		pass1Class string
 		passages   []ExtractedPassage
 		wantReason string
 		wantClass  string
@@ -993,19 +995,47 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 	}{
 		{
 			name:       "nobody named",
+			pass1Class: "Math · Mon",
 			passages:   nil,
 			wantReason: NoNotesNobodyNamed,
+		},
+		{
+			// The decline (#127). Pass 1 could not pin a class — a missing
+			// header, or one naming two — so pass 2 never ran and there are no
+			// passages at all.
+			//
+			// This is why the decline cannot go through noNotesReason: with no
+			// passages it would answer nobody_named, and the card would hide
+			// the class picker on exactly the recording that needs it.
+			name:       "the class was not pinned",
+			pass1Class: "",
+			passages:   nil,
+			wantReason: NoNotesClassUnclear,
+		},
+		{
+			// A pinned class whose passages all reached nobody is NOT a
+			// decline, even though it also ends with no class on the card:
+			// job.ClassName comes from the note links. The teacher's route here
+			// is an alias, not a class, and reading the job field instead of
+			// pass 1's answer would send them to the wrong one.
+			name:       "a class was pinned but nobody was named",
+			pass1Class: "Math · Mon",
+			passages:   []ExtractedPassage{{Kind: PassageUnknown, Summary: "someone did well"}},
+			wantReason: NoNotesNobodyNamed,
+			wantCount:  1,
 		},
 		{
 			// A header and nothing else. The none passage is dropped before the
 			// card sees it, so this reads as nobody named rather than offering
 			// a class picker over a passage there is nothing to pick for.
 			name:       "the recording is only a header",
+			pass1Class: "Math · Mon",
 			passages:   []ExtractedPassage{{Kind: PassageNone, Summary: "Math, Monday, four fifteen"}},
 			wantReason: NoNotesNobodyNamed,
 		},
 		{
 			name:       "named, but nobody on the roster",
+			pass1Class: "Math · Mon",
 			passages:   []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Polly"}, Summary: "said something"}},
 			wantReason: NoNotesNoNameMatched,
 			wantCount:  1,
@@ -1029,15 +1059,16 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 			d := &mockDepsAll{
 				transcriber:   &stubTranscriber{result: "transcript"},
 				roster:        &stubRoster{},
-				extractor:     &stubExtractor{result: &ExtractResponse{ClassName: "Math · Mon", Passages: tc.passages}},
+				extractor:     &stubExtractor{result: &ExtractResponse{ClassName: tc.pass1Class, Passages: tc.passages}},
 				noteCreator:   &stubNoteCreator{},
 				studentRepo:   studentRepo,
 				voiceNoteRepo: voiceNoteRepo,
 			}
 
-			ctx := context.Background()
+			ctx, buf := captureLogs(context.Background())
 			require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 			require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)))
+			logs := buf.String()
 
 			got, err := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
 			require.NoError(t, err)
@@ -1045,6 +1076,14 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 			assert.Equal(t, tc.wantReason, got.NoNotesReason)
 			assert.Equal(t, tc.wantClass, got.ClassName)
 			assert.Len(t, got.Passages, tc.wantCount)
+			// The card's gate travels with the reason, decided here. A
+			// recording that named nobody cannot be rescued by a class.
+			assert.Equal(t, tc.wantReason != NoNotesNobodyNamed, got.CanPickClass)
+
+			// The completion record has to name the decline, or it is
+			// indistinguishable in Sentry from an extraction that returned
+			// nothing at all — same passages_total, same zero per-kind counts.
+			assert.Contains(t, logs, `"no_notes_reason":"`+tc.wantReason+`"`)
 		})
 	}
 }

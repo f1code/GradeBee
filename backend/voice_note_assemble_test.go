@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -22,14 +23,15 @@ const assembleTranscript = "Monday morning. Alice did great. Bob was loud."
 // exists for — and one recording whose transcript is on the row.
 //
 // Alice and Bob are on Tuesday. Monday holds two other children, so a recording
-// the extractor files to Monday resolves nobody and the teacher's way out is to
-// pick Tuesday.
+// the extraction filed to Monday resolves nobody and the teacher's way out is
+// to pick Tuesday.
 type assembleWorld struct {
 	classRepo   *ClassRepo
 	studentRepo *StudentRepo
 	noteRepo    *NoteRepo
 	voiceNotes  *VoiceNoteRepo
 	queue       *stubVoiceNoteQueue
+	extractor   *stubExtractor
 	uploadID    int64
 	alice, bob  int64
 	monday      string
@@ -37,16 +39,84 @@ type assembleWorld struct {
 	deps        *mockDepsAll
 }
 
+// rosterPass2 is what pass 2 answers with: one passage per name the recording
+// spoke, read against whichever class it was handed. A name on that class
+// becomes a child passage; a name that is not becomes a passage owned by
+// nobody.
+//
+// The shipped prompt admits two shapes for a name that is on no listed child,
+// and this returns the one that keeps a spoken label: kind "child" with
+// student "" — "for a 'child' passage, the listed child's name exactly as
+// listed below, or ” when no listed child fits" (prompts_version.go). It is
+// the shape that makes noNotesReason answer no_name_matched, which is the card
+// the class picker is offered on.
+//
+// The other shape is offRosterAsUnknown below. Both are real; a test that only
+// knows one of them is testing its own stub.
+func rosterPass2(labels ...string) func(ClassGroup) []ExtractedPassage {
+	if labels == nil {
+		labels = []string{"Alice", "Bob"}
+	}
+	return func(class ClassGroup) []ExtractedPassage {
+		out := make([]ExtractedPassage, len(labels))
+		for i, l := range labels {
+			p := ExtractedPassage{
+				Kind:         PassageChild,
+				SpokenLabels: []string{l},
+				Summary:      l + "'s passage",
+			}
+			for _, st := range class.Students {
+				if st.Name == l {
+					p.Student = l
+				}
+			}
+			out[i] = p
+		}
+		return out
+	}
+}
+
+// offRosterAsUnknown is the same recording under the prompt's other reading of
+// a name that fits nobody: kind "unknown", and an EMPTY spoken_labels, because
+// the prompt says "a name that matches nobody listed" is unknown and "Empty
+// list for 'unknown', 'group' and 'none'".
+//
+// It is the dangerous shape. Those passages carry no spoken name, so
+// noNotesReason answers nobody_named — the same answer a recording that truly
+// named nobody produces. A handler that treated that reason as terminal would
+// take the picker off the wrong-sibling-class recording it exists for.
+func offRosterAsUnknown(labels ...string) func(ClassGroup) []ExtractedPassage {
+	inner := rosterPass2(labels...)
+	return func(class ClassGroup) []ExtractedPassage {
+		out := inner(class)
+		for i, p := range out {
+			if p.Kind == PassageChild && p.Student == "" {
+				out[i] = ExtractedPassage{Kind: PassageUnknown, Summary: p.Summary}
+			}
+		}
+		return out
+	}
+}
+
 func newAssembleWorld(t *testing.T) *assembleWorld {
 	t.Helper()
 	ctx := context.Background()
 	db := setupTestDB(t)
+
+	// The lock map is package-global and every world here is upload 1 for u1, so
+	// they all share one key. A test that fails before releasing it would 409
+	// every test after it — a cascade that says nothing about the failure.
+	assembleLocksMu.Lock()
+	assembleLocks = map[string]struct{}{}
+	assembleLocksMu.Unlock()
+
 	w := &assembleWorld{
 		classRepo:   &ClassRepo{db: db},
 		studentRepo: &StudentRepo{db: db},
 		noteRepo:    &NoteRepo{db: db},
 		voiceNotes:  &VoiceNoteRepo{db: db},
 		queue:       newStubVoiceNoteQueue(),
+		extractor:   &stubExtractor{passagesFn: rosterPass2()},
 	}
 
 	tuesday := newTestClass(t, w.classRepo, "test-group", "u1", "Tuesday", "")
@@ -78,7 +148,7 @@ func newAssembleWorld(t *testing.T) *assembleWorld {
 		voiceNoteRepo:  w.voiceNotes,
 		voiceNoteQueue: w.queue,
 		roster:         roster,
-		extractor:      &stubExtractor{},
+		extractor:      w.extractor,
 		noteCreator:    newDBNoteCreator(w.noteRepo),
 	}
 	withDeps(t, w.deps)
@@ -86,18 +156,26 @@ func newAssembleWorld(t *testing.T) *assembleWorld {
 }
 
 // post drives the assemble route through the real router, as user, and returns
-// the recorder plus everything the handler logged.
+// the recorder plus everything the handler logged. The log is read after
+// ServeHTTP returns, so nothing is still writing to it.
 func (w *assembleWorld) post(t *testing.T, user string, uploadID int64, body any) (rec *httptest.ResponseRecorder, logs string) {
 	t.Helper()
+	ctx, buf := captureLogs(context.Background())
+	rec = w.serve(t, ctx, user, uploadID, body)
+	return rec, buf.String()
+}
+
+// serve is post without the log capture, so the goroutines of the
+// double-submit test do not write into one buffer at once.
+func (w *assembleWorld) serve(t *testing.T, ctx context.Context, user string, uploadID int64, body any) *httptest.ResponseRecorder {
 	raw, err := json.Marshal(body)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost,
 		fmt.Sprintf("/api/voice-notes/%d/assemble", uploadID), bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
-	ctx, buf := captureLogs(req.Context())
-	rec = httptest.NewRecorder()
+	rec := httptest.NewRecorder()
 	newAPIMux(fakeAuth(user, "test-group", "org:member")).ServeHTTP(rec, req.WithContext(ctx))
-	return rec, buf.String()
+	return rec
 }
 
 func (w *assembleWorld) notesFor(t *testing.T, studentID int64) []Note {
@@ -107,61 +185,63 @@ func (w *assembleWorld) notesFor(t *testing.T, studentID int64) []Note {
 	return notes
 }
 
-// declinedPassages is what the card holds after a run that made no note: one
-// passage per mention, each carrying the label the extraction model wrote and
-// the text a note would have held.
-func declinedPassages(labels ...string) []JobPassage {
-	if labels == nil {
-		labels = []string{"Alice", "Bob"}
-	}
-	out := make([]JobPassage, len(labels))
-	for i, l := range labels {
-		out[i] = JobPassage{
-			Kind:         PassageChild,
-			SpokenLabels: []string{l},
-			Summary:      l + "'s passage",
-		}
-	}
-	return out
+func (w *assembleWorld) job(t *testing.T) *VoiceNoteJob {
+	t.Helper()
+	job, err := w.queue.GetJob(context.Background(), voiceNoteKey("u1", w.uploadID))
+	require.NoError(t, err)
+	return job
 }
 
-func (w *assembleWorld) doneJob(t *testing.T, passages []JobPassage) {
+// declinedJob is the card a decline leaves: done, no class, no passages, and
+// the reason that puts the class picker up (#127).
+func (w *assembleWorld) declinedJob(t *testing.T) {
 	t.Helper()
 	require.NoError(t, w.queue.Publish(context.Background(), VoiceNoteJob{
 		UserID: "u1", UploadID: w.uploadID, FileName: "monday.m4a",
-		Status: JobStatusDone, Passages: passages,
-		NoNotesReason: NoNotesNoNameMatched,
+		Status: JobStatusDone, NoNotesReason: NoNotesClassUnclear, CanPickClass: true,
 	}))
 }
 
-// The case this endpoint exists for. The extractor is forced to name one of the
-// teacher's classes, so a Tuesday recording lands on Monday, every name misses
-// Monday's roster and nobody gets a note. The teacher picks Tuesday and the
-// notes the recording was always going to make exist.
-//
-// The labels are canonical against the roster the model was shown — the wrong
-// one — so this also pins that MatchStudent re-resolves them against the picked
-// class. If it did not, the picker would create nothing and the flow would be
-// decorative.
+// misfiledJob is the other card that reaches this endpoint: the recording was
+// read against the wrong sibling class, so it has passages and every spoken
+// name missed that roster.
+func (w *assembleWorld) misfiledJob(t *testing.T) {
+	t.Helper()
+	_, passages := assemblePassages(rosterPass2()(ClassGroup{Name: "Monday"}))
+	require.NoError(t, w.queue.Publish(context.Background(), VoiceNoteJob{
+		UserID: "u1", UploadID: w.uploadID, FileName: "monday.m4a",
+		Status: JobStatusDone, Passages: passages,
+		NoNotesReason: NoNotesNoNameMatched, CanPickClass: true,
+	}))
+}
+
+// The case this endpoint exists for. A recording the extraction filed to Monday
+// resolved nobody; the teacher picks Tuesday, pass 2 runs against Tuesday's
+// roster, and the notes the recording was always going to make exist.
 func TestAssembleNotes_RescuesARecordingFiledToTheSiblingClass(t *testing.T) {
 	w := newAssembleWorld(t)
-	w.doneJob(t, declinedPassages())
+	w.misfiledJob(t)
 
-	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{
-		ClassName: w.tuesday, Passages: declinedPassages(),
-	})
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// Pass 2 ran once, against the class the teacher picked. Getting this wrong
+	// would leave the picker resolving against the roster that already failed.
+	calls := w.extractor.calls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, w.tuesday, calls[0].Name)
 
 	var resp AssembleNotesResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(t, w.tuesday, resp.ClassName)
 	assert.Empty(t, resp.NoNotesReason)
+	assert.False(t, resp.CanPickClass, "the recording is filed; there is nothing left to pick")
 	require.Len(t, resp.NoteLinks, 2)
 	assert.Equal(t, "Alice", resp.NoteLinks[0].Name)
 	assert.Equal(t, "Bob", resp.NoteLinks[1].Name)
 
-	// The passages come back saying who each one reached, so the card can
-	// stop offering the picker.
+	// The passages come back saying who each one reached, so the card can stop
+	// offering the picker.
 	require.Len(t, resp.Passages, 2)
 	assert.Equal(t, "Alice", resp.Passages[0].Student)
 	assert.Equal(t, "Bob", resp.Passages[1].Student)
@@ -169,11 +249,35 @@ func TestAssembleNotes_RescuesARecordingFiledToTheSiblingClass(t *testing.T) {
 	alice := w.notesFor(t, w.alice)
 	require.Len(t, alice, 1)
 	assert.Equal(t, "Alice's passage", alice[0].Summary)
-	// The teacher supplied the who, the model wrote the text.
+	// Since #127 the model wrote these words in this request, so the source
+	// constant is literally true: the teacher supplied only the class.
 	assert.Equal(t, NoteSourceReviewed, alice[0].Source)
 	require.NotNil(t, alice[0].Transcript)
 	assert.Equal(t, assembleTranscript, *alice[0].Transcript)
 	assert.Len(t, w.notesFor(t, w.bob), 1)
+}
+
+// A declined recording — pass 1 could not pin a class, so pass 2 never ran and
+// the card holds no passages at all. The pick is that pass's deferred first
+// run, and it must produce the same notes as the misfiled case: one path.
+func TestAssembleNotes_RescuesADeclinedRecording(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.declinedJob(t)
+
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp AssembleNotesResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Equal(t, w.tuesday, resp.ClassName)
+	assert.Empty(t, resp.NoNotesReason)
+	require.Len(t, resp.NoteLinks, 2)
+	assert.Len(t, w.notesFor(t, w.alice), 1)
+	assert.Len(t, w.notesFor(t, w.bob), 1)
+
+	job := w.job(t)
+	assert.Equal(t, w.tuesday, job.ClassName)
+	assert.Empty(t, job.NoNotesReason)
 }
 
 // The note's date is the day the teacher recorded, read off the voice_notes
@@ -181,15 +285,13 @@ func TestAssembleNotes_RescuesARecordingFiledToTheSiblingClass(t *testing.T) {
 // so a note dated any other way is invisible to every report.
 func TestAssembleNotes_DatesNotesFromTheRecording(t *testing.T) {
 	w := newAssembleWorld(t)
-	w.doneJob(t, declinedPassages())
+	w.misfiledJob(t)
 
 	row, err := w.voiceNotes.GetByID(context.Background(), w.uploadID)
 	require.NoError(t, err)
 	want := row.CreatedAt[:len(time.DateOnly)]
 
-	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{
-		ClassName: w.tuesday, Passages: declinedPassages(),
-	})
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, want, w.notesFor(t, w.alice)[0].Date)
 }
@@ -197,31 +299,166 @@ func TestAssembleNotes_DatesNotesFromTheRecording(t *testing.T) {
 // Picking the wrong one of two sibling classes is the mistake this path exists
 // to undo, so a pick that resolved nobody must leave the job untouched and the
 // teacher able to pick again.
+//
+// The response mirrors the job rather than reporting the pick: nothing was
+// filed, and a card that changes on this pick only to change back on the next
+// refresh is worse than one that says nothing new.
 func TestAssembleNotes_APickThatMadeNoNoteCanBeRetried(t *testing.T) {
 	w := newAssembleWorld(t)
-	w.doneJob(t, declinedPassages())
+	w.declinedJob(t)
 
-	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{
-		ClassName: w.monday, Passages: declinedPassages(),
-	})
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.monday})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	var resp AssembleNotesResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Empty(t, resp.NoteLinks)
-	assert.Equal(t, NoNotesNoNameMatched, resp.NoNotesReason)
+	assert.Empty(t, resp.ClassName, "no class is filed against this recording")
+	assert.Equal(t, NoNotesClassUnclear, resp.NoNotesReason, "the card's own reason, unchanged")
 
-	// The job keeps no class: none is filed against this recording.
-	job, err := w.queue.GetJob(context.Background(), voiceNoteKey("u1", w.uploadID))
-	require.NoError(t, err)
+	assert.True(t, resp.CanPickClass, "the picker stays up for the next attempt")
+
+	job := w.job(t)
+	assert.Empty(t, job.ClassName)
+	assert.Equal(t, NoNotesClassUnclear, job.NoNotesReason)
+	assert.Empty(t, job.NoteLinks)
+
+	// And the right class still works.
+	rec, _ = w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Len(t, w.notesFor(t, w.alice), 1)
+}
+
+// A pass 2 that came back with no spoken name anywhere. It reads as
+// nobody_named — and that must NOT end the picker, because it is also what the
+// wrong roster produces: the prompt calls a name fitting no listed child
+// "unknown", and unknown carries an empty spoken_labels. A handler that
+// terminated on this reason would strand exactly the recording the picker
+// exists for, with the job written and no way back.
+//
+// This is the shape, and the test below is the case.
+func TestAssembleNotes_APickWithNoSpokenNameLeavesTheJobAlone(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.declinedJob(t)
+	w.extractor.passagesFn = func(ClassGroup) []ExtractedPassage {
+		return []ExtractedPassage{{Kind: PassageUnknown, Summary: "somebody did well"}}
+	}
+
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp AssembleNotesResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Empty(t, resp.NoteLinks)
+	assert.Empty(t, resp.ClassName, "nothing was filed, so no class is claimed")
+	assert.Equal(t, NoNotesClassUnclear, resp.NoNotesReason, "the card's own reason, unchanged")
+
+	job := w.job(t)
+	assert.Empty(t, job.ClassName)
+	assert.Empty(t, job.NoteLinks)
+	assert.Equal(t, NoNotesClassUnclear, job.NoNotesReason)
+	assert.Empty(t, job.Passages)
+}
+
+// The case: a declined recording, picked to the wrong one of two sibling
+// classes, where pass 2 returned every off-roster name as an unlabelled
+// unknown. The teacher must still be able to pick the right class.
+//
+// Without this the endpoint's own reason for existing is unreachable: the pick
+// would write nobody_named, the card would drop the picker (JobStatus.tsx), and
+// a declined recording has no earlier passages to fall back on.
+func TestAssembleNotes_AWrongRosterPickThatReturnedNoLabelsCanStillBeRetried(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.declinedJob(t)
+	w.extractor.passagesFn = offRosterAsUnknown()
+
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.monday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp AssembleNotesResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Empty(t, resp.NoteLinks)
+	assert.Equal(t, NoNotesClassUnclear, resp.NoNotesReason, "the picker must survive this")
+
+	job := w.job(t)
+	assert.Equal(t, NoNotesClassUnclear, job.NoNotesReason)
 	assert.Empty(t, job.ClassName)
 
 	// And the right class still works.
-	rec, _ = w.post(t, "u1", w.uploadID, AssembleNotesRequest{
-		ClassName: w.tuesday, Passages: declinedPassages(),
-	})
+	rec, _ = w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Len(t, w.notesFor(t, w.alice), 1)
+	assert.Len(t, w.notesFor(t, w.bob), 1)
+}
+
+// The model call is bounded on its own, not by the handler: a whole-handler
+// deadline would cancel the note loop mid-write. 30s, because llmChatTimeout is
+// 120s and no teacher waits that long behind a spinner.
+func TestAssembleNotes_BoundsPass2WithItsOwnDeadline(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.misfiledJob(t)
+
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	deadline, ok := w.extractor.lastDeadline()
+	require.True(t, ok, "pass 2 ran with no deadline at all")
+	assert.InDelta(t, assemblePass2Timeout.Seconds(), time.Until(deadline).Seconds(), 5)
+}
+
+// A provider error or timeout must not burn the recording: pass 2 runs before
+// the first CreateNote, so nothing is written and the card keeps its picker.
+func TestAssembleNotes_AFailedPass2LeavesTheCardInThePickerState(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.declinedJob(t)
+	w.extractor.err = io.ErrUnexpectedEOF
+
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+
+	assert.Empty(t, w.notesFor(t, w.alice))
+	assert.Empty(t, w.notesFor(t, w.bob))
+	job := w.job(t)
+	assert.Empty(t, job.ClassName)
+	assert.Empty(t, job.NoteLinks)
+	assert.Equal(t, NoNotesClassUnclear, job.NoNotesReason)
+
+	// And the teacher can retry.
+	w.extractor.err = nil
+	rec, _ = w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Len(t, w.notesFor(t, w.alice), 1)
+}
+
+// A double-click, or a client retry: two picks land at once, and every child
+// must get one note.
+//
+// Ordering pass 2 first does not cover this — it moves the model call inside
+// the job-read-to-write window rather than shrinking it. The lock is the
+// mechanism, and blocking pass 2 is what holds the first request inside it
+// while the second arrives.
+func TestAssembleNotes_DoubleSubmitCreatesOneSetOfNotes(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.misfiledJob(t)
+	w.extractor.blockPass2 = make(chan struct{})
+
+	body := AssembleNotesRequest{ClassName: w.tuesday}
+	first := make(chan *httptest.ResponseRecorder, 1)
+	go func() { first <- w.serve(t, context.Background(), "u1", w.uploadID, body) }()
+
+	// Wait until the first request is inside pass 2, holding the lock.
+	require.Eventually(t, func() bool { return len(w.extractor.calls()) == 1 },
+		2*time.Second, 5*time.Millisecond)
+
+	second := w.serve(t, context.Background(), "u1", w.uploadID, body)
+	assert.Equal(t, http.StatusConflict, second.Code, second.Body.String())
+
+	close(w.extractor.blockPass2)
+	require.Equal(t, http.StatusOK, (<-first).Code)
+
+	assert.Len(t, w.extractor.calls(), 1, "the refused request must not have run pass 2")
+	assert.Len(t, w.notesFor(t, w.alice), 1)
+	assert.Len(t, w.notesFor(t, w.bob), 1)
 }
 
 // A successful pick updates the queued job, so the card's next poll agrees with
@@ -229,14 +466,13 @@ func TestAssembleNotes_APickThatMadeNoNoteCanBeRetried(t *testing.T) {
 // notes.
 func TestAssembleNotes_UpdatesQueuedJobThenRefusesASecondCall(t *testing.T) {
 	w := newAssembleWorld(t)
-	w.doneJob(t, declinedPassages())
-	body := AssembleNotesRequest{ClassName: w.tuesday, Passages: declinedPassages()}
+	w.misfiledJob(t)
+	body := AssembleNotesRequest{ClassName: w.tuesday}
 
 	rec, _ := w.post(t, "u1", w.uploadID, body)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	job, err := w.queue.GetJob(context.Background(), voiceNoteKey("u1", w.uploadID))
-	require.NoError(t, err)
+	job := w.job(t)
 	assert.Equal(t, w.tuesday, job.ClassName)
 	assert.Len(t, job.NoteLinks, 2)
 	assert.Empty(t, job.NoNotesReason)
@@ -248,6 +484,9 @@ func TestAssembleNotes_UpdatesQueuedJobThenRefusesASecondCall(t *testing.T) {
 
 // A job mid-run would have the processor create its own notes for the same
 // children seconds later; a failed one's route is retry, not a class.
+//
+// A decline is not among these: it completes done, which is what lets the card
+// it leaves reach this endpoint at all.
 func TestAssembleNotes_RefusesAJobThatIsNotDone(t *testing.T) {
 	for _, status := range []string{JobStatusQueued, JobStatusTranscribing, JobStatusExtracting, JobStatusCreatingNotes, JobStatusFailed} {
 		t.Run(status, func(t *testing.T) {
@@ -255,38 +494,66 @@ func TestAssembleNotes_RefusesAJobThatIsNotDone(t *testing.T) {
 			require.NoError(t, w.queue.Publish(context.Background(), VoiceNoteJob{
 				UserID: "u1", UploadID: w.uploadID, FileName: "monday.m4a", Status: status,
 			}))
-			rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{
-				ClassName: w.tuesday, Passages: declinedPassages(),
-			})
+			rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
 			assert.Equal(t, http.StatusConflict, rec.Code)
 			assert.Empty(t, w.notesFor(t, w.alice))
+			assert.Empty(t, w.extractor.calls(), "a refusal must not reach the model")
 		})
 	}
 }
 
 // A card still open in a tab after a restart has no job behind it. The notes
-// must still be creatable: the transcript is on the row and that is all
-// assembly needs.
+// must still be creatable: the transcript is on the row and that is all pass 2
+// needs.
 func TestAssembleNotes_WorksWithNoJobInTheQueue(t *testing.T) {
 	w := newAssembleWorld(t)
-	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{
-		ClassName: w.tuesday, Passages: declinedPassages(),
-	})
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Len(t, w.notesFor(t, w.alice), 1)
+}
+
+// The same card, picked to the wrong class. There is no job to mirror, so the
+// response is all the teacher gets — and it wins over the poll for the rest of
+// that card's life (JobStatus.tsx keeps a forgotten job's done card, and an
+// assemble result overrides it). So it must not answer with this run's own
+// reading: pass 2 against the wrong roster returns an off-roster name as an
+// unlabelled unknown, which reads as nobody_named and would take the picker
+// away for good in that tab.
+func TestAssembleNotes_WithNoJobAPickThatMadeNothingKeepsThePicker(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.extractor.passagesFn = offRosterAsUnknown()
+
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.monday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var resp AssembleNotesResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Empty(t, resp.NoteLinks)
+	assert.Empty(t, resp.ClassName, "nothing was filed, so no class is claimed")
+	assert.Empty(t, resp.NoNotesReason, "the handler cannot know the cause here, so it names none")
+	assert.True(t, resp.CanPickClass, "the picker must survive this")
+	assert.Empty(t, w.notesFor(t, w.alice))
+
+	// And the right class still works.
+	rec, _ = w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Len(t, w.notesFor(t, w.alice), 1)
 }
 
 // The recovery record reaches Sentry, so it may carry no name and no text
-// (docs/adr/0003).
+// (docs/adr/0003). The per-kind breakdown rides the completion record beside
+// it: this is the second place pass 2 runs, and a breakdown on one path only
+// makes the readout lie by omission.
 func TestAssembleNotes_RecoveryRecordOmitsNameAndText(t *testing.T) {
 	w := newAssembleWorld(t)
-	w.doneJob(t, declinedPassages())
+	w.misfiledJob(t)
 
-	rec, logs := w.post(t, "u1", w.uploadID, AssembleNotesRequest{
-		ClassName: w.tuesday, Passages: declinedPassages(),
-	})
+	rec, logs := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, logs, "process voice note: passage recovered")
+	assert.Contains(t, logs, `"route":"class_picker"`)
+	assert.Contains(t, logs, `"passages_child":2`)
+	assert.Contains(t, logs, `"passages_total":2`)
 	assert.NotContains(t, logs, "Alice", "no student name")
 	// The summary is what a note holds; every passage's ends in this string,
 	// which carries no name of its own, so the assertion fails on the text
@@ -296,20 +563,19 @@ func TestAssembleNotes_RecoveryRecordOmitsNameAndText(t *testing.T) {
 
 // A class the caller does not own is a 404, and so is another teacher's
 // recording — the same body either way, so probing tells the caller nothing.
+// Neither reaches the model: ownership runs ahead of pass 2, so a probe cannot
+// spend a model call or take a lock.
 func TestAssembleNotes_RefusesWhatTheCallerDoesNotOwn(t *testing.T) {
 	w := newAssembleWorld(t)
-	w.doneJob(t, declinedPassages())
+	w.misfiledJob(t)
 
-	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{
-		ClassName: "Someone else's class", Passages: declinedPassages(),
-	})
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: "Someone else's class"})
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	rec, _ = w.post(t, "u2", w.uploadID, AssembleNotesRequest{
-		ClassName: w.tuesday, Passages: declinedPassages(),
-	})
+	rec, _ = w.post(t, "u2", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 	assert.Empty(t, w.notesFor(t, w.alice))
+	assert.Empty(t, w.extractor.calls(), "a 404 must make no model call")
 }
 
 // A row the retention cleanup emptied, or a job that failed before
@@ -320,45 +586,108 @@ func TestAssembleNotes_RefusesARowWithNoTranscript(t *testing.T) {
 	vn, err := w.voiceNotes.Create(ctx, "u1", "silent.m4a", "/nowhere/silent.m4a")
 	require.NoError(t, err)
 
-	rec, _ := w.post(t, "u1", vn.ID, AssembleNotesRequest{
-		ClassName: w.tuesday, Passages: declinedPassages(),
-	})
+	rec, _ := w.post(t, "u1", vn.ID, AssembleNotesRequest{ClassName: w.tuesday})
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
-func TestAssembleNotes_RequiresAClassAndPassages(t *testing.T) {
+// The class is the whole body since #127. A tab open from before still posts
+// its passages; Go's decoder ignores them and the pick works.
+func TestAssembleNotes_RequiresAClassAndIgnoresAnythingElse(t *testing.T) {
 	w := newAssembleWorld(t)
 	for _, tc := range []struct {
 		name string
 		body any
+		code int
 	}{
-		{"no class", AssembleNotesRequest{Passages: declinedPassages()}},
-		{"no passages", AssembleNotesRequest{ClassName: w.tuesday}},
-		{"not json", "{"},
+		{"no class", AssembleNotesRequest{}, http.StatusBadRequest},
+		{"not json", "{", http.StatusBadRequest},
+		{"an old tab's passages", map[string]any{
+			"className": w.tuesday,
+			"passages":  []JobPassage{{Kind: PassageChild, Summary: "words the model never wrote"}},
+		}, http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec, _ := w.post(t, "u1", w.uploadID, tc.body)
-			assert.Equal(t, http.StatusBadRequest, rec.Code)
+			assert.Equal(t, tc.code, rec.Code, rec.Body.String())
 		})
 	}
+	// And what the old tab posted reached no note.
+	notes := w.notesFor(t, w.alice)
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Alice's passage", notes[0].Summary)
 }
 
 // One child named in two passages gets one note holding both, not two notes.
-// The single-call extractor returns one passage per child, so this is what
-// stops a group passage — the shape #125 adds — landing a note per passage.
-func TestAssembleNotes_GroupsPassagesByChild(t *testing.T) {
+// This is assemblePassages' own rule, and the point of the picker calling it:
+// the deleted resolvePassages dropped the group passage the pipeline fans out
+// to every child, so the two paths made different notes from one recording.
+func TestAssembleNotes_FoldsPassagesTheWayThePipelineDoes(t *testing.T) {
 	w := newAssembleWorld(t)
-	passages := []JobPassage{
-		{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Summary: "first"},
-		{Kind: PassageChild, SpokenLabels: []string{"Alice", "Bob"}, Summary: "second"},
+	w.extractor.passagesFn = func(ClassGroup) []ExtractedPassage {
+		return []ExtractedPassage{
+			{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "first"},
+			{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "second"},
+			{Kind: PassageGroup, Summary: "everyone worked hard"},
+		}
 	}
-	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday, Passages: passages})
+	rec, _ := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	alice := w.notesFor(t, w.alice)
 	require.Len(t, alice, 1)
-	assert.Equal(t, "first\n\nsecond", alice[0].Summary)
-	require.Len(t, w.notesFor(t, w.bob), 1)
+	assert.Equal(t, "first\n\nsecond\n\neveryone worked hard", alice[0].Summary)
+	// Bob was never named, so the class-wide remark reaches him not at all.
+	assert.Empty(t, w.notesFor(t, w.bob))
+}
+
+// assembleOutcome is where a pick decides what the teacher is told, so its
+// three outcomes are pinned directly rather than only through the route.
+func TestAssembleOutcome(t *testing.T) {
+	ran := AssembleNotesResponse{
+		ClassName: "Tuesday",
+		NoteLinks: []NoteLink{{Name: "Alice", NoteID: 1}},
+		Passages:  []JobPassage{{Kind: PassageChild, Summary: "x"}},
+	}
+	job := &VoiceNoteJob{
+		ClassName: "", Passages: []JobPassage{{Kind: PassageUnknown, Summary: "y"}},
+		NoNotesReason: NoNotesClassUnclear, CanPickClass: true,
+	}
+
+	t.Run("notes created", func(t *testing.T) {
+		got := assembleOutcome(job, ran)
+		assert.Equal(t, ran, got, "what the run produced, verbatim")
+		assert.False(t, got.CanPickClass, "the recording is filed")
+	})
+
+	t.Run("no notes, job known", func(t *testing.T) {
+		empty := ran
+		empty.NoteLinks = nil
+		got := assembleOutcome(job, empty)
+		assert.Empty(t, got.NoteLinks)
+		assert.Empty(t, got.ClassName, "the job holds no class, and neither does the answer")
+		assert.Equal(t, NoNotesClassUnclear, got.NoNotesReason, "the job's own reason, unchanged")
+		assert.Equal(t, job.Passages, got.Passages)
+		assert.True(t, got.CanPickClass)
+	})
+
+	t.Run("no notes, job forgotten", func(t *testing.T) {
+		empty := ran
+		empty.NoteLinks = nil
+		got := assembleOutcome(nil, empty)
+		assert.Empty(t, got.NoteLinks)
+		assert.Empty(t, got.ClassName, "nothing was filed")
+		assert.Empty(t, got.NoNotesReason, "the cause is unknowable here, so none is named")
+		assert.True(t, got.CanPickClass, "and the teacher can still try")
+	})
+}
+
+func TestCanPickClass(t *testing.T) {
+	assert.True(t, canPickClass(NoNotesClassUnclear))
+	assert.True(t, canPickClass(NoNotesNoNameMatched))
+	// A recording that named nobody cannot be rescued by a class: the names are
+	// read off the transcript, and no pick puts one there.
+	assert.False(t, canPickClass(NoNotesNobodyNamed))
+	assert.False(t, canPickClass(""), "a recording with notes has nothing to pick")
 }
 
 func TestNoNotesReason(t *testing.T) {

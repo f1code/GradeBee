@@ -69,6 +69,36 @@ describe('ClassPicker', () => {
     })
   })
 
+  // The pick is a 2-3s round trip since #127 — the server runs extraction's
+  // second pass against the class it was handed. Every option is dead while it
+  // is in flight, or an impatient teacher files the same recording twice.
+  it('disables every option while a pick is in flight', async () => {
+    const user = userEvent.setup()
+    let finish: () => void = () => {}
+    const onPick = vi.fn().mockReturnValue(new Promise<void>(resolve => { finish = resolve }))
+    const { default: ClassPicker } = await import('../ClassPicker')
+    render(<ClassPicker onPick={onPick} />)
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('class-picker-option')).toHaveLength(2)
+    })
+    await user.click(screen.getByText('Pam & Paul · Wed · 14.10'))
+
+    await waitFor(() => {
+      expect(screen.getByText('Creating notes…')).toBeInTheDocument()
+    })
+    screen.getAllByTestId('class-picker-option').forEach(o => expect(o).toBeDisabled())
+
+    // The other class is not merely styled dead: clicking it does nothing.
+    await user.click(screen.getByText('Pam & Paul · Wed · 16.30'))
+    expect(onPick).toHaveBeenCalledTimes(1)
+
+    finish()
+    await waitFor(() => {
+      screen.getAllByTestId('class-picker-option').forEach(o => expect(o).toBeEnabled())
+    })
+  })
+
   it('shows why a pick failed and leaves the options usable', async () => {
     const user = userEvent.setup()
     const onPick = vi.fn().mockRejectedValue(new Error('this recording already has notes'))

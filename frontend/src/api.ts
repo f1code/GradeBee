@@ -678,14 +678,13 @@ export async function dismissJobs(
  * File a recording under a class the teacher picked, and make the notes it
  * would have made had the extraction read it against that roster (#115).
  *
- * The passages go back exactly as the card received them; the server reads the
- * transcript from its own row and re-resolves each spoken label against the
- * picked class.
+ * The class is the whole body. The server reads the transcript from its own row
+ * and runs extraction's second pass against the picked class, so the words in
+ * every note are the model's own — takes 2-3s.
  */
 export async function assembleNotes(
   uploadId: number,
   className: string,
-  passages: JobPassage[],
   getToken: () => Promise<string | null>
 ): Promise<AssembleNotesResponse> {
   const token = await getToken()
@@ -698,7 +697,7 @@ export async function assembleNotes(
     // `satisfies` rather than a bare object: the request type is generated from
     // the Go struct, so a renamed field there fails this build instead of
     // reaching the server as a body it silently ignores.
-    body: JSON.stringify({ className, passages } satisfies AssembleNotesRequest),
+    body: JSON.stringify({ className } satisfies AssembleNotesRequest),
   })
   const body = await readBody(resp)
   if (!resp.ok) throw new Error(body.error || 'Failed to create the notes')

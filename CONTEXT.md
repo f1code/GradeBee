@@ -46,7 +46,11 @@ One stretch of a recording as extraction read it: who it is about, the names the
 _Avoid_: Mention (what the previous contract extracted — one entry per student, not a stretch of speech), clause, span
 
 **Unattributed**:
-A passage that reached no Student: the recording named nobody in it, or named somebody the Class's roster does not answer for. It keeps the teacher's words and is what the class picker re-resolves when a recording was read against the wrong Class.
+A passage that reached no Student: the recording named nobody in it, or named somebody the Class's roster does not answer for. It keeps the teacher's words, and it is what a Teacher sees on a recording read against the wrong Class — the case the Decline below shares an endpoint with.
+
+**Decline**:
+Extraction saying it cannot tell which Class a recording is about, rather than guessing one. The header was missing, or it named two. A declined recording produces no Passages and no Notes; the card says the class wasn't clear and offers the class picker, and the Teacher's pick is what runs the extraction that was deferred.
+_Avoid_: failure (a declined recording finished; a failed one did not, and its route is retry, not a Class)
 
 **Report**:
 An LLM-generated report card for one Student, drawing on their Notes and the Level's Report Instructions.

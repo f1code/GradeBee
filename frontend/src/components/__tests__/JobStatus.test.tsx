@@ -199,12 +199,12 @@ describe('JobStatus', () => {
     expect(screen.getByText('No notes created')).toBeInTheDocument()
   })
 
-  // The flow the class picker exists for: names were spoken, the recording was
-  // read against the wrong roster and nobody got a note. Gated on that reason
-  // and not on a passage count, because the passage contract (#125) returns
+  // Two recordings a class can rescue, and the server says which. Gated on the
+  // reason and not on a passage count: the passage contract (#125) returns
   // passages that named nobody — a pronoun-only block, a class-wide remark —
-  // which no picked class can resolve. Not gated on class_unclear either:
-  // pass 1's enum carries no "", so nothing can decline yet (#127).
+  // which no picked class can resolve, and a declined recording (#127) carries
+  // no passages at all, so a count would hide the picker on the card that needs
+  // it most.
   describe('class picker', () => {
     // Typed like doneCard above, and for the same reason: a rename in the Go
     // types must break `tsc -b` here rather than pass against a dead shape.
@@ -218,6 +218,7 @@ describe('JobStatus', () => {
       status: 'done' as const,
       noteLinks: [],
       noNotesReason: NoNotesNoNameMatched,
+      canPickClass: true,
       passages: [
         { kind: 'child', spokenLabels: ['Alice'], summary: 'Alice did great.' },
       ],
@@ -248,23 +249,28 @@ describe('JobStatus', () => {
       await waitFor(() => {
         expect(screen.getByText('1 note created')).toBeInTheDocument()
       })
-      // The passages go back as the card received them: the server re-resolves
-      // them against the picked class.
-      expect(mockAssembleNotes).toHaveBeenCalledWith(9, 'Tuesday', noNoteCard.passages, expect.anything())
+      // The class is the whole request. The server reads the transcript from
+      // its own row and runs pass 2 against the picked class, so the words in
+      // the notes are the model's own (#127).
+      expect(mockAssembleNotes).toHaveBeenCalledWith(9, 'Tuesday', expect.anything())
       expect(screen.queryByTestId('class-picker')).not.toBeInTheDocument()
       expect(screen.getByText('Alice')).toBeInTheDocument()
     })
 
     // Picking the wrong one of two sibling classes is the mistake this path
     // exists to undo, so a pick that made no note must leave the picker up.
+    //
+    // The server files nothing on this outcome and its response says so — no
+    // class, and the reason the card already had.
     it('keeps the picker after a pick that resolved nobody', async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [noNoteCard] })
       mockAssembleNotes.mockResolvedValue({
-        className: 'Monday',
+        className: '',
         noteLinks: [],
         passages: noNoteCard.passages ?? [],
         noNotesReason: NoNotesNoNameMatched,
+        canPickClass: true,
       } satisfies AssembleNotesResponse)
 
       const { default: JobStatus } = await import('../JobStatus')
@@ -282,11 +288,41 @@ describe('JobStatus', () => {
       expect(screen.getByText('No notes — no names matched your roster.')).toBeInTheDocument()
     })
 
+    // The decline (#127): pass 1 could not pin a class, so pass 2 never ran and
+    // the card holds no passages at all. The picker is the whole way out, and
+    // the pick is that pass's deferred first run.
+    it('offers the picker on a recording whose class was never pinned', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      const declined: UploadJob = { ...noNoteCard, passages: [], noNotesReason: NoNotesClassUnclear, canPickClass: true }
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [declined] })
+      mockAssembleNotes.mockResolvedValue({
+        className: 'Tuesday',
+        noteLinks: [{ name: 'Alice', noteId: 40, studentId: 11, className: 'Tuesday' }],
+        passages: [{ kind: 'child', spokenLabels: ['Alice'], student: 'Alice', summary: 'Alice did great.' }],
+      } satisfies AssembleNotesResponse)
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('class-picker')).toBeInTheDocument()
+      })
+      expect(screen.getByText("No notes — the class wasn't clear. Say the class and time at the start.")).toBeInTheDocument()
+
+      await user.click(screen.getByText('Tuesday'))
+
+      await waitFor(() => {
+        expect(screen.getByText('1 note created')).toBeInTheDocument()
+      })
+      expect(mockAssembleNotes).toHaveBeenCalledWith(9, 'Tuesday', expect.anything())
+      expect(screen.queryByTestId('class-picker')).not.toBeInTheDocument()
+    })
+
     // A card that made notes has nothing to pick, and neither has one that
     // heard no name at all.
     it.each([
-      ['notes were made', { ...noNoteCard, noteLinks: [{ name: 'Alice', noteId: 1, studentId: 11, className: 'Tuesday' }], noNotesReason: undefined }],
-      ['nobody was named', { ...noNoteCard, passages: [], noNotesReason: NoNotesNobodyNamed }],
+      ['notes were made', { ...noNoteCard, noteLinks: [{ name: 'Alice', noteId: 1, studentId: 11, className: 'Tuesday' }], noNotesReason: undefined, canPickClass: false }],
+      ['nobody was named', { ...noNoteCard, passages: [], noNotesReason: NoNotesNobodyNamed, canPickClass: false }],
       // The case the passage contract adds: the recording produced passages,
       // and not one of them speaks a name. A class picked here has nothing to
       // resolve, so the picker would be a button that cannot work.
@@ -299,8 +335,13 @@ describe('JobStatus', () => {
             { kind: 'group' as const, summary: 'Everyone worked hard.' },
           ],
           noNotesReason: NoNotesNobodyNamed,
+          canPickClass: false,
         },
       ],
+      // The gate is the server's flag, not this component's reading of the
+      // reason: a card the server says cannot be rescued gets no picker even
+      // when its reason is one the picker usually appears on.
+      ['the server says a class cannot rescue it', { ...noNoteCard, canPickClass: false }],
     ])('offers no picker when %s', async (_name, card) => {
       mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [card] })
 

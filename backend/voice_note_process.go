@@ -187,9 +187,9 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	studentRepo := d.GetStudentRepo()
 
 	// One note per child, and the passages the done card gets back. The card
-	// hands the passages to the assemble endpoint when the teacher picks a
-	// class, so a recording read against the wrong roster has a way out — which
-	// is exactly the recording whose passages all reached nobody.
+	// shows them as what the recording held; it does not hand them back to the
+	// assemble endpoint, which since #127 runs pass 2 itself against the class
+	// the teacher picks.
 	notes, passages := assemblePassages(extractResult.Passages)
 
 	var noteLinks []NoteLink
@@ -294,7 +294,25 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	job.NoteLinks = noteLinks
 	job.Passages = passages
 	job.ClassName = singleClass(noteLinks)
-	job.NoNotesReason = noNotesReason(len(noteLinks), passages)
+	// One reason, chosen once. A decline is not a noNotesReason case at all:
+	// pass 1 could not pin a class, so pass 2 never ran and there are no
+	// passages, and anySpokenLabel(nil) is false — noNotesReason would answer
+	// nobody_named and the card would suppress the class picker on exactly the
+	// recording that needs it.
+	//
+	// extractResult.ClassName, not job.ClassName. singleClass reads the note
+	// links, so it is empty for a *pinned* class whose passages all reached
+	// nobody too — and that recording's route is an alias, not a class.
+	switch {
+	case extractResult.ClassName == "":
+		job.NoNotesReason = NoNotesClassUnclear
+	default:
+		job.NoNotesReason = noNotesReason(len(noteLinks), passages)
+	}
+	// The card's gate for the class picker, decided here because this is the
+	// only place that knows both the pinned class and what came back. The
+	// assemble handler carries this value rather than recomputing it.
+	job.CanPickClass = canPickClass(job.NoNotesReason)
 	job.Error = ""
 	job.FailedAt = nil
 	if err := q.UpdateJob(ctx, *job); err != nil {
@@ -320,6 +338,12 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	log.Info("process voice note completed",
 		"key", key, "user_id", userID, "upload_id", uploadID,
 		"note_count", len(noteLinks),
+		// Without this a decline is unreadable here: it stores no passages and
+		// emits no drop record, so it lands as passages_total=0 with every kind
+		// zero — the same shape as an extraction that cut the recording into
+		// nothing. The decline rate is the number that says whether declining
+		// is helping teachers or stranding them, so it has to be legible.
+		"no_notes_reason", job.NoNotesReason,
 		"passages_total", len(extractResult.Passages),
 		"passages_child", kinds[PassageChild],
 		"passages_unknown", kinds[PassageUnknown],

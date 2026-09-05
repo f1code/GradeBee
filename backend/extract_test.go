@@ -30,16 +30,19 @@ func testClasses() []ClassGroup {
 	}
 }
 
-// TestClassPickSchemaHasNoDecline pins the seam between this task and #127.
-// Pass 1's enum carries the teacher's class names and nothing else, so the
-// model always pins a class — even though the prompt tells it to return "".
-// Adding "" here is the whole of turning the decline on.
-func TestClassPickSchemaHasNoDecline(t *testing.T) {
+// TestClassPickSchemaAllowsTheDecline: pass 1's enum is the teacher's class
+// names plus "", and that one value is the whole of #127's model-facing change.
+// classPickPromptSuffix has always told the model to return "" when the header
+// names no single class; until this value existed the instruction could not be
+// obeyed.
+//
+// It goes last, which is where the measured probe put it
+// (research/2026-09-05-123-summaries-vs-spans, classNamesEnum).
+func TestClassPickSchemaAllowsTheDecline(t *testing.T) {
 	var schema schemaProp
 	require.NoError(t, json.Unmarshal(classPickSchema(testClasses()), &schema))
 
-	assert.Equal(t, []string{"Period 3", "Period 5"}, schema.Properties["class_name"].Enum)
-	assert.NotContains(t, schema.Properties["class_name"].Enum, "", "an empty class name would let pass 1 decline; that is #127")
+	assert.Equal(t, []string{"Period 3", "Period 5", ""}, schema.Properties["class_name"].Enum)
 	assert.Equal(t, []string{"class_name"}, schema.Required)
 }
 
@@ -259,10 +262,29 @@ func TestExtractWithNoRosterSkipsTheModel(t *testing.T) {
 	assert.Empty(t, provider.calls, "no roster means nothing to ask")
 }
 
+// TestExtractDeclines: the header was missing, or it named two classes, and
+// pass 1 said so rather than guessing. No pass 2 — there is no roster to run it
+// against — and no error: a decline is a finished recording with no notes, not
+// a failed one. The empty class name is what the pipeline reads to put the
+// class picker on the card.
+func TestExtractDeclines(t *testing.T) {
+	provider := &twoPassProvider{replies: []string{`{"class_name":""}`}}
+
+	got, err := newLLMExtractor(provider).Extract(t.Context(), ExtractRequest{
+		Transcript: "No header at all. Colm read well.",
+		Classes:    testClasses(),
+	})
+	require.NoError(t, err, "a decline must not fail the job: a failed card offers retry, not a class")
+
+	assert.Empty(t, got.ClassName)
+	assert.Empty(t, got.Passages)
+	assert.Len(t, provider.calls, 1, "pass 2 has no roster to run against")
+}
+
 // TestExtractRejectsAClassOffTheRoster: pass 1's schema is a strict enum over
-// the teacher's own class names, so a class outside it means a provider
+// the teacher's own class names plus "", so any other value means a provider
 // ignoring the schema. Failing the job says so; returning no passages would
-// call the recording empty.
+// call the recording empty — and is indistinguishable from the decline above.
 func TestExtractRejectsAClassOffTheRoster(t *testing.T) {
 	provider := &twoPassProvider{replies: []string{`{"class_name":"Period 9"}`}}
 

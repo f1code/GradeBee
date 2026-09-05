@@ -363,10 +363,6 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
 // a constant in Go and this stops compiling, where a literal would fall through
 // to the generic line and show every teacher nothing.
 //
-// class_unclear is unreachable on this branch — the extraction schema forces a
-// class from an enum of the teacher's own classes, so the model cannot decline.
-// #125's two-pass contract sets it; the wording is here so that lands as a value
-// rather than as a feature.
 function noNotesMessage(reason: string | undefined): string {
   switch (reason) {
     case NoNotesClassUnclear:
@@ -390,29 +386,30 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
   const { getToken } = useAuth()
 
   const view: UploadJob = assembled
-    ? { ...job, className: assembled.className, noteLinks: assembled.noteLinks, passages: assembled.passages, noNotesReason: assembled.noNotesReason }
+    ? { ...job, className: assembled.className, noteLinks: assembled.noteLinks, passages: assembled.passages, noNotesReason: assembled.noNotesReason, canPickClass: assembled.canPickClass }
     : job
   const noteCount = view.noteLinks?.length ?? 0
 
-  // Names were spoken and nobody got a note: the recording was read against the
-  // wrong roster, and picking the class is the way out. Not gated on
-  // class_unclear, which nothing on this branch sets — see noNotesMessage.
+  // The server decides this, and the card obeys. Not a list of the reasons this
+  // component happens to know about: that made an affordance out of a cause, so
+  // a reason added later silently took the picker off a card that could still
+  // be rescued, and it made the server name a cause it could not know in order
+  // to keep the picker up.
   //
-  // The reason, not the passage count. A recording can come back with passages
-  // that named nobody — a block the teacher only ever said "she" about, a
-  // class-wide remark — and no class picked here can resolve those, because
-  // there is no spoken name to resolve. The server says which case it is
-  // (noNotesReason, voice_note_assemble.go); counting passages instead would
-  // put up a button that cannot work.
+  // Not a passage count either. A recording can come back with passages that
+  // named nobody — a block the teacher only ever said "she" about, a class-wide
+  // remark — which no picked class can resolve, and a declined recording
+  // carries no passages at all, so counting them would hide the button on the
+  // card that needs it most.
   //
   // It stays up after a pick that made no note. Picking the wrong one of two
   // sibling classes is the mistake this path exists to undo; without a local
   // assembled result here the picker would vanish and there would be no second
   // attempt.
-  const needsClass = noteCount === 0 && view.noNotesReason === NoNotesNoNameMatched
+  const needsClass = noteCount === 0 && (view.canPickClass ?? false)
 
   async function pickClass(className: string) {
-    setAssembled(await assembleNotes(job.uploadId, className, view.passages ?? [], getToken))
+    setAssembled(await assembleNotes(job.uploadId, className, getToken))
   }
 
   return (
