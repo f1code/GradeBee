@@ -34,6 +34,7 @@ func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
 	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio"), 0o644))
 
+	uploadID := newTestVoiceNote(t, voiceNoteRepo, "user1", audioPath)
 	queue := newStubVoiceNoteQueue()
 	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
 	d := &mockDepsAll{
@@ -59,13 +60,13 @@ func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
 	ctx := context.Background()
 	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{
 		UserID:    "user1",
-		UploadID:  1,
+		UploadID:  uploadID,
 		FilePath:  audioPath,
 		FileName:  "recording.m4a",
 		Status:    JobStatusQueued,
 		CreatedAt: uploadedAt,
 	}))
-	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("user1", 1)))
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("user1", uploadID)))
 
 	require.Len(t, nc.calls, 1)
 	assert.Equal(t, "2026-02-10", nc.calls[0].Date,

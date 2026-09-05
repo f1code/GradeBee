@@ -6,11 +6,18 @@ vi.mock('motion/react', async () => {
   const React = await import('react')
 
   function createMotionProxy() {
+    // One component per tag, cached: a fresh one on every `motion.div` read
+    // would be a new component type each render, and React would remount the
+    // subtree and wipe any child state a test is watching.
+    const cache = new Map<string, unknown>()
+
     return new Proxy(
       {},
       {
         get(_target: Record<string, unknown>, prop: string) {
-          return React.forwardRef((props: Record<string, unknown>, ref: React.Ref<unknown>) => {
+          const cached = cache.get(prop)
+          if (cached) return cached
+          const component = React.forwardRef((props: Record<string, unknown>, ref: React.Ref<unknown>) => {
             const {
               initial: _initial,
               animate: _animate,
@@ -29,6 +36,8 @@ vi.mock('motion/react', async () => {
             void _layout; void _layoutId;
             return React.createElement(prop, { ...rest, ref })
           })
+          cache.set(prop, component)
+          return component
         },
       },
     )

@@ -70,7 +70,7 @@ Signed-in Notes tab (`activeTab === 'notes'` in `App.tsx`) is a single column. D
 
 1. Hint banner (unchanged)
 2. Recording / Add Notes (`AudioUpload`) first
-3. Job status when any jobs exist (`JobStatus` returns `null` otherwise)
+3. Job status when any jobs exist, or a card is still retained (`JobStatus` returns `null` otherwise)
 4. Roster (`StudentList`) below — loading, fetch error, and **No Classes Yet** stay in this slot. Class **cards** start collapsed behind the summary toggle at ≤640px; **Your Classes** and **+ Add Class** stay visible. Desktop (`> 640px`) stays expanded.
 
 How It Works onboarding still describes the lifetime workflow (set up classes, then record). That is not the daily screen order.
@@ -145,6 +145,20 @@ the real gate.
   `.report-level-block-blocker`, `.report-level-name`,
   `.report-level-blocker-text`, `.report-level-instructions`,
   `.report-level-instructions-text` — defined in `reports.css`.
+
+### Done cards (job card)
+
+A done card the teacher has seen stays on screen until they dismiss it or reload the tab: the
+job queue is in memory, so a server restart empties the polled list, and a review must never
+vanish on its own. Five cards are kept, newest first; a sixth expires the oldest. On a live
+server an expired card returns as the cards above it are dismissed. Polling keeps running at
+the idle interval while a card is retained. Dismiss removes the card first and tells the server
+after, and a dismissed card never comes back on a later poll.
+
+A card that made no note offers the class picker (`.class-picker*`, defined in
+`roster-upload.css`): the prompt, an error line, and one small secondary button per class the
+teacher owns. Every class is listed, not a shortlist — the extraction has already chosen wrong
+once on this recording.
 
 ### Error Patterns
 

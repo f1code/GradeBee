@@ -252,7 +252,7 @@ There are two distinct sets of variables:
 | `MISTRAL_API_KEY` | Yes (`secrets.yml`) | Mistral API key (used when `LLM_PROVIDER=mistral`) |
 | `DB_PATH` | No (`vars.yml`) | SQLite path (default `/data/gradebee.db`) |
 | `UPLOADS_DIR` | No (`vars.yml`) | Audio upload directory (default `/data/uploads`) |
-| `UPLOAD_RETENTION_HOURS` | No (`vars.yml`) | Hours to keep processed audio (default 168 = 7 days) |
+| `UPLOAD_RETENTION_HOURS` | No (`vars.yml`) | Hours to keep a voice note's row, its transcript, and any audio still on disk, counted from processing or dismissal, or from upload if neither happened (default 168 = 7 days) |
 | `ALLOWED_ORIGIN` | No (`vars.yml`) | CORS origin (default `*`; in prod the SPA is same-origin so CORS is unused) |
 | `LOG_LEVEL` | No (`vars.yml`) | `DEBUG`/`INFO`/`WARN`/`ERROR` (default `INFO`) |
 | `LOG_FORMAT` | No (`vars.yml`) | `json` for JSON logs, else text |

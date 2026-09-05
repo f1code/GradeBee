@@ -1,0 +1,28 @@
+{
+  "_comment": "Note 655's shape with synthetic names: two children in one exchange, a different observation about each. The transcript joins the two children in ONE clause, which note 655's own wording does not — its comma is removed on purpose, so the fixture tests the shared clause rather than a boundary the model can simply find. Green since #120: the prompt's span arithmetic carries an exception for this shape, the model returns a span per child at the same start, and AssembleNotes derives each span's end from the next greater start, so two spans hold the one clause with a summary each. Measured 25 runs of 25 on mistral-medium-2508 and 21 of 25 on gpt-5.4-mini; without the exception gpt-5.4-mini scored 0 of 25. This fixture is the guard on that sentence: it goes red if a model merges the clause into one span with both labels, which gives each child the other's observation (the #99 bleed), and red again if Go goes back to rejecting a repeated start, which fails the whole job. Nadia and Bruno are far apart phonetically on purpose: the only thing this fixture can fail on is the merge, never name resolution. The 'colours' clause is class-wide and reaches both children.",
+  "expected_students": [
+    {
+      "name": "Nadia",
+      "class_name": "Sandrine · Tue · 16.30",
+      "must_quote_substrings": [
+        "/asked to stop speaking/",
+        "/colours/"
+      ],
+      "must_not_quote_substrings": [
+        "/talked to to stop talking/"
+      ]
+    },
+    {
+      "name": "Bruno",
+      "class_name": "Sandrine · Tue · 16.30",
+      "must_quote_substrings": [
+        "/talked to to stop talking/",
+        "/colours/"
+      ],
+      "must_not_quote_substrings": [
+        "/asked to stop speaking/"
+      ]
+    }
+  ],
+  "must_not_extract": []
+}

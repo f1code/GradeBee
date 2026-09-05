@@ -1,41 +1,12 @@
 {
-  "expected_students": [
-    {
-      "name": "Noah Jensen",
-      "class_name": "Class A",
-      "must_quote_substrings": [
-        "improvement in his writing",
-        "sentence structure"
-      ],
-      "must_not_quote_substrings": [
-        "science experiment",
-        "off task"
-      ]
-    },
-    {
-      "name": "Sophie Nguyen",
-      "class_name": "Class B",
-      "must_quote_substrings": [
-        "science experiment",
-        "thoughtful questions"
-      ],
-      "must_not_quote_substrings": [
-        "improvement in his writing",
-        "off task"
-      ]
-    },
-    {
-      "name": "Jacob Williams",
-      "class_name": "Class B",
-      "must_quote_substrings": [
-        "off task",
-        "disturbing others"
-      ],
-      "must_not_quote_substrings": [
-        "improvement in his writing",
-        "science experiment"
-      ]
-    }
-  ],
-  "must_not_extract": []
+  "_comment": "One recording, two classes named inline and no header identifying either. Since #99 a recording is about exactly one class: the model returns an empty class_name rather than guessing, and AssembleNotes attaches every span to nobody. So the pass condition is zero notes — a wrong class puts one child's observations in another child's note, which is what #99 exists to stop. must_not_extract carries every content phrase: whichever class the model wrongly picked, the leak shows up here. The unattributed spans still hold the right text for #80 to assign by hand. Roster names were full names until #108 switched them to first names, the shape the teacher speaks — see task #111.",
+  "expected_students": [],
+  "must_not_extract": [
+    "improvement in his writing",
+    "sentence structure",
+    "science experiment",
+    "thoughtful questions",
+    "off task",
+    "disturbing others"
+  ]
 }

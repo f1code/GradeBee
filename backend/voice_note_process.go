@@ -48,13 +48,13 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	userID := job.UserID
 	uploadID := job.UploadID
 
-	// failWith marks the job failed and returns the error, writing to two audiences.
+	// failJob marks the job failed and returns the error, writing to two audiences.
 	//
 	// step is telemetry: it is logged here, and the returned error is logged again by
 	// the queue worker, so both reach Sentry and neither may carry a student name
-	// (docs/adr/0003). detail is what the teacher reads — JobStatus renders job.Error
-	// — so it names the student they are entitled to see.
-	failWith := func(step, detail string, err error) error {
+	// (docs/adr/0003). message is what the teacher reads verbatim — JobStatus
+	// renders job.Error.
+	failJob := func(step, message string, err error) error {
 		if errors.Is(err, errNoSpeechDetected) {
 			log.Warn("process voice note failed", "step", step, "key", key, "error", err)
 		} else {
@@ -62,12 +62,24 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		now := time.Now()
 		job.Status = JobStatusFailed
-		job.Error = fmt.Sprintf("%s: %s", detail, err.Error())
+		job.Error = message
 		job.FailedAt = &now
 		if updateErr := q.UpdateJob(ctx, *job); updateErr != nil {
 			log.Error("process voice note: failed to update job status to failed", "error", updateErr)
 		}
 		return fmt.Errorf("process voice note: %s: %w", step, err)
+	}
+	// failWith composes the teacher's message from detail plus the raw error. detail
+	// may name the student they are entitled to see; step must not.
+	failWith := func(step, detail string, err error) error {
+		return failJob(step, fmt.Sprintf("%s: %s", detail, err.Error()), err)
+	}
+
+	// failTooOld is for a retry that outlived the retention cleanup: the audio file
+	// or the voice_notes row is gone, and no wording of the raw error helps the
+	// teacher. Same telemetry step as the raw failure would have carried.
+	failTooOld := func(step string, err error) error {
+		return failJob(step, "this upload is too old to retry", err)
 	}
 
 	// Helper to mark job as failed and return the error, where the same wording
@@ -80,9 +92,9 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	roster := d.GetRoster(ctx, userID)
 	var transcript string
 	if job.Transcript != "" {
-		// Text input — skip transcription entirely.
+		// Text input, or a retry after transcription — skip transcription entirely.
 		transcript = job.Transcript
-		log.Info("process voice note: skipping transcription (text input)", "key", key)
+		log.Info("process voice note: skipping transcription, job already carries the text", "key", key)
 	} else {
 		job.Status = JobStatusTranscribing
 		if err := q.UpdateJob(ctx, *job); err != nil {
@@ -91,6 +103,11 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 
 		audioFile, err := os.Open(job.FilePath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				// The retention cleanup removed the file: a job that failed before
+				// transcription and was retried after the window.
+				return failTooOld("open audio file", err)
+			}
 			return fail("open audio file", err)
 		}
 		defer audioFile.Close()
@@ -119,6 +136,9 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 
 		// Delete the audio file immediately after successful transcription —
 		// the raw recording is no longer needed; the transcript is sufficient.
+		// This comes before the transcript is persisted, on purpose: the privacy
+		// page promises the recording is gone right after transcription, so no
+		// failure below may leave it on disk.
 		if job.FilePath != "" {
 			if removeErr := os.Remove(job.FilePath); removeErr != nil && !os.IsNotExist(removeErr) {
 				log.Warn("process voice note: could not delete audio after transcription",
@@ -130,6 +150,19 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 				}
 			}
 		}
+	}
+
+	// Persist the transcript on the voice_notes row before extraction, so it exists
+	// whether or not any note is created — the only other copy is notes.transcript,
+	// written per created note. A failed write fails the job: the job struct keeps
+	// the transcript, so a retry skips transcription and lands here again. The
+	// error carries no transcript (docs/adr/0003).
+	if err := d.GetVoiceNoteRepo().SetTranscript(ctx, uploadID, transcript); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			// The retention cleanup removed the row: a retry that outlived the window.
+			return failTooOld("persist transcript", err)
+		}
+		return fail("persist transcript", err)
 	}
 
 	// --- Step 2: Extract ---
@@ -167,6 +200,12 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 
 	var noteLinks []NoteLink
 
+	// Every mention the model returned, whether or not it became a note. The
+	// done card hands these back to the assemble endpoint when the teacher
+	// picks a class, so a recording read against the wrong roster has a way
+	// out; a mention dropped below is exactly the one that needs it.
+	passages := make([]JobPassage, 0, len(extractResult.Students))
+
 	// The note's date is the day the teacher recorded, which is the day the job was
 	// created at upload (voice_note_dispatch.go) — not time.Now(). Processing is queued
 	// and retryable (handleJobRetry republishes the same job struct, and Publish stores
@@ -189,6 +228,16 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	var mentionsBelowHeadroom, droppedLowConfidence, droppedNoRosterMatch int
 
 	for _, student := range extractResult.Students {
+		passage := JobPassage{
+			Kind: PassageChild,
+			// The label as the model wrote it. It is canonical against the
+			// roster the model was shown, which on a recording filed to the
+			// wrong class is the wrong roster — MatchStudent re-resolves it
+			// against the class the teacher picks.
+			SpokenLabels: []string{student.Name},
+			Summary:      student.QuotedText,
+		}
+
 		// Counts every mention under the ceiling, including those already under the
 		// auto-create gate — so this is the total at a stricter threshold, not the
 		// additional drops that moving the gate there would cause.
@@ -211,6 +260,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 				"candidate_count", len(student.Candidates),
 				"class_name", student.ClassName,
 				"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
+			passages = append(passages, passage)
 			continue
 		}
 
@@ -230,6 +280,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 					"candidate_count", len(student.Candidates),
 					"class_name", student.ClassName,
 					"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
+				passages = append(passages, passage)
 				continue
 			}
 			// The failed lookup is the only source of an identifier here, so telemetry
@@ -255,6 +306,8 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			Name: student.Name, NoteID: result.NoteID,
 			StudentID: studentID, ClassName: student.ClassName,
 		})
+		passage.Student = student.Name
+		passages = append(passages, passage)
 	}
 
 	// --- Done ---
@@ -265,6 +318,9 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 
 	job.Status = JobStatusDone
 	job.NoteLinks = noteLinks
+	job.Passages = passages
+	job.ClassName = singleClass(noteLinks)
+	job.NoNotesReason = noNotesReason(len(noteLinks), len(passages))
 	job.Error = ""
 	job.FailedAt = nil
 	if err := q.UpdateJob(ctx, *job); err != nil {
@@ -289,4 +345,22 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		"dropped_no_roster_match", droppedNoRosterMatch,
 		"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	return nil
+}
+
+// singleClass names the class a recording's notes were filed under, or "" when
+// they went to more than one. The card shows it, and a recording spanning two
+// classes has no single answer — saying one of them would be a guess about
+// which one the teacher meant.
+func singleClass(links []NoteLink) string {
+	name := ""
+	for _, l := range links {
+		if name == "" {
+			name = l.ClassName
+			continue
+		}
+		if l.ClassName != name {
+			return ""
+		}
+	}
+	return name
 }

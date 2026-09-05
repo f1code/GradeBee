@@ -107,7 +107,8 @@ evals/
 
 ## Extraction scoring axes
 
-`scoring/extraction.js` grades four axes; the assertion passes only if all four do.
+`scoring/extraction.js` grades four hard axes plus one soft one; the assertion
+passes only if the hard four do and nothing forbidden leaked.
 
 | Axis | Fixture field | What it catches |
 | --- | --- | --- |
@@ -115,6 +116,27 @@ evals/
 | voice_preservation | `must_quote_substrings` | a student's own observation was dropped or paraphrased away |
 | attribution | `must_not_quote_substrings` | cross-student bleed — another student's observation landed in this entry |
 | (global) | `must_not_extract` | forbidden content leaked into any entry |
+| preference (soft) | `should_quote_substrings` | text that makes a note better and whose absence is not a defect |
+
+`should_quote_substrings` scores as the fraction matched and is deliberately kept
+out of the pass decision, so a run that drops it scores lower and still passes.
+Taught vocabulary is what it exists for: "He was doing good with making the full
+sentences. Yes, I can. No, I can't." names the structure, where the first
+sentence alone does not — but the model carries the drill into the notes only
+some runs, and the run that misses it is not a bad recording. The axis is
+skipped entirely for a fixture that defines none, so adding it moved no other
+row's score.
+
+The result also carries a `hard` named score: the same score with the soft axis
+taken out. `scripts/diff-baseline.js` reads `hard` as the regression signal,
+because a preferred phrase the model reaches only some runs swings a row by more
+than the differ's ±0.05 band and would announce a regression nobody caused.
+
+**This file owns the measured rate.** 15 runs of `fuzzy_name_matching`,
+`mistral-medium-2508`, no cache: 10 runs carried no drill at all, 5 carried the
+class drill to all five children, and **none** carried Théo's own drill into his
+note. So the class drill lands about one run in three and his own never does —
+worth knowing before anyone tunes the prompt for it.
 
 `must_not_quote_substrings` is the per-student counterpart of `must_not_extract`.
 It exists because precision/recall compare only the *set* of extracted names: a
@@ -124,6 +146,36 @@ reached production unnoticed, so every new multi-student fixture should carry
 `must_not_quote_substrings` listing the other named students.
 
 Both substring fields accept a plain substring or `/pattern/flags` regex syntax.
+
+## Fixtures #125 owns
+
+Five extraction fixtures arrived with the port (#126) and one was rewritten by
+it. All six describe a contract this branch does not implement: the model is
+allowed to decline a class rather than guess, and the recording is cut into
+passages before names are resolved. Today's extractor constrains `class_name`
+to a JSON-schema enum of the teacher's own classes, so it cannot decline. #125
+lands that contract; these rows are what it will be measured against, and a red
+one here is not a new regression.
+
+Their `_comment` fields were written against that contract and name types this
+branch does not have (`AssembleNotes`, spans, clause arithmetic). Read them as
+the fixture's provenance — which real note it came from and what it is for —
+not as a description of how the code under test works today.
+
+Scores are `gradebee-extract` (`mistral-medium-2508`), one run on 2026-09-05.
+
+| Fixture | Score | State on this contract | Goes green when |
+| --- | --- | --- | --- |
+| `multi_class` (rewritten) | 0.500 | red — two classes named inline, no header identifying either. It expects **zero** notes: a wrong class files one child's observations under another child. The enum forces a class, so the model always picks one. | The model may decline a class (#125). |
+| `date_drill` | 0.000 | red — a group observation whose content is a date belongs in every child's note. Nothing today attaches one stretch of speech to a whole class. | Group passages land (#125). |
+| `pronoun_run_bleed` | 0.333 | red — three children run together; two blocks are owned by nobody and must reach no note at all. Without a passage boundary the model has no unit to leave unattributed. | Passages land (#125). |
+| `shared_clause` | 1.000 | green — one sentence, two children, a different observation about each. It passes here because nothing constrains the model to one summary per sentence; under a passage contract that constraint returns. Kept as a guard: #125 must not lose it. | — |
+| `full_name_roster` | 1.000 | green — roster names are full names, the teacher speaks first names. | — |
+| `numbered_roster` | 1.000 | green — two children share a first name, enrolled as `Arthur 1` and `Arthur 2`. | — |
+
+`baseline.json` still holds the pre-#126 rows and is deliberately **not**
+regenerated here — the new rows would freeze this contract's numbers as the
+thing to beat. #125 regenerates it once the two-pass contract lands.
 
 ## Adding a fixture
 

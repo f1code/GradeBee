@@ -36,6 +36,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
 	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio bytes"), 0o644))
 
+	uploadID := newTestVoiceNote(t, voiceNoteRepo, "int-user", audioPath)
 	queue := newTestQueue(t)
 	nc := &stubNoteCreator{
 		results: []*CreateNoteResponse{
@@ -65,7 +66,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 
 	job := VoiceNoteJob{
 		UserID:    "int-user",
-		UploadID:  1,
+		UploadID:  uploadID,
 		FilePath:  audioPath,
 		FileName:  "2026-03-22-recording.m4a",
 		MimeType:  "audio/mp4",
@@ -75,13 +76,13 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	}
 	require.NoError(t, queue.Publish(ctx, job), "publish")
 
-	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", 1))
+	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", uploadID))
 	require.NoError(t, err, "get job after publish")
 	assert.Equal(t, JobStatusQueued, got.Status, "status after publish")
 
-	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)), "process")
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", uploadID)), "process")
 
-	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", 1))
+	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", uploadID))
 	require.NoError(t, err, "get job after process")
 	assert.Equal(t, JobStatusDone, got.Status)
 	// Each link must point at the resolved student, with name and class in
@@ -136,6 +137,7 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	audioPath := filepath.Join(tmpDir, "test.m4a")
 	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
 
+	uploadID := newTestVoiceNote(t, voiceNoteRepo, "int-user", audioPath)
 	queue := newTestQueue(t)
 	failingTranscriber := &stubTranscriber{err: ErrNotFound}
 	nc := &stubNoteCreator{}
@@ -157,12 +159,12 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 
 	ctx := context.Background()
 	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{
-		UserID: "int-user", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now(),
+		UserID: "int-user", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now(),
 	}), "publish")
 
 	// First attempt fails.
-	require.Error(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)), "expected error on first attempt")
-	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", 1))
+	require.Error(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", uploadID)), "expected error on first attempt")
+	got, err := queue.GetJob(ctx, voiceNoteKey("int-user", uploadID))
 	require.NoError(t, err, "get job")
 	assert.Equal(t, JobStatusFailed, got.Status)
 
@@ -185,9 +187,9 @@ func TestIntegration_RetryAfterFailure(t *testing.T) {
 	assert.Equal(t, 1, retryResp.RetriedCount)
 
 	// Process the retried job.
-	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", 1)), "second process")
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("int-user", uploadID)), "second process")
 
-	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", 1))
+	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", uploadID))
 	require.NoError(t, err, "get job after retry")
 	assert.Equal(t, JobStatusDone, got.Status)
 }

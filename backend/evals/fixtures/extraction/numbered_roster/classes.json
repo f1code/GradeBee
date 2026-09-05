@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Class A",
+    "students": [
+      { "name": "Arthur 1" },
+      { "name": "Arthur 2" },
+      { "name": "Lucie" }
+    ]
+  }
+]

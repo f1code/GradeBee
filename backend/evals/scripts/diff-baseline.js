@@ -138,9 +138,18 @@ for (const desc of sortedDescs) {
       ? `${colourDelta(delta)}${delta > 0 ? '+' : ''}${delta.toFixed(3)}${RESET}`
       : `${DIM}n/a${RESET}`;
 
+    // Count on the hard score when the scorer publishes one. A soft axis
+    // (should_quote_substrings) moves `score` by more than this band on runs
+    // where the model reaches a preferred phrase and runs where it does not,
+    // so counting `score` would announce a regression nobody caused. The table
+    // above still shows the real score and its delta.
+    const bHard = b ? (b.namedScores?.hard ?? bScore) : null;
+    const cHard = c ? (c.namedScores?.hard ?? cScore) : null;
+    const hardDelta = (bHard !== null && cHard !== null) ? (cHard - bHard) : null;
+
     const isCanonical = CANONICAL_PROVIDERS.has(provider);
-    if (isCanonical && delta !== null && delta < -0.05) regressions++;
-    if (isCanonical && delta !== null && delta >  0.05) improvements++;
+    if (isCanonical && hardDelta !== null && hardDelta < -0.05) regressions++;
+    if (isCanonical && hardDelta !== null && hardDelta >  0.05) improvements++;
 
     const providerLabel = isCanonical
       ? `${CYAN}${BOLD}★ ${provider}${RESET}`

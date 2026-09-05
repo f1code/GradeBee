@@ -1,0 +1,18 @@
+{
+  "_comment": "Roster names are full names — the shape 4 of production's 646 students have, and the shape of any name a teacher adds with a surname from now on. The teacher speaks first names. A spoken 'Emma' scores 0.40 against 'Emma Torres' as a whole, so MatchStudent also scores each whitespace-separated part of the roster name (#111); without that every child here gets no note, which is what this fixture pins. Names on expected_students are the canonical roster names, because AssembleNotes keys notes by them. The transcript opens with a spoken class header because the extraction prompt declines without one (#99). Required phrases are each child's distinctive content words rather than whole clauses, since quoted_text is the span summary. TestMatchStudent_FullNameRosterFixture (match_test.go) checks the Go half of this fixture without a model run.",
+  "expected_students": [
+    {
+      "name": "Emma Torres",
+      "class_name": "Class A",
+      "must_quote_substrings": ["/reading log/"],
+      "must_not_quote_substrings": ["/interrupt/", "/circle time/"]
+    },
+    {
+      "name": "Ryan Mitchell",
+      "class_name": "Class A",
+      "must_quote_substrings": ["/interrupt/", "/circle time/"],
+      "must_not_quote_substrings": ["/reading log/"]
+    }
+  ],
+  "must_not_extract": []
+}

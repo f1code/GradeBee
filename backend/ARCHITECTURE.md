@@ -68,6 +68,7 @@ Cache headers:
 | GET | `/api/voice-notes/jobs` | Yes | `handleJobList` | List user's async upload jobs |
 | POST | `/api/voice-notes/jobs/retry` | Yes | `handleJobRetry` | Retry failed jobs |
 | POST | `/api/voice-notes/jobs/dismiss` | Yes | `handleJobDismiss` | Dismiss completed/failed jobs |
+| POST | `/api/voice-notes/{uploadId}/assemble` | Yes | `handleAssembleNotes` | File a recording under a class the teacher picked and make its notes (body: `{className, passages}`) |
 | GET | `/api/levels` | Yes | `handleListLevels` | List the caller's Group's Levels |
 | POST | `/api/levels` | Yes (Admin) | `handleCreateLevel` | Create a Level (body: `{name}`) |
 | PUT | `/api/levels/{id}` | Yes (Admin) | `handleUpdateLevel` | Rename and/or set Report Instructions (body: `{name?, reportInstructions?}`) |
@@ -101,6 +102,9 @@ User uploads audio
         ├─ Step 1: Transcribe (status → "transcribing")
         │    Read audio from local disk → LLM provider (Voxtral or Whisper)
         │    Context bias seeded with class names from DB roster
+        │    Delete the audio file and set purged_at, then write the
+        │    transcript to voice_notes.transcript (text jobs too);
+        │    a failed write fails the job (retry skips transcription)
         │
         ├─ Step 2: Extract (status → "extracting")
         │    Send transcript + student roster to LLM provider
@@ -126,7 +130,9 @@ Job status is tracked in-memory (map keyed by `userId/<uploadId>`). The frontend
 
 ### Voice Note Cleanup
 
-Audio files are deleted from disk **immediately after successful transcription** in `voice_note_process.go`. The `purged_at` column on `voice_notes` records when this happened. The background cleanup goroutine (`voice_note_cleanup.go`) then removes the DB row after the retention period (default 7 days, configurable via `UPLOAD_RETENTION_HOURS`), skipping file deletion for rows already purged.
+Audio files are deleted from disk **immediately after successful transcription** in `voice_note_process.go`. The `purged_at` column on `voice_notes` records when this happened. The background cleanup goroutine (`voice_note_cleanup.go`) then removes the DB row after the retention period (default 7 days, configurable via `UPLOAD_RETENTION_HOURS`), skipping file deletion for rows already purged. The period counts from `processed_at` for a job that finished or was dismissed, and from `created_at` for one that never did — a failed job nobody retried, or one lost to a restart — so no row outlives the window. `MarkProcessed` keeps the first timestamp, so dismissing an already-finished job does not restart the clock.
+
+The transcript is written to `voice_notes.transcript` right after the audio is deleted, and whether or not extraction goes on to create a note — until then, `notes.transcript` was the only copy, so a job that created no note left nothing behind. The audio goes first so no failure after it can leave it on disk: the privacy page promises the recording is deleted immediately after transcription. A failed delete itself is only warned about; the retention cleanup removes the file later, once the job completes or the teacher dismisses it. A failed transcript write fails the job; the job struct keeps the transcript, so a retry skips transcription and repeats only the write. That window closes at process restart: the job queue is in memory, so a failed write followed by a deploy before the teacher retries loses the recording for good. `purged_at` marks the audio alone; the transcript stays on the row and is deleted with it by the cleanup goroutine. The assemble endpoint reads it: it is the only source of the transcript stored on every reviewed note, and a recording whose row has been emptied is refused with 404 rather than filed with none.
 
 ### Generic Queue Infrastructure
 
@@ -219,9 +225,9 @@ SQLite with WAL mode (`db.go`). Migrations in `sql/` are embedded via `embed.FS`
 | `classes` | A **class** is a Level instance: a required `level_id` FK (`NOT NULL`, `ON DELETE RESTRICT`), a required `day` (`NOT NULL`, `CHECK` over the seven weekday names), plus an optional `time_slot`. `Class.Name` and `Class.LevelName` are not stored — both are derived in SQL by joining `levels` (`levels.name`, ` · ` + Day abbreviated to three letters, and ` · ` + `time_slot` when set), so renaming a Level immediately renames every Class using it. Uniqueness is `(user_id, level_id, day, time_slot)`. |
 | `students` | Students belonging to classes |
 | `student_aliases` | Nickname/variant aliases per student (per-class uniqueness, case-insensitive) |
-| `notes` | Observation notes per student |
+| `notes` | Observation notes per student. `source` is `auto` (written by the pipeline end to end), `reviewed` (the model wrote the text, the teacher supplied only the class — see the assemble endpoint) or `manual` (typed by the teacher). The column has no `CHECK`, so the `NoteSource*` constants in `notes.go` are the contract; `auto` and `reviewed` are both model-written and both fire the implicit thumbs-down on edit or delete. |
 | `reports` | Generated HTML report cards |
-| `voice_notes` | Audio file tracking (file path, processed_at, purged_at) |
+| `voice_notes` | Audio file tracking (file path, processed_at, purged_at) plus the `transcript`, written before the audio is deleted and kept for the row's lifetime |
 | `levels` | Group-owned curriculum tiers. `name` unique within `group_id`; `report_instructions` defaults to `''`. A Level with trimmed-empty `report_instructions` cannot generate or regenerate reports — `handleGenerateReports`/`handleRegenerateReport` refuse with `400` before any LLM call (see `report_prompt.go`/`reports_handler.go` below). Seeded with 8 hand-authored Levels against the production Clerk org ID. |
 
 ### Repository Layer
@@ -288,7 +294,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass` (matches canonical name + aliases, case-insensitive), `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases`. `Move` is transactional: updates `students.class_id` and re-homes `student_aliases.class_id` together, aborting on a canonical-name collision in the target class (`*ErrDuplicateStudentName`) and silently dropping (not blocking on) any of the student's aliases that collide with the target class's names/aliases |
 | `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
-| `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `MarkProcessed`, `MarkPurged`, `ListStale` |
+| `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes, `SetTranscript`, `MarkProcessed`, `MarkPurged`, `ListStale` |
 | `repo_level.go` | `LevelRepo` — CRUD for levels, every method scoped by `group_id` |
 | `levels.go` | GET/POST/PUT/DELETE /levels handlers — write endpoints gated on `isAdmin(r)` |
 | `repo_errors.go` | `ErrNotFound`, `ErrDuplicate`, `isDuplicateErr`; `ErrDuplicateAlias` (carries `ConflictStudentName` for alias 409 responses) |
@@ -308,10 +314,12 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `logger.go` | Dual stdout+Sentry structured logging via `log/slog`; `InitLogger()` wires `slog.NewMultiHandler` when `SENTRY_DSN` is set; request-scoped logger via context |
 | `job_queue.go` | `Keyed` constraint, `JobQueue[T]` generic interface for async job queues |
 | `job_queue_mem.go` | `MemQueue[T]` — generic in-memory `JobQueue` implementation with worker pool |
-| `voice_note_job.go` | `VoiceNoteJob` type, job status constants, `NoteLink` |
+| `voice_note_job.go` | `VoiceNoteJob` type, job status constants, `NoteLink`, `JobPassage`, the `NoNotes*` reasons |
 | `voice_note_process.go` | `processVoiceNote` pipeline (transcribe→extract→notes) |
-| `voice_note_cleanup.go` | Background goroutine to delete processed audio files after retention |
+| `voice_note_cleanup.go` | Background goroutine to delete voice note rows, transcripts and any leftover audio after retention |
 | `voice_note_jobs.go` | GET /voice-notes/jobs, POST /voice-notes/jobs/retry, POST /voice-notes/jobs/dismiss — voice note job list, retry, dismiss handlers |
+| `voice_note_assemble.go` | POST /voice-notes/{uploadId}/assemble — re-resolve a recording's passages against a class the teacher picked |
+| `match.go` | `MatchStudent` — resolves one spoken label to a student in one class (exact, name part, then gated fuzzy) |
 | `tygo.yaml` | tygo config for Go→TypeScript type generation |
 
 ## Type Generation (Go → TypeScript)
@@ -441,7 +449,7 @@ confirm the suite fails; a fix without that evidence is not a fix.
 | `LLM_MODEL_TRANSCRIPTION` | No | Transcription model ID (default: `voxtral-mini-latest` / `whisper-1`) |
 | `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |
 | `UPLOADS_DIR` | No | Audio upload directory (default `/data/uploads`) |
-| `UPLOAD_RETENTION_HOURS` | No | Hours to keep processed audio (default 168 = 7 days) |
+| `UPLOAD_RETENTION_HOURS` | No | Hours to keep a voice note's row, its transcript, and any audio still on disk, counted from processing or dismissal, or from upload if neither happened (default 168 = 7 days) |
 | `ALLOWED_ORIGIN` | No | CORS origin (default `*`) |
 | `PORT` | No | Local dev port (default `8080`) |
 | `LOG_LEVEL` | No | DEBUG/INFO/WARN/ERROR/off |

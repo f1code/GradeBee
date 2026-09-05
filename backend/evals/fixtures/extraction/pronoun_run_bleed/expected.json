@@ -1,0 +1,17 @@
+{
+  "_comment": "Note 694's shape with synthetic names. Three children run together; the first block is never named and the second's spoken name ('Polly') matches nobody on the roster. Only the third child is nameable. Forbids the unowned blocks' content, not names: nobody owns those sentences, so they must land in no entry at all. Name-based must_not_quote_substrings cannot see this bug. Every phrase here is unique to its block and cannot arise by paraphrasing the nameable child's own sentences.",
+  "expected_students": [
+    {
+      "name": "Rémi",
+      "class_name": "Marta · Wed · 17.45",
+      "must_quote_substrings": ["/little active/"],
+      "must_not_quote_substrings": []
+    }
+  ],
+  "must_not_extract": [
+    "knock on boxes",
+    "putting Bunny up and down",
+    "laughing and giggling",
+    "the magnets"
+  ]
+}

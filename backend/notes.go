@@ -10,6 +10,27 @@ import (
 	"time"
 )
 
+// notes.source values. The column has no CHECK constraint, so these are the
+// contract.
+const (
+	// NoteSourceAuto: written by the extraction pipeline end to end.
+	NoteSourceAuto = "auto"
+	// NoteSourceReviewed: the model wrote the text, the teacher supplied only
+	// the who — a recording re-assembled against a class picked on the done
+	// card.
+	NoteSourceReviewed = "reviewed"
+	// NoteSourceManual: typed by the teacher.
+	NoteSourceManual = "manual"
+)
+
+// isModelWritten says whether a note's text came from the model, which is what
+// the implicit edit/delete thumbs-down measures. A reviewed note qualifies: the
+// teacher named the child, the model wrote the sentence, and editing it away is
+// the same signal about the same text.
+func isModelWritten(source string) bool {
+	return source == NoteSourceAuto || source == NoteSourceReviewed
+}
+
 // NoteCreator creates notes in the database.
 type NoteCreator interface {
 	CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error)
@@ -23,6 +44,9 @@ type CreateNoteRequest struct {
 	Transcript   string
 	Date         string // YYYY-MM-DD
 	ModelVersion string // LLM model ID that produced this note (empty = NULL)
+	// Source is a NoteSource* value; empty means NoteSourceAuto, so a caller
+	// that does not care cannot write "" into the column.
+	Source string
 }
 
 // CreateNoteResponse contains the created note info.
@@ -41,11 +65,15 @@ func newDBNoteCreator(nr *NoteRepo) *dbNoteCreator {
 
 func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
 	promptHash := ExtractionPromptHash
+	source := req.Source
+	if source == "" {
+		source = NoteSourceAuto
+	}
 	n := &Note{
 		StudentID:  req.StudentID,
 		Date:       req.Date,
 		Summary:    req.QuotedText, // Store extracted passages as the note summary
-		Source:     "auto",
+		Source:     source,
 		PromptHash: &promptHash,
 	}
 	if req.ModelVersion != "" {
@@ -126,7 +154,7 @@ func handleCreateNote(w http.ResponseWriter, r *http.Request) {
 		StudentID: studentID,
 		Date:      req.Date,
 		Summary:   req.Summary,
-		Source:    "manual",
+		Source:    NoteSourceManual,
 	}
 	if err := serviceDeps.GetNoteRepo().Create(r.Context(), n); err != nil {
 		writeInternalError(w, r, err)
@@ -196,9 +224,9 @@ func handleUpdateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Implicit signal: editing an auto note records a thumbs-down with the original summary.
-	// Only fire when the summary actually changed and the note is LLM-extracted.
-	if n.Source == "auto" && n.Summary != req.Summary {
+	// Implicit signal: editing a model-written note records a thumbs-down with the
+	// original summary. Only fire when the summary actually changed.
+	if isModelWritten(n.Source) && n.Summary != req.Summary {
 		if feedbackRepo := serviceDeps.GetFeedbackRepo(); feedbackRepo != nil {
 			prev := n.Summary
 			if _, fbErr := feedbackRepo.Insert(r.Context(), ArtifactFeedback{
@@ -250,9 +278,10 @@ func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Implicit signal: deleting an auto note records a thumbs-down with the deleted summary.
-	// artifact_id will dangle (note row gone) — expected by design; previous_value carries the content.
-	if n.Source == "auto" {
+	// Implicit signal: deleting a model-written note records a thumbs-down with the
+	// deleted summary. artifact_id will dangle (note row gone) — expected by design;
+	// previous_value carries the content.
+	if isModelWritten(n.Source) {
 		if feedbackRepo := serviceDeps.GetFeedbackRepo(); feedbackRepo != nil {
 			prev := n.Summary
 			if _, fbErr := feedbackRepo.Insert(r.Context(), ArtifactFeedback{

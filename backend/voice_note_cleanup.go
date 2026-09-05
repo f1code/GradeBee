@@ -1,5 +1,6 @@
-// voice_note_cleanup.go provides a background goroutine that deletes processed
-// audio files from disk and their voice_notes rows after a retention period.
+// voice_note_cleanup.go provides a background goroutine that deletes voice_notes
+// rows, their transcripts and any audio still on disk after a retention period —
+// counted from processing for done jobs, from upload for jobs that never finished.
 package handler
 
 import (
@@ -9,9 +10,10 @@ import (
 	"time"
 )
 
-// StartVoiceNoteCleanup runs a background loop that removes stale processed voice notes.
+// StartVoiceNoteCleanup runs a background loop that removes stale voice notes.
 // It deletes the audio file from disk and the row from the voice_notes table once
-// the voice note has been processed for longer than the retention duration.
+// the voice note has been processed — or, if it never was, uploaded — for longer
+// than the retention duration.
 // Stops when ctx is cancelled.
 func StartVoiceNoteCleanup(ctx context.Context, repo *VoiceNoteRepo, retention, interval time.Duration) {
 	ticker := time.NewTicker(interval)

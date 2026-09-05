@@ -9,6 +9,9 @@ import type {
   GenerateReportsHTTPResponse as GenerateReportsResponse,
   VoiceNoteJob,
   JobListResponse,
+  JobPassage,
+  AssembleNotesRequest,
+  AssembleNotesResponse,
   AliasResponse,
   Level as LevelItem,
 } from './api-types.gen'
@@ -22,6 +25,9 @@ export type {
   GenerateReportsResponse,
   VoiceNoteJob,
   JobListResponse,
+  JobPassage,
+  AssembleNotesRequest,
+  AssembleNotesResponse,
   AliasResponse,
   LevelItem,
 }
@@ -666,6 +672,37 @@ export async function dismissJobs(
     const body = await readBody(resp)
     throw new Error(body.error || 'Failed to dismiss jobs')
   }
+}
+
+/**
+ * File a recording under a class the teacher picked, and make the notes it
+ * would have made had the extraction read it against that roster (#115).
+ *
+ * The passages go back exactly as the card received them; the server reads the
+ * transcript from its own row and re-resolves each spoken label against the
+ * picked class.
+ */
+export async function assembleNotes(
+  uploadId: number,
+  className: string,
+  passages: JobPassage[],
+  getToken: () => Promise<string | null>
+): Promise<AssembleNotesResponse> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/voice-notes/${uploadId}/assemble`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    // `satisfies` rather than a bare object: the request type is generated from
+    // the Go struct, so a renamed field there fails this build instead of
+    // reaching the server as a body it silently ignores.
+    body: JSON.stringify({ className, passages } satisfies AssembleNotesRequest),
+  })
+  const body = await readBody(resp)
+  if (!resp.ok) throw new Error(body.error || 'Failed to create the notes')
+  return body
 }
 
 // --- Levels (admin) ---

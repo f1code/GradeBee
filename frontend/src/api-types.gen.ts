@@ -252,12 +252,74 @@ loggerFromContext / loggerFromRequest.
 
 
 //////////
+// source: match.go
+/*
+match.go resolves a spoken label ("Remy", "Joakim", "As a Million") to a
+student in one class.
+
+The pipeline does not use it. Today's extractor is shown the roster and
+returns roster names itself (extract.go), so the only resolution left there
+is an id lookup. This is the second pass: when a recording reached no child
+and the teacher picks a class on the done card, handleAssembleNotes re-runs
+every spoken label against that class's roster — the labels are canonical
+against the roster the model was shown, which on that recording was the
+wrong one. It is pure, so match_test.go pins it against the eval fixtures'
+own rosters with no model run, and #125's two-pass contract resolves
+against it directly.
+
+Resolution order, measured in research rounds 5 and 9:
+
+ 1. Exact match on a folded name or alias wins outright: no threshold, no
+    margin. An alias is the teacher's override and must never lose to a
+    heuristic. Two students sharing the string is a real tie → nobody.
+ 2. Otherwise exact match on a whitespace-separated part of a name
+    (#111): a teacher says `Emma`, and against `Emma Torres` whole that
+    scores 0.40, so the child got no note at all. Parts come after the
+    typed strings so an alias never ties with a first name derived from
+    another child's name; two children sharing a first name is still a
+    tie. Aliases are not split — the teacher typed them as spoken. The
+    stop-list applies from here on: the teacher typed rule 1's strings,
+    the matcher derived these, and `He` is a part of `Wei He`.
+ 3. Otherwise normalised Levenshtein over every name, part and alias, a
+    student's score being the best of their strings. Three gates, all
+    required: the label is not a pronoun; score >= 0.50; margin >= 0.15
+    over the best score of a *different* student. Parts under three
+    runes — `de`, an initial — sit this round out: any three-letter label
+    one edit away scores 0.67 against them.
+
+A number gates the fuzzy score (#111). Voxtral writes a spoken number as
+a digit, so `Arthur 1` on the roster is exact as spoken. A child whose
+name carries a number scores 0 against a label carrying a different
+one: with `Arthur 1` and `Arthur 2` in one class, `Artur 2` scores 0.86
+against both stems and would tie on the margin; gated, it meets
+`Arthur 2` alone. A bare `Arthur` carries no number, meets both, and
+ties. A child whose name carries no number is never gated.
+
+Breaking a tie by roster order would reproduce the root cause inside Go.
+*/
+
+
+//////////
 // source: notes.go
 /*
 notes.go implements the NoteCreator interface backed by SQLite and provides
 CRUD handlers for the /notes and /students/:id/notes endpoints.
 */
 
+/**
+ * NoteSourceAuto: written by the extraction pipeline end to end.
+ */
+export const NoteSourceAuto = "auto";
+/**
+ * NoteSourceReviewed: the model wrote the text, the teacher supplied only
+ * the who — a recording re-assembled against a class picked on the done
+ * card.
+ */
+export const NoteSourceReviewed = "reviewed";
+/**
+ * NoteSourceManual: typed by the teacher.
+ */
+export const NoteSourceManual = "manual";
 /**
  * NoteCreator creates notes in the database.
  */
@@ -272,6 +334,11 @@ export interface CreateNoteRequest {
   Transcript: string;
   Date: string; // YYYY-MM-DD
   ModelVersion: string; // LLM model ID that produced this note (empty = NULL)
+  /**
+   * Source is a NoteSource* value; empty means NoteSourceAuto, so a caller
+   * that does not care cannot write "" into the column.
+   */
+  Source: string;
 }
 /**
  * CreateNoteResponse contains the created note info.
@@ -539,6 +606,12 @@ export interface VoiceNote {
   filePath: string;
   processedAt?: string;
   purgedAt?: string;
+  /**
+   * Transcript is written by the processor once transcription succeeds, before
+   * extraction, so it exists whether or not any note is created. It lives as long
+   * as the row: the retention cleanup deletes both together.
+   */
+  transcript?: string;
   createdAt: string;
 }
 
@@ -738,6 +811,46 @@ benefit without either provider needing to know about audio quirks.
 export type Transcriber = any;
 
 //////////
+// source: voice_note_assemble.go
+/*
+voice_note_assemble.go implements POST /api/voice-notes/{uploadId}/assemble:
+the teacher picks the class the recording should have been read against, and
+the notes the pipeline would have made then exist (#115).
+
+No model call. The passages come back from the done card exactly as the
+extraction returned them; only the class is new, so the work is re-resolving
+each spoken label against that class's roster — the same MatchStudent the
+rest of the pipeline resolves with.
+*/
+
+/**
+ * AssembleNotesRequest is the body of the assemble call: the class the teacher
+ * picked, and the card's own passages handed straight back.
+ * The passages are JobPassage, not a parallel request type. Both sides of this
+ * API are camelCase, so the type the card received is the type it can post —
+ * a second type would exist only to be converted to the first.
+ */
+export interface AssembleNotesRequest {
+  className: string;
+  passages: JobPassage[];
+}
+/**
+ * AssembleNotesResponse is the done card, repainted. It carries what the job
+ * JSON carries at completion, so the card renders as a normal done card whether
+ * or not the job is still in the queue.
+ */
+export interface AssembleNotesResponse {
+  className: string;
+  noteLinks: NoteLink[];
+  passages: JobPassage[];
+  /**
+   * NoNotesReason is empty once a note exists; a pick whose names all miss
+   * the chosen roster comes back no_name_matched.
+   */
+  noNotesReason?: string;
+}
+
+//////////
 // source: voice_note_drive_import.go
 /*
 voice_note_drive_import.go handles POST /voice-notes/drive-import — downloads a Google Drive file, saves it to local disk, and dispatches an async processing job.
@@ -790,6 +903,22 @@ export const JobStatusDone = "done";
  */
 export const JobStatusFailed = "failed";
 /**
+ * NoNotesNobodyNamed: the recording named no child at all. Nothing to do.
+ */
+export const NoNotesNobodyNamed = "nobody_named";
+/**
+ * NoNotesClassUnclear: children were named, but no class was pinned, so
+ * there was no roster to resolve them against. Saying the class and time
+ * at the start of the next recording fixes it.
+ */
+export const NoNotesClassUnclear = "class_unclear";
+/**
+ * NoNotesNoNameMatched: every spoken name missed the roster. An alias fixes
+ * the recurring ones; picking the class fixes a recording read against the
+ * wrong roster.
+ */
+export const NoNotesNoNameMatched = "no_name_matched";
+/**
  * NoteLink pairs a student name with the ID of the created note.
  */
 export interface NoteLink {
@@ -797,6 +926,44 @@ export interface NoteLink {
   noteId: number /* int64 */;
   studentId: number /* int64 */;
   className: string;
+}
+/**
+ * PassageKind says what a passage is about. The single-call extractor produces
+ * only child passages; the kind is on the wire because #125's contract adds a
+ * group passage and the card must not need a new field to render it.
+ */
+export type PassageKind = string;
+/**
+ * PassageChild is a passage about one named child.
+ */
+export const PassageChild: PassageKind = "child";
+/**
+ * JobPassage is one stretch of the recording as the pipeline read it, on the
+ * wire for the done card. It is a placeholder that #125 will own: it carries
+ * what the class picker has to hand back and nothing else, so no consumer
+ * depends on a shape the two-pass contract is going to replace.
+ */
+export interface JobPassage {
+  kind: PassageKind;
+  /**
+   * SpokenLabels is each name this passage is about, as the extraction model
+   * wrote it. The picker hands them straight back to
+   * POST /api/voice-notes/{uploadId}/assemble, which re-resolves them against
+   * a class the teacher chose — without them the second run has nothing to
+   * match. They go to the teacher who spoke them, never to telemetry
+   * (docs/adr/0003).
+   */
+  spokenLabels?: string[];
+  /**
+   * Student is the roster name the passage reached, empty when it reached
+   * nobody. That is what makes a recording pickable: every passage empty
+   * means no child got a note.
+   */
+  student?: string;
+  /**
+   * Summary is the text a note built from this passage holds.
+   */
+  summary: string;
 }
 /**
  * VoiceNoteJob represents an async voice note processing job.
@@ -812,6 +979,18 @@ export interface VoiceNoteJob {
   status: string;
   createdAt: string;
   noteLinks?: NoteLink[];
+  /**
+   * ClassName is the class the notes were filed under; "" when none was. It
+   * and Passages are set at completion and absent on jobs done before they
+   * existed.
+   */
+  className?: string;
+  passages?: JobPassage[];
+  /**
+   * NoNotesReason is set only on a done job that created no note, to one of
+   * the NoNotes* constants. Empty whenever a note was created.
+   */
+  noNotesReason?: string;
   error?: string;
   failedAt?: string;
 }

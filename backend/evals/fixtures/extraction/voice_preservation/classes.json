@@ -2,9 +2,9 @@
   {
     "name": "Class A",
     "students": [
-      { "name": "Emma Torres" },
-      { "name": "Ryan Mitchell" },
-      { "name": "Lila Patel" }
+      { "name": "Emma" },
+      { "name": "Ryan" },
+      { "name": "Lila" }
     ]
   }
 ]

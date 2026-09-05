@@ -1,0 +1,13 @@
+-- 016_voice_note_transcript.sql
+-- Keep the transcript on the recording's own row.
+--
+-- Until now the transcript survived only inside notes.transcript, written as a side
+-- effect of creating a note. A job that created no note — every mention dropped, or
+-- extraction failed — left the teacher's words nowhere: the audio is deleted right
+-- after transcription and the job queue is in memory. #80 needs the transcript to
+-- surface unattributed observations, so the processor now writes it here before
+-- extraction runs.
+--
+-- Lifetime is the row's: the retention cleanup (voice_note_cleanup.go) deletes the
+-- row, transcript included. purged_at still marks the audio file alone.
+ALTER TABLE voice_notes ADD COLUMN transcript TEXT;

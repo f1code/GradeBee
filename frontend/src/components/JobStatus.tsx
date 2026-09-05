@@ -1,8 +1,10 @@
 import { useAuth } from '@clerk/react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { fetchJobs, retryFailedJobs, dismissJobs } from '../api'
-import type { UploadJob, JobListResponse } from '../api'
+import { fetchJobs, retryFailedJobs, dismissJobs, assembleNotes } from '../api'
+import type { UploadJob, JobListResponse, AssembleNotesResponse } from '../api'
+import { NoNotesClassUnclear, NoNotesNoNameMatched, NoNotesNobodyNamed } from '../api-types.gen'
+import ClassPicker from './ClassPicker'
 import StudentDetail from './StudentDetail'
 import TranscriptReview from './TranscriptReview'
 
@@ -15,6 +17,20 @@ const POLL_EMPTY_MS = 0 // 0 = don't schedule, wait for pollNow
 
 /** Max recently-completed jobs to display. */
 const MAX_DONE_SHOWN = 5
+
+/**
+ * Fold a poll's done list into the cards this tab already shows: a card seen
+ * once is kept even after the server forgets it, and the polled copy wins for
+ * a card still in the queue, so a retained card keeps picking up server state.
+ * Newest first, capped at MAX_DONE_SHOWN — the oldest expires when a sixth
+ * arrives.
+ */
+function mergeDone(retained: UploadJob[], incoming: UploadJob[]): UploadJob[] {
+  const byId = new Map([...retained, ...incoming].map(j => [j.uploadId, j]))
+  return [...byId.values()]
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+    .slice(0, MAX_DONE_SHOWN)
+}
 
 const STATUS_LABELS: Record<string, string> = {
   queued: 'Queued',
@@ -47,18 +63,45 @@ function DocIcon() {
 export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRefObject<(() => void) | null> }) {
   const { getToken } = useAuth()
   const [jobs, setJobs] = useState<JobListResponse | null>(null)
+  const [retainedDone, setRetainedDone] = useState<UploadJob[]>([])
   const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [newDoneIds, setNewDoneIds] = useState<Set<number>>(new Set())
   const [modalStudent, setModalStudent] = useState<{ studentId: number; name: string; className: string } | null>(null)
   const prevDoneIdsRef = useRef<Set<number>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // `poll` reads the retained cards from a ref, not from state: state in its
+  // closure would land in the useCallback deps, churn poll's identity and make
+  // the mount effect re-run and schedule a second timer.
+  const retainedRef = useRef<UploadJob[]>([])
+  const dismissedRef = useRef<Set<number>>(new Set())
+  // Each poll takes a generation and only the newest arms the next timer. A
+  // dismiss or a retry starts a poll while an older one is in flight, and
+  // clearing a timer that has already fired does nothing — so both chains
+  // would re-arm, and a retained card would keep the spare one alive for the
+  // life of the tab.
+  const pollGenRef = useRef(0)
+
+  const setRetained = useCallback((next: UploadJob[]) => {
+    retainedRef.current = next
+    setRetainedDone(next)
+  }, [])
 
   const poll = useCallback(async () => {
+    const gen = ++pollGenRef.current
     try {
       const data = await fetchJobs(getToken)
       setJobs(data)
       setError(null)
+
+      // The job queue is in memory, so a restart empties the done list. Keep
+      // every card this tab has shown: only a dismiss or the teacher's own
+      // refresh ends a review.
+      const merged = mergeDone(
+        retainedRef.current,
+        data.done.filter(j => !dismissedRef.current.has(j.uploadId)),
+      )
+      setRetained(merged)
 
       // Detect newly completed jobs.
       const currentDoneIds = new Set(data.done.map(j => j.uploadId))
@@ -73,22 +116,26 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
       }
       prevDoneIdsRef.current = currentDoneIds
 
-      // Schedule next poll – stop entirely when there's nothing to show.
-      const hasAny = data.active.length > 0 || data.failed.length > 0 || data.done.length > 0
+      // Schedule next poll – stop entirely when there's nothing to show. A
+      // retained card counts: on a live server the idle poll is what brings it
+      // fresh state.
+      const hasAny = data.active.length > 0 || data.failed.length > 0 || merged.length > 0
       const interval = data.active.length > 0
         ? POLL_ACTIVE_MS
         : hasAny
           ? POLL_IDLE_MS
           : POLL_EMPTY_MS
-      if (interval > 0) {
+      if (interval > 0 && gen === pollGenRef.current) {
         // eslint-disable-next-line react-hooks/immutability
         timerRef.current = setTimeout(poll, interval)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load jobs')
-      timerRef.current = setTimeout(poll, POLL_IDLE_MS)
+      if (gen === pollGenRef.current) {
+        timerRef.current = setTimeout(poll, POLL_IDLE_MS)
+      }
     }
-  }, [getToken])
+  }, [getToken, setRetained])
 
   // Pause polling when tab is hidden.
   useEffect(() => {
@@ -143,7 +190,16 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
     })
   }
 
+  // Removal is local and final, before any await: the server may have
+  // forgotten the job (a `dismissed: 0` reply is fine) or refuse the call, and
+  // either way a card the teacher dismissed must not come back on the next poll.
+  function forget(ids: number[]) {
+    for (const id of ids) dismissedRef.current.add(id)
+    setRetained(retainedRef.current.filter(j => !ids.includes(j.uploadId)))
+  }
+
   async function dismissDoneJob(uploadId: number) {
+    forget([uploadId])
     try {
       await dismissJobs(getToken, [uploadId])
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -154,8 +210,12 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   }
 
   async function dismissAllDone() {
-    const ids = jobs?.done.map(j => j.uploadId) ?? []
+    // Everything the teacher could reach: the cards on screen, plus any the
+    // server still lists behind the cap. "Clear all" leaving cards to pop
+    // back on the next poll would read as a broken button.
+    const ids = [...new Set([...retainedRef.current.map(j => j.uploadId), ...(jobs?.done.map(j => j.uploadId) ?? [])])]
     if (ids.length === 0) return
+    forget(ids)
     try {
       await dismissJobs(getToken, ids)
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -167,8 +227,13 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
 
   // Don't render anything if there are no jobs at all.
   if (!jobs) return null
-  const hasContent = jobs.active.length > 0 || jobs.failed.length > 0 || jobs.done.length > 0
-  const doneSlice = jobs.done.slice(0, MAX_DONE_SHOWN)
+  // The error counts as content: dismissing the last card empties the panel,
+  // and a refused dismiss would otherwise have nowhere to say so. The cost is
+  // that a failed poll now shows its line on an empty board, where nothing
+  // used to render; the next good poll clears it.
+  const hasContent = jobs.active.length > 0 || jobs.failed.length > 0 || retainedDone.length > 0 || error !== null
+  // mergeDone owns the cap, so every retained card renders.
+  const doneSlice = retainedDone
   if (!hasContent) return null
 
   return (
@@ -292,9 +357,56 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   )
 }
 
+// A job can finish with no note for three different reasons and the teacher can
+// act on two of them, so one line for all three sends them the wrong way — or
+// nowhere. The cases come from api-types.gen, not from string literals: rename
+// a constant in Go and this stops compiling, where a literal would fall through
+// to the generic line and show every teacher nothing.
+//
+// class_unclear is unreachable on this branch — the extraction schema forces a
+// class from an enum of the teacher's own classes, so the model cannot decline.
+// #125's two-pass contract sets it; the wording is here so that lands as a value
+// rather than as a feature.
+function noNotesMessage(reason: string | undefined): string {
+  switch (reason) {
+    case NoNotesClassUnclear:
+      return "No notes — the class wasn't clear. Say the class and time at the start."
+    case NoNotesNoNameMatched:
+      return 'No notes — no names matched your roster.'
+    case NoNotesNobodyNamed:
+      return 'No notes — nobody was named.'
+    default:
+      return 'No notes created'
+  }
+}
+
 function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { job: UploadJob; isNew: boolean; onDismissNew: () => void; onDismiss: () => void; onOpenStudent: (link: { studentId: number; name: string; className: string }) => void }) {
-  const noteCount = job.noteLinks?.length ?? 0
   const [showTranscript, setShowTranscript] = useState(false)
+  // What the assemble call returned, if the teacher has picked a class on this
+  // card. It wins over the polled job for the life of the card: the poll only
+  // agrees while the job is still in the queue, and the card must not flip back
+  // to the picker over notes that now exist.
+  const [assembled, setAssembled] = useState<AssembleNotesResponse | null>(null)
+  const { getToken } = useAuth()
+
+  const view: UploadJob = assembled
+    ? { ...job, className: assembled.className, noteLinks: assembled.noteLinks, passages: assembled.passages, noNotesReason: assembled.noNotesReason }
+    : job
+  const noteCount = view.noteLinks?.length ?? 0
+
+  // Names were spoken and nobody got a note: the recording was read against the
+  // wrong roster, and picking the class is the way out. Not gated on
+  // class_unclear, which nothing on this branch sets — see noNotesMessage.
+  //
+  // It stays up after a pick that made no note. Picking the wrong one of two
+  // sibling classes is the mistake this path exists to undo; without a local
+  // assembled result here the picker would vanish and there would be no second
+  // attempt.
+  const needsClass = noteCount === 0 && (view.passages?.length ?? 0) > 0
+
+  async function pickClass(className: string) {
+    setAssembled(await assembleNotes(job.uploadId, className, view.passages ?? [], getToken))
+  }
 
   return (
     <motion.div
@@ -318,7 +430,7 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
             )}
           </span>
           <span className="job-done-meta">
-            {noteCount === 0 ? 'No notes created' : `${noteCount} note${noteCount !== 1 ? 's' : ''} created`}
+            {noteCount === 0 ? noNotesMessage(view.noNotesReason) : `${noteCount} note${noteCount !== 1 ? 's' : ''} created`}
           </span>
         </div>
         <button className="job-dismiss-btn" onClick={onDismiss} title="Dismiss" data-testid="job-dismiss">
@@ -327,9 +439,10 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
           </svg>
         </button>
       </div>
-      {job.noteLinks && job.noteLinks.length > 0 && (
+      {needsClass && <ClassPicker onPick={pickClass} />}
+      {view.noteLinks && view.noteLinks.length > 0 && (
         <div className="job-note-links">
-          {job.noteLinks.map((link, i) => (
+          {view.noteLinks.map((link, i) => (
             <button key={i} className="job-note-link" onClick={() => onOpenStudent({ studentId: link.studentId, name: link.name, className: link.className })}>
               <DocIcon /> {link.name}
             </button>
@@ -355,7 +468,7 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
               >
                 <TranscriptReview
                   transcript={job.transcript}
-                  noteLinks={job.noteLinks ?? []}
+                  noteLinks={view.noteLinks ?? []}
                 />
               </motion.div>
             )}

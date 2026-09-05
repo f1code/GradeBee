@@ -23,7 +23,7 @@ export default function PrivacyPage() {
 
       <section>
         <h2>Transcripts and notes</h2>
-        <p>Transcripts and observation notes are stored in your account until you delete them. They may contain student first names and classroom observations. We recommend using first names or initials rather than full names where possible.</p>
+        <p>Observation notes are stored in your account until you delete them. A copy of the transcript, or of text you pasted, is kept with its job record for up to 7 days after the job is processed or cleared from your queue, then deleted automatically. They may contain student first names and classroom observations. We recommend using first names or initials rather than full names where possible.</p>
       </section>
 
       <section>

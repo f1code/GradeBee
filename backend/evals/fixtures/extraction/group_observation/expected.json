@@ -1,7 +1,8 @@
 {
+  "_comment": "Pins task #110: the class-wide observation is comma-joined to a thinking-aloud clause and sits next to the class header, and the canonical model marked the whole run 'none' — 4/4 in the #108 harness run, 3/6 on the #107 prompt's live test — so \"fractions worksheet\" reached neither note. The segmentation prompt now forbids a 'none' clause taking an observation with it; this transcript stays as spoken, because reshaping it would delete the signal. The axis is unchanged: a group observation reaches every child who resolved in the pinned class and nobody else, so Zoe never gets a note. Roster names were full names until #108 switched them to first names, the shape the teacher speaks — see task #111.",
   "expected_students": [
     {
-      "name": "Olivia Chen",
+      "name": "Olivia",
       "class_name": "Class B",
       "must_quote_substrings": [
         "finished early",
@@ -13,7 +14,7 @@
       ]
     },
     {
-      "name": "Marcus Davis",
+      "name": "Marcus",
       "class_name": "Class B",
       "must_quote_substrings": [
         "not turning in homework",

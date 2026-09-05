@@ -168,3 +168,91 @@ func TestImplicitSignal_DeleteManualNote_NoFeedback(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, list, "manual note deletes should not generate feedback rows")
 }
+
+// A reviewed note is model-written: the teacher supplied only the class, the
+// model wrote the sentence, and editing that sentence away is the same signal
+// about the same text as editing an auto note away. This is the behaviour
+// isModelWritten widened, so it is pinned in both directions — manual notes,
+// which the teacher wrote themselves, must stay silent.
+func TestImplicitSignal_EditReviewedNote(t *testing.T) {
+	for _, tc := range []struct {
+		source   string
+		wantRows int
+	}{
+		{NoteSourceAuto, 1},
+		{NoteSourceReviewed, 1},
+		{NoteSourceManual, 0},
+	} {
+		t.Run(tc.source, func(t *testing.T) {
+			ctx, r := setupImplicitSignalDeps(t)
+
+			c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
+			s, err := r.students.Create(ctx, c.ID, "Alice")
+			require.NoError(t, err)
+			n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Original summary", Source: tc.source}
+			require.NoError(t, r.notes.Create(ctx, n))
+
+			body, err := json.Marshal(map[string]string{"summary": "Edited summary"})
+			require.NoError(t, err)
+			req := httptest.NewRequest(http.MethodPut,
+				fmt.Sprintf("/notes/%d", n.ID), bytes.NewReader(body))
+			req.SetPathValue("id", itoa(n.ID))
+			req = withClerkUser(req, "user1")
+
+			rec := httptest.NewRecorder()
+			handleUpdateNote(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+
+			list, err := r.feedback.ListByArtifact(ctx, "note", n.ID)
+			require.NoError(t, err)
+			require.Len(t, list, tc.wantRows)
+			if tc.wantRows == 0 {
+				return
+			}
+			assert.Equal(t, "edited", list[0].Signal)
+			assert.Equal(t, "down", list[0].Rating)
+			require.NotNil(t, list[0].PreviousValue)
+			assert.Equal(t, "Original summary", *list[0].PreviousValue)
+		})
+	}
+}
+
+func TestImplicitSignal_DeleteReviewedNote(t *testing.T) {
+	for _, tc := range []struct {
+		source   string
+		wantRows int
+	}{
+		{NoteSourceAuto, 1},
+		{NoteSourceReviewed, 1},
+		{NoteSourceManual, 0},
+	} {
+		t.Run(tc.source, func(t *testing.T) {
+			ctx, r := setupImplicitSignalDeps(t)
+
+			c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
+			s, err := r.students.Create(ctx, c.ID, "Alice")
+			require.NoError(t, err)
+			n := &Note{StudentID: s.ID, Date: "2026-01-15", Summary: "Note to delete", Source: tc.source}
+			require.NoError(t, r.notes.Create(ctx, n))
+			noteID := n.ID
+
+			req := httptest.NewRequest(http.MethodDelete,
+				fmt.Sprintf("/notes/%d", noteID), http.NoBody)
+			req.SetPathValue("id", itoa(noteID))
+			req = withClerkUser(req, "user1")
+			rec := httptest.NewRecorder()
+			handleDeleteNote(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			list, err := r.feedback.ListByArtifact(ctx, "note", noteID)
+			require.NoError(t, err)
+			require.Len(t, list, tc.wantRows)
+			if tc.wantRows == 0 {
+				return
+			}
+			assert.Equal(t, "deleted", list[0].Signal)
+			require.NotNil(t, list[0].PreviousValue)
+			assert.Equal(t, "Note to delete", *list[0].PreviousValue)
+		})
+	}
+}

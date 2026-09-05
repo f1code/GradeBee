@@ -2,16 +2,16 @@
   {
     "name": "Class A",
     "students": [
-      { "name": "Lucas Green" },
-      { "name": "Isabelle Brown" }
+      { "name": "Lucas" },
+      { "name": "Isabelle" }
     ]
   },
   {
     "name": "Class B",
     "students": [
-      { "name": "Olivia Chen" },
-      { "name": "Marcus Davis" },
-      { "name": "Zoe Taylor" }
+      { "name": "Olivia" },
+      { "name": "Marcus" },
+      { "name": "Zoe" }
     ]
   }
 ]

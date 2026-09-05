@@ -796,3 +796,35 @@
   box-shadow: none;
   color: var(--ink);
 }
+
+/* Class picker on a done card that reached no child */
+.class-picker {
+  margin-top: 0.5rem;
+  padding-left: calc(18px + 0.65rem);
+}
+
+.class-picker-prompt {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  margin: 0 0 0.35rem;
+}
+
+.class-picker-error {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--error-red);
+  margin: 0 0 0.35rem;
+}
+
+.class-picker-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.class-picker-option {
+  font-size: 0.82rem;
+  padding: 0.25rem 0.6rem;
+  min-height: auto;
+}

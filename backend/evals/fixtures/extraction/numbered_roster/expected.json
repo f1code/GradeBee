@@ -1,0 +1,39 @@
+{
+  "_comment": "Two children share a first name and the teacher enrolled them as 'Arthur 1' and 'Arthur 2', a common roster shape. Voxtral writes a spoken number as a digit (probe, 2026-09-03), so the transcript carries 'Arthur 1' and 'Arthur 2' and the names are exact as spoken. Lucie's one-clause absence note is the sentence the small comparison model classes as no observation; a red row there is the signal that says the canonical model is the one to keep. A child carrying a number scores 0 against a label carrying a different one (#111), so a mangled 'Artur 2' meets 'Arthur 2' alone where it tied against both. Names on expected_students are the canonical roster names, because AssembleNotes keys notes by them. The transcript opens with a spoken class header because the extraction prompt declines without one (#99). TestMatchStudent_NumberedRosterFixture (match_test.go) reads this roster and pins the Go half without a model run.",
+  "expected_students": [
+    {
+      "name": "Arthur 2",
+      "class_name": "Class A",
+      "must_quote_substrings": [
+        "/fluent/"
+      ],
+      "must_not_quote_substrings": [
+        "/b and d/",
+        "/writing/"
+      ]
+    },
+    {
+      "name": "Arthur 1",
+      "class_name": "Class A",
+      "must_quote_substrings": [
+        "/b and d/"
+      ],
+      "must_not_quote_substrings": [
+        "/fluent/",
+        "/whole page/"
+      ]
+    },
+    {
+      "name": "Lucie",
+      "class_name": "Class A",
+      "must_quote_substrings": [
+        "/away/"
+      ],
+      "must_not_quote_substrings": [
+        "/fluent/",
+        "/b and d/"
+      ]
+    }
+  ],
+  "must_not_extract": []
+}

@@ -79,6 +79,11 @@ var apiRoutes = []apiRoute{
 	{"GET", "/api/voice-notes/jobs", handleJobList},
 	{"POST", "/api/voice-notes/jobs/retry", handleJobRetry},
 	{"POST", "/api/voice-notes/jobs/dismiss", handleJobDismiss},
+
+	// Re-assemble a recording against a class the teacher picked. Registered
+	// after the /jobs routes: ServeMux prefers the more specific pattern, so
+	// "/api/voice-notes/jobs" is never captured as an {uploadId}.
+	{"POST", "/api/voice-notes/{uploadId}/assemble", handleAssembleNotes},
 }
 
 // key is the "METHOD /pattern" string ServeMux is given for the route.

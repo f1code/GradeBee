@@ -428,6 +428,22 @@ var sweepDenied = []deniedCase{
 		body:       func(f *sweepFixture) any { return map[string]any{"uploadIds": []int64{f.uploadA.ID}} },
 		wantStatus: http.StatusOK, wantBody: "{\"dismissed\":0}\n",
 	},
+	{
+		// B names a class of B's own, so the only thing left that can refuse is
+		// the row's user_id. A leaked transcript or a planted note would both
+		// show up in the snapshot comparison.
+		name: "assemble another user's recording", route: "POST /api/voice-notes/{uploadId}/assemble", method: http.MethodPost,
+		path: func(f *sweepFixture) string { return fmt.Sprintf("/api/voice-notes/%d/assemble", f.uploadA.ID) },
+		body: func(f *sweepFixture) any {
+			return map[string]any{
+				"className": f.classB.Name,
+				"passages": []map[string]any{
+					{"kind": string(PassageChild), "spokenLabels": []string{sweepStudentName}, "summary": "planted"},
+				},
+			}
+		},
+		wantStatus: http.StatusNotFound, wantBody: jsonBody("recording not found"),
+	},
 }
 
 // notEntityScoped lists every route that takes no id belonging to anyone and

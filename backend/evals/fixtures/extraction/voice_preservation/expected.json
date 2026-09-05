@@ -1,14 +1,28 @@
 {
+  "_comment": "Roster names are first names — the shape 642 of production's 646 students have, and the shape the teacher speaks. A spoken 'Emma' scored 0.40 against a roster 'Emma Torres' and resolved nobody until #111 matched name parts; the full_name_roster fixture carries the full-name case. The transcript opens with a spoken class header because the extraction prompt declines unconditionally without one (#99); header-less, this fixture would score zero notes and pin nothing. The required phrases are the teacher's own words, verbatim, and stay that way: quoted_text is now the span summary, but measured 4/4 on the canonical model the summary keeps these phrases intact — it strips the false starts ('She, uh, she did great') and nothing else. Loosening them to content words because the prompt says 'rewritten as clear sentences' would give up the axis this fixture exists for on a guess. Re-measure before loosening. must_not_quote_substrings is new: precision and recall compare only the set of names, so without it Ryan's observation could sit in Emma's note and score 1.00.",
   "expected_students": [
     {
-      "name": "Emma Torres",
+      "name": "Emma",
       "class_name": "Class A",
-      "must_quote_substrings": ["did great in math today", "multiplication tables"]
+      "must_quote_substrings": [
+        "did great in math today",
+        "multiplication tables"
+      ],
+      "must_not_quote_substrings": [
+        "reading comprehension",
+        "main idea"
+      ]
     },
     {
-      "name": "Ryan Mitchell",
+      "name": "Ryan",
       "class_name": "Class A",
-      "must_quote_substrings": ["struggling with the reading comprehension", "main idea"]
+      "must_quote_substrings": [
+        "struggling with the reading comprehension",
+        "main idea"
+      ],
+      "must_not_quote_substrings": [
+        "multiplication"
+      ]
     }
   ],
   "must_not_extract": []

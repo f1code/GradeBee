@@ -1,30 +1,79 @@
 {
+  "_comment": "Lina and Lucie share one span, so each needs a phrase that only that span can satisfy. \"did well\" cannot be it: the group span appends \"All the kids did well...\" to every student, so it would pass with another child's text in Lina's note. \"jumping\" comes from their span and is one content word, so it survives a re-worded summary — but only the must_not_quote_substrings on the other three children make it exclusive. Without those, a run that puts clause 19 in the group span hands Lina and Lucie their phrase out of text every child got, which is the leak this fixture is supposed to catch. \"animals could\" is on every student because it is the group span, which fans out to everyone who resolved from a child span. The drill vocabulary is wanted, and scored softly (#121). This file used to say that dropping \"Yes, I can\" was \"the right answer, not a lost observation\"; that is retired. \"He was doing good with making the full sentences. Yes, I can. No, I can't.\" names the structure Théo was making, where the first sentence alone does not, and the same holds for the class drill after the group observation this file already requires on all five children. should_quote_substrings moves the score and never fails the row: the model reaches the drill only some runs, and the run that misses it is not a bad recording. evals/README.md owns the measured rate. Théo gets his own drill and the class one; everyone else the class one. The patterns allow whitespace after the comma because a note joins span summaries with a blank line, so a drill the model cut into one span per clause reads \"Yes,\\n\\nI can.\" — a literal \"Yes, I can\" silently missed exactly the case this axis measures.",
   "expected_students": [
     {
       "name": "Théo",
       "class_name": "Marcia · Wed · 14:10",
-      "must_quote_substrings": ["very good participation and motivation", "/making (?:the )?full sentences/", "I can", "animals could"]
+      "must_quote_substrings": [
+        "very good participation and motivation",
+        "/making (?:the )?full sentences/",
+        "animals could"
+      ],
+      "must_not_quote_substrings": [
+        "jumping",
+        "playing"
+      ],
+      "should_quote_substrings": [
+        "/Yes,\\s*I can/",
+        "/Yes,\\s*they can/"
+      ]
     },
     {
       "name": "Inaya",
       "class_name": "Marcia · Wed · 14:10",
-      "must_quote_substrings": ["/repeat.* in full structures/", "animals could"]
+      "must_quote_substrings": [
+        "/repeat.* in full structures/",
+        "animals could"
+      ],
+      "must_not_quote_substrings": [
+        "jumping",
+        "playing"
+      ],
+      "should_quote_substrings": [
+        "/Yes,\\s*they can/"
+      ]
     },
     {
       "name": "Camille",
       "class_name": "Marcia · Wed · 14:10",
-      "must_quote_substrings": ["/repeat.* in full structures/", "/easily kn(?:owing|ew) what to take .* area/", "animals could"]
+      "must_quote_substrings": [
+        "/repeat.* in full structures/",
+        "/easily kn(?:owing|ew) what to take .* area/",
+        "animals could"
+      ],
+      "must_not_quote_substrings": [
+        "jumping",
+        "playing"
+      ],
+      "should_quote_substrings": [
+        "/Yes,\\s*they can/"
+      ]
     },
     {
       "name": "Lina",
       "class_name": "Marcia · Wed · 14:10",
-      "must_quote_substrings": ["/Lina.*did well/", "animals could"]
+      "must_quote_substrings": [
+        "/jumping/",
+        "animals could"
+      ],
+      "should_quote_substrings": [
+        "/Yes,\\s*they can/"
+      ]
     },
     {
       "name": "Lucie",
       "class_name": "Marcia · Wed · 14:10",
-      "must_quote_substrings": ["/Lucie.*did well/", "animals could"]
+      "must_quote_substrings": [
+        "/jumping/",
+        "animals could"
+      ],
+      "should_quote_substrings": [
+        "/Yes,\\s*they can/"
+      ]
     }
   ],
-  "must_not_extract": ["Margot", "Romain"]
+  "must_not_extract": [
+    "Margot",
+    "Romain"
+  ]
 }

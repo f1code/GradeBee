@@ -133,3 +133,79 @@ tests:
         config:
           expected: file://fixtures/extraction/group_observation/expected.json
           metric: precision_recall
+
+  - description: "extraction: pronoun run after an unmatched name stays out of every entry"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/pronoun_run_bleed/transcript.txt"
+      classes: "file://fixtures/extraction/pronoun_run_bleed/classes.json"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/pronoun_run_bleed/expected.json
+          metric: attribution
+
+  # Green on this contract, red under a passage contract — see
+  # evals/README.md, "Fixtures #125 owns".
+
+  - description: "extraction: two children in one exchange keep separate notes"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/shared_clause/transcript.txt"
+      classes: "file://fixtures/extraction/shared_clause/classes.json"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/shared_clause/expected.json
+          metric: attribution
+
+  - description: "extraction: a spoken first name resolves against a full-name roster"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/full_name_roster/transcript.txt"
+      classes: "file://fixtures/extraction/full_name_roster/classes.json"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/full_name_roster/expected.json
+          metric: precision_recall
+
+  # Numbered twins (#111): `Arthur 1` and `Arthur 2` on the roster. The
+  # number is the only thing telling them apart, so it must reach the
+  # matcher as a discriminator.
+
+  - description: "extraction: numbered twins resolve by their number"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/numbered_roster/transcript.txt"
+      classes: "file://fixtures/extraction/numbered_roster/classes.json"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/numbered_roster/expected.json
+          metric: precision_recall
+
+  # A group observation whose content is a date (#117). The "none" bullet
+  # lists both "the date" and "vocabulary the children are being taught";
+  # the drill sentence is superficially both, but the children are its
+  # subject, so it is a group observation and belongs in every note. The
+  # two children carry each other's opening as a must-not, which is what
+  # keeps the row honest: without them, copying the whole transcript into
+  # every note would satisfy all four positives and pass. "Quentin 1520" as
+  # a must-not keeps the header out of every note.
+
+  - description: "extraction: a date the children practise reaches every child"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/date_drill/transcript.txt"
+      classes: "file://fixtures/extraction/date_drill/classes.json"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/date_drill/expected.json
+          metric: voice_preservation

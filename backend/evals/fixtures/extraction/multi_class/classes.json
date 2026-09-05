@@ -2,16 +2,16 @@
   {
     "name": "Class A",
     "students": [
-      { "name": "Noah Jensen" },
-      { "name": "Mia Clark" }
+      { "name": "Noah" },
+      { "name": "Mia" }
     ]
   },
   {
     "name": "Class B",
     "students": [
-      { "name": "Sophie Nguyen" },
-      { "name": "Jacob Williams" },
-      { "name": "Ava Roberts" }
+      { "name": "Sophie" },
+      { "name": "Jacob" },
+      { "name": "Ava" }
     ]
   }
 ]
