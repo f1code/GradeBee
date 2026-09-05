@@ -52,6 +52,10 @@ A passage that reached no Student: the recording named nobody in it, or named so
 Extraction saying it cannot tell which Class a recording is about, rather than guessing one. The header was missing, or it named two. A declined recording produces no Passages and no Notes; the card says the class wasn't clear and offers the class picker, and the Teacher's pick is what runs the extraction that was deferred.
 _Avoid_: failure (a declined recording finished; a failed one did not, and its route is retry, not a Class)
 
+**Assemble**:
+Building a recording's Notes from its Passages, by the join rules under **Passage**. The same assembly runs whether extraction placed the recording itself or a Teacher picked the Class after a Decline — one recording, one way its Notes are made.
+_Avoid_: Fold, merge, collate
+
 **Report**:
 An LLM-generated report card for one Student, drawing on their Notes and the Level's Report Instructions.
 
@@ -81,4 +85,5 @@ _Avoid_: Additional instructions (legacy UI label)
 - **Day** is mandatory on every Class, even one that meets only once a week: consistency beats the saved keystroke, and it makes the teacher's week legible. Day means the first occurrence of the week when a Level meets several times.
 - Report **review** (automated LLM self-review pass, pre-Teacher) is a deferred enhancement; not modeled with a separate field yet.
 - **Scaling risk:** Clerk's plan caps Organizations at 100. The Group=Clerk-Org model is fine for MVP but would need a paid tier or a custom groups table if GradeBee exceeds ~100 Groups. No personal-group-per-user for this reason.
+- **Assemble** names the shared step, not the rescue: the class-picker endpoint is named for it because a Teacher's pick ends in assembly, but the same assembly runs on every recording extraction places on its own.
 - Existing users (2) migrate into a single Group. Self-serve Group creation/onboarding for brand-new signups is out of MVP scope.
