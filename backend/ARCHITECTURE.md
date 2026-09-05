@@ -616,10 +616,24 @@ Only **explicit thumbs-down** events fire a Sentry dual-write (via `captureFeedb
 
 Every generated `report` row and auto-extracted `note` row is stamped with:
 - `model_version` — the LLM model ID that produced the note (e.g. `"mistral-medium-2508"`); raw model ID, no provider prefix; `NULL` for manually-created notes
-- `prompt_hash` — first 12 hex chars of SHA-256(`PromptVersionTag + ":" + template`) from `prompts_version.go`
+- `prompt_hash` — first 12 hex chars of SHA-256(`PromptVersionTag + ":" + input`) from `prompts_version.go`
 
 `NULL` on pre-instrumentation rows. Filter `WHERE prompt_hash IS NOT NULL` when correlating quality.
 
+The two hashes take different inputs. `ReportPromptHash` covers the report templates alone:
+reports go through `ChatText` with no schema. `ExtractionPromptHash` covers both passes'
+templates **and the bytes of their schemas** (#129), because under structured output behaviour
+comes from the prompt and the schema together. #127 is the worked example: adding `""` to pass
+1's enum made the model decline a recording it cannot place, with the prompt text unchanged byte
+for byte. The schemas are built with `sentinelClasses`, a fixed placeholder roster, so schema
+shape moves the hash and a teacher's real class and student names cannot. The bytes are folded
+in raw, so a property reorder moves the hash too — that order is the model's generation order.
+
+A moved `ExtractionPromptHash` therefore means the prompt text changed, the schema changed, or the
+shared `PromptVersionTag` was bumped — a bump for an unrelated report or logic change re-stamps
+extraction too.
+
 `PromptVersionTag` is a manually-bumped monotonic integer for non-template logic changes.
+Extraction schema changes need no bump — the schema bytes are in the hash input already.
 
 ---

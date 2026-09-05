@@ -845,9 +845,8 @@ func TestProcessJob_CompletionRecordNamesZeroPassageMode(t *testing.T) {
 // mutation that blanks that var, or that logs some other package's hash (e.g.
 // ReportPromptHash) instead, is caught rather than passing on a same-value or
 // right-shape coincidence.
-var wantExtractionPromptHash = hashPrompt(
-	classPickPrompt + "<<<classes>>>" + classPickPromptSuffix +
-		"<<<pass2>>>" + passagePromptPrefix + "<<<roster>>>")
+var wantExtractionPromptHash = hashPrompt(extractionHashInput(
+	classPickSchema(sentinelClasses), passageSchema(sentinelClasses[0])))
 
 // promptHashAttr is the exact expected prompt_hash attribute as it appears in a
 // log line.

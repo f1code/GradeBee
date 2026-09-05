@@ -329,15 +329,33 @@ The builder functions in extract.go and report_prompt.go still live there and
 interpolate dynamic values (roster, notes, feedback) into the
 templates.  Hashing the static portion is a reasonable proxy: substantive
 changes almost always touch the static text.
+
+# Extraction also hashes its schemas
+
+Under structured output, behaviour comes from the prompt and the schema
+together. #127 is the worked example: adding "" to pass 1's enum made the
+model decline a recording it cannot place, with the prompt text unchanged
+byte for byte. Hashing text alone gave both contracts one value, so a Sentry
+readout showed one bucket spanning two behaviours.
+
+So the extraction hash also covers the bytes of classPickSchema and
+passageSchema, built with sentinelClasses. Schema shape moves the hash; a
+teacher's class and student names cannot. The bytes go in raw, so a property
+reorder moves the hash too — that order is the model's generation order (see
+passageSchema).
+
+Reports go through ChatText with no schema, so ReportPromptHash covers the
+templates alone.
 */
 
 /**
  * PromptVersionTag is bumped manually when non-template logic changes (e.g.
  * branching behaviour inside builder functions that hashing the template alone
  * would not catch).  Format: monotonic integer as string.
- * 6: #127 added "" to pass 1's enum. Only the schema changed, so
- * ExtractionPromptHash could not move on its own — and it is stamped into every
- * note row and every recovery log line.
+ * 6: #127 added "" to pass 1's enum. Only the schema changed, and back then
+ * ExtractionPromptHash could not move on its own, so the bump carried it. Since
+ * #129 the schema bytes are part of the extraction hash input: a schema shape
+ * change moves the hash unaided and needs no bump.
  * The tag is shared, so a bump re-stamps ReportPromptHash too even when no
  * report template moved. Report rows written before and after this bump carry
  * different hashes for identical prompts; nothing is keyed on it beyond the

@@ -14,19 +14,38 @@
 // interpolate dynamic values (roster, notes, feedback) into the
 // templates.  Hashing the static portion is a reasonable proxy: substantive
 // changes almost always touch the static text.
+//
+// # Extraction also hashes its schemas
+//
+// Under structured output, behaviour comes from the prompt and the schema
+// together. #127 is the worked example: adding "" to pass 1's enum made the
+// model decline a recording it cannot place, with the prompt text unchanged
+// byte for byte. Hashing text alone gave both contracts one value, so a Sentry
+// readout showed one bucket spanning two behaviours.
+//
+// So the extraction hash also covers the bytes of classPickSchema and
+// passageSchema, built with sentinelClasses. Schema shape moves the hash; a
+// teacher's class and student names cannot. The bytes go in raw, so a property
+// reorder moves the hash too — that order is the model's generation order (see
+// passageSchema).
+//
+// Reports go through ChatText with no schema, so ReportPromptHash covers the
+// templates alone.
 package handler
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 )
 
 // PromptVersionTag is bumped manually when non-template logic changes (e.g.
 // branching behaviour inside builder functions that hashing the template alone
 // would not catch).  Format: monotonic integer as string.
-// 6: #127 added "" to pass 1's enum. Only the schema changed, so
-// ExtractionPromptHash could not move on its own — and it is stamped into every
-// note row and every recovery log line.
+// 6: #127 added "" to pass 1's enum. Only the schema changed, and back then
+// ExtractionPromptHash could not move on its own, so the bump carried it. Since
+// #129 the schema bytes are part of the extraction hash input: a schema shape
+// change moves the hash unaided and needs no bump.
 //
 // The tag is shared, so a bump re-stamps ReportPromptHash too even when no
 // report template moved. Report rows written before and after this bump carry
@@ -176,9 +195,8 @@ func init() {
 	// sentinels for the dynamic lists. One hash, not two: a note is produced by
 	// the pair, so a stamp naming only one of them would not identify what
 	// wrote it.
-	ExtractionPromptHash = hashPrompt(
-		classPickPrompt + "<<<classes>>>" + classPickPromptSuffix +
-			"<<<pass2>>>" + passagePromptPrefix + "<<<roster>>>")
+	ExtractionPromptHash = hashPrompt(extractionHashInput(
+		classPickSchema(sentinelClasses), passageSchema(sentinelClasses[0])))
 
 	// The report hash covers all static fragments concatenated with separators.
 	// Dynamic parts (student name, notes, examples, feedback) are represented by
@@ -190,6 +208,50 @@ func init() {
 		reportFeedbackHeader + "<<<feedback>>>" +
 		reportTaskFooter
 	ReportPromptHash = hashPrompt(reportTemplate)
+}
+
+// sentinelClasses is the fixed roster both extraction schemas are built with
+// for hashing. A teacher's real classes and children must never reach the hash,
+// or every teacher would stamp their notes with a different prompt version.
+//
+// Two classes, two children in the first, one of them with an alias: enough
+// shape that a schema change has somewhere to show up. At one class and one
+// child, widening the student enum to include aliases emits identical bytes —
+// BuildPassagePrompt already reads them, so that is the cheapest next change of
+// exactly #127's kind — and so does anything that depends on how many classes
+// or children there are. Either would leave the hash still, which is the silent
+// miss this hash exists to remove.
+//
+// A reordering still slips through: these names are declared in sorted order,
+// so a sort added to either enum emits identical bytes. Swap two of them if
+// that case ever needs covering.
+//
+// The names carry no angle brackets, unlike the prompt separators, because
+// encoding/json escapes those to \u003c.
+var sentinelClasses = []ClassGroup{
+	{
+		Name: "SENTINEL_CLASS_A",
+		Students: []ClassStudent{
+			{Name: "SENTINEL_STUDENT_A", Aliases: []string{"SENTINEL_ALIAS_A"}},
+			{Name: "SENTINEL_STUDENT_B"},
+		},
+	},
+	{
+		Name:     "SENTINEL_CLASS_B",
+		Students: []ClassStudent{{Name: "SENTINEL_STUDENT_C"}},
+	},
+}
+
+// extractionHashInput assembles what the extraction hash is taken over: both
+// passes' text in the order they run, each followed by its schema.
+//
+// The schemas arrive as parameters so a test can hash a mutated schema against
+// unchanged prompt text and show the hash moves.
+func extractionHashInput(classPick, passage json.RawMessage) string {
+	return classPickPrompt + "<<<classes>>>" + classPickPromptSuffix +
+		"<<<pass1schema>>>" + string(classPick) +
+		"<<<pass2>>>" + passagePromptPrefix + "<<<roster>>>" +
+		"<<<pass2schema>>>" + string(passage)
 }
 
 // hashPrompt returns the first 12 hex characters of SHA-256(PromptVersionTag + ":" + s).

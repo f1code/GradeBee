@@ -31,7 +31,10 @@ providers:
           # value against the fixture's roster instead. Measured before
           # settling for it: over 16 runs of fuzzy_name_matching the enum
           # changed no score and the model returned no name off the roster
-          # without it. Update this block if ExtractedPassage's shape changes.
+          # without it. full_name_roster is the harder case — the teacher says
+          # "Emma", the roster says "Emma Torres" — and it returned the full
+          # roster name 8/8 with no enum. Update this block if
+          # ExtractedPassage's shape changes.
           name: passages
           strict: true
           schema:
