@@ -256,7 +256,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	// The pipeline's own fold: several passages about one child join in order,
 	// a class-wide passage reaches every child the recording already reached,
 	// and an unattributed one reaches nobody but stays on the card.
-	notes, painted := assemblePassages(extracted)
+	notes, passages := assemblePassages(extracted)
 
 	// No second roster check. Pass 2's schema constrains student to this class's
 	// roster, and the loop below already skips and logs a name it cannot find —
@@ -311,7 +311,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	ran := AssembleNotesResponse{
 		ClassName: req.ClassName,
 		NoteLinks: noteLinks,
-		Passages:  painted,
+		Passages:  passages,
 	}
 
 	resp := assembleOutcome(job, ran)
