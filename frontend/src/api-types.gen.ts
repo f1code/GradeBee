@@ -957,11 +957,12 @@ export interface JobPassage {
   kind: PassageKind;
   /**
    * SpokenLabels is each name this passage is about, as the extraction model
-   * wrote it. The picker hands them straight back to
-   * POST /api/voice-notes/{uploadId}/assemble, which re-resolves them against
-   * a class the teacher chose — without them the second run has nothing to
-   * match. They go to the teacher who spoke them, never to telemetry
-   * (docs/adr/0003).
+   * wrote it. Display only: nothing hands them back. The class picker's
+   * assemble call carries {className} and re-runs pass 2 itself (#127), and
+   * the pronoun guard reads the labels pass 2 returns in that run, not these.
+   * Under the shipped prompt a name matching nobody comes back as an unknown
+   * passage with no labels, so a row that reached nobody usually shows none.
+   * They go to the teacher who spoke them, never to telemetry (docs/adr/0003).
    */
   spokenLabels?: string[];
   /**
