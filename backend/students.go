@@ -20,8 +20,12 @@ type ListStudentsResponse struct {
 	Students []Student `json:"students"`
 }
 
-// Internal types used by the extractor and roster (no IDs needed).
+// ClassGroup is one class as the extractor and the roster see it.
 type ClassGroup struct {
+	// ID is the classes row, so the done card can name the roster it offers.
+	// The prompt builders read Name only, so it never reaches the model and
+	// never moves ExtractionPromptHash; fixtures and sentinelClasses omit it.
+	ID       int64          `json:"id,omitempty"`
 	Name     string         `json:"name"`
 	Students []ClassStudent `json:"students"`
 }
@@ -299,14 +303,22 @@ func handleDeleteStudent(w http.ResponseWriter, r *http.Request) {
 
 // verifyClassOwnership checks that a class belongs to the given user.
 func verifyClassOwnership(ctx context.Context, classID int64, userID string) error {
+	_, err := ownedClass(ctx, classID, userID)
+	return err
+}
+
+// ownedClass returns the caller's class with this id, or ErrNotFound when it
+// is somebody else's or nobody's. One scan over the caller's own list, so the
+// ownership gate and the class it yields cannot disagree.
+func ownedClass(ctx context.Context, classID int64, userID string) (ClassWithCount, error) {
 	classes, err := serviceDeps.GetClassRepo().List(ctx, userID)
 	if err != nil {
-		return err
+		return ClassWithCount{}, err
 	}
 	for _, c := range classes {
 		if c.ID == classID {
-			return nil
+			return c, nil
 		}
 	}
-	return ErrNotFound
+	return ClassWithCount{}, ErrNotFound
 }

@@ -7,6 +7,8 @@
 // which reaches nobody.
 package handler
 
+import "strings"
+
 // assembledNote is one child's note from one recording: everything the teacher
 // said about them, in the order they said it.
 type assembledNote struct {
@@ -45,8 +47,8 @@ type assembledNote struct {
 // spoken. A teacher's "everyone did well" is about the hour, not about the
 // sentence before it.
 func assemblePassages(passages []ExtractedPassage) ([]assembledNote, []JobPassage) {
-	notes := []assembledNote{}
-	at := map[string]int{}
+	var names []string
+	own := map[string][]string{}
 	var group []string
 	out := []JobPassage{}
 
@@ -62,24 +64,37 @@ func assemblePassages(passages []ExtractedPassage) ([]assembledNote, []JobPassag
 		case p.Kind == PassageGroup:
 			group = append(group, p.Summary)
 		case p.Kind == PassageChild && p.Student != "":
-			i, seen := at[p.Student]
-			if !seen {
-				at[p.Student] = len(notes)
-				notes = append(notes, assembledNote{Name: p.Student, Summary: p.Summary, Passages: 1})
-				continue
+			if _, seen := own[p.Student]; !seen {
+				names = append(names, p.Student)
 			}
-			notes[i].Summary += "\n\n" + p.Summary
-			notes[i].Passages++
+			own[p.Student] = append(own[p.Student], p.Summary)
 		}
 	}
 
-	for _, g := range group {
-		for i := range notes {
-			notes[i].Summary += "\n\n" + g
-			notes[i].Passages++
-		}
+	notes := make([]assembledNote, 0, len(names))
+	for _, name := range names {
+		notes = append(notes, assembledNote{
+			Name:     name,
+			Summary:  joinPassageText(own[name], group),
+			Passages: len(own[name]) + len(group),
+		})
 	}
 	return notes, out
+}
+
+// joinPassageText is the text of a note built from passages: the child's own
+// summaries in the order given, then the recording's class-wide ones. Blank
+// line between them: they are separate stretches of speech, and running them
+// together invents a sentence the teacher never said.
+//
+// One helper for both writers — the pipeline's fold above and the assign
+// endpoint, where the teacher picks the child — so a note reads the same
+// whoever named the child.
+func joinPassageText(own, group []string) string {
+	parts := make([]string, 0, len(own)+len(group))
+	parts = append(parts, own...)
+	parts = append(parts, group...)
+	return strings.Join(parts, "\n\n")
 }
 
 // countKinds counts the passages of each kind, for the completion record.

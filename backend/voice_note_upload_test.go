@@ -130,8 +130,9 @@ func TestHandleUpload_OmitsFileName(t *testing.T) {
 			}
 
 			queue := newStubVoiceNoteQueue()
+			voiceNotes := &VoiceNoteRepo{db: setupTestDB(t)}
 			serviceDeps = &mockDepsAll{
-				voiceNoteRepo:  &VoiceNoteRepo{db: setupTestDB(t)},
+				voiceNoteRepo:  voiceNotes,
 				voiceNoteQueue: queue,
 				uploadsDir:     t.TempDir(),
 			}
@@ -163,6 +164,15 @@ func TestHandleUpload_OmitsFileName(t *testing.T) {
 			require.Len(t, queue.published, 1, "expected 1 queued job")
 			assert.NotContains(t, strings.ToLower(queue.published[0].FilePath), "manoe", "disk path leaked the filename's stem")
 			assert.True(t, strings.HasSuffix(queue.published[0].FilePath, wantExt), "disk path should end in the validated extension, got %q", queue.published[0].FilePath)
+
+			// The job carries the row's key, so every note the pipeline makes
+			// can name this recording. The row is the key's home; this is the
+			// one copy from it.
+			row, err := voiceNotes.GetByID(t.Context(), resp.UploadID)
+			require.NoError(t, err)
+			require.NotEmpty(t, row.TraceID)
+			assert.Equal(t, row.TraceID, queue.published[0].TraceID, "the job should carry the row's trace id")
+			assert.Contains(t, done, `"trace_id":"`+row.TraceID+`"`, "completion should carry the trace id")
 
 			// The teacher's copy is a separate string from the telemetry copy: they
 			// recognise the upload by the name they gave it.

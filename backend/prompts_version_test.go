@@ -56,3 +56,28 @@ func TestExtractionHashIsSentinelBuilt(t *testing.T) {
 		}
 	}
 }
+
+// TestClassGroupIDNeverReachesThePrompt pins that ClassGroup.ID — the row the
+// done card's student picker needs (#134) — is invisible to the model. The
+// prompt builders read Name only, so the text is byte-identical with and
+// without it, and the hash is built from sentinelClasses, which carry none.
+func TestClassGroupIDNeverReachesThePrompt(t *testing.T) {
+	bare := testClasses()
+	withIDs := testClasses()
+	for i := range withIDs {
+		withIDs[i].ID = int64(100 + i)
+	}
+
+	assert.Equal(t, BuildClassPickPrompt(bare), BuildClassPickPrompt(withIDs))
+	assert.Equal(t, BuildPassagePrompt(bare[0]), BuildPassagePrompt(withIDs[0]))
+	assert.Equal(t, string(classPickSchema(bare)), string(classPickSchema(withIDs)))
+	assert.Equal(t, string(passageSchema(bare[0])), string(passageSchema(withIDs[0])))
+
+	for _, c := range sentinelClasses {
+		assert.Zero(t, c.ID, "the hash roster carries no row id")
+	}
+	assert.Equal(t,
+		hashPrompt(extractionHashInput(classPickSchema(withIDs), passageSchema(withIDs[0]))),
+		hashPrompt(extractionHashInput(classPickSchema(bare), passageSchema(bare[0]))),
+		"an id on the roster must not move the hash")
+}

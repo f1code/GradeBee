@@ -21,12 +21,18 @@ const (
 	NoteSourceReviewed = "reviewed"
 	// NoteSourceManual: typed by the teacher.
 	NoteSourceManual = "manual"
+	// NoteSourceAssigned: the teacher filed a passage that reached nobody to a
+	// child from the done card. The text is the model's summary as the card
+	// sent it back, so the server never saw the model produce it.
+	NoteSourceAssigned = "assigned"
 )
 
 // isModelWritten says whether a note's text came from the model, which is what
 // the implicit edit/delete thumbs-down measures. A reviewed note qualifies: the
 // teacher named the child, the model wrote the sentence, and editing it away is
-// the same signal about the same text.
+// the same signal about the same text. An assigned note does not: its text
+// came over the wire from the card, so an edit to it says nothing the server
+// can pin on extraction.
 func isModelWritten(source string) bool {
 	return source == NoteSourceAuto || source == NoteSourceReviewed
 }
@@ -47,6 +53,10 @@ type CreateNoteRequest struct {
 	// Source is a NoteSource* value; empty means NoteSourceAuto, so a caller
 	// that does not care cannot write "" into the column.
 	Source string
+	// TraceID is the recording's key (voice_notes.trace_id). The pipeline,
+	// assemble and assign set it; empty writes NULL, which is what a manual
+	// note has.
+	TraceID string
 }
 
 // CreateNoteResponse contains the created note info.
@@ -81,6 +91,9 @@ func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (
 	}
 	if req.Transcript != "" {
 		n.Transcript = &req.Transcript
+	}
+	if req.TraceID != "" {
+		n.TraceID = &req.TraceID
 	}
 	if err := c.noteRepo.Create(ctx, n); err != nil {
 		return nil, err

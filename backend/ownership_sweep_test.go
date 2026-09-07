@@ -444,6 +444,28 @@ var sweepDenied = []deniedCase{
 		},
 		wantStatus: http.StatusNotFound, wantBody: jsonBody("recording not found"),
 	},
+	{
+		// B names B's own class and child, so only the row's user_id can
+		// refuse — and it must, before any write: a planted note on B's own
+		// child would show in the snapshot.
+		name: "assign another user's recording", route: "POST /api/voice-notes/{uploadId}/assign", method: http.MethodPost,
+		path: func(f *sweepFixture) string { return fmt.Sprintf("/api/voice-notes/%d/assign", f.uploadA.ID) },
+		body: func(f *sweepFixture) any {
+			return map[string]any{
+				"classId":   f.classB.ID,
+				"studentId": f.studentB.ID,
+				"passages":  []map[string]any{{"kind": string(PassageUnknown), "summary": "planted"}},
+			}
+		},
+		wantStatus: http.StatusNotFound, wantBody: jsonBody("recording not found"),
+	},
+	{
+		// B names B's own child, so only the row's user_id can refuse. Nothing
+		// of A's is deleted: A's notes are in the snapshot.
+		name: "undo an assignment on another user's recording", route: "DELETE /api/voice-notes/{uploadId}/assign/{studentId}", method: http.MethodDelete,
+		path:       func(f *sweepFixture) string { return fmt.Sprintf("/api/voice-notes/%d/assign/%d", f.uploadA.ID, f.studentB.ID) },
+		wantStatus: http.StatusNotFound, wantBody: jsonBody("recording not found"),
+	},
 }
 
 // notEntityScoped lists every route that takes no id belonging to anyone and

@@ -363,11 +363,14 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	row, err := voiceNoteRepo.GetByID(ctx, uploadID)
+	require.NoError(t, err)
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, TraceID: row.TraceID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)))
 
 	require.Len(t, nc.calls, 1, "expected 1 note creation call")
 	assert.Equal(t, rawQuote, nc.calls[0].QuotedText, "QuotedText not passed through")
+	assert.Equal(t, row.TraceID, nc.calls[0].TraceID, "the note names its recording by the job's copy of the row's key")
 }
 
 // TestProcessJob_DeletesAudioAfterTranscription verifies that the audio file is
@@ -989,7 +992,6 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 		pass1Class string
 		passages   []ExtractedPassage
 		wantReason string
-		wantClass  string
 		wantCount  int
 	}{
 		{
@@ -1013,10 +1015,10 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 		},
 		{
 			// A pinned class whose passages all reached nobody is NOT a
-			// decline, even though it also ends with no class on the card:
-			// job.ClassName comes from the note links. The teacher's route here
-			// is an alias, not a class, and reading the job field instead of
-			// pass 1's answer would send them to the wrong one.
+			// decline: the job names the pinned class even though no note was
+			// filed under it, so the card can offer that roster for filing the
+			// passages by hand. The teacher's route to a better extraction is
+			// an alias, not a class.
 			name:       "a class was pinned but nobody was named",
 			pass1Class: "Math · Mon",
 			passages:   []ExtractedPassage{{Kind: PassageUnknown, Summary: "someone did well"}},
@@ -1057,7 +1059,7 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 			queue := newStubVoiceNoteQueue()
 			d := &mockDepsAll{
 				transcriber:   &stubTranscriber{result: "transcript"},
-				roster:        &stubRoster{},
+				roster:        &stubRoster{students: []ClassGroup{{ID: 7, Name: "Math · Mon"}}},
 				extractor:     &stubExtractor{result: &ExtractResponse{ClassName: tc.pass1Class, Passages: tc.passages}},
 				noteCreator:   &stubNoteCreator{},
 				studentRepo:   studentRepo,
@@ -1073,7 +1075,14 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 			require.NoError(t, err)
 			assert.Empty(t, got.NoteLinks)
 			assert.Equal(t, tc.wantReason, got.NoNotesReason)
-			assert.Equal(t, tc.wantClass, got.ClassName)
+			// The class in force, not the class notes were filed under: a
+			// decline is the only row with none.
+			assert.Equal(t, tc.pass1Class, got.ClassName)
+			if tc.pass1Class == "" {
+				assert.Zero(t, got.ClassID)
+			} else {
+				assert.Equal(t, int64(7), got.ClassID, "the pinned class's id rides beside its name")
+			}
 			assert.Len(t, got.Passages, tc.wantCount)
 			// The card's gate travels with the reason, decided here. A
 			// recording that named nobody cannot be rescued by a class.
@@ -1083,29 +1092,6 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 			// indistinguishable in Sentry from an extraction that returned
 			// nothing at all — same passages_total, same zero per-kind counts.
 			assert.Contains(t, logs, `"no_notes_reason":"`+tc.wantReason+`"`)
-		})
-	}
-}
-
-// The card shows one class or none. Pass 1 pins one class for the whole
-// recording, so the two-class rows are no longer reachable from the pipeline —
-// they stay because "" is the answer the class picker needs, and a helper that
-// quietly started naming the first class would take it away.
-func TestSingleClass(t *testing.T) {
-	link := func(class string) NoteLink { return NoteLink{Name: "x", ClassName: class} }
-	for _, tc := range []struct {
-		name  string
-		links []NoteLink
-		want  string
-	}{
-		{"no notes", nil, ""},
-		{"one note", []NoteLink{link("Math")}, "Math"},
-		{"two notes, one class", []NoteLink{link("Math"), link("Math")}, "Math"},
-		{"two classes", []NoteLink{link("Math"), link("French")}, ""},
-		{"three, the last one differs", []NoteLink{link("Math"), link("Math"), link("French")}, ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.want, singleClass(tc.links))
 		})
 	}
 }

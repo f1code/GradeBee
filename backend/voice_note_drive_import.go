@@ -94,7 +94,7 @@ func handleDriveImport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("drive-import completed", "user_id", userID, "source_file_id", req.FileID, "upload_id", upload.ID, "file_ext", ext)
+	log.Info("drive-import completed", "user_id", userID, "source_file_id", req.FileID, "upload_id", upload.ID, "trace_id", upload.TraceID, "file_ext", ext)
 	writeJSON(w, http.StatusOK, DriveImportResponse{
 		UploadID: upload.ID,
 		FileName: cleanName,

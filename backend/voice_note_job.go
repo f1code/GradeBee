@@ -93,8 +93,12 @@ type JobPassage struct {
 
 // VoiceNoteJob represents an async voice note processing job.
 type VoiceNoteJob struct {
-	UserID     string     `json:"userId"`
-	UploadID   int64      `json:"uploadId"`
+	UserID   string `json:"userId"`
+	UploadID int64  `json:"uploadId"`
+	// TraceID is the recording's key, copied from voice_notes.trace_id at
+	// dispatch and stamped on every note the pipeline makes. The row, not the
+	// job, is its home: the job is in memory and a retry rebuilds it.
+	TraceID    string     `json:"traceId,omitempty"`
 	FilePath   string     `json:"filePath"`
 	FileName   string     `json:"fileName"`
 	MimeType   string     `json:"mimeType"`
@@ -103,14 +107,24 @@ type VoiceNoteJob struct {
 	Status     string     `json:"status"`
 	CreatedAt  time.Time  `json:"createdAt"`
 	NoteLinks  []NoteLink `json:"noteLinks,omitempty"`
-	// ClassName is the class the notes were filed under; "" when none was. It
-	// and Passages are set at completion and absent on jobs done before they
-	// existed.
-	ClassName string       `json:"className,omitempty"`
-	Passages  []JobPassage `json:"passages,omitempty"`
-	// NoNotesReason is set only on a done job that created no note, to one of
-	// the NoNotes* constants. Empty whenever a note was created. It says WHY,
-	// and nothing else: it is not the card's instruction about what to offer.
+	// ClassName is the class in force for this recording: the one pass 1
+	// pinned, or the one the teacher picked. "" on a decline. It is not "the
+	// class the notes were filed under" — a pinned recording whose passages
+	// all reached nobody still names its class, so the card can offer that
+	// roster for filing them by hand. It, ClassID and Passages are set at
+	// completion and absent on jobs done before they existed.
+	ClassName string `json:"className,omitempty"`
+	// ClassID is ClassName's row, for the card's student picker. 0 when there
+	// is no class.
+	ClassID  int64        `json:"classId,omitempty"`
+	Passages []JobPassage `json:"passages,omitempty"`
+	// NoNotesReason is set only on a done job whose pipeline run created no
+	// note, to one of the NoNotes* constants. Empty whenever that run created
+	// one. It says WHY, and nothing else: it is not the card's instruction
+	// about what to offer. A note the teacher files by hand afterwards
+	// (voice_note_assign.go) appends its link and leaves this as it was: the
+	// card reads the link count first, and the reason still names what the
+	// pipeline found.
 	NoNotesReason string `json:"noNotesReason,omitempty"`
 	// CanPickClass says whether picking a class could still rescue this
 	// recording, and it is the card's gate for the class picker.

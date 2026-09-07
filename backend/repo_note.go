@@ -21,14 +21,20 @@ type Note struct {
 	Source       string  `json:"source"`
 	ModelVersion *string `json:"modelVersion,omitempty"`
 	PromptHash   *string `json:"promptHash,omitempty"`
-	CreatedAt    string  `json:"createdAt"`
-	UpdatedAt    string  `json:"updatedAt"`
+	// TraceID names the recording this note was made from
+	// (voice_notes.trace_id), whether the pipeline, the class picker or the
+	// assign endpoint made it. Nil on a manual note, and on every note made
+	// before the column existed. It outlives the recording row, which
+	// retention deletes; the note keeps the key.
+	TraceID   *string `json:"traceId,omitempty"`
+	CreatedAt string  `json:"createdAt"`
+	UpdatedAt string  `json:"updatedAt"`
 }
 
 // List returns all notes for a student, newest first.
 func (r *NoteRepo) List(ctx context.Context, studentID int64) ([]Note, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, created_at, updated_at
+		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, trace_id, created_at, updated_at
 		FROM notes WHERE student_id = ?
 		ORDER BY date DESC, created_at DESC`, studentID)
 	if err != nil {
@@ -39,7 +45,7 @@ func (r *NoteRepo) List(ctx context.Context, studentID int64) ([]Note, error) {
 	var result []Note
 	for rows.Next() {
 		var n Note
-		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.TraceID, &n.CreatedAt, &n.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan note: %w", err)
 		}
 		result = append(result, n)
@@ -51,9 +57,9 @@ func (r *NoteRepo) List(ctx context.Context, studentID int64) ([]Note, error) {
 func (r *NoteRepo) GetByID(ctx context.Context, id int64) (Note, error) {
 	var n Note
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, created_at, updated_at
+		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, trace_id, created_at, updated_at
 		FROM notes WHERE id = ?`, id,
-	).Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.CreatedAt, &n.UpdatedAt)
+	).Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.TraceID, &n.CreatedAt, &n.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Note{}, ErrNotFound
 	}
@@ -67,10 +73,10 @@ func (r *NoteRepo) GetByID(ctx context.Context, id int64) (Note, error) {
 // passed Note are populated on return.
 func (r *NoteRepo) Create(ctx context.Context, n *Note) error {
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO notes (student_id, date, summary, transcript, source, model_version, prompt_hash)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO notes (student_id, date, summary, transcript, source, model_version, prompt_hash, trace_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at, updated_at`,
-		n.StudentID, n.Date, n.Summary, n.Transcript, n.Source, n.ModelVersion, n.PromptHash,
+		n.StudentID, n.Date, n.Summary, n.Transcript, n.Source, n.ModelVersion, n.PromptHash, n.TraceID,
 	).Scan(&n.ID, &n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create note: %w", err)
@@ -98,6 +104,32 @@ func (r *NoteRepo) Delete(ctx context.Context, id int64) error {
 	return rowsAffectedOrNotFound(res)
 }
 
+// ListForRecording returns a student's notes made from one recording, oldest
+// first. The assign endpoint's duplicate guard reads it: a replay's note is
+// this child's, from this recording, and holds this text. Nothing else keys a
+// note to a recording, so a scope by day would take in another recording's
+// note for the same child.
+func (r *NoteRepo) ListForRecording(ctx context.Context, studentID int64, traceID string) ([]Note, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, trace_id, created_at, updated_at
+		FROM notes WHERE student_id = ? AND trace_id = ?
+		ORDER BY id`, studentID, traceID)
+	if err != nil {
+		return nil, fmt.Errorf("list notes for recording: %w", err)
+	}
+	defer rows.Close()
+
+	var result []Note
+	for rows.Next() {
+		var n Note
+		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.TraceID, &n.CreatedAt, &n.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan note: %w", err)
+		}
+		result = append(result, n)
+	}
+	return result, rows.Err()
+}
+
 // ListForStudents returns notes for multiple students within a date range.
 // Used by report generation.
 func (r *NoteRepo) ListForStudents(ctx context.Context, studentIDs []int64, startDate, endDate string) ([]Note, error) {
@@ -114,7 +146,7 @@ func (r *NoteRepo) ListForStudents(ctx context.Context, studentIDs []int64, star
 	args = append(args, startDate, endDate)
 
 	query := fmt.Sprintf(`
-		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, created_at, updated_at
+		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, trace_id, created_at, updated_at
 		FROM notes
 		WHERE student_id IN (%s) AND date BETWEEN ? AND ?
 		ORDER BY student_id, date DESC`,
@@ -129,7 +161,7 @@ func (r *NoteRepo) ListForStudents(ctx context.Context, studentIDs []int64, star
 	var result []Note
 	for rows.Next() {
 		var n Note
-		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.CreatedAt, &n.UpdatedAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.StudentID, &n.Date, &n.Summary, &n.Transcript, &n.Source, &n.ModelVersion, &n.PromptHash, &n.TraceID, &n.CreatedAt, &n.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan note: %w", err)
 		}
 		result = append(result, n)

@@ -29,6 +29,7 @@ type assembleWorld struct {
 	classRepo   *ClassRepo
 	studentRepo *StudentRepo
 	noteRepo    *NoteRepo
+	feedback    *ArtifactFeedbackRepo
 	voiceNotes  *VoiceNoteRepo
 	queue       *stubVoiceNoteQueue
 	extractor   *stubExtractor
@@ -36,6 +37,8 @@ type assembleWorld struct {
 	alice, bob  int64
 	monday      string
 	tuesday     string
+	mondayID    int64
+	tuesdayID   int64
 	deps        *mockDepsAll
 }
 
@@ -106,21 +109,22 @@ func newAssembleWorld(t *testing.T) *assembleWorld {
 	// The lock map is package-global and every world here is upload 1 for u1, so
 	// they all share one key. A test that fails before releasing it would 409
 	// every test after it — a cascade that says nothing about the failure.
-	assembleLocksMu.Lock()
-	assembleLocks = map[string]struct{}{}
-	assembleLocksMu.Unlock()
+	uploadLocksMu.Lock()
+	uploadLocks = map[string]struct{}{}
+	uploadLocksMu.Unlock()
 
 	w := &assembleWorld{
 		classRepo:   &ClassRepo{db: db},
 		studentRepo: &StudentRepo{db: db},
 		noteRepo:    &NoteRepo{db: db},
+		feedback:    &ArtifactFeedbackRepo{db: db},
 		voiceNotes:  &VoiceNoteRepo{db: db},
 		queue:       newStubVoiceNoteQueue(),
 		extractor:   &stubExtractor{passagesFn: rosterPass2()},
 	}
 
 	tuesday := newTestClass(t, w.classRepo, "test-group", "u1", "Tuesday", "")
-	w.tuesday = tuesday.Name
+	w.tuesday, w.tuesdayID = tuesday.Name, tuesday.ID
 	alice, err := w.studentRepo.Create(ctx, tuesday.ID, "Alice")
 	require.NoError(t, err)
 	bob, err := w.studentRepo.Create(ctx, tuesday.ID, "Bob")
@@ -128,7 +132,7 @@ func newAssembleWorld(t *testing.T) *assembleWorld {
 	w.alice, w.bob = alice.ID, bob.ID
 
 	monday := newTestClass(t, w.classRepo, "test-group", "u1", "Monday", "")
-	w.monday = monday.Name
+	w.monday, w.mondayID = monday.Name, monday.ID
 	_, err = w.studentRepo.Create(ctx, monday.ID, "Zephyrine")
 	require.NoError(t, err)
 	_, err = w.studentRepo.Create(ctx, monday.ID, "Ozymandias")
@@ -145,6 +149,7 @@ func newAssembleWorld(t *testing.T) *assembleWorld {
 		classRepo:      w.classRepo,
 		studentRepo:    w.studentRepo,
 		noteRepo:       w.noteRepo,
+		feedbackRepo:   w.feedback,
 		voiceNoteRepo:  w.voiceNotes,
 		voiceNoteQueue: w.queue,
 		roster:         roster,
@@ -234,6 +239,7 @@ func TestAssembleNotes_RescuesARecordingFiledToTheSiblingClass(t *testing.T) {
 	var resp AssembleNotesResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Equal(t, w.tuesday, resp.ClassName)
+	assert.Equal(t, w.tuesdayID, resp.ClassID, "the card's student picker needs the row, not the name")
 	assert.Empty(t, resp.NoNotesReason)
 	assert.False(t, resp.CanPickClass, "the recording is filed; there is nothing left to pick")
 	require.Len(t, resp.NoteLinks, 2)
@@ -249,6 +255,10 @@ func TestAssembleNotes_RescuesARecordingFiledToTheSiblingClass(t *testing.T) {
 	alice := w.notesFor(t, w.alice)
 	require.Len(t, alice, 1)
 	assert.Equal(t, "Alice's passage", alice[0].Summary)
+	row, err := w.voiceNotes.GetByID(context.Background(), w.uploadID)
+	require.NoError(t, err)
+	require.NotNil(t, alice[0].TraceID)
+	assert.Equal(t, row.TraceID, *alice[0].TraceID, "the note names its recording")
 	// Since #127 the model wrote these words in this request, so the source
 	// constant is literally true: the teacher supplied only the class.
 	assert.Equal(t, NoteSourceReviewed, alice[0].Source)
@@ -300,9 +310,13 @@ func TestAssembleNotes_DatesNotesFromTheRecording(t *testing.T) {
 // to undo, so a pick that resolved nobody must leave the job untouched and the
 // teacher able to pick again.
 //
-// The response mirrors the job rather than reporting the pick: nothing was
-// filed, and a card that changes on this pick only to change back on the next
-// refresh is worse than one that says nothing new.
+// The response reports the pick — the class and the passages the run returned —
+// and the reason stays the job's. A declined recording holds no passages of
+// its own, so the run's are the only rows the teacher can file by hand, and
+// the picked class is the only roster to file them to; but nothing was filed,
+// so the job is not written and the picker stays up. If the pick was the wrong
+// sibling, the teacher reads the summaries against the wrong roster and picks
+// again.
 func TestAssembleNotes_APickThatMadeNoNoteCanBeRetried(t *testing.T) {
 	w := newAssembleWorld(t)
 	w.declinedJob(t)
@@ -313,13 +327,16 @@ func TestAssembleNotes_APickThatMadeNoNoteCanBeRetried(t *testing.T) {
 	var resp AssembleNotesResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Empty(t, resp.NoteLinks)
-	assert.Empty(t, resp.ClassName, "no class is filed against this recording")
+	assert.Equal(t, w.monday, resp.ClassName, "the pick, so the card can offer its roster")
+	assert.Equal(t, w.mondayID, resp.ClassID)
+	assert.Len(t, resp.Passages, 2, "the run's rows, the only ones a declined recording has")
 	assert.Equal(t, NoNotesClassUnclear, resp.NoNotesReason, "the card's own reason, unchanged")
 
 	assert.True(t, resp.CanPickClass, "the picker stays up for the next attempt")
 
 	job := w.job(t)
-	assert.Empty(t, job.ClassName)
+	assert.Empty(t, job.ClassName, "nothing was filed, so the job is unwritten")
+	assert.Zero(t, job.ClassID)
 	assert.Equal(t, NoNotesClassUnclear, job.NoNotesReason)
 	assert.Empty(t, job.NoteLinks)
 
@@ -350,7 +367,8 @@ func TestAssembleNotes_APickWithNoSpokenNameLeavesTheJobAlone(t *testing.T) {
 	var resp AssembleNotesResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Empty(t, resp.NoteLinks)
-	assert.Empty(t, resp.ClassName, "nothing was filed, so no class is claimed")
+	assert.Equal(t, w.tuesday, resp.ClassName, "the pick is reported; the reason is not derived from it")
+	assert.Len(t, resp.Passages, 1)
 	assert.Equal(t, NoNotesClassUnclear, resp.NoNotesReason, "the card's own reason, unchanged")
 
 	job := w.job(t)
@@ -474,6 +492,7 @@ func TestAssembleNotes_UpdatesQueuedJobThenRefusesASecondCall(t *testing.T) {
 
 	job := w.job(t)
 	assert.Equal(t, w.tuesday, job.ClassName)
+	assert.Equal(t, w.tuesdayID, job.ClassID)
 	assert.Len(t, job.NoteLinks, 2)
 	assert.Empty(t, job.NoNotesReason)
 
@@ -515,10 +534,10 @@ func TestAssembleNotes_WorksWithNoJobInTheQueue(t *testing.T) {
 // The same card, picked to the wrong class. There is no job to mirror, so the
 // response is all the teacher gets — and it wins over the poll for the rest of
 // that card's life (JobStatus.tsx keeps a forgotten job's done card, and an
-// assemble result overrides it). So it must not answer with this run's own
-// reading: pass 2 against the wrong roster returns an off-roster name as an
-// unlabelled unknown, which reads as nobody_named and would take the picker
-// away for good in that tab.
+// assemble result overrides it). So it may report the pick, but must not name
+// a cause from this run's own reading: pass 2 against the wrong roster returns
+// an off-roster name as an unlabelled unknown, which reads as nobody_named and
+// would take the picker away for good in that tab.
 func TestAssembleNotes_WithNoJobAPickThatMadeNothingKeepsThePicker(t *testing.T) {
 	w := newAssembleWorld(t)
 	w.extractor.passagesFn = offRosterAsUnknown()
@@ -529,7 +548,8 @@ func TestAssembleNotes_WithNoJobAPickThatMadeNothingKeepsThePicker(t *testing.T)
 	var resp AssembleNotesResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	assert.Empty(t, resp.NoteLinks)
-	assert.Empty(t, resp.ClassName, "nothing was filed, so no class is claimed")
+	assert.Equal(t, w.monday, resp.ClassName, "the pick is reported even with no job to mirror")
+	assert.Equal(t, w.mondayID, resp.ClassID)
 	assert.Empty(t, resp.NoNotesReason, "the handler cannot know the cause here, so it names none")
 	assert.True(t, resp.CanPickClass, "the picker must survive this")
 	assert.Empty(t, w.notesFor(t, w.alice))
@@ -641,10 +661,13 @@ func TestAssembleNotes_FoldsPassagesTheWayThePipelineDoes(t *testing.T) {
 }
 
 // assembleOutcome is where a pick decides what the teacher is told, so its
-// three outcomes are pinned directly rather than only through the route.
+// three outcomes are pinned directly rather than only through the route. The
+// class and the passages are the run's in every row; the reason and the gate
+// are the job's, or absent-and-open when there is no job.
 func TestAssembleOutcome(t *testing.T) {
 	ran := AssembleNotesResponse{
 		ClassName: "Tuesday",
+		ClassID:   3,
 		NoteLinks: []NoteLink{{Name: "Alice", NoteID: 1}},
 		Passages:  []JobPassage{{Kind: PassageChild, Summary: "x"}},
 	}
@@ -664,9 +687,11 @@ func TestAssembleOutcome(t *testing.T) {
 		empty.NoteLinks = nil
 		got := assembleOutcome(job, empty)
 		assert.Empty(t, got.NoteLinks)
-		assert.Empty(t, got.ClassName, "the job holds no class, and neither does the answer")
+		assert.NotNil(t, got.NoteLinks, "[] on the wire, never null")
+		assert.Equal(t, "Tuesday", got.ClassName, "the pick, so the card can offer its roster")
+		assert.Equal(t, int64(3), got.ClassID)
+		assert.Equal(t, ran.Passages, got.Passages, "the run's rows, not the job's")
 		assert.Equal(t, NoNotesClassUnclear, got.NoNotesReason, "the job's own reason, unchanged")
-		assert.Equal(t, job.Passages, got.Passages)
 		assert.True(t, got.CanPickClass)
 	})
 
@@ -675,7 +700,8 @@ func TestAssembleOutcome(t *testing.T) {
 		empty.NoteLinks = nil
 		got := assembleOutcome(nil, empty)
 		assert.Empty(t, got.NoteLinks)
-		assert.Empty(t, got.ClassName, "nothing was filed")
+		assert.Equal(t, "Tuesday", got.ClassName)
+		assert.Equal(t, ran.Passages, got.Passages)
 		assert.Empty(t, got.NoNotesReason, "the cause is unknowable here, so none is named")
 		assert.True(t, got.CanPickClass, "and the teacher can still try")
 	})

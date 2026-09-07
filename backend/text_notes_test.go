@@ -100,4 +100,9 @@ func TestHandleTextNotesUpload_HappyPath(t *testing.T) {
 	require.Len(t, jobs, 1)
 	assert.Equal(t, "Alice did great today", jobs[0].Transcript)
 	assert.Equal(t, "text", jobs[0].Source)
+	// And the row's key, as an audio upload's job carries it.
+	row, err := serviceDeps.GetVoiceNoteRepo().GetByID(t.Context(), resp.UploadID)
+	require.NoError(t, err)
+	require.NotEmpty(t, row.TraceID)
+	assert.Equal(t, row.TraceID, jobs[0].TraceID, "the job should carry the row's trace id")
 }

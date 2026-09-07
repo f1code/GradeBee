@@ -63,6 +63,7 @@ func handleTextNotesUpload(w http.ResponseWriter, r *http.Request) {
 	err = publishOrCleanup(ctx, queue, VoiceNoteJob{
 		UserID:     userID,
 		UploadID:   upload.ID,
+		TraceID:    upload.TraceID,
 		FileName:   "pasted-text",
 		Source:     "text",
 		Transcript: req.Text,
@@ -77,7 +78,7 @@ func handleTextNotesUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("text-notes upload dispatched", "user_id", userID, "upload_id", upload.ID)
+	log.Info("text-notes upload dispatched", "user_id", userID, "upload_id", upload.ID, "trace_id", upload.TraceID)
 	writeJSON(w, http.StatusOK, UploadResponse{
 		UploadID: upload.ID,
 		FileName: "pasted-text",

@@ -45,11 +45,13 @@ func TestDBRoster_Students(t *testing.T) {
 
 	got, err := newDBRoster(r.classes, r.students, "userA").Students(ctx)
 	require.NoError(t, err)
+	// The row id rides beside the name: the done card's student picker needs
+	// it, and the prompt builders never read it.
 	assert.Equal(t, []ClassGroup{
-		{Name: "Science · Mon · 14:10", Students: []ClassStudent{
+		{ID: science.ID, Name: "Science · Mon · 14:10", Students: []ClassStudent{
 			{Name: "Carl", Aliases: []string{"Charlie"}},
 		}},
-		{Name: "Math · Mon", Students: []ClassStudent{
+		{ID: math.ID, Name: "Math · Mon", Students: []ClassStudent{
 			{Name: "Alexander", Aliases: []string{"Alex", "Xander"}},
 			{Name: "Beatrice", Aliases: []string{}},
 		}},
@@ -65,7 +67,7 @@ func TestDBRoster_Students(t *testing.T) {
 	gotB, err := newDBRoster(r.classes, r.students, "userB").Students(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, []ClassGroup{
-		{Name: "Math · Mon", Students: []ClassStudent{
+		{ID: bMath.ID, Name: "Math · Mon", Students: []ClassStudent{
 			{Name: "Dora", Aliases: []string{"Dee"}},
 		}},
 	}, gotB)
@@ -77,15 +79,15 @@ func TestDBRoster_Students_EmptyClass(t *testing.T) {
 	ctx, r := testDBAndRepos(t)
 
 	math := newTestClass(t, r.classes, "test-group", "userA", "Math", "")
-	newTestClass(t, r.classes, "test-group", "userA", "Art", "")
+	art := newTestClass(t, r.classes, "test-group", "userA", "Art", "")
 	_, err := r.students.Create(ctx, math.ID, "Alexander")
 	require.NoError(t, err)
 
 	got, err := newDBRoster(r.classes, r.students, "userA").Students(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, []ClassGroup{
-		{Name: "Math · Mon", Students: []ClassStudent{{Name: "Alexander", Aliases: []string{}}}},
-		{Name: "Art · Mon", Students: []ClassStudent{}},
+		{ID: math.ID, Name: "Math · Mon", Students: []ClassStudent{{Name: "Alexander", Aliases: []string{}}}},
+		{ID: art.ID, Name: "Art · Mon", Students: []ClassStudent{}},
 	}, got)
 }
 

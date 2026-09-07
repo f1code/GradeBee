@@ -31,7 +31,8 @@ import (
 // looks stuck.
 const assemblePass2Timeout = 30 * time.Second
 
-// One in-flight pick per recording. A double-click or a client retry used to
+// One in-flight write per recording, shared by this handler and the assign
+// endpoint (voice_note_assign.go). A double-click or a client retry used to
 // race two full runs through a job read that neither had written yet, and every
 // child got two identical notes; a 2-3s model call in the middle makes that
 // window wide enough to hit by hand.
@@ -40,25 +41,25 @@ const assemblePass2Timeout = 30 * time.Second
 // per upload ever picked, and refcounting them back out is more code than the
 // thing it guards. Package-level, matching how voiceNoteQueueInstance lives.
 var (
-	assembleLocksMu sync.Mutex
-	assembleLocks   = map[string]struct{}{}
+	uploadLocksMu sync.Mutex
+	uploadLocks   = map[string]struct{}{}
 )
 
-// takeAssembleLock claims a recording, or reports that someone else holds it.
-func takeAssembleLock(key string) bool {
-	assembleLocksMu.Lock()
-	defer assembleLocksMu.Unlock()
-	if _, held := assembleLocks[key]; held {
+// takeUploadLock claims a recording, or reports that someone else holds it.
+func takeUploadLock(key string) bool {
+	uploadLocksMu.Lock()
+	defer uploadLocksMu.Unlock()
+	if _, held := uploadLocks[key]; held {
 		return false
 	}
-	assembleLocks[key] = struct{}{}
+	uploadLocks[key] = struct{}{}
 	return true
 }
 
-func releaseAssembleLock(key string) {
-	assembleLocksMu.Lock()
-	defer assembleLocksMu.Unlock()
-	delete(assembleLocks, key)
+func releaseUploadLock(key string) {
+	uploadLocksMu.Lock()
+	defer uploadLocksMu.Unlock()
+	delete(uploadLocks, key)
 }
 
 // AssembleNotesRequest is the body of the assemble call: the class the teacher
@@ -78,7 +79,11 @@ type AssembleNotesRequest struct {
 // or not the job is still in the queue — and it says what the job says, so a
 // refresh does not contradict it.
 type AssembleNotesResponse struct {
+	// ClassName and ClassID are the class the pick ran against, whether or
+	// not it made a note: the card offers that class's roster for filing the
+	// passages by hand. See assembleOutcome.
 	ClassName string       `json:"className"`
+	ClassID   int64        `json:"classId,omitempty"`
 	NoteLinks []NoteLink   `json:"noteLinks"`
 	Passages  []JobPassage `json:"passages"`
 	// NoNotesReason is empty once a note exists; a pick that filed nothing comes
@@ -191,11 +196,11 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	// One pick at a time per recording. Immediately, not a blocking wait: a
 	// double-click should not sit through a 2-3s model call to be told no.
 	key := voiceNoteKey(userID, uploadID)
-	if !takeAssembleLock(key) {
+	if !takeUploadLock(key) {
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "this recording is already being filed"})
 		return
 	}
-	defer releaseAssembleLock(key)
+	defer releaseUploadLock(key)
 
 	// Three refusals, all only while the job is in memory: with no passage
 	// storage there is nothing left to check once it is gone. After a restart
@@ -284,6 +289,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 			Date:         noteDate,
 			ModelVersion: extractor.Model(),
 			Source:       NoteSourceReviewed,
+			TraceID:      row.TraceID,
 		})
 		if err != nil {
 			writeInternalError(w, r, err)
@@ -301,7 +307,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 		log.Info("process voice note: passage recovered",
 			"route", "class_picker",
 			"passage_count", n.Passages,
-			"user_id", userID, "upload_id", uploadID, "student_id", studentID,
+			"user_id", userID, "upload_id", uploadID, "trace_id", row.TraceID, "student_id", studentID,
 			"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	}
 
@@ -310,6 +316,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	// is what stops a reason being derived from a run that cannot support one.
 	ran := AssembleNotesResponse{
 		ClassName: req.ClassName,
+		ClassID:   class.ID,
 		NoteLinks: noteLinks,
 		Passages:  passages,
 	}
@@ -317,6 +324,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	resp := assembleOutcome(job, ran)
 	if len(noteLinks) > 0 && job != nil {
 		job.ClassName = resp.ClassName
+		job.ClassID = resp.ClassID
 		job.NoteLinks = resp.NoteLinks
 		job.Passages = resp.Passages
 		job.NoNotesReason = resp.NoNotesReason
@@ -333,7 +341,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	// not the other makes the Sentry readout lie by omission.
 	kinds := countKinds(extracted)
 	log.Info("assemble notes",
-		"user_id", userID, "upload_id", uploadID,
+		"user_id", userID, "upload_id", uploadID, "trace_id", row.TraceID,
 		"note_count", len(noteLinks),
 		"passages_total", len(extracted),
 		"passages_child", kinds[PassageChild],
@@ -346,47 +354,56 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// assembleOutcome turns what a pick produced into what the teacher is told, and
-// says whether the job should be written with it.
+// assembleOutcome turns what a pick produced into what the teacher is told. It
+// splits fact from judgement: the class picked and the passages the run
+// returned are facts, and every outcome reports them; the reason and whether
+// a class could still be picked are judgements, and only the pipeline, which
+// had the pinned class, may make them.
 //
-// Pure, and deliberately blind: it never sees the passages pass 2 returned, so
-// it cannot derive a reason from them. That is the rule this handler lives by —
-// pass 2 against the wrong roster returns a name fitting no listed child as an
-// unlabelled unknown, indistinguishable here from a recording that named
-// nobody, so a reason read off this run would sooner or later close a picker
-// that should have stayed open. Making the function blind is what keeps the
-// rule from being a comment somebody has to remember.
+// It never sees the extraction itself, only its fold, and it never derives a
+// reason from that. Pass 2 against the wrong roster returns a name fitting no
+// listed child as an unlabelled unknown, indistinguishable here from a
+// recording that named nobody, so a reason read off this run would sooner or
+// later close a picker that should have stayed open. Making the function blind
+// to the extraction is what keeps the rule from being a comment somebody has
+// to remember.
 //
-// Three outcomes:
+// Three outcomes, and ClassName, ClassID and Passages come from the run in all
+// three:
 //
 //   - notes created → what the run produced, and the caller writes it. No
 //     reason, and no picker: the recording is filed.
-//   - no notes, job known → the job, unchanged. The pick settled nothing, and a
-//     card that changes now only to change back on the next poll is worse than
-//     one that says nothing new.
-//   - no notes, job forgotten → nothing was filed, so it claims no class and
-//     names no cause it cannot know. The picker stays up, because a class the
-//     teacher picks may still rescue the recording and this response outlives
-//     the poll on their card.
+//   - no notes, job known → the job's reason and gate, unchanged. The pick
+//     settled nothing there, and a card whose reason changes now only to change
+//     back on the next poll is worse than one that says nothing new. The caller
+//     leaves the job unwritten.
+//   - no notes, job forgotten → no cause it cannot know, and the picker stays
+//     up, because a class the teacher picks may still rescue the recording and
+//     this response outlives the poll on their card.
+//
+// Reporting the pick on a no-note outcome is what lets a declined recording be
+// filed by hand: it holds no passages of its own, so the run's are the only
+// rows the teacher can file, and the picked class is the only roster to file
+// them to. If the pick was the wrong sibling class, the rows show names as
+// unlabelled unknowns against the wrong roster; the teacher reads the summaries
+// and picks again, which the picker staying up allows.
 func assembleOutcome(job *VoiceNoteJob, ran AssembleNotesResponse) AssembleNotesResponse {
+	out := ran
+	if out.NoteLinks == nil {
+		out.NoteLinks = []NoteLink{}
+	}
 	switch {
 	case len(ran.NoteLinks) > 0:
-		return ran
+		out.NoNotesReason = ""
+		out.CanPickClass = false
 	case job != nil:
-		return AssembleNotesResponse{
-			ClassName:     job.ClassName,
-			NoteLinks:     []NoteLink{},
-			Passages:      job.Passages,
-			NoNotesReason: job.NoNotesReason,
-			CanPickClass:  job.CanPickClass,
-		}
+		out.NoNotesReason = job.NoNotesReason
+		out.CanPickClass = job.CanPickClass
 	default:
-		return AssembleNotesResponse{
-			NoteLinks:    []NoteLink{},
-			Passages:     ran.Passages,
-			CanPickClass: true,
-		}
+		out.NoNotesReason = ""
+		out.CanPickClass = true
 	}
+	return out
 }
 
 // uploadDay reads the recording day out of a voice_notes.created_at value. The

@@ -1,10 +1,11 @@
 import { useAuth } from '@clerk/react'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { fetchJobs, retryFailedJobs, dismissJobs, assembleNotes } from '../api'
-import type { UploadJob, JobListResponse, AssembleNotesResponse } from '../api'
+import { fetchJobs, retryFailedJobs, dismissJobs, assembleNotes, assignPassages, undoAssignment } from '../api'
+import type { UploadJob, JobListResponse, AssembleNotesResponse, AssignPassagesRequest, NoteLink, JobPassage } from '../api'
 import { NoNotesClassUnclear, NoNotesNoNameMatched, NoNotesNobodyNamed } from '../api-types.gen'
 import ClassPicker from './ClassPicker'
+import PassageReview from './PassageReview'
 import StudentDetail from './StudentDetail'
 import TranscriptReview from './TranscriptReview'
 
@@ -31,6 +32,25 @@ function mergeDone(retained: UploadJob[], incoming: UploadJob[]): UploadJob[] {
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .slice(0, MAX_DONE_SHOWN)
 }
+
+/**
+ * Fold note links this tab made into the ones the card holds, keyed on note
+ * id: a link already held replaces nothing. An assign response, and the poll
+ * bringing back what assign wrote to the job, both land here.
+ */
+function mergeLinks(held: NoteLink[], incoming: NoteLink[]): NoteLink[] {
+  const out = [...held]
+  for (const link of incoming) {
+    if (!out.some(l => l.noteId === link.noteId)) out.push(link)
+  }
+  return out
+}
+
+/**
+ * One empty array for every card with no passages. A fresh `[]` per render
+ * would hand PassageReview a new prop on every poll.
+ */
+const NO_PASSAGES: JobPassage[] = []
 
 const STATUS_LABELS: Record<string, string> = {
   queued: 'Queued',
@@ -383,11 +403,23 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
   // agrees while the job is still in the queue, and the card must not flip back
   // to the picker over notes that now exist.
   const [assembled, setAssembled] = useState<AssembleNotesResponse | null>(null)
+  // Note links the teacher made from this card by filing passages by hand.
+  // Component state only: review lives in the tab that saw the card, and a
+  // refresh ends it, by design.
+  const [assignedLinks, setAssignedLinks] = useState<NoteLink[]>([])
+  // Notes an undo on this card deleted. The server drops them from the job,
+  // but the poll that shows it may be a minute off, and an assembled result
+  // is never polled again, so the card hides them itself. An id leaves the
+  // set the moment a later call hands it back: the notes table has no
+  // AUTOINCREMENT, so the next note made after a delete can take the id the
+  // deleted one had, and that note is real.
+  const [undoneNoteIds, setUndoneNoteIds] = useState<Set<number>>(new Set())
   const { getToken } = useAuth()
 
-  const view: UploadJob = assembled
-    ? { ...job, className: assembled.className, noteLinks: assembled.noteLinks, passages: assembled.passages, noNotesReason: assembled.noNotesReason, canPickClass: assembled.canPickClass }
+  const base: UploadJob = assembled
+    ? { ...job, className: assembled.className, classId: assembled.classId, noteLinks: assembled.noteLinks, passages: assembled.passages, noNotesReason: assembled.noNotesReason, canPickClass: assembled.canPickClass }
     : job
+  const view: UploadJob = { ...base, noteLinks: mergeLinks(base.noteLinks ?? [], assignedLinks).filter(l => !undoneNoteIds.has(l.noteId)) }
   const noteCount = view.noteLinks?.length ?? 0
 
   // The server decides this, and the card obeys. Not a list of the reasons this
@@ -410,6 +442,36 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
 
   async function pickClass(className: string) {
     setAssembled(await assembleNotes(job.uploadId, className, getToken))
+    // The response is fresh from the server, after every undo it saw.
+    setUndoneNoteIds(new Set())
+  }
+
+  // A child who already has a note from this recording gets the rows appended
+  // to it, not a second note. The card, not the review, knows the links: the
+  // pipeline's, the class picker's, one an earlier assign here made, or one
+  // the poll brought back after a reload. The response then names a note the
+  // card already holds and merges in as nothing new.
+  async function assign(body: AssignPassagesRequest) {
+    const held = view.noteLinks?.find(l => l.studentId === body.studentId)
+    const res = await assignPassages(job.uploadId, held ? { ...body, appendToNoteId: held.noteId } : body, getToken)
+    setAssignedLinks(prev => mergeLinks(prev, [{ name: res.name, noteId: res.noteId, studentId: res.studentId, className: res.className }]))
+    setUndoneNoteIds(prev => {
+      if (!prev.has(res.noteId)) return prev
+      const next = new Set(prev)
+      next.delete(res.noteId)
+      return next
+    })
+    return res
+  }
+
+  // Take back what this card filed to one child (#138). The server names the
+  // notes it deleted; their links leave the card at once, so the count is
+  // right and the child is no longer a link, and a later pick of the same
+  // child makes a new note rather than appending to one that is gone.
+  async function undo(studentId: number) {
+    const res = await undoAssignment(job.uploadId, studentId, getToken)
+    setUndoneNoteIds(prev => new Set([...prev, ...res.noteIds]))
+    setAssignedLinks(prev => prev.filter(l => !res.noteIds.includes(l.noteId)))
   }
 
   return (
@@ -447,12 +509,13 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
       {view.noteLinks && view.noteLinks.length > 0 && (
         <div className="job-note-links">
           {view.noteLinks.map((link, i) => (
-            <button key={i} className="job-note-link" onClick={() => onOpenStudent({ studentId: link.studentId, name: link.name, className: link.className })}>
+            <button key={i} className="job-note-link" data-testid="job-note-link" onClick={() => onOpenStudent({ studentId: link.studentId, name: link.name, className: link.className })}>
               <DocIcon /> {link.name}
             </button>
           ))}
         </div>
       )}
+      <PassageReview passages={view.passages ?? NO_PASSAGES} classId={view.classId} onAssign={assign} onUndo={undo} />
       {job.transcript && (
         <>
           <button

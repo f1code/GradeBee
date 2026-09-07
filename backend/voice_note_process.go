@@ -44,9 +44,9 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// renders job.Error.
 	failJob := func(step, message string, err error) error {
 		if errors.Is(err, errNoSpeechDetected) {
-			log.Warn("process voice note failed", "step", step, "key", key, "error", err)
+			log.Warn("process voice note failed", "step", step, "key", key, "trace_id", job.TraceID, "error", err)
 		} else {
-			log.Error("process voice note failed", "step", step, "key", key, "error", err)
+			log.Error("process voice note failed", "step", step, "key", key, "trace_id", job.TraceID, "error", err)
 		}
 		now := time.Now()
 		job.Status = JobStatusFailed
@@ -234,7 +234,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
 		log.Info("process voice note: mention dropped",
 			"reason", "unattributed",
-			"key", key, "user_id", userID, "upload_id", uploadID,
+			"key", key, "user_id", userID, "upload_id", uploadID, "trace_id", job.TraceID,
 			"kind", string(p.Kind),
 			"label_count", len(p.SpokenLabels),
 			"class_name", extractResult.ClassName,
@@ -253,7 +253,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 				// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
 				log.Info("process voice note: mention dropped",
 					"reason", "no_roster_match",
-					"key", key, "user_id", userID, "upload_id", uploadID,
+					"key", key, "user_id", userID, "upload_id", uploadID, "trace_id", job.TraceID,
 					"passage_count", n.Passages,
 					"class_name", extractResult.ClassName,
 					"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
@@ -271,6 +271,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 			Transcript:   transcript,
 			Date:         noteDate,
 			ModelVersion: extractor.Model(),
+			TraceID:      job.TraceID,
 		})
 		if err != nil {
 			return failWith(
@@ -293,16 +294,21 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	job.Status = JobStatusDone
 	job.NoteLinks = noteLinks
 	job.Passages = passages
-	job.ClassName = singleClass(noteLinks)
+	// The class pass 1 pinned, whether or not any note was filed under it. A
+	// pinned recording whose passages all reached nobody still has to tell the
+	// card which roster to offer, so the teacher can file those passages by
+	// hand; "" is a decline. The reason switch below and assembleOutcome read
+	// this as "the class in force", never as "notes exist", and the card gates
+	// its class picker on CanPickClass alone.
+	job.ClassName = extractResult.ClassName
+	if pinned, ok := findClass(classes, extractResult.ClassName); ok {
+		job.ClassID = pinned.ID
+	}
 	// One reason, chosen once. A decline is not a noNotesReason case at all:
 	// pass 1 could not pin a class, so pass 2 never ran and there are no
 	// passages, and anySpokenLabel(nil) is false — noNotesReason would answer
 	// nobody_named and the card would suppress the class picker on exactly the
 	// recording that needs it.
-	//
-	// extractResult.ClassName, not job.ClassName. singleClass reads the note
-	// links, so it is empty for a *pinned* class whose passages all reached
-	// nobody too — and that recording's route is an alias, not a class.
 	switch {
 	case extractResult.ClassName == "":
 		job.NoNotesReason = NoNotesClassUnclear
@@ -336,7 +342,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// emits drop records but never reaches this line — and that mistake has already
 	// produced one wrong figure for this task.
 	log.Info("process voice note completed",
-		"key", key, "user_id", userID, "upload_id", uploadID,
+		"key", key, "user_id", userID, "upload_id", uploadID, "trace_id", job.TraceID,
 		"note_count", len(noteLinks),
 		// Without this a decline is unreadable here: it stores no passages and
 		// emits no drop record, so it lands as passages_total=0 with every kind
@@ -353,24 +359,4 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		"dropped_no_roster_match", droppedNoRosterMatch,
 		"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	return nil
-}
-
-// singleClass names the class a recording's notes were filed under, or "" when
-// there are none. Pass 1 pins one class for the whole recording, so the links
-// can no longer disagree; the loop stays because "" for a recording that
-// created nothing is the answer the card needs — it is what makes the class
-// picker appear, and naming a class nothing was filed under would take that
-// away.
-func singleClass(links []NoteLink) string {
-	name := ""
-	for _, l := range links {
-		if name == "" {
-			name = l.ClassName
-			continue
-		}
-		if l.ClassName != name {
-			return ""
-		}
-	}
-	return name
 }

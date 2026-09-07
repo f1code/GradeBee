@@ -10,6 +10,9 @@ const mockDismissJobs = vi.fn()
 const mockListNotes = vi.fn()
 const mockAssembleNotes = vi.fn()
 const mockListClasses = vi.fn()
+const mockAssignPassages = vi.fn()
+const mockUndoAssignment = vi.fn()
+const mockListStudents = vi.fn()
 
 vi.mock('../../api', () => ({
   fetchJobs: (...args: unknown[]) => mockFetchJobs(...args),
@@ -18,6 +21,9 @@ vi.mock('../../api', () => ({
   listNotes: (...args: unknown[]) => mockListNotes(...args),
   assembleNotes: (...args: unknown[]) => mockAssembleNotes(...args),
   listClasses: (...args: unknown[]) => mockListClasses(...args),
+  assignPassages: (...args: unknown[]) => mockAssignPassages(...args),
+  undoAssignment: (...args: unknown[]) => mockUndoAssignment(...args),
+  listStudents: (...args: unknown[]) => mockListStudents(...args),
 }))
 
 // One stable getToken, as Clerk hands out: a fresh function per render would
@@ -37,6 +43,7 @@ describe('JobStatus', () => {
     mockGetToken.mockResolvedValue('tok')
     mockListNotes.mockResolvedValue({ notes: [] })
     mockListClasses.mockResolvedValue({ classes: [{ id: 1, name: 'Monday' }, { id: 2, name: 'Tuesday' }] })
+    mockListStudents.mockResolvedValue({ students: [{ id: 22, classId: 2, name: 'Eleonore', createdAt: '', aliases: [] }] })
   })
 
   afterEach(() => {
@@ -260,13 +267,15 @@ describe('JobStatus', () => {
     // Picking the wrong one of two sibling classes is the mistake this path
     // exists to undo, so a pick that made no note must leave the picker up.
     //
-    // The server files nothing on this outcome and its response says so — no
-    // class, and the reason the card already had.
+    // The server files nothing on this outcome. Its response reports the pick
+    // (the class and the run's passages, so the rows can be assigned by hand
+    // against that roster) and keeps the reason the card already had.
     it('keeps the picker after a pick that resolved nobody', async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
       mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [noNoteCard] })
       mockAssembleNotes.mockResolvedValue({
-        className: '',
+        className: 'Monday',
+        classId: 1,
         noteLinks: [],
         passages: noNoteCard.passages ?? [],
         noNotesReason: NoNotesNoNameMatched,
@@ -352,6 +361,290 @@ describe('JobStatus', () => {
         expect(screen.getByTestId('job-done')).toBeInTheDocument()
       })
       expect(screen.queryByTestId('class-picker')).not.toBeInTheDocument()
+    })
+  })
+
+  // What the recording said that no note holds (#133). Note 694's shape: the
+  // header is `none`, two blocks name nobody, Lévy resolves. The card lists
+  // the two and nothing else — read-only here; filing them is #134.
+  describe('passages that reached nobody', () => {
+    const doneCard: UploadJob = {
+      userId: 'user_1',
+      uploadId: 12,
+      filePath: 'uploads/694.m4a',
+      mimeType: 'audio/m4a',
+      source: 'audio',
+      fileName: '694.m4a',
+      status: 'done' as const,
+      className: 'Tuesday',
+      noteLinks: [{ name: 'Lévy', noteId: 50, studentId: 21, className: 'Tuesday' }],
+      passages: [
+        { kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' },
+        { kind: 'unknown', summary: "Polly wasn't speaking much today." },
+        { kind: 'child', spokenLabels: ['Lévy'], student: 'Lévy', summary: 'Lévy finished the puzzle alone.' },
+      ],
+      createdAt: '2026-03-26T08:00:00Z',
+    }
+
+    it('lists each unattributed passage on the done card', async () => {
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [doneCard] })
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('passage-review')).toBeInTheDocument()
+      })
+      const rows = screen.getAllByTestId('passage-review-row')
+      expect(rows.map(r => r.textContent)).toEqual([
+        'She was helping the younger ones with their blocks.',
+        "Polly wasn't speaking much today.",
+      ])
+      expect(screen.queryByText('Lévy finished the puzzle alone.')).not.toBeInTheDocument()
+      // The note link is still the only place Lévy appears.
+      expect(screen.getByText('Lévy')).toBeInTheDocument()
+    })
+
+    // A card where every passage reached a child, and a card from before the
+    // field existed, both look exactly as they did.
+    it.each([
+      ['every passage reached a child', { ...doneCard, passages: [{ kind: 'child', student: 'Lévy', summary: 'Lévy finished the puzzle alone.' }] }],
+      ['the job carries no passages', { ...doneCard, passages: undefined }],
+    ])('shows nothing new when %s', async (_name, card) => {
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [card] })
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('job-done')).toBeInTheDocument()
+      })
+      expect(screen.queryByTestId('passage-review')).not.toBeInTheDocument()
+    })
+
+    // The rows follow the card's view of the job, so a class pick that re-ran
+    // pass 2 replaces them with what that run left unfiled.
+    it('replaces the rows after a class pick', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      const noNote: UploadJob = { ...doneCard, noteLinks: [], noNotesReason: NoNotesNoNameMatched, canPickClass: true }
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [noNote] })
+      mockAssembleNotes.mockResolvedValue({
+        className: 'Tuesday',
+        noteLinks: [{ name: 'Polly', noteId: 51, studentId: 22, className: 'Tuesday' }],
+        passages: [
+          { kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' },
+          { kind: 'child', spokenLabels: ['Polly'], student: 'Polly', summary: "Polly wasn't speaking much today." },
+        ],
+      } satisfies AssembleNotesResponse)
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('passage-review-row')).toHaveLength(2)
+      })
+      await user.click(screen.getByText('Tuesday'))
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId('passage-review-row')).toHaveLength(1)
+      })
+      expect(screen.getByText('She was helping the younger ones with their blocks.')).toBeInTheDocument()
+      expect(screen.queryByText("Polly wasn't speaking much today.")).not.toBeInTheDocument()
+    })
+  })
+
+  describe('filing a passage to a child', () => {
+    // A child's name is on the card twice once they have a note: the picker
+    // chip and the note link. Every query here says which one it means.
+    function chipFor(name: string): HTMLElement {
+      const chip = screen.getAllByTestId('passage-review-student').find(b => b.textContent === name)
+      if (chip === undefined) throw new Error(`no picker chip for ${name}`)
+      return chip
+    }
+    const noteLinks = () => screen.queryAllByTestId('job-note-link').map(b => b.textContent?.trim())
+
+    const card: UploadJob = {
+      userId: 'user_1',
+      uploadId: 12,
+      filePath: 'uploads/694.m4a',
+      mimeType: 'audio/m4a',
+      source: 'audio',
+      fileName: '694.m4a',
+      status: 'done' as const,
+      className: 'Tuesday',
+      classId: 2,
+      noteLinks: [{ name: 'Lévy', noteId: 50, studentId: 21, className: 'Tuesday' }],
+      passages: [
+        { kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' },
+        { kind: 'child', spokenLabels: ['Lévy'], student: 'Lévy', summary: 'Lévy finished the puzzle alone.' },
+      ],
+      createdAt: '2026-03-26T08:00:00Z',
+    }
+
+    // The response is a note link, and it joins the card's links the way an
+    // assemble result does: the count moves, the child's name is a link.
+    it('merges the new note into the card, once', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [card] })
+      mockAssignPassages.mockResolvedValue({ noteId: 60, studentId: 22, name: 'Eleonore', className: 'Tuesday', appended: false })
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => chipFor('Eleonore'))
+      expect(mockListStudents).toHaveBeenCalledWith(2, expect.anything())
+      expect(screen.getByText('1 note created')).toBeInTheDocument()
+
+      await user.click(screen.getByTestId('passage-review-check'))
+      await user.click(chipFor('Eleonore'))
+
+      await waitFor(() => {
+        expect(screen.getByText('2 notes created')).toBeInTheDocument()
+      })
+      expect(mockAssignPassages).toHaveBeenCalledWith(12, {
+        classId: 2,
+        studentId: 22,
+        passages: [{ kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' }],
+      }, expect.anything())
+      expect(screen.getByRole('button', { name: 'Eleonore' })).toBeInTheDocument()
+
+      // The poll brings back what assign wrote to the job. Keyed on note id,
+      // the link the card already holds replaces nothing and doubles nothing.
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [{
+        ...card,
+        noteLinks: [...card.noteLinks!, { name: 'Eleonore', noteId: 60, studentId: 22, className: 'Tuesday' }],
+      }] })
+      await act(async () => { vi.advanceTimersByTime(60_000) })
+      await waitFor(() => {
+        expect(mockFetchJobs).toHaveBeenCalledTimes(2)
+      })
+      expect(screen.getByText('2 notes created')).toBeInTheDocument()
+      expect(noteLinks().filter(n => n === 'Eleonore')).toHaveLength(1)
+    })
+
+    // Lévy already has a note from this recording, so the card sends its id
+    // and the row lands on that note (#135). The response names a note the
+    // card holds: the count stays, and Lévy is one link, not two.
+    it('appends to the note the card already holds for the picked child', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [card] })
+      mockListStudents.mockResolvedValue({ students: [
+        { id: 21, classId: 2, name: 'Lévy', createdAt: '', aliases: [] },
+        { id: 22, classId: 2, name: 'Eleonore', createdAt: '', aliases: [] },
+      ] })
+      mockAssignPassages.mockResolvedValue({ noteId: 50, studentId: 21, name: 'Lévy', className: 'Tuesday', appended: true })
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => chipFor('Lévy'))
+      await user.click(screen.getByTestId('passage-review-check'))
+      await user.click(chipFor('Lévy'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('passage-review-filed')).toHaveTextContent('Assigned to Lévy')
+      })
+      expect(mockAssignPassages).toHaveBeenCalledWith(12, {
+        classId: 2,
+        studentId: 21,
+        passages: [{ kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' }],
+        appendToNoteId: 50,
+      }, expect.anything())
+      expect(screen.getByText('1 note created')).toBeInTheDocument()
+      expect(screen.getAllByRole('button', { name: 'Lévy' })).toHaveLength(1)
+    })
+
+    // Two confirms to Eleonore in one tab: the first creates, and the link it
+    // made is what the second sends back, so the second row joins that note.
+    it('sends the note an earlier assign made when the same child is picked again', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [{
+        ...card,
+        passages: [
+          { kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' },
+          { kind: 'unknown', summary: "Polly wasn't speaking much today." },
+        ],
+      }] })
+      mockAssignPassages
+        .mockResolvedValueOnce({ noteId: 60, studentId: 22, name: 'Eleonore', className: 'Tuesday', appended: false })
+        .mockResolvedValueOnce({ noteId: 60, studentId: 22, name: 'Eleonore', className: 'Tuesday', appended: true })
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => chipFor('Eleonore'))
+      await user.click(screen.getAllByTestId('passage-review-check')[0])
+      await user.click(chipFor('Eleonore'))
+      await waitFor(() => {
+        expect(screen.getByText('2 notes created')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getAllByTestId('passage-review-check')[1])
+      await user.click(chipFor('Eleonore'))
+      await waitFor(() => {
+        expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(2)
+      })
+
+      expect(mockAssignPassages.mock.calls[0][1]).not.toHaveProperty('appendToNoteId')
+      expect(mockAssignPassages.mock.calls[1][1]).toMatchObject({ studentId: 22, appendToNoteId: 60 })
+      expect(screen.getByText('2 notes created')).toBeInTheDocument()
+      expect(noteLinks().filter(n => n === 'Eleonore')).toHaveLength(1)
+    })
+
+    // The honest mistake, taken back (#138): the note the server deleted
+    // leaves the card at once — count down, name gone — and the row is open
+    // again. Picking the same child then creates, not appends: the card no
+    // longer holds a link for them to send back. The new note comes back
+    // under the deleted one's id, as SQLite hands out after a delete of the
+    // newest row, and the card must show it all the same.
+    it('drops the note an undo deleted, and the next pick of that child creates', async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [card] })
+      mockAssignPassages
+        .mockResolvedValueOnce({ noteId: 60, studentId: 22, name: 'Eleonore', className: 'Tuesday', appended: false })
+        .mockResolvedValueOnce({ noteId: 60, studentId: 22, name: 'Eleonore', className: 'Tuesday', appended: false })
+      mockUndoAssignment.mockResolvedValue({ noteIds: [60] })
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => chipFor('Eleonore'))
+      await user.click(screen.getByTestId('passage-review-check'))
+      await user.click(chipFor('Eleonore'))
+      await waitFor(() => {
+        expect(screen.getByText('2 notes created')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByTestId('passage-review-undo'))
+      await waitFor(() => {
+        expect(screen.getByText('1 note created')).toBeInTheDocument()
+      })
+      expect(mockUndoAssignment).toHaveBeenCalledWith(12, 22, expect.anything())
+      expect(noteLinks()).not.toContain('Eleonore')
+      expect(screen.queryByTestId('passage-review-filed')).not.toBeInTheDocument()
+      expect(screen.getByTestId('passage-review-check')).toBeEnabled()
+
+      await user.click(screen.getByTestId('passage-review-check'))
+      await user.click(chipFor('Eleonore'))
+      await waitFor(() => {
+        expect(screen.getByText('2 notes created')).toBeInTheDocument()
+      })
+      expect(mockAssignPassages.mock.calls[1][1]).not.toHaveProperty('appendToNoteId')
+      expect(noteLinks()).toContain('Eleonore')
+    })
+
+    // A card from before the field existed has no roster to offer.
+    it('keeps the rows read-only when the job carries no class id', async () => {
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [{ ...card, classId: undefined }] })
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('passage-review-row')).toBeInTheDocument()
+      })
+      expect(screen.queryByTestId('passage-review-check')).not.toBeInTheDocument()
+      expect(mockListStudents).not.toHaveBeenCalled()
     })
   })
 

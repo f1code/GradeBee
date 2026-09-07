@@ -51,7 +51,7 @@ func (r *dbRoster) Students(ctx context.Context) ([]ClassGroup, error) {
 
 	result := make([]ClassGroup, len(classes))
 	for i, c := range classes {
-		cg := ClassGroup{Name: c.Name, Students: make([]ClassStudent, len(c.Students))}
+		cg := ClassGroup{ID: c.ID, Name: c.Name, Students: make([]ClassStudent, len(c.Students))}
 		for j, s := range c.Students {
 			cg.Students[j] = ClassStudent{Name: s.Name, Aliases: s.Aliases}
 		}

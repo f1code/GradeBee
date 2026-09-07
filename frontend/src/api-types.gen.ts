@@ -278,6 +278,12 @@ export const NoteSourceReviewed = "reviewed";
  */
 export const NoteSourceManual = "manual";
 /**
+ * NoteSourceAssigned: the teacher filed a passage that reached nobody to a
+ * child from the done card. The text is the model's summary as the card
+ * sent it back, so the server never saw the model produce it.
+ */
+export const NoteSourceAssigned = "assigned";
+/**
  * NoteCreator creates notes in the database.
  */
 export type NoteCreator = any;
@@ -296,6 +302,12 @@ export interface CreateNoteRequest {
    * that does not care cannot write "" into the column.
    */
   Source: string;
+  /**
+   * TraceID is the recording's key (voice_notes.trace_id). The pipeline,
+   * assemble and assign set it; empty writes NULL, which is what a manual
+   * note has.
+   */
+  TraceID: string;
 }
 /**
  * CreateNoteResponse contains the created note info.
@@ -505,6 +517,14 @@ export interface Note {
   source: string;
   modelVersion?: string;
   promptHash?: string;
+  /**
+   * TraceID names the recording this note was made from
+   * (voice_notes.trace_id), whether the pipeline, the class picker or the
+   * assign endpoint made it. Nil on a manual note, and on every note made
+   * before the column existed. It outlives the recording row, which
+   * retention deletes; the note keeps the key.
+   */
+  traceId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -595,6 +615,17 @@ export interface VoiceNote {
    * as the row: the retention cleanup deletes both together.
    */
   transcript?: string;
+  /**
+   * TraceID is the recording's key, a UUID minted at upload. Every note the
+   * pipeline, assemble or assign makes from this recording carries a copy
+   * (notes.trace_id), so a note can name its recording after the job is
+   * gone and after this row is deleted by retention. Not the row id: the
+   * table has no AUTOINCREMENT, so SQLite reuses the top id once the newest
+   * row is deleted, and an old note could then claim a new recording.
+   * The column is nullable and the reads COALESCE it to "", so a row that
+   * somehow has none cannot fail a whole ListStale batch.
+   */
+  traceId: string;
   createdAt: string;
 }
 
@@ -759,9 +790,15 @@ export interface ListStudentsResponse {
   students: Student[];
 }
 /**
- * Internal types used by the extractor and roster (no IDs needed).
+ * ClassGroup is one class as the extractor and the roster see it.
  */
 export interface ClassGroup {
+  /**
+   * ID is the classes row, so the done card can name the roster it offers.
+   * The prompt builders read Name only, so it never reaches the model and
+   * never moves ExtractionPromptHash; fixtures and sentinelClasses omit it.
+   */
+  id?: number /* int64 */;
   name: string;
   students: ClassStudent[];
 }
@@ -829,7 +866,13 @@ export interface AssembleNotesRequest {
  * refresh does not contradict it.
  */
 export interface AssembleNotesResponse {
+  /**
+   * ClassName and ClassID are the class the pick ran against, whether or
+   * not it made a note: the card offers that class's roster for filing the
+   * passages by hand. See assembleOutcome.
+   */
   className: string;
+  classId?: number /* int64 */;
   noteLinks: NoteLink[];
   passages: JobPassage[];
   /**
@@ -841,6 +884,79 @@ export interface AssembleNotesResponse {
    * CanPickClass gates the card's class picker, exactly as it does on the job.
    */
   canPickClass?: boolean;
+}
+
+//////////
+// source: voice_note_assign.go
+/*
+voice_note_assign.go implements POST /api/voice-notes/{uploadId}/assign: the
+teacher files passages the recording could not place — a pronoun block, a
+name nobody on the roster answers to — to a child they pick on the done
+card, and a note exists for that child, dated from the recording (#134).
+When the card already holds a note for that child from this recording, the
+rows land on it instead (#135).
+
+The passages come from the card, not from the job. The job is in memory and
+gone on restart, and pass 2 is non-deterministic, so an index into a job's
+passage list could point at other text than the teacher ticked. That makes
+the text client-supplied: the server holds no copy to check it against, and
+the note is filed under NoteSourceAssigned rather than a model-written
+source for exactly that reason.
+*/
+
+/**
+ * AssignPassagesRequest is the body of the assign call: the class in force on
+ * the card, the child to file to, and the passages the teacher ticked.
+ * One student per call. The card confirms per child, so a confirm is one
+ * request and one note: atomic by construction, with no transaction across
+ * notes to get wrong.
+ */
+export interface AssignPassagesRequest {
+  /**
+   * ClassID is the class whose roster the card offered. The server checks
+   * that the caller owns it and that StudentID is on it, which proves the
+   * picker showed the right roster and forbids filing to a child of another
+   * class.
+   */
+  classId: number /* int64 */;
+  studentId: number /* int64 */;
+  passages: AssignPassage[];
+  /**
+   * AppendToNoteID is the note this recording already made for StudentID,
+   * when the card holds one: the rows are appended to it and no second note
+   * is made. The server checks that the note exists, belongs to StudentID
+   * and was made from this recording (notes.trace_id). Not for ownership:
+   * a forged id lets a teacher append their own text to their own note,
+   * which the edit endpoint already allows. For the replay guard: it sees
+   * this recording's notes only, so an append onto any other note could
+   * not be found on a retry, and the rows would be written twice.
+   */
+  appendToNoteId?: number /* int64 */;
+}
+/**
+ * AssignPassage is one passage as the card sends it back: what kind it was,
+ * and the words. Nothing else — spoken labels and the student are the
+ * server's business, and the server does not read them here.
+ */
+export interface AssignPassage {
+  kind: PassageKind;
+  summary: string;
+}
+/**
+ * AssignPassagesResponse is the note link the call made, in the shape the card
+ * already merges into its note links, plus whether it was an append.
+ */
+export interface AssignPassagesResponse {
+  noteId: number /* int64 */;
+  studentId: number /* int64 */;
+  name: string;
+  className: string;
+  /**
+   * Appended says the rows joined the note the card named in
+   * appendToNoteId; false means a note was created. A replay of an append
+   * answers with the grown note and says true too.
+   */
+  appended: boolean;
 }
 
 //////////
@@ -982,6 +1098,12 @@ export interface JobPassage {
 export interface VoiceNoteJob {
   userId: string;
   uploadId: number /* int64 */;
+  /**
+   * TraceID is the recording's key, copied from voice_notes.trace_id at
+   * dispatch and stamped on every note the pipeline makes. The row, not the
+   * job, is its home: the job is in memory and a retry rebuilds it.
+   */
+  traceId?: string;
   filePath: string;
   fileName: string;
   mimeType: string;
@@ -991,16 +1113,28 @@ export interface VoiceNoteJob {
   createdAt: string;
   noteLinks?: NoteLink[];
   /**
-   * ClassName is the class the notes were filed under; "" when none was. It
-   * and Passages are set at completion and absent on jobs done before they
-   * existed.
+   * ClassName is the class in force for this recording: the one pass 1
+   * pinned, or the one the teacher picked. "" on a decline. It is not "the
+   * class the notes were filed under" — a pinned recording whose passages
+   * all reached nobody still names its class, so the card can offer that
+   * roster for filing them by hand. It, ClassID and Passages are set at
+   * completion and absent on jobs done before they existed.
    */
   className?: string;
+  /**
+   * ClassID is ClassName's row, for the card's student picker. 0 when there
+   * is no class.
+   */
+  classId?: number /* int64 */;
   passages?: JobPassage[];
   /**
-   * NoNotesReason is set only on a done job that created no note, to one of
-   * the NoNotes* constants. Empty whenever a note was created. It says WHY,
-   * and nothing else: it is not the card's instruction about what to offer.
+   * NoNotesReason is set only on a done job whose pipeline run created no
+   * note, to one of the NoNotes* constants. Empty whenever that run created
+   * one. It says WHY, and nothing else: it is not the card's instruction
+   * about what to offer. A note the teacher files by hand afterwards
+   * (voice_note_assign.go) appends its link and leaves this as it was: the
+   * card reads the link count first, and the reason still names what the
+   * pipeline found.
    */
   noNotesReason?: string;
   /**
@@ -1049,6 +1183,30 @@ what a recording means — which stretch of speech reaches which child, and
 which reaches nobody.
 */
 
+
+//////////
+// source: voice_note_unassign.go
+/*
+voice_note_unassign.go implements DELETE /api/voice-notes/{uploadId}/assign/{studentId}:
+the teacher takes back what assign filed to one child from the done card
+(#138). The note goes, its link leaves the queued job, and the row is open
+again for the child it should have gone to.
+
+The note is found, not named. The card sends the child, and the server looks
+up that child's assigned notes from this recording by trace id
+(notes.trace_id, #139). A note id from the card would work for the create
+case and mislead on the rest: after an append the card holds the note the
+rows joined, which may be the pipeline's, and that one is not the server's
+to delete.
+*/
+
+/**
+ * UndoAssignmentResponse names the notes the call deleted, so the card can
+ * drop their links without waiting for the poll.
+ */
+export interface UndoAssignmentResponse {
+  noteIds: number /* int64 */[];
+}
 
 //////////
 // source: voice_note_upload.go

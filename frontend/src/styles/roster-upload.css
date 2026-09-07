@@ -828,3 +828,166 @@
   padding: 0.25rem 0.6rem;
   min-height: auto;
 }
+
+/* Passages that reached nobody, listed on the done card */
+.passage-review {
+  margin-top: 0.5rem;
+  padding-left: calc(18px + 0.65rem);
+}
+
+.passage-review-prompt {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--ink-muted);
+  margin: 0 0 0.35rem;
+}
+
+.passage-review-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.passage-review-row {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--ink);
+  line-height: 1.4;
+  padding: 0.3rem 0.6rem;
+  background: var(--parchment);
+  border-left: 3px solid var(--comb);
+  border-radius: 0 6px 6px 0;
+}
+
+.passage-review-row-filed {
+  color: var(--ink-muted);
+  border-left-color: var(--honey);
+}
+
+.passage-review-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.passage-review-pick input[type="checkbox"] {
+  accent-color: var(--honey);
+  margin: 0.15rem 0 0;
+  flex-shrink: 0;
+}
+
+.passage-review-filed {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+/* The way back from a wrong pick: a text link beside the assigned line */
+.passage-review-undo {
+  margin-left: 0.5rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--honey-dark);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.passage-review-undo:disabled {
+  color: var(--ink-muted);
+  text-decoration: none;
+  cursor: default;
+}
+
+/* One child per pick: the roster sits under the list as chips, so who is
+   left to write about reads without opening anything */
+.passage-review-controls {
+  margin-top: 0.5rem;
+}
+
+.passage-review-students {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.passage-review-student {
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.25rem 0.6rem;
+  min-height: auto;
+}
+
+/* A whole roster sits here, and reading who is left is the point: dim it
+   only enough to read as inert, and drop the "not-allowed" cursor. */
+.passage-review-student:disabled {
+  opacity: 0.75;
+  cursor: default;
+}
+
+.passage-review-student:disabled:hover {
+  background: var(--chalk);
+  border-color: var(--comb);
+  transform: none;
+  box-shadow: none;
+}
+
+.passage-review-student:focus-visible {
+  outline: 2px solid var(--honey);
+  outline-offset: 2px;
+}
+
+/* Children this recording already wrote to. Still pickable — the pick
+   appends to their note — so they are demoted, not hidden. The rule divides
+   the two bands, so it only shows where there is a band above to divide. */
+.passage-review-students + .passage-review-noted {
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--comb);
+}
+
+.passage-review-noted-label {
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  margin: 0 0 0.3rem;
+}
+
+.passage-review-noted .passage-review-student {
+  background: none;
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+
+.passage-review-noted .passage-review-student:hover:not(:disabled) {
+  background: var(--honey-light);
+  border-style: solid;
+  color: var(--ink);
+}
+
+.passage-review-noted .passage-review-student:disabled:hover {
+  background: none;
+  border-color: var(--comb);
+}
+
+/* The child a pick is in flight to */
+.passage-review-student.passage-review-student-going,
+.passage-review-noted .passage-review-student.passage-review-student-going {
+  background: var(--honey-light);
+  border: 1.5px solid var(--honey);
+  color: var(--ink);
+  opacity: 1;
+}
+
+.passage-review-error {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--error-red);
+  margin: 0.35rem 0 0;
+}

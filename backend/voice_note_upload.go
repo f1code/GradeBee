@@ -73,7 +73,7 @@ func handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("upload completed", "user_id", userID, "upload_id", upload.ID, "file_ext", ext)
+	log.Info("upload completed", "user_id", userID, "upload_id", upload.ID, "trace_id", upload.TraceID, "file_ext", ext)
 	writeJSON(w, http.StatusOK, UploadResponse{
 		UploadID: upload.ID,
 		FileName: header.Filename,

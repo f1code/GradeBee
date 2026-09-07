@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+
+	"github.com/google/uuid"
 )
 
 // VoiceNoteRepo provides CRUD operations for the voice_notes table.
@@ -22,17 +24,26 @@ type VoiceNote struct {
 	// extraction, so it exists whether or not any note is created. It lives as long
 	// as the row: the retention cleanup deletes both together.
 	Transcript *string `json:"transcript,omitempty"`
-	CreatedAt  string  `json:"createdAt"`
+	// TraceID is the recording's key, a UUID minted at upload. Every note the
+	// pipeline, assemble or assign makes from this recording carries a copy
+	// (notes.trace_id), so a note can name its recording after the job is
+	// gone and after this row is deleted by retention. Not the row id: the
+	// table has no AUTOINCREMENT, so SQLite reuses the top id once the newest
+	// row is deleted, and an old note could then claim a new recording.
+	// The column is nullable and the reads COALESCE it to "", so a row that
+	// somehow has none cannot fail a whole ListStale batch.
+	TraceID   string `json:"traceId"`
+	CreatedAt string `json:"createdAt"`
 }
 
-// Create inserts a new voice note record.
+// Create inserts a new voice note record and mints its TraceID.
 func (r *VoiceNoteRepo) Create(ctx context.Context, userID, fileName, filePath string) (VoiceNote, error) {
 	var v VoiceNote
 	err := r.db.QueryRowContext(ctx, `
-		INSERT INTO voice_notes (user_id, file_name, file_path) VALUES (?, ?, ?)
-		RETURNING id, user_id, file_name, file_path, processed_at, purged_at, transcript, created_at`,
-		userID, fileName, filePath,
-	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.Transcript, &v.CreatedAt)
+		INSERT INTO voice_notes (user_id, file_name, file_path, trace_id) VALUES (?, ?, ?, ?)
+		RETURNING id, user_id, file_name, file_path, processed_at, purged_at, transcript, COALESCE(trace_id, ''), created_at`,
+		userID, fileName, filePath, uuid.NewString(),
+	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.Transcript, &v.TraceID, &v.CreatedAt)
 	if err != nil {
 		return VoiceNote{}, fmt.Errorf("create voice note: %w", err)
 	}
@@ -43,9 +54,9 @@ func (r *VoiceNoteRepo) Create(ctx context.Context, userID, fileName, filePath s
 func (r *VoiceNoteRepo) GetByID(ctx context.Context, id int64) (VoiceNote, error) {
 	var v VoiceNote
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, user_id, file_name, file_path, processed_at, purged_at, transcript, created_at
+		SELECT id, user_id, file_name, file_path, processed_at, purged_at, transcript, COALESCE(trace_id, ''), created_at
 		FROM voice_notes WHERE id = ?`, id,
-	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.Transcript, &v.CreatedAt)
+	).Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.Transcript, &v.TraceID, &v.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return VoiceNote{}, ErrNotFound
 	}
@@ -92,7 +103,7 @@ func (r *VoiceNoteRepo) SetTranscript(ctx context.Context, id int64, transcript 
 // purge state, not every stale transcript.
 func (r *VoiceNoteRepo) ListStale(ctx context.Context, olderThan string) ([]VoiceNote, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, user_id, file_name, file_path, processed_at, purged_at, created_at
+		SELECT id, user_id, file_name, file_path, processed_at, purged_at, COALESCE(trace_id, ''), created_at
 		FROM voice_notes
 		WHERE (processed_at IS NOT NULL AND processed_at < ?)
 		   OR (processed_at IS NULL AND created_at < ?)`, olderThan, olderThan)
@@ -104,7 +115,7 @@ func (r *VoiceNoteRepo) ListStale(ctx context.Context, olderThan string) ([]Voic
 	var result []VoiceNote
 	for rows.Next() {
 		var v VoiceNote
-		if err := rows.Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.CreatedAt); err != nil {
+		if err := rows.Scan(&v.ID, &v.UserID, &v.FileName, &v.FilePath, &v.ProcessedAt, &v.PurgedAt, &v.TraceID, &v.CreatedAt); err != nil {
 			return nil, fmt.Errorf("scan voice note: %w", err)
 		}
 		result = append(result, v)

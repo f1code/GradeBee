@@ -32,6 +32,7 @@ func dispatchVoiceNote(ctx context.Context, userID, fileName, ext, mimeType, sou
 	err = publishOrCleanup(ctx, queue, VoiceNoteJob{
 		UserID:    userID,
 		UploadID:  upload.ID,
+		TraceID:   upload.TraceID,
 		FilePath:  diskPath,
 		FileName:  fileName,
 		MimeType:  mimeType,

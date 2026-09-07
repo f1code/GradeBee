@@ -123,12 +123,15 @@ test.describe('Class picker', () => {
   })
 
   test('a pick that resolves nobody leaves the picker up for another try', async ({ page }) => {
+    // The server reports the pick and files nothing: the picked class and the
+    // run's passages, with the card's own reason and the picker gate unchanged.
     await page.route('**/assemble', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          className: '',
+          className: 'Pam & Paul · Wed · 14.10',
+          classId: 1,
           noteLinks: [],
           passages: [],
           noNotesReason: 'class_unclear',

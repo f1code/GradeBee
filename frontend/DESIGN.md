@@ -160,6 +160,37 @@ A card that made no note offers the class picker (`.class-picker*`, defined in
 teacher owns. Every class is listed, not a shortlist — the extraction has already chosen wrong
 once on this recording.
 
+A done card lists every passage that reached nobody (`.passage-review*`, `roster-upload.css`,
+`PassageReview.tsx`): a muted prompt line ("AI couldn't find the student for these:"), then one
+row per passage showing its summary. Rows are parchment on the card with a `--comb` left rule,
+body font at the card's meta size. The block indents to the card text like the class picker,
+sits below the note links, and renders nothing when every passage was filed.
+
+When the job carries a class, each row gets a checkbox (`.passage-review-pick`, honey
+accent) and the class's children sit under the list as chips
+(`.passage-review-students`, `.btn-secondary.passage-review-student`, same size as the class
+picker's buttons). The pick is the confirm: there is no button. Above the chips a muted line
+says what a pick will do ("Tick a row, then pick a child", "Assign this row to…", "Assign 3
+rows to…"), and names the child for the round trip ("Assigning to Lévy…") while that chip
+stays lit (`.passage-review-student-going`, honey). Chips are dim and dead until a row is
+ticked, so the block never moves under the teacher's cursor; while the roster loads there are
+no chips and the line reads "Loading the class…", and a class with nobody on it says so. On a
+phone a big class is a tall block: that is the cost of showing the roster rather than hiding it
+behind a control.
+
+Children this recording already wrote to — a passage reached them, or this tab filed to them
+— sit under "Already has a note" (`.passage-review-noted`), in muted chips with a dashed
+border. A hairline rule divides the two bands and shows only when there is a band above it. They stay pickable: a row that lost its name is often about a
+child already named, and the pick appends to that note. Undoing an assignment brings the
+child back up. An assigned row turns muted with a `--honey` rule and a small "Assigned to
+Name" line (`.passage-review-filed`); its checkbox stays, disabled. Beside that line, where
+this tab made the child's note, an "Undo" text link (`.passage-review-undo`, `--honey-dark`,
+underlined, muted while a call is in flight and reading "Undoing…" on the row it came from)
+takes the assignment back (#138): every row filed to that child reopens, unticked, and the
+card drops the note. A row that joined a note the card already held offers no undo; the
+teacher edits that note instead. Errors go on a `.passage-review-error` line under the
+controls, in `--error-red`. Without a class the rows stay read-only and no control renders.
+
 ### Error Patterns
 
 Three variants for communicating errors to users:
