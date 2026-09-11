@@ -23,8 +23,9 @@ interface PassageReviewProps {
   onUndo?: (studentId: number) => Promise<void>
 }
 
-/** Who a filed row went to, and the key the undo is by. */
+/** One filing: the row, the child it went to, and the key the undo is by. */
 interface Filing {
+  key: string
   studentId: number
   name: string
 }
@@ -37,9 +38,15 @@ interface Filing {
  * the extra click bought nothing. Group passages on the card ride along on
  * every assignment, as they join every note the pipeline makes.
  *
+ * A filed row stays open and the chips stay up (#141): one sentence can
+ * belong to two children, so a row goes to as many as the teacher picks,
+ * gaining one "Assigned to" line each. A child who holds every ticked row has
+ * a dead chip.
+ *
  * Undo is of the assignment, not the row. Every row filed to a child in this
  * tab sits on one note — the first pick made it, the rest joined it — and the
- * server deletes that note, so undoing any of them reopens them all. It shows
+ * server deletes that note, so undoing any of them drops that child's line
+ * from every row. A row filed to a second child keeps that line. It shows
  * only where this tab made the note: a row that joined a note the card
  * already held (the pipeline's, or one from before a reload) is not the
  * server's to take back, and the teacher edits that note instead.
@@ -57,7 +64,7 @@ interface Filing {
 export default function PassageReview({ passages, classId, onAssign, onUndo }: PassageReviewProps) {
   const { getToken } = useAuth()
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [filed, setFiled] = useState<Map<string, Filing>>(new Map())
+  const [filed, setFiled] = useState<Filing[]>([])
   // Children whose note this tab created, by a pick that said appended:false.
   // Only their assignments are undoable; see the component comment.
   const [created, setCreated] = useState<Set<number>>(new Set())
@@ -99,8 +106,8 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
     .filter(({ p }) => isUnattributed(p))
   if (rows.length === 0) return null
 
-  const open = rows.filter(r => !filed.has(r.key))
-  const chosen = open.filter(r => selected.has(r.key))
+  const chosen = rows.filter(r => selected.has(r.key))
+  const sentTo = (key: string, studentId: number) => filed.some(f => f.key === key && f.studentId === studentId)
 
   function toggle(key: string) {
     setSelected(prev => {
@@ -112,14 +119,19 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
   }
 
   async function assignTo(studentId: number) {
-    if (!canFile || chosen.length === 0 || busy) return
+    if (!canFile || busy) return
+    // Rows this child already holds are dropped: re-sending one would append
+    // it to their note a second time, and the server's replay guard only
+    // catches a repeat of the whole block. Never empty: the chip is dead when
+    // it would be.
+    const going = chosen.filter(r => !sentTo(r.key, studentId))
     // The ticked rows in transcript order, then every group passage on the
     // card. The server orders group text last whatever order it arrives in.
     const body: AssignPassagesRequest = {
       classId,
       studentId,
       passages: [
-        ...chosen.map(r => ({ kind: r.p.kind, summary: r.p.summary })),
+        ...going.map(r => ({ kind: r.p.kind, summary: r.p.summary })),
         ...passages.filter(p => p.kind === PassageGroup).map(p => ({ kind: p.kind, summary: p.summary })),
       ],
     }
@@ -127,8 +139,7 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
     setError(null)
     try {
       const link = await onAssign(body)
-      const filing: Filing = { studentId: link.studentId, name: link.name }
-      setFiled(prev => new Map([...prev, ...chosen.map(r => [r.key, filing] as const)]))
+      setFiled(prev => [...prev, ...going.map(r => ({ key: r.key, studentId: link.studentId, name: link.name }))])
       if (!link.appended) setCreated(prev => new Set(prev).add(link.studentId))
       setSelected(new Set())
     } catch (err) {
@@ -145,7 +156,7 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
     setError(null)
     try {
       await onUndo(studentId)
-      setFiled(prev => new Map([...prev].filter(([, f]) => f.studentId !== studentId)))
+      setFiled(prev => prev.filter(f => f.studentId !== studentId))
       setCreated(prev => {
         const next = new Set(prev)
         next.delete(studentId)
@@ -163,7 +174,7 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
   // often about a child already named, and the pick appends to that note —
   // but they sit below the children nobody has written to yet, which is where
   // a lost row usually belongs.
-  const filedIds = new Set([...filed.values()].map(f => f.studentId))
+  const filedIds = new Set(filed.map(f => f.studentId))
   const noteNames = new Set(passages.map(p => p.student).filter(n => n))
   const hasNote = (s: StudentItem) => filedIds.has(s.id) || noteNames.has(s.name)
   const fresh = (students ?? []).filter(s => !hasNote(s))
@@ -186,7 +197,7 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
         type="button"
         className={`btn-secondary passage-review-student${assigning === s.id ? ' passage-review-student-going' : ''}`}
         onClick={() => assignTo(s.id)}
-        disabled={busy || chosen.length === 0}
+        disabled={busy || chosen.length === 0 || chosen.every(r => sentTo(r.key, s.id))}
         data-testid="passage-review-student"
       >
         {s.name}
@@ -199,15 +210,15 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
       <p className="passage-review-prompt">AI couldn't find the student for these:</p>
       <ul className="passage-review-list">
         {rows.map(({ p, key }) => {
-          const to = filed.get(key)
+          const filings = filed.filter(f => f.key === key)
           return (
-            <li key={key} className={`passage-review-row${to ? ' passage-review-row-filed' : ''}`} data-testid="passage-review-row">
+            <li key={key} className={`passage-review-row${filings.length > 0 ? ' passage-review-row-filed' : ''}`} data-testid="passage-review-row">
               {canFile ? (
                 <label className="passage-review-pick">
                   <input
                     type="checkbox"
                     checked={selected.has(key)}
-                    disabled={busy || to !== undefined}
+                    disabled={busy}
                     onChange={() => toggle(key)}
                     data-testid="passage-review-check"
                   />
@@ -216,8 +227,8 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
               ) : (
                 <span className="passage-review-text">{p.summary}</span>
               )}
-              {to && (
-                <span className="passage-review-filed" data-testid="passage-review-filed">
+              {filings.map(to => (
+                <span key={to.studentId} className="passage-review-filed" data-testid="passage-review-filed">
                   Assigned to {to.name}
                   {onUndo !== undefined && created.has(to.studentId) && (
                     <button
@@ -232,12 +243,12 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
                     </button>
                   )}
                 </span>
-              )}
+              ))}
             </li>
           )
         })}
       </ul>
-      {canFile && open.length > 0 && (
+      {canFile && (
         <div className="passage-review-controls">
           <p className="passage-review-prompt" data-testid="passage-review-prompt">{prompt}</p>
           {fresh.length > 0 && (
