@@ -134,7 +134,8 @@ test.describe('Filing passages to a child', () => {
 
     await expect(card).toContainText('2 notes created')
     await expect(review.getByTestId('passage-review-filed')).toHaveText(/Assigned to Eleonore/)
-    await expect(review.getByTestId('passage-review-check').first()).toBeDisabled()
+    // The filed row stays tickable: it may belong to a second child too (#141).
+    await expect(review.getByTestId('passage-review-check').first()).toBeEnabled()
     await expect(review.getByTestId('passage-review-check').nth(1)).toBeEnabled()
     await expect(card.getByTestId('job-note-link').filter({ hasText: 'Eleonore' })).toBeVisible()
 

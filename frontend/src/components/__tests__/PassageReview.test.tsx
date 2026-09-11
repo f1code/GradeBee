@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { JobPassage } from '../../api-types.gen'
@@ -132,12 +132,14 @@ describe('PassageReview filing', () => {
       ],
     } satisfies AssignPassagesRequest)
 
-    // The filed row is marked and can no longer be ticked; the other stays open.
+    // The filed row is marked and stays tickable — it may belong to a second
+    // child too (#141); the other stays open, unticked.
     await waitFor(() => {
       expect(screen.getByTestId('passage-review-filed')).toHaveTextContent('Assigned to Eleonore')
     })
     const checks = screen.getAllByTestId('passage-review-check')
-    expect(checks[0]).toBeDisabled()
+    expect(checks[0]).toBeEnabled()
+    expect(checks[0]).not.toBeChecked()
     expect(checks[1]).toBeEnabled()
     expect(checks[1]).not.toBeChecked()
   })
@@ -160,8 +162,99 @@ describe('PassageReview filing', () => {
       "Polly wasn't speaking much today.",
     ])
     await waitFor(() => expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(2))
-    // Every row assigned: nothing left to pick, so the picker goes.
-    expect(screen.queryByTestId('passage-review-student')).not.toBeInTheDocument()
+    // Every row assigned, and the picker stays: a row can go to a second
+    // child (#141). Tick both again and Eleonore is dead — she holds them
+    // both — while Lévy is live.
+    expect(screen.getAllByTestId('passage-review-student')).toHaveLength(2)
+    await user.click(screen.getAllByTestId('passage-review-check')[0])
+    await user.click(screen.getAllByTestId('passage-review-check')[1])
+    expect(screen.getByRole('button', { name: 'Eleonore' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Lévy' })).toBeEnabled()
+  })
+
+  // The report behind #141: one sentence about two children. The row goes to
+  // both, and the chip of a child who already holds it is dead.
+  it('files one row to a second child', async () => {
+    const user = userEvent.setup()
+    const onAssign = vi.fn()
+      .mockResolvedValueOnce(filed)
+      .mockResolvedValueOnce({ noteId: 61, studentId: 21, name: 'Lévy', className: 'Tuesday', appended: false })
+    render(<PassageReview passages={note694} classId={3} onAssign={onAssign} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Eleonore' })).toBeInTheDocument())
+
+    await user.click(screen.getAllByTestId('passage-review-check')[0])
+    await user.click(screen.getByRole('button', { name: 'Eleonore' }))
+    await waitFor(() => expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(1))
+
+    await user.click(screen.getAllByTestId('passage-review-check')[0])
+    expect(screen.getByRole('button', { name: 'Eleonore' })).toBeDisabled()
+    await user.click(screen.getByRole('button', { name: 'Lévy' }))
+
+    await waitFor(() => expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(2))
+    const row = screen.getAllByTestId('passage-review-row')[0]
+    expect(row).toHaveTextContent('Assigned to Eleonore')
+    expect(row).toHaveTextContent('Assigned to Lévy')
+    // Same row, same text, two children — and nothing sent twice.
+    expect(onAssign.mock.calls.map(([b]) => [b.studentId, b.passages.map((p: { summary: string }) => p.summary)])).toEqual([
+      [22, ['She was helping the younger ones with their blocks.']],
+      [21, ['She was helping the younger ones with their blocks.']],
+    ])
+  })
+
+  // A pick sends what this child has not had. The row they already hold is
+  // dropped: the server would append its text to their note a second time.
+  it('sends only the rows the child does not already hold', async () => {
+    const user = userEvent.setup()
+    const onAssign = vi.fn()
+      .mockResolvedValueOnce(filed)
+      .mockResolvedValueOnce({ ...filed, appended: true })
+    render(<PassageReview passages={note694} classId={3} onAssign={onAssign} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Eleonore' })).toBeInTheDocument())
+
+    await user.click(screen.getAllByTestId('passage-review-check')[0])
+    await user.click(screen.getByRole('button', { name: 'Eleonore' }))
+    await waitFor(() => expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(1))
+
+    await user.click(screen.getAllByTestId('passage-review-check')[0])
+    await user.click(screen.getAllByTestId('passage-review-check')[1])
+    await user.click(screen.getByRole('button', { name: 'Eleonore' }))
+
+    await waitFor(() => expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(2))
+    expect(onAssign.mock.calls[1][0].passages.map((p: { summary: string }) => p.summary)).toEqual([
+      "Polly wasn't speaking much today.",
+    ])
+    // One line each: the row she already held gained nothing.
+    const rows = screen.getAllByTestId('passage-review-row')
+    expect(within(rows[0]).getAllByTestId('passage-review-filed')).toHaveLength(1)
+    expect(within(rows[1]).getAllByTestId('passage-review-filed')).toHaveLength(1)
+  })
+
+  // Undo takes back one child's note, not the row: the other child's line
+  // stays, with its own way back.
+  it('keeps the other child on a row when one assignment is undone', async () => {
+    const user = userEvent.setup()
+    const onAssign = vi.fn()
+      .mockResolvedValueOnce(filed)
+      .mockResolvedValueOnce({ noteId: 61, studentId: 21, name: 'Lévy', className: 'Tuesday', appended: false })
+    const onUndo = vi.fn().mockResolvedValue(undefined)
+    render(<PassageReview passages={note694} classId={3} onAssign={onAssign} onUndo={onUndo} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Eleonore' })).toBeInTheDocument())
+
+    await user.click(screen.getAllByTestId('passage-review-check')[0])
+    await user.click(screen.getByRole('button', { name: 'Eleonore' }))
+    await waitFor(() => expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(1))
+    await user.click(screen.getAllByTestId('passage-review-check')[0])
+    await user.click(screen.getByRole('button', { name: 'Lévy' }))
+    await waitFor(() => expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(2))
+
+    await user.click(screen.getByRole('button', { name: 'Undo the assignment to Eleonore' }))
+    expect(onUndo).toHaveBeenCalledWith(22)
+
+    await waitFor(() => expect(screen.getAllByTestId('passage-review-filed')).toHaveLength(1))
+    const row = screen.getAllByTestId('passage-review-row')[0]
+    expect(row).toHaveTextContent('Assigned to Lévy')
+    expect(row).not.toHaveTextContent('Assigned to Eleonore')
+    expect(within(row).getByRole('button', { name: 'Undo the assignment to Lévy' })).toBeEnabled()
   })
 
   // A failed call leaves the row ticked and says why; the teacher tries again.
@@ -266,7 +359,7 @@ describe('PassageReview filing', () => {
     })
     expect(screen.getByTestId('passage-review-filed')).toHaveTextContent('Assigned to Eleonore')
     expect(screen.getByTestId('passage-review-undo')).toBeEnabled()
-    expect(screen.getAllByTestId('passage-review-check')[0]).toBeDisabled()
+    expect(screen.getAllByTestId('passage-review-check')[0]).toBeEnabled()
   })
 
   // The point of the split (#131): a row that lost its name usually belongs to

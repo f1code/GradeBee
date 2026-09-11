@@ -506,7 +506,7 @@ describe('JobStatus', () => {
         studentId: 22,
         passages: [{ kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' }],
       }, expect.anything())
-      expect(screen.getByRole('button', { name: 'Eleonore' })).toBeInTheDocument()
+      expect(noteLinks()).toContain('Eleonore')
 
       // The poll brings back what assign wrote to the job. Keyed on note id,
       // the link the card already holds replaces nothing and doubles nothing.
@@ -551,7 +551,7 @@ describe('JobStatus', () => {
         appendToNoteId: 50,
       }, expect.anything())
       expect(screen.getByText('1 note created')).toBeInTheDocument()
-      expect(screen.getAllByRole('button', { name: 'Lévy' })).toHaveLength(1)
+      expect(noteLinks().filter(n => n === 'Lévy')).toHaveLength(1)
     })
 
     // Two confirms to Eleonore in one tab: the first creates, and the link it
