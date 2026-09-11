@@ -735,6 +735,8 @@ button:active,
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem;
   margin-bottom: 0.35rem;
 }
 
@@ -766,6 +768,7 @@ button:active,
 .note-card-actions {
   display: flex;
   align-items: center;
+  margin-left: auto;
   gap: 0.15rem;
   opacity: 0;
   transition: opacity 0.15s;
