@@ -57,7 +57,7 @@ Keeping docs in sync with code is part of "done". Before considering a task comp
 | Add/change an API endpoint, handler, repo, DI wiring, or job queue logic | `backend/ARCHITECTURE.md` |
 | Change the schema | `backend/ARCHITECTURE.md` (Tables / current schema — not individual migration files) |
 | Add a new design token, component pattern, color, or typography rule | `frontend/DESIGN.md` |
-| Ship a change a Teacher can see or do | `frontend/src/whatsNew.ts` (one entry at the top, one sentence, opens "Since your last visit:") |
+| Ship a change a Teacher can see or do | `frontend/src/whatsNew.ts` — ask the user whether to add an entry; if yes, one at the top, one sentence, opens "Since your last visit:" |
 | Add or rename an environment variable | `.env.example` (always) + `README.md` (if user-facing) |
 | Change the tech stack or complete a phase | `README.md` |
 | Complete or supersede an implementation plan | Mark status in the relevant `../plans/*.md` |
