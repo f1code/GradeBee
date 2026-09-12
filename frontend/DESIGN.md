@@ -65,6 +65,9 @@ The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinc
 - File drops are handled at the Notes tab viewport (window listeners while Add Notes is mounted), not on Reports or Levels.
 - While a file drag is over the Notes page, `.notes-drop-overlay` covers the viewport with honey wash (`--honey-light`), a solid `--honey` border, and a glow ring. Copy: **Drop audio to upload**. `pointer-events: none` so it does not steal the drop or flicker on nested targets. Hide it when the drag leaves or the drop completes. Do not show it while recording, reviewing, uploading, or while the Enter text modal is open.
 
+### What's new strip
+A `HintBanner` above `app-nav` (every tab), keyed `gradebee:new:<id>` from `frontend/src/whatsNew.ts`. Newest entry only. Copy: one sentence, teacher vocabulary, opens **Since your last visit:** — no badge, no label, no date. First visit marks the latest id seen, so new teachers get the guide, not the strip.
+
 ### Notes tab stack
 Signed-in Notes tab (`activeTab === 'notes'` in `App.tsx`) is a single column. Do not add a Classes / Students / Record tab; `activeTab` stays `'notes' | 'reports' | 'levels'`.
 
