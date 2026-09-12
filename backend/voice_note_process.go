@@ -216,13 +216,15 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	droppedNoRosterMatch, droppedUnattributed := 0, 0
 
 	// Every passage about one child that reached none, counted once and logged
-	// once. Under the old contract this was the low-confidence drop; there is
+	// once, absent included: a name nobody answers to is unreachable whichever
+	// kind spoke it, and kind is on the line to keep the two separable.
+	// Under the old contract this was the low-confidence drop; there is
 	// no confidence score any more, and a passage nobody is named in is not a
 	// low-confidence guess about who — it is the recording not saying. A group
 	// passage is not counted: it has no student because it belongs to all of
 	// them.
 	for _, p := range passages {
-		if p.Kind != PassageUnknown && !(p.Kind == PassageChild && p.Student == "") {
+		if p.Kind != PassageUnknown && !((p.Kind == PassageChild || p.Kind == PassageAbsent) && p.Student == "") {
 			continue
 		}
 		droppedUnattributed++
@@ -352,6 +354,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		"no_notes_reason", job.NoNotesReason,
 		"passages_total", len(extractResult.Passages),
 		"passages_child", kinds[PassageChild],
+		"passages_absent", kinds[PassageAbsent],
 		"passages_unknown", kinds[PassageUnknown],
 		"passages_group", kinds[PassageGroup],
 		"passages_none", kinds[PassageNone],

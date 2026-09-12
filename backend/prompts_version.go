@@ -85,6 +85,26 @@ return "" — an empty string — rather than guessing.
 
 // passagePromptPrefix is the whole of pass 2's system prompt except the roster,
 // which BuildPassagePrompt appends.
+//
+// #142 added the "absent" kind. Two edits, both measured on
+// mistral-medium-2508, 5 samples per arm:
+//
+// The bullet carries no scope exclusions. Late arrival and early departure come
+// back "child" 20/20 with or without a sentence excluding them. An absence on
+// another day does not — 10/10 "absent" with no exclusion, 10/10 "child" with
+// one reading `An absence on another day ("Margot was out all last week") is a
+// "child" passage, not this one`, whose example is load-bearing (without it,
+// 3/5, and the other child's passage lost). It is left out anyway: five months
+// of notes (260 rows, 646 children, 140 classes) mention no absence at all, on
+// this day or another, and when it is wrong the child still gets their note —
+// only #148's fan-out skips them, for one recording. Paste the sentence back
+// if a teacher ever dictates last week.
+//
+// "Children on the list who are never named were absent or not discussed
+// today" lost "absent or", which the kind makes false: silence now reads as
+// presence. Trimmed, not deleted — deleting it whole took date_drill 4/4 → 1/4
+// (the example date stops reaching the group summary), and the kind alone
+// holds 4/4, so that row rests on the sentence, not on the kind.
 const passagePromptPrefix = `You are extracting a teacher's spoken notes about the children in one class.
 
 The notes arrive as a transcript, in the order the teacher spoke them. The children in this
@@ -97,6 +117,7 @@ per owner, together covering the whole transcript.
 Each passage has:
 - "kind":
   - "child" — the teacher is talking about one individual child and speaks a name for them.
+  - "absent" — the teacher says a named child was not there today ("Théo wasn't in today").
   - "unknown" — the teacher is talking about one individual child but no name is spoken for
     them in this passage or the passage it continues: only a pronoun, or a name that
     matches nobody listed. Do not guess. The teacher will assign it.
@@ -107,10 +128,10 @@ Each passage has:
   - "none" — not an observation about children: the date, the class header, a greeting,
     vocabulary the children are being taught, thinking aloud that describes no child and
     no class.
-- "spoken_labels": for a "child" passage, the name the teacher speaks for it, verbatim as
-  spoken, uncorrected. Empty list for "unknown", "group" and "none".
-- "student": for a "child" passage, the listed child's name exactly as listed below, or ""
-  when no listed child fits. "" for every other kind.
+- "spoken_labels": for a "child" or "absent" passage, the name the teacher speaks for it,
+  verbatim as spoken, uncorrected. Empty list for "unknown", "group" and "none".
+- "student": for a "child" or "absent" passage, the listed child's name exactly as listed
+  below, or "" when no listed child fits. "" for every other kind.
 - "summary": the observations in that passage, rewritten as clear sentences.
 
 Rules:
@@ -129,7 +150,7 @@ Rules:
   a name for the child — a name that appears in "spoken_labels". A passage that refers to
   the child only by a pronoun ("she", "he") has NO student: it is "unknown", even when
   exactly one listed child has not been mentioned yet. Children on the list who are never
-  named were absent or not discussed today. Never assign a passage to a child by
+  named were not discussed today. Never assign a passage to a child by
   elimination, by roster order, or because they are the only one left.
 - The list of children exists to spell spoken names correctly, not to decide who is
   present.

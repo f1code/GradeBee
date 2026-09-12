@@ -1037,7 +1037,7 @@ export interface NoteLink {
   className: string;
 }
 /**
- * PassageKind says what a passage is about. Extraction returns all four, and
+ * PassageKind says what a passage is about. Extraction returns all five, and
  * what the pipeline does with each is in voice_note_process.go.
  */
 export type PassageKind = string;
@@ -1045,6 +1045,12 @@ export type PassageKind = string;
  * PassageChild: the teacher is talking about one child and says who.
  */
 export const PassageChild: PassageKind = "child";
+/**
+ * PassageAbsent: the teacher says a named child was not there today. Same
+ * shape and same note as PassageChild, so nothing the teacher sees turns on
+ * it; the kind is there for #148's group statements to skip them by.
+ */
+export const PassageAbsent: PassageKind = "absent";
 /**
  * PassageUnknown: the teacher is talking about one child, but no name was
  * spoken for them — only a pronoun, or a name matching nobody on the

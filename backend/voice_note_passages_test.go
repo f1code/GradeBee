@@ -109,10 +109,27 @@ func TestAssemblePassages_UnattributedReachesNobodyButStaysOnTheCard(t *testing.
 	assert.Equal(t, NoNotesNoNameMatched, noNotesReason(len(notes), passages))
 }
 
+// A child the teacher named absent still gets their note, holding the words
+// the teacher said about the absence. Nothing the teacher sees turns on the
+// kind; the roster-wide fan-out that follows reads it (#148).
+func TestAssemblePassages_AbsentChildStillGetsTheirNote(t *testing.T) {
+	notes, passages := assemblePassages([]ExtractedPassage{
+		{Kind: PassageAbsent, SpokenLabels: []string{"Théo"}, Student: "Théo", Summary: "Théo was absent today."},
+		child("Camille", "Camille", "Camille worked hard on the letter sounds."),
+	})
+
+	assert.Equal(t, []assembledNote{
+		{Name: "Théo", Summary: "Théo was absent today.", Passages: 1},
+		{Name: "Camille", Summary: "Camille worked hard on the letter sounds.", Passages: 1},
+	}, notes)
+	assert.Len(t, passages, 2)
+}
+
 func TestCountKinds(t *testing.T) {
 	counts := countKinds([]ExtractedPassage{
 		child("A", "A", "x"),
 		child("B", "B", "y"),
+		{Kind: PassageAbsent, Student: "C"},
 		{Kind: PassageUnknown},
 		{Kind: PassageGroup},
 		{Kind: PassageNone},
@@ -120,6 +137,6 @@ func TestCountKinds(t *testing.T) {
 	})
 
 	assert.Equal(t, map[PassageKind]int{
-		PassageChild: 2, PassageUnknown: 1, PassageGroup: 1, PassageNone: 2,
+		PassageChild: 2, PassageAbsent: 1, PassageUnknown: 1, PassageGroup: 1, PassageNone: 2,
 	}, counts)
 }

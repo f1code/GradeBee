@@ -62,12 +62,12 @@ function hasSpokenName(labels) {
   });
 }
 
-/** guardPassages: a child passage with no spoken name is unknown, whoever the
- * model named. In every roster phantom measured across 280 runs the model had
- * labelled the block with a pronoun. */
+/** guardPassages: a child or absent passage with no spoken name is unknown,
+ * whoever the model named. In every roster phantom measured across 280 runs the
+ * model had labelled the block with a pronoun. */
 function guardPassages(passages) {
   return passages.map((p) => {
-    if (p.kind === 'child' && !hasSpokenName(p.spoken_labels)) {
+    if ((p.kind === 'child' || p.kind === 'absent') && !hasSpokenName(p.spoken_labels)) {
       return { ...p, kind: 'unknown', spoken_labels: [], student: '' };
     }
     return p;
@@ -87,7 +87,9 @@ function assemble(passages, roster) {
       group.push(p.summary);
       continue;
     }
-    if (p.kind !== 'child') continue;
+    // absent makes a note exactly as child does: "Théo was absent today" is
+    // Théo's note. The kind is what the roster-wide fan-out reads (#148).
+    if (p.kind !== 'child' && p.kind !== 'absent') continue;
 
     const name = byFolded.get(foldName(p.student));
     if (!name) continue; // reached nobody: the unattributed list, never a note

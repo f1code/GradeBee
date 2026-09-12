@@ -345,6 +345,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 		"note_count", len(noteLinks),
 		"passages_total", len(extracted),
 		"passages_child", kinds[PassageChild],
+		"passages_absent", kinds[PassageAbsent],
 		"passages_unknown", kinds[PassageUnknown],
 		"passages_group", kinds[PassageGroup],
 		"passages_none", kinds[PassageNone],
@@ -461,9 +462,9 @@ func canPickClass(reason string) bool {
 // anySpokenLabel reports whether the recording spoke a name for anybody.
 //
 // hasSpokenName, not a length check: it is the same rule the pronoun guard
-// applies (extract.go), so the two cannot drift. The guard only inspects child
-// passages, and nothing makes the model obey the prompt's "empty list for
-// unknown, group and none" — a group passage that came back labelled "She"
+// applies (extract.go), so the two cannot drift. The guard only inspects the
+// two kinds that carry a name, and nothing makes the model obey the prompt's
+// "empty list for unknown, group and none" — a group passage labelled "She"
 // would otherwise count as a name here and offer a class picker with nothing
 // for a pick to resolve.
 //

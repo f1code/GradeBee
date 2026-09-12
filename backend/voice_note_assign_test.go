@@ -364,6 +364,22 @@ func TestAssignPassages_RefusesABadBody(t *testing.T) {
 	assert.Empty(t, w.notesFor(t, w.alice))
 }
 
+// An absent passage whose spoken name matched nobody on the roster is a row on
+// the card, exactly as a child passage with no student is (#142). Before the
+// absent kind existed this utterance came back as that child passage, so the
+// endpoint refusing it would lose a filing route the teacher already had.
+func TestAssignPassages_FilesAnAbsentRowThatReachedNobody(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.misfiledJob(t)
+
+	rec, _ := w.assign(t, "u1", w.uploadID, w.toAlice(AssignPassage{Kind: PassageAbsent, Summary: "Téo wasn't in today"}))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	notes := w.notesFor(t, w.alice)
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Téo wasn't in today", notes[0].Summary)
+}
+
 // A double-click: two confirms land at once, and the child must get one note.
 // The second is told no at once, not queued behind the first.
 func TestAssignPassages_DoubleSubmitCreatesOneNote(t *testing.T) {

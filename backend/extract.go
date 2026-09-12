@@ -196,9 +196,10 @@ func BuildPassagePrompt(class ClassGroup) string {
 	return sb.String()
 }
 
-// guardPassages demotes a child passage the model attributed with no spoken
-// name to unknown, so its summary reaches the unattributed list instead of a
-// child's note.
+// guardPassages demotes a child or absent passage the model attributed with no
+// spoken name to unknown, so its summary reaches the unattributed list instead
+// of a child's note. "She wasn't here today" names nobody, exactly as "she was
+// knocking on the boxes" does.
 //
 // This is the structural backstop under the prompt's no-elimination rules. In
 // every roster phantom measured across 280 runs — 15 of them, on every prompt
@@ -212,7 +213,7 @@ func BuildPassagePrompt(class ClassGroup) string {
 func guardPassages(passages []ExtractedPassage) []ExtractedPassage {
 	out := make([]ExtractedPassage, len(passages))
 	for i, p := range passages {
-		if p.Kind == PassageChild && !hasSpokenName(p.SpokenLabels) {
+		if (p.Kind == PassageChild || p.Kind == PassageAbsent) && !hasSpokenName(p.SpokenLabels) {
 			p.Kind = PassageUnknown
 			p.SpokenLabels = nil
 			p.Student = ""
@@ -295,7 +296,7 @@ func passageSchema(class ClassGroup) json.RawMessage {
 		field("properties", jsonObject(
 			field("kind", map[string]any{
 				"type": "string",
-				"enum": []PassageKind{PassageChild, PassageUnknown, PassageGroup, PassageNone},
+				"enum": []PassageKind{PassageChild, PassageUnknown, PassageGroup, PassageNone, PassageAbsent},
 			}),
 			field("spoken_labels", map[string]any{
 				"type":  "array",

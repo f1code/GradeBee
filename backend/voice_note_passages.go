@@ -28,17 +28,20 @@ type assembledNote struct {
 //
 // The rules, in the order they matter:
 //
-//   - child with a roster student → that child's note. Several passages about
-//     one child join in order; the model returns a shared observation once per
-//     child, so a pair reaches both of them.
-//   - child with no student → nobody. Its labels stay on the passage, which is
-//     what the class picker re-resolves when the recording was read against the
-//     wrong roster.
+//   - child or absent with a roster student → that child's note. Several
+//     passages about one child join in order; the model returns a shared
+//     observation once per child, so a pair reaches both of them. An absent
+//     child is a child the teacher spoke about, so "Théo was absent today" is
+//     his note.
+//   - child or absent with no student → nobody. Its labels stay on the
+//     passage, which is what the class picker re-resolves when the recording
+//     was read against the wrong roster.
 //   - unknown → nobody, and no labels to re-resolve: the recording never said
 //     who this was.
-//   - group → every child this recording already reached, and nobody else. A
-//     child who was absent gets no note from "everyone did well", and a group
-//     passage in a recording that named no child reaches no note at all.
+//   - group → every child this recording already reached, and nobody else, an
+//     absent child included today: the kind is recorded here, and the fan-out
+//     that reads it to skip them is #148's. A group passage in a recording
+//     that named no child reaches no note at all.
 //   - none → dropped, and not on the card. A recording holding nothing but a
 //     spoken header yields no passages, so it reads as nobody named instead of
 //     offering the class picker over a passage there is nothing to pick for.
@@ -63,7 +66,7 @@ func assemblePassages(passages []ExtractedPassage) ([]assembledNote, []JobPassag
 		switch {
 		case p.Kind == PassageGroup:
 			group = append(group, p.Summary)
-		case p.Kind == PassageChild && p.Student != "":
+		case (p.Kind == PassageChild || p.Kind == PassageAbsent) && p.Student != "":
 			if _, seen := own[p.Student]; !seen {
 				names = append(names, p.Student)
 			}

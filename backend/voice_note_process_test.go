@@ -766,6 +766,12 @@ func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
 				{Kind: PassageChild, SpokenLabels: []string{"Bram"}, Student: "Bram", Summary: "ok"},
 				// Reached nobody: a spoken name matching no child on the roster.
 				{Kind: PassageChild, SpokenLabels: []string{"Quillon"}, Student: "", Summary: "unsure"},
+				// 2 absent passages (#142). The first joins Bram's note, so it is
+				// no more a drop than a child passage is. The second spoke a name
+				// nobody on the roster answers to and reached none of them, which
+				// is the same drop Quillon's is and must be counted as one.
+				{Kind: PassageAbsent, SpokenLabels: []string{"Bram"}, Student: "Bram", Summary: "Bram wasn't in today"},
+				{Kind: PassageAbsent, SpokenLabels: []string{"Téo"}, Student: "", Summary: "Téo wasn't in today"},
 				// 2 more that reached nobody, with no name spoken at all.
 				{Kind: PassageUnknown, Summary: "she got on with it"},
 				{Kind: PassageUnknown, Summary: "and then she stopped"},
@@ -785,15 +791,16 @@ func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
 	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)))
 
 	done := logRecord(t, logs.String(), "process voice note completed")
-	assert.Contains(t, done, `"passages_total":9`, "denominator should count every passage extraction returned, header included")
+	assert.Contains(t, done, `"passages_total":11`, "denominator should count every passage extraction returned, header included")
 	assert.Contains(t, done, `"note_count":2`, "one note per child, however many passages reached them")
 	assert.Contains(t, done, `"passages_child":5`)
+	assert.Contains(t, done, `"passages_absent":2`)
 	assert.Contains(t, done, `"passages_unknown":2`)
 	assert.Contains(t, done, `"passages_group":1`)
 	assert.Contains(t, done, `"passages_none":1`)
-	// Quillon's passage plus the two unknowns. A group passage has no student
-	// because it belongs to every child, so it is not a drop.
-	assert.Contains(t, done, `"dropped_unattributed":3`, "a passage about one child that reached none of them is the drop")
+	// Quillon's passage, Téo's, and the two unknowns. A group passage has no
+	// student because it belongs to every child, so it is not a drop.
+	assert.Contains(t, done, `"dropped_unattributed":4`, "a passage about one child that reached none of them is the drop")
 	// Both children are on the roster, so nothing fails the lookup: 0 has to be
 	// distinguishable from the counter never being wired.
 	assert.Contains(t, done, `"dropped_no_roster_match":0`)

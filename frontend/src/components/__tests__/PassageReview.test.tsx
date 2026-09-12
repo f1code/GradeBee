@@ -51,6 +51,20 @@ describe('unattributed', () => {
     expect(rows).toHaveLength(1)
   })
 
+  // A spoken name that matched nobody is the teacher's to file whether the
+  // sentence was about a child who was there or one who was not (#142). Before
+  // absent existed this same utterance came back as a child passage with no
+  // student, and it must not stop being a row.
+  it('counts an absent passage with no student', () => {
+    const rows = unattributed([{ kind: 'absent', spokenLabels: ['Téo'], summary: "Téo wasn't in today." }])
+    expect(rows).toHaveLength(1)
+  })
+
+  // An absent child the pipeline did pin has a note already; nothing to file.
+  it('never lists an absent passage that reached a child', () => {
+    expect(unattributed([{ kind: 'absent', spokenLabels: ['Théo'], student: 'Théo', summary: 'Théo was absent today.' }])).toEqual([])
+  })
+
   // A class-wide remark joins every note this recording made; it is not
   // something to file to one child.
   it('never lists a group passage', () => {

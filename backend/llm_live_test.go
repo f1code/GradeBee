@@ -289,19 +289,58 @@ laughing and giggling the whole time. Rémi was a little active today with the m
 	assert.NotContains(t, noteOf(t, result, "Rémi"), "Bunny", "the unowned block reached the named child's note")
 }
 
+// Absence is a kind, not a phrasing (#142). The eval rows on these two
+// fixtures grade notes, and an absent child's note is the same text a child
+// passage would have made, so the kind itself is invisible there. This is
+// where it is pinned, against the real passageSchema — the enum the eval
+// config only keeps a hand-written copy of.
+//
+// Both fixtures in one test: one model call each, and the pair is the
+// measurement — the phrasing the prompt spells out, and phrasings it does not.
+func TestLLM_NamesAChildTheTeacherSaidWasAbsent(t *testing.T) {
+	for _, tc := range []struct {
+		fixture string
+		absent  []string
+		present string
+	}{
+		{fixture: "absent_child", absent: []string{"Théo"}, present: "Camille"},
+		{fixture: "absent_phrasing", absent: []string{"Théo", "Lina"}, present: "Basile"},
+	} {
+		t.Run(tc.fixture, func(t *testing.T) {
+			ext := newTestLLMExtractor(t)
+			transcript, classes := extractionFixture(t, tc.fixture)
+
+			result, err := ext.Extract(t.Context(), ExtractRequest{Transcript: transcript, Classes: classes})
+			require.NoError(t, err)
+
+			kinds := map[string]PassageKind{}
+			for _, p := range result.Passages {
+				if p.Student != "" {
+					kinds[p.Student] = p.Kind
+				}
+			}
+			for _, name := range tc.absent {
+				assert.Equal(t, PassageAbsent, kinds[name],
+					"%s was named absent; passages: %+v", name, result.Passages)
+			}
+			assert.Equal(t, PassageChild, kinds[tc.present],
+				"%s was there; passages: %+v", tc.present, result.Passages)
+		})
+	}
+}
+
 // --- The decline, and the pick that undoes it (#127) ---
 
-// multiClassFixture reads the eval fixture a decline is measured on: one
-// recording naming two classes inline, with no header identifying either.
+// extractionFixture reads one eval fixture's transcript and roster off disk.
 //
-// Read from disk rather than inlined. It left promptfoo when extraction became
-// two calls — the pass-2 builder needs a class_name var and this fixture's
-// class is the thing under test — so this is the only place it is still
-// exercised, and a copy here would drift from the file the eval README points
-// at.
-func multiClassFixture(t *testing.T) (transcript string, classes []ClassGroup) {
+// Read rather than inlined, so a live test and the promptfoo row that shares a
+// fixture cannot drift apart. multi_class left promptfoo when extraction became
+// two calls — the pass-2 builder needs a class_name var and that fixture's
+// class is the thing under test — so for it this is the only place it is still
+// exercised.
+func extractionFixture(t *testing.T, name string) (transcript string, classes []ClassGroup) {
 	t.Helper()
-	dir := filepath.Join("evals", "fixtures", "extraction", "multi_class")
+	dir := filepath.Join("evals", "fixtures", "extraction", name)
 	raw, err := os.ReadFile(filepath.Join(dir, "transcript.txt"))
 	require.NoError(t, err)
 	rosterJSON, err := os.ReadFile(filepath.Join(dir, "classes.json"))
@@ -323,7 +362,7 @@ func multiClassFixture(t *testing.T) (transcript string, classes []ClassGroup) {
 // decline.
 func TestLLM_DeclinesWhenNoHeaderPinsOneClass(t *testing.T) {
 	ext := newTestLLMExtractor(t)
-	transcript, classes := multiClassFixture(t)
+	transcript, classes := extractionFixture(t, "multi_class")
 
 	result, err := ext.Extract(t.Context(), ExtractRequest{Transcript: transcript, Classes: classes})
 	require.NoError(t, err, "a decline is a finished recording, not a failed one")
@@ -341,7 +380,7 @@ func TestLLM_DeclinesWhenNoHeaderPinsOneClass(t *testing.T) {
 // note count, and the phrases the fixture's own expected.json names.
 func TestLLM_PickingTheClassOnADeclinedRecordingMakesThePipelineNotes(t *testing.T) {
 	ext := newTestLLMExtractor(t)
-	transcript, fixture := multiClassFixture(t)
+	transcript, fixture := extractionFixture(t, "multi_class")
 	w := newLiveAssembleWorld(t, transcript, fixture)
 	classA := w.classes[0]
 

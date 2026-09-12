@@ -45,7 +45,7 @@ providers:
                 items:
                   type: object
                   properties:
-                    kind:          { type: string, enum: [child, unknown, group, none] }
+                    kind:          { type: string, enum: [child, unknown, group, none, absent] }
                     spoken_labels: { type: array, items: { type: string } }
                     student:       { type: string }
                     summary:       { type: string }
@@ -224,6 +224,41 @@ tests:
   # take that from 8/10 to 0/10, and the Go guard — mirrored in
   # scoring/assemble.js — catches whatever is left. Anaëlle is first on the
   # roster and never named, which is the slot the block used to fall into.
+
+  # Absence (#142). Two rows, one axis: a child the teacher names absent is
+  # still a child the teacher spoke about, so their note holds those words and
+  # nobody else's. The first uses the phrasing the prompt spells out, the
+  # second phrasings it does not — whether the trigger survives a real teacher.
+  # Neither carries a group remark, so the roster-wide fan-out that follows
+  # (#148) must leave both rows where they are. That the passage comes back as
+  # "absent" rather than "child" is invisible to a note-shaped scorer and is
+  # pinned in backend/llm_live_test.go against the real passageSchema.
+
+  - description: "extraction: a child named absent keeps their own note"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/absent_child/transcript.txt"
+      classes: "file://fixtures/extraction/absent_child/classes.json"
+      class_name: "Amandine · Tue · 15.30"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/absent_child/expected.json
+          metric: attribution
+
+  - description: "extraction: absence the prompt does not spell out still reaches the child"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/absent_phrasing/transcript.txt"
+      classes: "file://fixtures/extraction/absent_phrasing/classes.json"
+      class_name: "Gaspard · Fri · 17.00"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/absent_phrasing/expected.json
+          metric: precision_recall
 
   - description: "extraction: an unnamed block is not filed under the first child on the roster"
     vars:
