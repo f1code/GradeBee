@@ -65,13 +65,15 @@ The class editor (`AddClassForm`, `StudentList`) exposes two fields with distinc
 - File drops are handled at the Notes tab viewport (window listeners while Add Notes is mounted), not on Reports or Levels.
 - While a file drag is over the Notes page, `.notes-drop-overlay` covers the viewport with honey wash (`--honey-light`), a solid `--honey` border, and a glow ring. Copy: **Drop audio to upload**. `pointer-events: none` so it does not steal the drop or flicker on nested targets. Hide it when the drag leaves or the drop completes. Do not show it while recording, reviewing, uploading, or while the Enter text modal is open.
 
+### What's new strip
+A `HintBanner` above `app-nav` (every tab), keyed `gradebee:new:<id>` from `frontend/src/whatsNew.ts`. Newest entry only. Copy: one sentence, teacher vocabulary, opens **Since your last visit:** — no badge, no label, no date. First visit marks the latest id seen, so new teachers get the guide, not the strip.
+
 ### Notes tab stack
 Signed-in Notes tab (`activeTab === 'notes'` in `App.tsx`) is a single column. Do not add a Classes / Students / Record tab; `activeTab` stays `'notes' | 'reports' | 'levels'`.
 
-1. Hint banner (unchanged)
-2. Recording / Add Notes (`AudioUpload`) first
-3. Job status when any jobs exist, or a card is still retained (`JobStatus` returns `null` otherwise)
-4. Roster (`StudentList`) below — loading, fetch error, and **No Classes Yet** stay in this slot. Class **cards** start collapsed behind the summary toggle at ≤640px; **Your Classes** and **+ Add Class** stay visible. Desktop (`> 640px`) stays expanded.
+1. Recording / Add Notes (`AudioUpload`) first
+2. Job status when any jobs exist, or a card is still retained (`JobStatus` returns `null` otherwise)
+3. Roster (`StudentList`) below — loading, fetch error, and **No Classes Yet** stay in this slot. Class **cards** start collapsed behind the summary toggle at ≤640px; **Your Classes** and **+ Add Class** stay visible. Desktop (`> 640px`) stays expanded.
 
 How It Works onboarding still describes the lifetime workflow (set up classes, then record). That is not the daily screen order.
 

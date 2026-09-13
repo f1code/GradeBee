@@ -10,6 +10,7 @@ import HintBanner from './components/HintBanner'
 import FeedbackButton from './components/FeedbackButton'
 import PrivacyPreferencesLink from './components/PrivacyPreferencesLink'
 import LevelsAdmin from './components/LevelsAdmin'
+import { whatsNew } from './whatsNew'
 
 
 // Feature flag: when enabled, the Reports tab is restricted to Clerk org admins.
@@ -135,6 +136,8 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
     if (!localStorage.getItem('gradebee:seenGuide')) {
       setShowGuide(true)
       localStorage.setItem('gradebee:seenGuide', '1')
+      // No "last visit" yet: the guide covers it, the what's-new strip does not show.
+      localStorage.setItem(`gradebee:new:${whatsNew[0].id}`, '1')
     }
   }, [setShowGuide])
 
@@ -157,6 +160,7 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
     >
+      <HintBanner storageKey={`gradebee:new:${whatsNew[0].id}`}>{whatsNew[0].text}</HintBanner>
       <nav className="app-nav">
         <button
           className={`toolbar-link ${activeTab === 'notes' ? 'active' : ''}`}
@@ -183,7 +187,6 @@ function SignedInContent({ activeTab, setActiveTab, setShowGuide }: {
       </nav>
       {activeTab === 'notes' && (
         <>
-          <HintBanner storageKey="gradebee:hint:notes">Upload audio — GradeBee processes it in the background and creates notes automatically.</HintBanner>
           <AudioUpload onUploadDone={() => jobPollNowRef.current?.()} />
           <JobStatus pollNowRef={jobPollNowRef} />
           <StudentList />
