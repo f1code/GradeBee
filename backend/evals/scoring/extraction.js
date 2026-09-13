@@ -8,8 +8,9 @@
  *   - attribution: no must_not_quote_substring appears in that student's quoted_text
  *   - preference: how many should_quote_substrings appear (soft — see below)
  *
- * The assertion passes only if all four *hard* sub-scores pass their thresholds
- * and no must_not_extract phrase appears in any student's quoted_text.
+ * The assertion passes only if all four *hard* sub-scores pass their thresholds,
+ * no must_not_extract phrase appears in any student's quoted_text, and no
+ * no_note_students child has a note.
  *
  * should_quote_substrings is the soft counterpart of must_quote_substrings: text
  * that makes a note better but whose absence is not a defect. It scores as the
@@ -31,6 +32,10 @@
  * without this the whole transcript can land under every student and still
  * score 1.00.
  *
+ * no_note_students names roster children who must get no note: any matching
+ * entry fails the row and never moves the score. Precision alone cannot guard
+ * them once three children are expected (a phantom scores 3/4 and passes).
+ *
  * Expected fixture shape (expected.json):
  * {
  *   "expected_students": [
@@ -42,6 +47,7 @@
  *       "should_quote_substrings": ["Yes, I can"]
  *     }
  *   ],
+ *   "no_note_students": ["Théa"],
  *   "must_not_extract": ["The principal stopped by"]
  * }
  *
@@ -134,6 +140,12 @@ module.exports = async (output, context) => {
   totalScore += precision + recall;
   numMetrics += 2;
 
+  // --- No note: roster children who must get nothing (pass only, no score) ---
+  const phantoms = (expected.no_note_students || []).filter((name) =>
+    extracted.some((ext) => normalise(ext.name) === normalise(name))
+  );
+  for (const name of phantoms) reasons.push(`FAIL: ${name} must get no note`);
+
   // --- Voice preservation ---
   let voiceScore = 1;
   for (const exp of expectedStudents) {
@@ -221,7 +233,7 @@ module.exports = async (output, context) => {
   }
 
   const avgScore = numMetrics > 0 ? Math.max(0, totalScore / numMetrics) : 0;
-  const pass = precision >= 0.7 && recall >= 0.7 && voiceScore === 1 && attributionScore === 1 && !forbiddenLeaked;
+  const pass = precision >= 0.7 && recall >= 0.7 && voiceScore === 1 && attributionScore === 1 && !forbiddenLeaked && phantoms.length === 0;
 
   // `hard` is the score with the soft axis taken out, and it is what
   // scripts/diff-baseline.js counts as a regression or an improvement. Without

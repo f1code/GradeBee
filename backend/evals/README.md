@@ -108,8 +108,8 @@ evals/
 
 ## Extraction scoring axes
 
-`scoring/extraction.js` grades four hard axes plus one soft one; the assertion
-passes only if the hard four do and nothing forbidden leaked.
+`scoring/extraction.js` grades five hard axes plus one soft one; the assertion
+passes only if the hard five do and nothing forbidden leaked.
 
 | Axis | Fixture field | What it catches |
 | --- | --- | --- |
@@ -117,6 +117,7 @@ passes only if the hard four do and nothing forbidden leaked.
 | voice_preservation | `must_quote_substrings` | a student's own observation was dropped or paraphrased away |
 | attribution | `must_not_quote_substrings` | cross-student bleed — another student's observation landed in this entry |
 | (global) | `must_not_extract` | forbidden content leaked into any entry |
+| (global) | `no_note_students` | a roster child who must get nothing got a note, whatever it says |
 | preference (soft) | `should_quote_substrings` | text that makes a note better and whose absence is not a defect |
 
 `should_quote_substrings` scores as the fraction matched and is deliberately kept
