@@ -176,8 +176,8 @@ assembly rules as production — it is the JavaScript twin of `guardPassages`
 grading what ships.
 
 Scores are `gradebee-extract` (`mistral-medium-2508`), the run pinned in
-`baseline.json` on 2026-09-13, after group passages began reaching the whole
-roster (#148).
+`baseline.json` on 2026-09-13, after pass 1 began cutting the header before
+pass 2 (#155).
 
 | Fixture | Score | State |
 | --- | --- | --- |
@@ -194,7 +194,7 @@ roster (#148).
 | `absent_phrasing` | 1.000 | green — new. Absence in wording the prompt does not spell out. |
 | `absent_group` | 1.000 | green — new. A group remark skips the absent child, reaches everyone else. |
 | `wrong_class_group` | 1.000 | green — new. Names off the roster suppress the group remark; no note. |
-| `fuzzy_name_matching` | 0.800 | **red — was 1.000.** See below. |
+| `fuzzy_name_matching` | 0.600 | **red — was 1.000, then 0.800.** See below. |
 
 `multi_class` is no longer a row here. #127 gave pass 1 a `""` to return, so the
 fixture's right answer is a decline — and a decline is pass 1's, while every row
@@ -217,8 +217,12 @@ well", so Lina's note loses her half. Measured 2 runs in 8 green on
 
 It is a cost of the contract, not of the wording: the per-child rule is the
 text measured at 0/10 roster phantoms, and re-tuning it re-opens #99. The row
-is pinned at 0.800 in `baseline.json`, so `diff-baseline` will not raise it
-again — **#128 owns it**, together with the rest of what #125 left behind.
+is pinned at 0.600 (fail) in `baseline.json`, so `diff-baseline` will not raise
+it again — **#128 owns it**, together with the rest of what #125 left behind.
+
+#155's header cut made it worse: 0 runs in 6 green with the cut, 4 in 6 on the
+prompt before it, same failure. The #152 probe saw the same on cut
+transcripts (0/5). The cut stayed because date_drill needs it.
 
 ### `roster_phantom` and the negative it is paired with
 

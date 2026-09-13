@@ -43,7 +43,7 @@ func TestClassPickSchemaAllowsTheDecline(t *testing.T) {
 	require.NoError(t, json.Unmarshal(classPickSchema(testClasses()), &schema))
 
 	assert.Equal(t, []string{"Period 3", "Period 5", ""}, schema.Properties["class_name"].Enum)
-	assert.Equal(t, []string{"class_name"}, schema.Required)
+	assert.Equal(t, []string{"class_name", "header"}, schema.Required)
 }
 
 // TestPassageSchemaScopesStudentToOneClass: the student enum is one class's
