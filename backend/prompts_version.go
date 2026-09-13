@@ -105,6 +105,23 @@ return "" — an empty string — rather than guessing.
 // presence. Trimmed, not deleted — deleting it whole took date_drill 4/4 → 1/4
 // (the example date stops reaching the group summary), and the kind alone
 // holds 4/4, so that row rests on the sentence, not on the kind.
+//
+// #151 added the sentence on a shared remark that opens its own sentence after
+// the names ("… Bruno had to be talked to. They both worked well"). Without it
+// the model returns that sentence "group" 5/5, and since #143 group text
+// reaches the whole roster, so a child never named gets it. Measured on
+// mistral-medium-2508 against shared_clause and date_drill:
+//   - no edit: shared_clause 0/5, date_drill 15/15
+//   - this sentence: shared_clause 10/10, date_drill 39/40
+//   - plus a group-bullet line excluding "they both": shared_clause 5/5,
+//     date_drill 12/15
+//   - plus that line and an example transcript inside this sentence:
+//     date_drill 0/5
+// In the 0/5 arm the model cut the example date in date_drill into its own
+// "none" passage, so no child got it. Raw output of the 12/15 arm was not
+// inspected, and the example alone was not measured. The
+// sentence demands the child's name in "spoken_labels" because "they" and
+// "both" are on labelStopList, and guardPassages would demote the copy.
 const passagePromptPrefix = `You are extracting a teacher's spoken notes about the children in one class.
 
 The notes arrive as a transcript, in the order the teacher spoke them. The children in this
@@ -143,7 +160,9 @@ Rules:
 - When the teacher makes the same observation about several named children at once
   ("Zachariah and Anaya did very well", "they both worked well"), return that passage once
   PER CHILD: the same summary repeated, each copy with its own "student". Never fold two
-  named children into one passage. If the observations differ between the children, they
+  named children into one passage. This holds when the shared remark opens its own sentence
+  after the names: each copy's "spoken_labels" holds the name the teacher spoke for that
+  child, never "they" or "both". If the observations differ between the children, they
   are separate passages with different summaries. A statement about the class as a whole
   is still one "group" passage, not one per child.
 - "student" is set ONLY when the passage's own words, or the passage it continues, speak
