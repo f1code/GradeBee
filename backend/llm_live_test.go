@@ -194,7 +194,9 @@ Amara was great - very attentive and helpful to other students.`
 }
 
 // TestExtractGroupObservations: a statement about the class as a whole reaches
-// every child the recording named, and creates a note for nobody else.
+// every child the recording named, and creates a note for nobody else. That
+// holds only because noteOf folds with no roster; in production the group text
+// reaches the whole roster.
 func TestExtractGroupObservations(t *testing.T) {
 	ext := newTestLLMExtractor(t)
 

@@ -168,19 +168,24 @@ assembly rules as production — it is the JavaScript twin of `guardPassages`
 grading what ships.
 
 Scores are `gradebee-extract` (`mistral-medium-2508`), the run pinned in
-`baseline.json` on 2026-09-05.
+`baseline.json` on 2026-09-13, after group passages began reaching the whole
+roster (#148).
 
 | Fixture | Score | State |
 | --- | --- | --- |
 | `voice_preservation` | 1.000 | green |
 | `cross_student_bleed` | 1.000 | green |
-| `group_observation` | 1.000 | green |
+| `group_observation` | 1.000 | green — the group remark reaches the whole pinned roster, never the sibling class. |
 | `shared_clause` | 1.000 | green |
 | `full_name_roster` | 1.000 | green |
 | `numbered_roster` | 1.000 | green |
 | `pronoun_run_bleed` | 1.000 | green — was 0.333. Two blocks are owned by nobody; passages are the unit that lets them reach no note. 5 runs in 5. |
-| `date_drill` | 1.000 | green — was 0.000. A group passage reaches every child the recording named. 5 runs in 5. |
+| `date_drill` | 1.000 | green — was 0.000. A group passage reaches every child. 5 runs in 5. |
 | `roster_phantom` | 1.000 | green — new. Note 694's shape at the roster order that produces the phantom. 5 runs in 5. |
+| `absent_child` | 1.000 | green — new. A child named absent keeps their own note. |
+| `absent_phrasing` | 1.000 | green — new. Absence in wording the prompt does not spell out. |
+| `absent_group` | 1.000 | green — new. A group remark skips the absent child, reaches everyone else. |
+| `wrong_class_group` | 1.000 | green — new. Names off the roster suppress the group remark; no note. |
 | `fuzzy_name_matching` | 0.800 | **red — was 1.000.** See below. |
 
 `multi_class` is no longer a row here. #127 gave pass 1 a `""` to return, so the

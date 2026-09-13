@@ -122,9 +122,10 @@ User uploads audio
         │
         ├─ Step 3: Create Notes (status → "creating_notes")
         │    Fold passages into one note per child (voice_note_passages.go):
-        │      child + roster student → that child's note, in spoken order
-        │      child with no student, unknown → nobody; stays on the card
-        │      group → every child this recording already reached
+        │      child/absent + roster student → that child's note, in spoken order
+        │      child/absent with no student, unknown → nobody; stays on the card
+        │      group → every child on the pinned roster except those absent;
+        │        nobody when names were spoken and none resolved (wrong class)
         │      none  → dropped, and kept off the card entirely
         │    Resolve name → student ID via FindByNameAndClass
         │    Create note in SQLite via dbNoteCreator, stamped with
