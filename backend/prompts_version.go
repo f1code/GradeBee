@@ -78,9 +78,18 @@ time. Match it to one of:
 // live on mistral-medium-2508 against the two-class multi_class fixture: the
 // no-"" enum pins 3/3, the same prompt with "" in the enum declines. The text
 // did not change between those two measurements and does not change here.
+//
+// The header paragraph is #155's, the text arm of
+// research/2026-09-13-152-header-strip (probe152_test.go, headerWhat): 102/102
+// exact cuts over 37 transcripts × 3 runs, class 105/108 as before it.
 const classPickPromptSuffix = `
 If the header is missing, or does not clearly identify exactly one of the classes listed,
 return "" — an empty string — rather than guessing.
+
+Also return "header": the spoken header at the start of the transcript: from the first word through the last word
+that gives the class, weekday or time. Stop before the first word about a child, the class or
+the lesson. Copy it character for character, exactly as transcribed,
+misspellings and punctuation included. Return "" if the transcript does not open with a header.
 `
 
 // passagePromptPrefix is the whole of pass 2's system prompt except the roster,
@@ -124,19 +133,21 @@ return "" — an empty string — rather than guessing.
 // sentence demands the child's name in "spoken_labels" because "they" and
 // "both" are on labelStopList, and guardPassages would demote the copy.
 //
-// #152 tried dropping "the date" from the "none" bullet: teachers speak only
-// the weekday, inside the header. Kept, because the drop does not fix the case
-// that matters. Measured on mistral-medium-2508 against date_drill, counting
-// runs where the example date reaches the group passage, under #151's 0/5 arm
-// as the stress wording:
+// #155 dropped "the date" from the "none" bullet: teachers speak only the
+// weekday, inside the header, and since #155 Extract cuts the header before
+// pass 2 (CutHeader). Neither change holds alone. Measured on
+// mistral-medium-2508 against date_drill, counting runs where the example date
+// reaches the group passage, under #151's 0/5 arm as the stress wording
+// (research/2026-09-13-152-header-strip):
 //   - stress, header on: with "the date" 0/5, without 2/15
-//   - stress, header removed: with 0/5, without 5/5
-//   - this wording, header on: with 17/20 and 20/20 (two batches), without
-//     20/20; full suite without it matches baseline.json
+//   - stress, header cut: without 20/20
+//   - this wording, header on: with 17/20 and 20/20, without 20/20
+//   - this wording, header cut: with 0/5 (date or drill sentence lost),
+//     without 20/20
 //
-// Without "the date" the model still files the example date under "none" when
-// a header opens the transcript, and real recordings have one. Drop it only
-// with a fix that holds with the header on.
+// The header rules below ("the class header", the header-passage rule) stay:
+// ExtractPassages still reads uncut transcripts on the class picker, and a
+// header pass 1 did not copy verbatim cuts nothing. Measure before trimming.
 const passagePromptPrefix = `You are extracting a teacher's spoken notes about the children in one class.
 
 The notes arrive as a transcript, in the order the teacher spoke them. The children in this
@@ -157,7 +168,7 @@ Each passage has:
     ("everyone", "all the kids", "the class", "they" meaning the whole group). A statement
     that names one child, or describes only one child, is NEVER "group", however it is
     joined to the rest of the sentence.
-  - "none" — not an observation about children: the date, the class header, a greeting,
+  - "none" — not an observation about children: the class header, a greeting,
     vocabulary the children are being taught, thinking aloud that describes no child and
     no class.
 - "spoken_labels": for a "child" or "absent" passage, the name the teacher speaks for it,

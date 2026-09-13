@@ -228,9 +228,46 @@ func TestExtractRunsBothPasses(t *testing.T) {
 	require.Len(t, provider.calls, 2, "extraction is two calls")
 	assert.Equal(t, BuildClassPickPrompt(testClasses()), provider.calls[0].SystemPrompt)
 	assert.Equal(t, BuildPassagePrompt(testClasses()[0]), provider.calls[1].SystemPrompt)
-	// Both passes read the same words. Pass 2 is not given pass 1's answer in
-	// the transcript, only in its roster.
+	// No header returned, so both passes read the same words.
 	assert.Equal(t, provider.calls[0].UserPrompt, provider.calls[1].UserPrompt)
+}
+
+// TestExtractCutsTheHeaderBeforePass2: the header pass 1 copies leaves the
+// transcript pass 2 reads.
+func TestExtractCutsTheHeaderBeforePass2(t *testing.T) {
+	provider := &twoPassProvider{replies: []string{
+		`{"class_name":"Period 3","header":"Period 3, Monday"}`,
+		`{"observations":[]}`,
+	}}
+
+	_, err := newLLMExtractor(provider).Extract(t.Context(), ExtractRequest{
+		Transcript: "Period 3, Monday. Colm read well.",
+		Classes:    testClasses(),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, provider.calls, 2)
+	assert.Equal(t, "Period 3, Monday. Colm read well.", provider.calls[0].UserPrompt)
+	assert.Equal(t, "Colm read well.", provider.calls[1].UserPrompt)
+}
+
+func TestCutHeader(t *testing.T) {
+	const tr = "Wednesday  Quentin 1520, Tobin and Marlo did very well."
+	for _, tc := range []struct {
+		name, transcript, header, want string
+	}{
+		{"prefix, separators trimmed", tr, "Wednesday  Quentin 1520", "Tobin and Marlo did very well."},
+		{"prefix with its own punctuation", tr, "Wednesday  Quentin 1520,", "Tobin and Marlo did very well."},
+		{"no header", tr, "", tr},
+		{"not a prefix", tr, "Wednesday Quentin 1520", tr},
+		{"found later, not at the start", "Hi. " + tr, "Wednesday  Quentin 1520", "Hi. " + tr},
+		{"ends inside a word", tr, "Wednesday  Quentin 15", tr},
+		{"all header", "Oliver Thursday.", "Oliver Thursday", "Oliver Thursday."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, CutHeader(tc.transcript, tc.header))
+		})
+	}
 }
 
 // TestExtractPassagesRunsPass2Alone covers the entry point a caller uses when

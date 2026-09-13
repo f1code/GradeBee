@@ -160,6 +160,13 @@ schema, so each fixture names the class pass 1 is taken to have pinned, in
 samples. The case it exists for — declining a recording it cannot place (#127)
 — is graded in Go, not here: see `multi_class` below.
 
+Since #155 pass 1 also returns the spoken header, and production cuts it before
+pass 2. Each fixture with a header names it in `vars.header`, and eval-cli cuts
+it with the same `CutHeader` production calls; a header that cuts nothing fails
+the row. The values are pass 1's modal answers from
+`research/2026-09-13-152-header-strip`; `TestLLM_PassOneReturnsTheHeaderToCut`
+pins the live cut on `date_drill`.
+
 `scoring/assemble.js` sits between the model and the scorer. Pass 2 returns
 passages; `expected.json` and the four scoring axes describe notes. The
 transform folds one into the other, applying the same pronoun guard and

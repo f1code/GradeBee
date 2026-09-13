@@ -115,6 +115,8 @@ User uploads audio
         │      classes. Pass 2 does not run, the job completes with no
         │      notes and reason class_unclear, and the card offers the
         │      class picker. Not a failure — a failed card offers retry
+        │    Pass 1 also copies the spoken header; when it is an exact
+        │      prefix, it is cut from the transcript pass 2 reads
         │    Pass 2: the transcript against that one class's roster
         │      → passages (kind, spoken_labels, student, summary)
         │    A child passage whose spoken labels are all pronouns is

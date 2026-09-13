@@ -75,8 +75,9 @@ func runPromptMode(jsonArg string) error {
 //
 // Only pass 2. promptfoo owns the model call and makes one per test, and pass 1
 // is a different prompt against a different schema — so the fixture says which
-// class pass 1 is taken to have pinned, in vars.class_name, and this builds the
-// prompt that follows. Pass 1 is not graded here at all: it measured 93/93 on
+// class pass 1 is taken to have pinned, in vars.class_name, and the header it
+// is taken to have returned, in vars.header, and this builds the prompt that
+// follows. Pass 1 is not graded here at all: it measured 93/93 on
 // this model over 31 samples, and the case it exists for — declining a
 // recording it cannot place — has no class_name to give, so it is graded in Go
 // instead (TestLLM_DeclinesWhenNoHeaderPinsOneClass).
@@ -95,6 +96,19 @@ func runBuildExtractPrompt(ec evalContext) error {
 	}
 	if transcript == "" {
 		return fmt.Errorf("vars.transcript is required")
+	}
+	// vars.header is the header pass 1 is taken to return, cut the way Extract
+	// cuts it. A header that cuts nothing is fixture drift, not a no-op.
+	var header string
+	if err := ec.unmarshalVar("header", &header); err != nil {
+		return err
+	}
+	if header != "" {
+		cut := handler.CutHeader(transcript, header)
+		if cut == transcript {
+			return fmt.Errorf("vars.header %q cuts nothing from the transcript", header)
+		}
+		transcript = cut
 	}
 	// Named, never defaulted to the only class: a fixture with one class would
 	// pass either way, and the two-class fixtures are exactly the ones where
