@@ -117,11 +117,26 @@ return "" — an empty string — rather than guessing.
 //     date_drill 12/15
 //   - plus that line and an example transcript inside this sentence:
 //     date_drill 0/5
+//
 // In the 0/5 arm the model cut the example date in date_drill into its own
 // "none" passage, so no child got it. Raw output of the 12/15 arm was not
 // inspected, and the example alone was not measured. The
 // sentence demands the child's name in "spoken_labels" because "they" and
 // "both" are on labelStopList, and guardPassages would demote the copy.
+//
+// #152 tried dropping "the date" from the "none" bullet: teachers speak only
+// the weekday, inside the header. Kept, because the drop does not fix the case
+// that matters. Measured on mistral-medium-2508 against date_drill, counting
+// runs where the example date reaches the group passage, under #151's 0/5 arm
+// as the stress wording:
+//   - stress, header on: with "the date" 0/5, without 2/15
+//   - stress, header removed: with 0/5, without 5/5
+//   - this wording, header on: with 17/20 and 20/20 (two batches), without
+//     20/20; full suite without it matches baseline.json
+//
+// Without "the date" the model still files the example date under "none" when
+// a header opens the transcript, and real recordings have one. Drop it only
+// with a fix that holds with the header on.
 const passagePromptPrefix = `You are extracting a teacher's spoken notes about the children in one class.
 
 The notes arrive as a transcript, in the order the teacher spoke them. The children in this
