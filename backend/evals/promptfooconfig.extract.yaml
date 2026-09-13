@@ -125,7 +125,7 @@ tests:
           expected: file://fixtures/extraction/cross_student_bleed/expected.json
           metric: attribution
 
-  - description: "extraction: applies group observation only to relevant class"
+  - description: "extraction: group observation reaches the whole pinned roster and not the sibling class"
     vars:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/group_observation/transcript.txt"
@@ -258,6 +258,36 @@ tests:
         value: file://scoring/extraction.js
         config:
           expected: file://fixtures/extraction/absent_phrasing/expected.json
+          metric: precision_recall
+
+  # Group statements reach the whole roster (#143). Two rows, one per
+  # exception: a child named absent does not get the group text, and a
+  # recording whose spoken names all miss the roster makes no note at all.
+
+  - description: "extraction: a group remark skips the child named absent and reaches everyone else"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/absent_group/transcript.txt"
+      classes: "file://fixtures/extraction/absent_group/classes.json"
+      class_name: "Amandine · Thu · 15.30"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/absent_group/expected.json
+          metric: attribution
+
+  - description: "extraction: a group remark in a wrong-class recording makes no note"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/wrong_class_group/transcript.txt"
+      classes: "file://fixtures/extraction/wrong_class_group/classes.json"
+      class_name: "Élodie · Wed · 16.00"
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/wrong_class_group/expected.json
           metric: precision_recall
 
   - description: "extraction: an unnamed block is not filed under the first child on the roster"

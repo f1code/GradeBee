@@ -49,9 +49,13 @@ func contains(s, substr string) bool {
 
 // noteOf joins every passage that reached one child, the way assemblePassages
 // does, so a live assertion reads the text that child's note would hold.
+//
+// No roster, here and in notedChildren: these assertions are about who the
+// recording named, so a group passage reaches only the children named rather
+// than the whole class.
 func noteOf(t *testing.T, result *ExtractResponse, name string) string {
 	t.Helper()
-	notes, _ := assemblePassages(result.Passages)
+	notes, _ := assemblePassages(result.Passages, nil)
 	for _, n := range notes {
 		if n.Name == name {
 			return n.Summary
@@ -63,7 +67,7 @@ func noteOf(t *testing.T, result *ExtractResponse, name string) string {
 
 // notedChildren names every child the recording reached.
 func notedChildren(result *ExtractResponse) []string {
-	notes, _ := assemblePassages(result.Passages)
+	notes, _ := assemblePassages(result.Passages, nil)
 	names := make([]string, len(notes))
 	for i, n := range notes {
 		names[i] = n.Name
@@ -260,7 +264,7 @@ func TestExtractPassagesSkipsPass1(t *testing.T) {
 	passages, err := ext.ExtractPassages(t.Context(), transcript, science)
 	require.NoError(t, err)
 
-	notes, _ := assemblePassages(passages)
+	notes, _ := assemblePassages(passages, science.Students)
 	require.NotEmpty(t, notes, "passages: %+v", passages)
 	assert.Equal(t, "Diana Lee", notes[0].Name)
 }
@@ -392,7 +396,7 @@ func TestLLM_PickingTheClassOnADeclinedRecordingMakesThePipelineNotes(t *testing
 	})
 	require.NoError(t, err)
 	require.Equal(t, classA.Name, pinned.ClassName, "the yardstick run must pin the class")
-	wantNotes, _ := assemblePassages(pinned.Passages)
+	wantNotes, _ := assemblePassages(pinned.Passages, classA.Students)
 	require.NotEmpty(t, wantNotes, "the yardstick made no note; passages: %+v", pinned.Passages)
 
 	// And now the declined recording, filed by hand through the endpoint.

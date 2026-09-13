@@ -189,8 +189,9 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// One note per child, and the passages the done card gets back. The card
 	// shows them as what the recording held; it does not hand them back to the
 	// assemble endpoint, which since #127 runs pass 2 itself against the class
-	// the teacher picks.
-	notes, passages := assemblePassages(extractResult.Passages)
+	// the teacher picks. Group passages reach the pinned class's whole roster.
+	pinned, pinnedOK := findClass(classes, extractResult.ClassName)
+	notes, passages := assemblePassages(extractResult.Passages, pinned.Students)
 
 	var noteLinks []NoteLink
 
@@ -303,7 +304,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// this as "the class in force", never as "notes exist", and the card gates
 	// its class picker on CanPickClass alone.
 	job.ClassName = extractResult.ClassName
-	if pinned, ok := findClass(classes, extractResult.ClassName); ok {
+	if pinnedOK {
 		job.ClassID = pinned.ID
 	}
 	// One reason, chosen once. A decline is not a noNotesReason case at all:

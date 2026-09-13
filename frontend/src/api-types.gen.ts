@@ -1047,8 +1047,7 @@ export type PassageKind = string;
 export const PassageChild: PassageKind = "child";
 /**
  * PassageAbsent: the teacher says a named child was not there today. Same
- * shape and same note as PassageChild, so nothing the teacher sees turns on
- * it; the kind is there for #148's group statements to skip them by.
+ * shape and same note as PassageChild, but group statements skip the child.
  */
 export const PassageAbsent: PassageKind = "absent";
 /**
@@ -1059,7 +1058,7 @@ export const PassageAbsent: PassageKind = "absent";
 export const PassageUnknown: PassageKind = "unknown";
 /**
  * PassageGroup: a statement about the class as a whole. It joins the note
- * of every child this recording already reached.
+ * of every child on the pinned class's roster except those named absent.
  */
 export const PassageGroup: PassageKind = "group";
 /**

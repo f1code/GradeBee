@@ -38,20 +38,30 @@ type assembledNote struct {
 //     was read against the wrong roster.
 //   - unknown → nobody, and no labels to re-resolve: the recording never said
 //     who this was.
-//   - group → every child this recording already reached, and nobody else, an
-//     absent child included today: the kind is recorded here, and the fan-out
-//     that reads it to skip them is #148's. A group passage in a recording
-//     that named no child reaches no note at all.
+//   - group → every child on roster, the pinned class's children, except a
+//     child with an absent passage: silence is presence, so a child the
+//     teacher never mentioned was there for "everyone did well". Suppressed
+//     entirely when the recording spoke a name and none resolved — it was read
+//     against the wrong class, and fanning out would write notes for that
+//     whole roster and close the class picker, which the card gates on the
+//     note count. An absent passage counts as resolving. hasSpokenName decides
+//     "spoke a name", the rule noNotesReason and the pronoun guard use.
 //   - none → dropped, and not on the card. A recording holding nothing but a
 //     spoken header yields no passages, so it reads as nobody named instead of
 //     offering the class picker over a passage there is nothing to pick for.
 //
+// Notes come in the order the teacher first spoke each child, then children
+// reached only by group passages in roster order. A child with their own
+// passages gets the group text whatever roster holds, so a nil roster — a
+// failed roster read — degrades to reaching only the children named.
+//
 // Group passages come last in a note rather than at the point they were
 // spoken. A teacher's "everyone did well" is about the hour, not about the
 // sentence before it.
-func assemblePassages(passages []ExtractedPassage) ([]assembledNote, []JobPassage) {
+func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]assembledNote, []JobPassage) {
 	var names []string
 	own := map[string][]string{}
+	absent := map[string]bool{}
 	var group []string
 	out := []JobPassage{}
 
@@ -71,15 +81,43 @@ func assemblePassages(passages []ExtractedPassage) ([]assembledNote, []JobPassag
 				names = append(names, p.Student)
 			}
 			own[p.Student] = append(own[p.Student], p.Summary)
+			if p.Kind == PassageAbsent {
+				absent[foldName(p.Student)] = true
+			}
 		}
 	}
 
+	if len(names) == 0 && anySpokenLabel(out) {
+		group = nil
+	}
+
 	notes := make([]assembledNote, 0, len(names))
+	reached := map[string]bool{}
 	for _, name := range names {
+		reached[foldName(name)] = true
+		g := group
+		if absent[foldName(name)] {
+			g = nil
+		}
 		notes = append(notes, assembledNote{
 			Name:     name,
-			Summary:  joinPassageText(own[name], group),
-			Passages: len(own[name]) + len(group),
+			Summary:  joinPassageText(own[name], g),
+			Passages: len(own[name]) + len(g),
+		})
+	}
+	if len(group) == 0 {
+		return notes, out
+	}
+	// An absent child always has an own passage, so reached covers them.
+	for _, s := range roster {
+		if reached[foldName(s.Name)] {
+			continue
+		}
+		reached[foldName(s.Name)] = true
+		notes = append(notes, assembledNote{
+			Name:     s.Name,
+			Summary:  joinPassageText(nil, group),
+			Passages: len(group),
 		})
 	}
 	return notes, out

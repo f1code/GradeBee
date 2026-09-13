@@ -321,6 +321,60 @@ func TestProcessJob_UnattributedPassagesReachNobody(t *testing.T) {
 	assert.Empty(t, got.Passages[2].SpokenLabels)
 }
 
+// A group passage reaches the pinned class's whole roster through the
+// pipeline: Bob is never named and still gets a note holding it.
+func TestProcessJob_GroupPassageReachesTheWholeRoster(t *testing.T) {
+	db := setupTestDB(t)
+	studentRepo := &StudentRepo{db: db}
+	classRepo := &ClassRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: db}
+
+	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
+	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
+	require.NoError(t, err)
+	_, err = studentRepo.Create(t.Context(), cls.ID, "Bob")
+	require.NoError(t, err)
+
+	audioPath := filepath.Join(t.TempDir(), "recording.m4a")
+	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio"), 0o644))
+
+	uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
+	queue := newStubVoiceNoteQueue()
+	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}, {NoteID: 2}}}
+	d := &mockDepsAll{
+		transcriber: &stubTranscriber{result: "some transcript"},
+		roster: &stubRoster{
+			students: []ClassGroup{{Name: "Math · Mon", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
+		},
+		extractor: &stubExtractor{result: &ExtractResponse{
+			ClassName: "Math · Mon",
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "Did great"},
+				{Kind: PassageGroup, Summary: "Everyone worked hard"},
+			},
+		}},
+		noteCreator:   nc,
+		studentRepo:   studentRepo,
+		voiceNoteRepo: voiceNoteRepo,
+	}
+
+	ctx := context.Background()
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)))
+
+	require.Len(t, nc.calls, 2)
+	assert.Equal(t, "Alice", nc.calls[0].StudentName)
+	assert.Equal(t, "Did great\n\nEveryone worked hard", nc.calls[0].QuotedText)
+	assert.Equal(t, "Bob", nc.calls[1].StudentName)
+	assert.Equal(t, "Everyone worked hard", nc.calls[1].QuotedText)
+
+	// The recording is filed, so the card offers no class pick.
+	got, err := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
+	require.NoError(t, err)
+	assert.Empty(t, got.NoNotesReason)
+	assert.False(t, got.CanPickClass)
+}
+
 // TestProcessJob_QuotedTextPassedToNoteCreator verifies that a passage's
 // summary flows through to CreateNoteRequest without modification. The summary
 // is the note's visible text, so anything rewriting it here rewrites what the
@@ -1048,6 +1102,19 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 			wantReason: NoNotesNoNameMatched,
 			wantCount:  1,
 		},
+		{
+			// A wrong-class recording with a group remark. Alice is on the
+			// pinned roster, so an unsuppressed fan-out would give her a note
+			// and close the class picker.
+			name:       "named, but nobody on the roster, with a group remark",
+			pass1Class: "Math · Mon",
+			passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Polly"}, Summary: "said something"},
+				{Kind: PassageGroup, Summary: "everyone worked hard"},
+			},
+			wantReason: NoNotesNoNameMatched,
+			wantCount:  2,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			db := setupTestDB(t)
@@ -1066,7 +1133,7 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 			queue := newStubVoiceNoteQueue()
 			d := &mockDepsAll{
 				transcriber:   &stubTranscriber{result: "transcript"},
-				roster:        &stubRoster{students: []ClassGroup{{ID: 7, Name: "Math · Mon"}}},
+				roster:        &stubRoster{students: []ClassGroup{{ID: 7, Name: "Math · Mon", Students: []ClassStudent{{Name: "Alice"}}}}},
 				extractor:     &stubExtractor{result: &ExtractResponse{ClassName: tc.pass1Class, Passages: tc.passages}},
 				noteCreator:   &stubNoteCreator{},
 				studentRepo:   studentRepo,

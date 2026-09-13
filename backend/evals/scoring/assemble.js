@@ -74,11 +74,15 @@ function guardPassages(passages) {
   });
 }
 
-/** assemble: one entry per child the recording reached, group passages last. */
+/** assemble: one entry per child the recording reached, group passages last.
+ * Group passages reach the whole roster except children named absent, after
+ * the children named, in roster order — unless the recording spoke a name and
+ * none resolved, which is a recording read against the wrong class. */
 function assemble(passages, roster) {
   const byFolded = new Map(roster.map((s) => [foldName(s.name), s.name]));
   const notes = [];
   const at = new Map();
+  const absent = new Set();
   const group = [];
 
   for (const p of passages) {
@@ -88,11 +92,12 @@ function assemble(passages, roster) {
       continue;
     }
     // absent makes a note exactly as child does: "Théo was absent today" is
-    // Théo's note. The kind is what the roster-wide fan-out reads (#148).
+    // Théo's note. The group fan-out below skips them.
     if (p.kind !== 'child' && p.kind !== 'absent') continue;
 
     const name = byFolded.get(foldName(p.student));
     if (!name) continue; // reached nobody: the unattributed list, never a note
+    if (p.kind === 'absent') absent.add(name);
 
     if (!at.has(name)) {
       at.set(name, notes.length);
@@ -104,8 +109,16 @@ function assemble(passages, roster) {
     notes[at.get(name)].quoted_text += `\n\n${p.summary}`;
   }
 
-  for (const g of group) {
-    for (const n of notes) n.quoted_text += `\n\n${g}`;
+  const spoke = passages.some((p) => p.kind !== 'none' && hasSpokenName(p.spoken_labels));
+  if (group.length === 0 || (notes.length === 0 && spoke)) return notes;
+
+  for (const n of notes) {
+    if (!absent.has(n.name)) n.quoted_text += `\n\n${group.join('\n\n')}`;
+  }
+  for (const s of roster) {
+    if (at.has(s.name)) continue;
+    at.set(s.name, notes.length);
+    notes.push({ name: s.name, quoted_text: group.join('\n\n') });
   }
   return notes;
 }

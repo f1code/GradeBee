@@ -56,15 +56,14 @@ const (
 	// PassageChild: the teacher is talking about one child and says who.
 	PassageChild PassageKind = "child"
 	// PassageAbsent: the teacher says a named child was not there today. Same
-	// shape and same note as PassageChild, so nothing the teacher sees turns on
-	// it; the kind is there for #148's group statements to skip them by.
+	// shape and same note as PassageChild, but group statements skip the child.
 	PassageAbsent PassageKind = "absent"
 	// PassageUnknown: the teacher is talking about one child, but no name was
 	// spoken for them — only a pronoun, or a name matching nobody on the
 	// class's roster. Its summary reaches the unattributed list, never a note.
 	PassageUnknown PassageKind = "unknown"
 	// PassageGroup: a statement about the class as a whole. It joins the note
-	// of every child this recording already reached.
+	// of every child on the pinned class's roster except those named absent.
 	PassageGroup PassageKind = "group"
 	// PassageNone: not an observation about children — the spoken header, a
 	// greeting, thinking aloud. Dropped at assembly and never put on a job, so
