@@ -377,6 +377,30 @@ func TestLLM_DeclinesWhenNoHeaderPinsOneClass(t *testing.T) {
 	assert.Empty(t, result.Passages, "a decline stops before pass 2")
 }
 
+// Pass 1 copies the spoken header verbatim, mistranscription included, so the
+// cut lands exactly before the first observation (#155). A decline cuts
+// nothing: there is no pass 2 to feed.
+func TestLLM_PassOneReturnsTheHeaderToCut(t *testing.T) {
+	ext := newLLMExtractor(requireLiveLLM(t))
+
+	t.Run("date_drill", func(t *testing.T) {
+		transcript, classes := extractionFixture(t, "date_drill")
+		className, header, err := ext.pickClass(t.Context(), transcript, classes)
+		require.NoError(t, err)
+		assert.Equal(t, "Quentin · Wed · 15.20", className)
+		assert.True(t, strings.HasPrefix(CutHeader(transcript, header), "Tobin and Marlo did very well."),
+			"header %q did not cut exactly", header)
+	})
+
+	t.Run("multi_class declines", func(t *testing.T) {
+		transcript, classes := extractionFixture(t, "multi_class")
+		className, header, err := ext.pickClass(t.Context(), transcript, classes)
+		require.NoError(t, err)
+		assert.Empty(t, className)
+		assert.Equal(t, transcript, CutHeader(transcript, header), "header %q cut a declined recording", header)
+	})
+}
+
 // The acceptance this task exists for, through the real route: a declined
 // recording the teacher files to a class produces the notes the pipeline
 // produces when pass 1 pins that same class.

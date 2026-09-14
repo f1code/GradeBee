@@ -362,8 +362,8 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 // had the pinned class, may make them.
 //
 // It never sees the extraction itself, only its fold, and it never derives a
-// reason from that. Pass 2 against the wrong roster returns a name fitting no
-// listed child as an unlabelled unknown, indistinguishable here from a
+// reason from that. Pass 2 against the wrong roster may still return a name
+// fitting no listed child as an unlabelled unknown, indistinguishable here from a
 // recording that named nobody, so a reason read off this run would sooner or
 // later close a picker that should have stayed open. Making the function blind
 // to the extraction is what keeps the rule from being a comment somebody has
@@ -385,8 +385,8 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 // Reporting the pick on a no-note outcome is what lets a declined recording be
 // filed by hand: it holds no passages of its own, so the run's are the only
 // rows the teacher can file, and the picked class is the only roster to file
-// them to. If the pick was the wrong sibling class, the rows show names as
-// unlabelled unknowns against the wrong roster; the teacher reads the summaries
+// them to. If the pick was the wrong sibling class, the rows show names that
+// reached nobody on the wrong roster; the teacher reads the summaries
 // and picks again, which the picker staying up allows.
 func assembleOutcome(job *VoiceNoteJob, ran AssembleNotesResponse) AssembleNotesResponse {
 	out := ran
@@ -453,8 +453,8 @@ func noNotesReason(noteCount int, passages []JobPassage) string {
 //
 // Not derivable on the assemble path, which is the point of it being computed
 // once by the pipeline and carried: that handler cannot tell a recording that
-// named nobody from one read against the wrong roster, because pass 2 returns
-// an off-roster name as an unlabelled unknown either way.
+// named nobody from one read against the wrong roster, because pass 2 may
+// still return an off-roster name as an unlabelled unknown.
 func canPickClass(reason string) bool {
 	return reason == NoNotesClassUnclear || reason == NoNotesNoNameMatched
 }
@@ -469,10 +469,11 @@ func canPickClass(reason string) bool {
 // for a pick to resolve.
 //
 // It is a signal, not a verdict. The converse does not hold: no spoken name
-// does NOT mean the recording named nobody, because a name fitting no listed
-// child comes back as unknown with no labels. Only the pipeline, which has the
-// pinned class, may act on this reason; the picker (voice_note_assemble.go)
-// must not treat it as terminal.
+// does NOT mean the recording named nobody, because the model may still return
+// a name fitting no listed child as unknown with no labels (the prompt asks
+// for a labelled child since #128; nothing enforces it). Only the pipeline,
+// which has the pinned class, may act on this reason; the picker
+// (voice_note_assemble.go) must not treat it as terminal.
 func anySpokenLabel(passages []JobPassage) bool {
 	for _, p := range passages {
 		if hasSpokenName(p.SpokenLabels) {

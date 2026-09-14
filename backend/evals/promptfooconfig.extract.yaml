@@ -86,6 +86,7 @@ tests:
       transcript: "file://fixtures/extraction/voice_preservation/transcript.txt"
       classes: "file://fixtures/extraction/voice_preservation/classes.json"
       class_name: "Class A"
+      header: "Class A, Tuesday afternoon"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -105,6 +106,7 @@ tests:
       transcript: "file://fixtures/extraction/fuzzy_name_matching/transcript.txt"
       classes: "file://fixtures/extraction/fuzzy_name_matching/classes.json"
       class_name: "Marcia · Wed · 14:10"
+      header: "Wednesday, Marcia, 1410"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -118,6 +120,7 @@ tests:
       transcript: "file://fixtures/extraction/cross_student_bleed/transcript.txt"
       classes: "file://fixtures/extraction/cross_student_bleed/classes.json"
       class_name: "Oliver · Thu"
+      header: "Oliver Thursday"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -131,6 +134,7 @@ tests:
       transcript: "file://fixtures/extraction/group_observation/transcript.txt"
       classes: "file://fixtures/extraction/group_observation/classes.json"
       class_name: "Class B"
+      header: "Quick note about Class B from this afternoon"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -144,6 +148,7 @@ tests:
       transcript: "file://fixtures/extraction/pronoun_run_bleed/transcript.txt"
       classes: "file://fixtures/extraction/pronoun_run_bleed/classes.json"
       class_name: "Marta · Wed · 17.45"
+      header: "Wednesday, 1745"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -160,6 +165,7 @@ tests:
       transcript: "file://fixtures/extraction/shared_clause/transcript.txt"
       classes: "file://fixtures/extraction/shared_clause/classes.json"
       class_name: "Sandrine · Tue · 16.30"
+      header: "Tuesday, Sandrine, 1630"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -173,6 +179,7 @@ tests:
       transcript: "file://fixtures/extraction/full_name_roster/transcript.txt"
       classes: "file://fixtures/extraction/full_name_roster/classes.json"
       class_name: "Class A"
+      header: "Class A, Thursday morning"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -190,6 +197,7 @@ tests:
       transcript: "file://fixtures/extraction/numbered_roster/transcript.txt"
       classes: "file://fixtures/extraction/numbered_roster/classes.json"
       class_name: "Class A"
+      header: "Class A, Thursday morning"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -212,6 +220,7 @@ tests:
       transcript: "file://fixtures/extraction/date_drill/transcript.txt"
       classes: "file://fixtures/extraction/date_drill/classes.json"
       class_name: "Quentin · Wed · 15.20"
+      header: "Wednesday  Quentin 1520"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -240,6 +249,7 @@ tests:
       transcript: "file://fixtures/extraction/absent_child/transcript.txt"
       classes: "file://fixtures/extraction/absent_child/classes.json"
       class_name: "Amandine · Tue · 15.30"
+      header: "Amandine Tuesday half past three"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -253,6 +263,7 @@ tests:
       transcript: "file://fixtures/extraction/absent_phrasing/transcript.txt"
       classes: "file://fixtures/extraction/absent_phrasing/classes.json"
       class_name: "Gaspard · Fri · 17.00"
+      header: "Gaspard Friday five o'clock"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -270,6 +281,7 @@ tests:
       transcript: "file://fixtures/extraction/absent_group/transcript.txt"
       classes: "file://fixtures/extraction/absent_group/classes.json"
       class_name: "Amandine · Thu · 15.30"
+      header: "Amandine Thursday half past three"
     assert:
       - type: javascript
         value: file://scoring/extraction.js
@@ -277,7 +289,13 @@ tests:
           expected: file://fixtures/extraction/absent_group/expected.json
           metric: attribution
 
-  - description: "extraction: a group remark in a wrong-class recording makes no note"
+  # The transcript has no header, so pass 1 declines it (5/5, #128) and the
+  # card shows the picker. This row is the teacher picking the wrong sibling
+  # class there: pass 2 runs against a roster the recording never named, and
+  # the group remark must not write a note for each of its children, which
+  # would also hide the picker behind the note count. The transcript's names
+  # keep their spoken labels (child, student ""); that is what suppresses it.
+  - description: "extraction: a wrong class picked on a declined card gets no note from a group remark"
     vars:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/wrong_class_group/transcript.txt"
@@ -296,6 +314,7 @@ tests:
       transcript: "file://fixtures/extraction/roster_phantom/transcript.txt"
       classes: "file://fixtures/extraction/roster_phantom/classes.json"
       class_name: "Ludivine · Thu · 16.15"
+      header: "Loud vine Thursday, quarter past four"
     assert:
       - type: javascript
         value: file://scoring/extraction.js

@@ -154,8 +154,8 @@ func TestAssemblePassages_SpokenNamesNoneMatchedSuppressesTheGroup(t *testing.T)
 	assert.True(t, canPickClass(noNotesReason(len(notes), passages)))
 }
 
-// Known limit, pinned so it is found rather than rediscovered. The prompt's
-// other reading of a name that fits nobody is kind unknown with no labels
+// Known limit, pinned so it is found rather than rediscovered. The model may
+// still return a name that fits nobody as kind unknown with no labels
 // (offRosterAsUnknown in voice_note_assemble_test.go). Then no name was
 // spoken as far as the fold can tell, so a wrong-class recording fans out to
 // the whole wrong roster and noNotesReason no longer offers the picker.

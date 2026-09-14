@@ -90,6 +90,35 @@ func TestRunBuildExtractPrompt(t *testing.T) {
 	assert.Equal(t, "Alice read well today.", msgs[1]["content"])
 }
 
+// vars.header is cut the way Extract cuts it; one that cuts nothing is a
+// stale fixture, not a silent no-op.
+func TestRunBuildExtractPrompt_Header(t *testing.T) {
+	vars := func(header string) evalContext {
+		return evalContext{Vars: mustRawMap(map[string]interface{}{
+			"transcript": "Grade 3A, Monday. Alice read well today.",
+			"class_name": "Grade 3A",
+			"header":     header,
+			"classes": []interface{}{
+				map[string]interface{}{"name": "Grade 3A", "students": []interface{}{}},
+			},
+		})}
+	}
+
+	t.Run("cut", func(t *testing.T) {
+		out, err := captureOutput(func() error { return runBuildExtractPrompt(vars("Grade 3A, Monday")) })
+		require.NoError(t, err)
+		var msgs []map[string]string
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
+		assert.Equal(t, "Alice read well today.", msgs[1]["content"])
+	})
+
+	t.Run("cuts nothing", func(t *testing.T) {
+		_, err := captureOutput(func() error { return runBuildExtractPrompt(vars("Grade 3B, Monday")) })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cuts nothing")
+	})
+}
+
 // The class is the fixture's answer for what pass 1 pins, so a missing or
 // unknown one is a broken test row, not a prompt to build anyway.
 func TestRunBuildExtractPrompt_ClassNameRequired(t *testing.T) {
