@@ -162,9 +162,9 @@ misspellings and punctuation included. Return "" if the transcript does not open
 //     shared_clause 9/10 (one run doubled Bruno's copy)
 //   - plus a worked example in the bullet: 10/10
 //
-// date_drill, shared_clause, roster_phantom and pronoun_run_bleed held 10/10
-// on every arm (shared_clause 9/10 on shipped, a group passage). The smallest
-// arm shipped.
+// date_drill, roster_phantom and pronoun_run_bleed held 10/10 on every arm;
+// shared_clause 9/10 on shipped (a group passage) and on the coverage arm,
+// 10/10 on the other two. The smallest arm shipped.
 //
 // #128 also cut "or a name that matches nobody listed" from the "unknown"
 // bullet. It contradicted the "child" bullet and the "student" field ("" when

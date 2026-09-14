@@ -70,10 +70,13 @@ type ExtractResponse struct {
 type ExtractedPassage struct {
 	Kind PassageKind `json:"kind"`
 	// SpokenLabels is each name the teacher spoke for this passage, verbatim
-	// and uncorrected. Empty for every kind but child, and by the prompt's
-	// instruction also empty when the name matches nobody listed. Two jobs: the
-	// pronoun guard reads it, and generating it before student is what keeps
-	// the model from picking a child and inventing a label to justify it.
+	// and uncorrected. Empty for every kind but child and absent. A name that
+	// matches nobody listed is still a child passage with its label and an
+	// empty student (#128): that label is what anySpokenLabel and
+	// assemblePassages read to keep a group remark off a wrong roster. Two more
+	// jobs: the pronoun guard reads it, and generating it before student is
+	// what keeps the model from picking a child and inventing a label to
+	// justify it.
 	// Since #127 nobody re-resolves it: the class picker re-runs pass 2.
 	SpokenLabels []string `json:"spoken_labels"`
 	// Student is the roster name this passage reached, or "" when no child on

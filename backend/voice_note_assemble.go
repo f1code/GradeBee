@@ -453,8 +453,8 @@ func noNotesReason(noteCount int, passages []JobPassage) string {
 //
 // Not derivable on the assemble path, which is the point of it being computed
 // once by the pipeline and carried: that handler cannot tell a recording that
-// named nobody from one read against the wrong roster, because pass 2 returns
-// an off-roster name as an unlabelled unknown either way.
+// named nobody from one read against the wrong roster, because pass 2 may
+// still return an off-roster name as an unlabelled unknown.
 func canPickClass(reason string) bool {
 	return reason == NoNotesClassUnclear || reason == NoNotesNoNameMatched
 }
@@ -469,10 +469,11 @@ func canPickClass(reason string) bool {
 // for a pick to resolve.
 //
 // It is a signal, not a verdict. The converse does not hold: no spoken name
-// does NOT mean the recording named nobody, because a name fitting no listed
-// child comes back as unknown with no labels. Only the pipeline, which has the
-// pinned class, may act on this reason; the picker (voice_note_assemble.go)
-// must not treat it as terminal.
+// does NOT mean the recording named nobody, because the model may still return
+// a name fitting no listed child as unknown with no labels (the prompt asks
+// for a labelled child since #128; nothing enforces it). Only the pipeline,
+// which has the pinned class, may act on this reason; the picker
+// (voice_note_assemble.go) must not treat it as terminal.
 func anySpokenLabel(passages []JobPassage) bool {
 	for _, p := range passages {
 		if hasSpokenName(p.SpokenLabels) {
