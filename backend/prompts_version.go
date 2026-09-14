@@ -148,6 +148,34 @@ misspellings and punctuation included. Return "" if the transcript does not open
 // The header rules below ("the class header", the header-passage rule) stay:
 // ExtractPassages still reads uncut transcripts on the class picker, and a
 // header pass 1 did not copy verbatim cuts nothing. Measure before trimming.
+//
+// #128 added the three sentences on the shared passage's extent ("runs from
+// the names to where the teacher moves on … a copy shorter than another is
+// wrong"). Without them the model read "contiguous passages … covering the
+// whole transcript" as a partition and split "Liana and Lucie did well. They
+// did well with …" into "Liana did well." and the rest for Lucie, so Lina's
+// note lost her half. Measured on mistral-medium-2508, cut transcripts, 10
+// runs per cell (research/2026-09-14-128-residue):
+//   - shipped: fuzzy_name_matching 2/10
+//   - these sentences: 10/10
+//   - plus a coverage sentence admitting the repeated stretch: 10/10, and
+//     shared_clause 9/10 (one run doubled Bruno's copy)
+//   - plus a worked example in the bullet: 10/10
+//
+// date_drill, shared_clause, roster_phantom and pronoun_run_bleed held 10/10
+// on every arm (shared_clause 9/10 on shipped, a group passage). The smallest
+// arm shipped.
+//
+// #128 also cut "or a name that matches nobody listed" from the "unknown"
+// bullet. It contradicted the "child" bullet and the "student" field ("" when
+// no listed child fits), and the wrong-class rule in Go and scoring/assemble.js
+// (a group remark reaches nobody when names were spoken and none were on the
+// roster) reads spoken_labels — which "unknown" empties. wrong_class_group
+// passed only when the model disobeyed that clause. Uncut, 30 runs: with the
+// clause 10/30 on the shipped bullet and 4/30 with the extent sentences
+// above; without it 30/30, and the other five rows 10/10. Adding "even when it
+// matches nobody listed" to the spoken_labels bullet as well was measured and
+// not shipped: shared_clause 8/10 (Bruno's copy doubled), date_drill 9/10.
 const passagePromptPrefix = `You are extracting a teacher's spoken notes about the children in one class.
 
 The notes arrive as a transcript, in the order the teacher spoke them. The children in this
@@ -162,8 +190,8 @@ Each passage has:
   - "child" — the teacher is talking about one individual child and speaks a name for them.
   - "absent" — the teacher says a named child was not there today ("Théo wasn't in today").
   - "unknown" — the teacher is talking about one individual child but no name is spoken for
-    them in this passage or the passage it continues: only a pronoun, or a name that
-    matches nobody listed. Do not guess. The teacher will assign it.
+    them in this passage or the passage it continues: only a pronoun. Do not guess. The
+    teacher will assign it.
   - "group" — a statement about the class as a whole, using a collective referent
     ("everyone", "all the kids", "the class", "they" meaning the whole group). A statement
     that names one child, or describes only one child, is NEVER "group", however it is
@@ -188,9 +216,13 @@ Rules:
   PER CHILD: the same summary repeated, each copy with its own "student". Never fold two
   named children into one passage. This holds when the shared remark opens its own sentence
   after the names: each copy's "spoken_labels" holds the name the teacher spoke for that
-  child, never "they" or "both". If the observations differ between the children, they
-  are separate passages with different summaries. A statement about the class as a whole
-  is still one "group" passage, not one per child.
+  child, never "they" or "both". The shared passage runs from the names to where the teacher
+  moves on, pronoun sentences included: after "Maya and Noor did well", a "They did well with
+  the colours" belongs to both, so every copy carries the whole of it. The copies differ only
+  in "student" and "spoken_labels"; a copy shorter than another is wrong. If the
+  observations differ between the children, they are separate passages with different
+  summaries. A statement about the class as a whole is still one "group" passage, not one
+  per child.
 - "student" is set ONLY when the passage's own words, or the passage it continues, speak
   a name for the child — a name that appears in "spoken_labels". A passage that refers to
   the child only by a pronoun ("she", "he") has NO student: it is "unknown", even when

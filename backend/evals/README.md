@@ -194,7 +194,7 @@ pass 2 (#155).
 | `absent_phrasing` | 1.000 | green — new. Absence in wording the prompt does not spell out. |
 | `absent_group` | 1.000 | green — new. A group remark skips the absent child, reaches everyone else. |
 | `wrong_class_group` | 1.000 | green — new. Names off the roster suppress the group remark; no note. |
-| `fuzzy_name_matching` | 0.600 | **red — was 1.000, then 0.800.** See below. |
+| `fuzzy_name_matching` | 0.800 | green — was 0.600 under #155's cut; every hard axis passes. See below. |
 
 `multi_class` is no longer a row here. #127 gave pass 1 a `""` to return, so the
 fixture's right answer is a decline — and a decline is pass 1's, while every row
@@ -206,23 +206,42 @@ moved to `backend/llm_live_test.go`
 score a re-implementation of it. The fixture files stay where they are; that
 test reads them.
 
-### The one regression: `fuzzy_name_matching`
+### `fuzzy_name_matching`, the shared passage that was split
 
 "Liana and Lucie did well. They did well with Marcia's playing, Marcia's
-jumping." should come back once per child with the same summary. The model
-splits it instead: Lucie gets both sentences and Lina gets only "Liana did
-well", so Lina's note loses her half. Measured 2 runs in 8 green on
-`mistral-medium-2508`; every other axis of that fixture, including resolving
-`Inaia`→`Inaya` and `Liana`→`Lina`, is unaffected.
+jumping." should come back once per child with the same summary. Under #125
+the model split it instead: Lucie got both sentences and Lina only "Liana did
+well", so Lina's note lost her half. 2 runs in 8 green, then 0 in 6 after
+#155's header cut; the row sat pinned red at 0.600.
 
-It is a cost of the contract, not of the wording: the per-child rule is the
-text measured at 0/10 roster phantoms, and re-tuning it re-opens #99. The row
-is pinned at 0.600 (fail) in `baseline.json`, so `diff-baseline` will not raise
-it again — **#128 owns it**, together with the rest of what #125 left behind.
+The cause was the contract sentence, not the per-child rule: "contiguous
+passages … together covering the whole transcript" reads as a partition, and
+the model honoured it by cutting the name list in two. #128 added three
+sentences to the per-child rule: the shared passage runs to where the teacher
+moves on, pronoun sentences included, and a copy shorter than another is
+wrong. On cut transcripts, `mistral-medium-2508`, 10 runs per cell: 2/10 →
+10/10, with date_drill, shared_clause, roster_phantom and pronoun_run_bleed
+all holding 10/10. The rule's roster-phantom measurement stands: same text
+plus an extent clause. Write-up: `research/2026-09-14-128-residue`.
 
-#155's header cut made it worse: 0 runs in 6 green with the cut, 4 in 6 on the
-prompt before it, same failure. The #152 probe saw the same on cut
-transcripts (0/5). The cut stayed because date_drill needs it.
+The same failure in production, before the fix: 1 of 22 real recordings on
+one run and 0 on the next, cut or uncut. The fixture is the hard case.
+
+The row scores 0.800, not 1.000: every hard axis is green, and the soft
+`should_quote_substrings` drill ("Yes, they can") lands in a `none` passage on
+every run, before and after the fix.
+
+### `wrong_class_group` was a coin toss
+
+Re-running the suite for #128 turned this row red (0.625) with no change near
+it, so it was re-measured uncut on `mistral-medium-2508`: 10 passes in 30 on
+the prompt before #128, 4 in 30 with the fuzzy fix alone. The pass condition
+(no note) holds only when the model returns Inès and Nathan as `child`
+passages with a spoken label and an empty `student`, so the no-names rule can
+suppress the group remark. The `unknown` bullet told it the opposite: "a name
+that matches nobody listed" was listed as `unknown`, which carries no label.
+#128 cut that clause. 30 runs in 30 afterwards; the other five measured rows
+held 10/10.
 
 ### `roster_phantom` and the negative it is paired with
 
