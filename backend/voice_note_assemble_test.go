@@ -535,8 +535,8 @@ func TestAssembleNotes_WorksWithNoJobInTheQueue(t *testing.T) {
 // response is all the teacher gets — and it wins over the poll for the rest of
 // that card's life (JobStatus.tsx keeps a forgotten job's done card, and an
 // assemble result overrides it). So it may report the pick, but must not name
-// a cause from this run's own reading: pass 2 against the wrong roster returns
-// an off-roster name as an unlabelled unknown, which reads as nobody_named and
+// a cause from this run's own reading: pass 2 against the wrong roster may
+// still return an off-roster name as an unlabelled unknown, which reads as nobody_named and
 // would take the picker away for good in that tab.
 func TestAssembleNotes_WithNoJobAPickThatMadeNothingKeepsThePicker(t *testing.T) {
 	w := newAssembleWorld(t)
