@@ -515,7 +515,7 @@ function DoneJobCard({ job, isNew, onDismissNew, onDismiss, onOpenStudent }: { j
           ))}
         </div>
       )}
-      <PassageReview passages={view.passages ?? NO_PASSAGES} classId={view.classId} onAssign={assign} onUndo={undo} />
+      <PassageReview passages={view.passages ?? NO_PASSAGES} classId={view.classId} noteLinks={view.noteLinks ?? []} onAssign={assign} onUndo={undo} />
       {job.transcript && (
         <>
           <button

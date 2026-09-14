@@ -212,7 +212,7 @@ func (w *assembleWorld) declinedJob(t *testing.T) {
 // name missed that roster.
 func (w *assembleWorld) misfiledJob(t *testing.T) {
 	t.Helper()
-	_, passages := assemblePassages(rosterPass2()(ClassGroup{Name: "Monday"}))
+	_, passages := assemblePassages(rosterPass2()(ClassGroup{Name: "Monday"}), nil)
 	require.NoError(t, w.queue.Publish(context.Background(), VoiceNoteJob{
 		UserID: "u1", UploadID: w.uploadID, FileName: "monday.m4a",
 		Status: JobStatusDone, Passages: passages,
@@ -656,8 +656,11 @@ func TestAssembleNotes_FoldsPassagesTheWayThePipelineDoes(t *testing.T) {
 	alice := w.notesFor(t, w.alice)
 	require.Len(t, alice, 1)
 	assert.Equal(t, "first\n\nsecond\n\neveryone worked hard", alice[0].Summary)
-	// Bob was never named, so the class-wide remark reaches him not at all.
-	assert.Empty(t, w.notesFor(t, w.bob))
+	// Bob was never named, and the class-wide remark still reaches him: it is
+	// the picked class's roster that fans out, as in the pipeline.
+	bob := w.notesFor(t, w.bob)
+	require.Len(t, bob, 1)
+	assert.Equal(t, "everyone worked hard", bob[0].Summary)
 }
 
 // assembleOutcome is where a pick decides what the teacher is told, so its

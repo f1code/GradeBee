@@ -1,0 +1,24 @@
+{
+  "_comment": "Absence in the phrasing the prompt spells out (#142). The axis is that a child the teacher names absent is still a child the teacher spoke about: Théo gets his note, holding the teacher's words and nothing else. Whether the passage comes back as \"absent\" or \"child\" is invisible here — notes are what this scorer grades — and is pinned in backend/llm_live_test.go against the real passageSchema instead. No group remark, deliberately: the roster-wide fan-out (#148 phase 2) must not move these numbers. Each child carries the others' words as must-nots, so copying the transcript into every note fails.",
+  "expected_students": [
+    {
+      "name": "Théo",
+      "class_name": "Amandine · Tue · 15.30",
+      "must_quote_substrings": ["/absent|(not|n.t) (in|there|here)/i"],
+      "must_not_quote_substrings": ["letter sounds", "worksheet"]
+    },
+    {
+      "name": "Camille",
+      "class_name": "Amandine · Tue · 15.30",
+      "must_quote_substrings": ["letter sounds"],
+      "must_not_quote_substrings": ["absent", "worksheet"]
+    },
+    {
+      "name": "Noor",
+      "class_name": "Amandine · Tue · 15.30",
+      "must_quote_substrings": ["worksheet"],
+      "must_not_quote_substrings": ["absent", "letter sounds"]
+    }
+  ],
+  "must_not_extract": ["Amandine Tuesday"]
+}

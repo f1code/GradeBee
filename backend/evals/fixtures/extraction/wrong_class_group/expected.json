@@ -1,0 +1,10 @@
+{
+  "_comment": "A wrong-class recording carrying a group remark (#143). It names Inès and Nathan of the Monday class and is pinned against Wednesday, which holds neither. Group statements reach the whole roster unless the recording spoke names and none were on it; this is that exception, so the pass condition is zero notes, the shape multi_class uses. Without it the group remark writes a note for every Wednesday child and the card, which gates the class picker on the note count, locks the teacher out of the fix. must_not_extract carries every content phrase, the group one included. no_note_students names the Wednesday roster the group remark would reach.",
+  "expected_students": [],
+  "no_note_students": ["Hugo", "Maëlle", "Sacha"],
+  "must_not_extract": [
+    "drawing",
+    "song",
+    "animal sounds"
+  ]
+}

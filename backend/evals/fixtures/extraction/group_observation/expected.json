@@ -1,5 +1,5 @@
 {
-  "_comment": "Pins task #110: the class-wide observation is comma-joined to a thinking-aloud clause and sits next to the class header, and the canonical model marked the whole run 'none' — 4/4 in the #108 harness run, 3/6 on the #107 prompt's live test — so \"fractions worksheet\" reached neither note. The segmentation prompt now forbids a 'none' clause taking an observation with it; this transcript stays as spoken, because reshaping it would delete the signal. The axis is unchanged: a group observation reaches every child who resolved in the pinned class and nobody else, so Zoe never gets a note. Roster names were full names until #108 switched them to first names, the shape the teacher speaks — see task #111.",
+  "_comment": "Pins task #110: the class-wide observation is comma-joined to a thinking-aloud clause and sits next to the class header, and the canonical model marked the whole run 'none' — 4/4 in the #108 harness run, 3/6 on the #107 prompt's live test — so \"fractions worksheet\" reached neither note. The segmentation prompt now forbids a 'none' clause taking an observation with it; this transcript stays as spoken, because reshaping it would delete the signal. #143 changed half the axis: a group observation now reaches the whole pinned roster, so Zoe, never named, gets a note holding only it. The other half holds and nothing else covers it: the remark must not cross into the sibling class, so Lucas and Isabelle get no note. Roster names were full names until #108 switched them to first names, the shape the teacher speaks — see task #111.",
   "expected_students": [
     {
       "name": "Olivia",
@@ -23,6 +23,19 @@
       "must_not_quote_substrings": [
         "finished early",
         "Olivia"
+      ]
+    },
+    {
+      "name": "Zoe",
+      "class_name": "Class B",
+      "must_quote_substrings": [
+        "fractions worksheet"
+      ],
+      "must_not_quote_substrings": [
+        "finished early",
+        "not turning in homework",
+        "Olivia",
+        "Marcus"
       ]
     }
   ],

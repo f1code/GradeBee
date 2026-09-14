@@ -522,6 +522,25 @@ describe('JobStatus', () => {
       expect(noteLinks().filter(n => n === 'Eleonore')).toHaveLength(1)
     })
 
+    // A group statement gave Eleonore a note no passage names her on (#143).
+    // The chip reads the links the append reads, so it sits with Lévy (#144).
+    it('groups a child whose only note came from a group statement with the noted', async () => {
+      mockFetchJobs.mockResolvedValue({ active: [], failed: [], done: [{
+        ...card,
+        noteLinks: [...card.noteLinks!, { name: 'Eleonore', noteId: 60, studentId: 22, className: 'Tuesday' }],
+        passages: [
+          { kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' },
+          { kind: 'group', summary: 'Everyone worked hard.' },
+        ],
+      }] })
+
+      const { default: JobStatus } = await import('../JobStatus')
+      render(<JobStatus />)
+
+      await waitFor(() => chipFor('Eleonore'))
+      expect(screen.getByTestId('passage-review-noted')).toContainElement(chipFor('Eleonore'))
+    })
+
     // Lévy already has a note from this recording, so the card sends its id
     // and the row lands on that note (#135). The response names a note the
     // card holds: the count stays, and Lévy is one link, not two.

@@ -189,8 +189,9 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// One note per child, and the passages the done card gets back. The card
 	// shows them as what the recording held; it does not hand them back to the
 	// assemble endpoint, which since #127 runs pass 2 itself against the class
-	// the teacher picks.
-	notes, passages := assemblePassages(extractResult.Passages)
+	// the teacher picks. Group passages reach the pinned class's whole roster.
+	pinned, pinnedOK := findClass(classes, extractResult.ClassName)
+	notes, passages := assemblePassages(extractResult.Passages, pinned.Students)
 
 	var noteLinks []NoteLink
 
@@ -216,13 +217,15 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	droppedNoRosterMatch, droppedUnattributed := 0, 0
 
 	// Every passage about one child that reached none, counted once and logged
-	// once. Under the old contract this was the low-confidence drop; there is
+	// once, absent included: a name nobody answers to is unreachable whichever
+	// kind spoke it, and kind is on the line to keep the two separable.
+	// Under the old contract this was the low-confidence drop; there is
 	// no confidence score any more, and a passage nobody is named in is not a
 	// low-confidence guess about who — it is the recording not saying. A group
 	// passage is not counted: it has no student because it belongs to all of
 	// them.
 	for _, p := range passages {
-		if p.Kind != PassageUnknown && !(p.Kind == PassageChild && p.Student == "") {
+		if p.Kind != PassageUnknown && !((p.Kind == PassageChild || p.Kind == PassageAbsent) && p.Student == "") {
 			continue
 		}
 		droppedUnattributed++
@@ -301,7 +304,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// this as "the class in force", never as "notes exist", and the card gates
 	// its class picker on CanPickClass alone.
 	job.ClassName = extractResult.ClassName
-	if pinned, ok := findClass(classes, extractResult.ClassName); ok {
+	if pinnedOK {
 		job.ClassID = pinned.ID
 	}
 	// One reason, chosen once. A decline is not a noNotesReason case at all:
@@ -352,6 +355,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		"no_notes_reason", job.NoNotesReason,
 		"passages_total", len(extractResult.Passages),
 		"passages_child", kinds[PassageChild],
+		"passages_absent", kinds[PassageAbsent],
 		"passages_unknown", kinds[PassageUnknown],
 		"passages_group", kinds[PassageGroup],
 		"passages_none", kinds[PassageNone],

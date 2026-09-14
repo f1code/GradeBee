@@ -352,7 +352,7 @@ func handleAssignPassages(w http.ResponseWriter, r *http.Request) {
 // splitAssignPassages validates the passages the card sent and sorts them into
 // the child's own and the recording's class-wide ones, in the order sent.
 //
-// Every rule refuses rather than repairs: a kind outside the three the card
+// Every rule refuses rather than repairs: a kind outside the four the card
 // can hold, an empty summary, a summary longer than the transcript it claims
 // to summarise, or nothing but group passages — a note that says only
 // "everyone did well" is not a filing of anything that reached nobody. There
@@ -364,9 +364,9 @@ func splitAssignPassages(passages []AssignPassage, transcript string) (own, grou
 	kindCounts = map[PassageKind]int{}
 	for _, p := range passages {
 		switch p.Kind {
-		case PassageChild, PassageUnknown, PassageGroup:
+		case PassageChild, PassageAbsent, PassageUnknown, PassageGroup:
 		default:
-			return nil, nil, nil, errors.New("passage kind must be child, unknown or group")
+			return nil, nil, nil, errors.New("passage kind must be child, absent, unknown or group")
 		}
 		if strings.TrimSpace(p.Summary) == "" {
 			return nil, nil, nil, errors.New("passage summary is required")
@@ -382,7 +382,7 @@ func splitAssignPassages(passages []AssignPassage, transcript string) (own, grou
 		}
 	}
 	if len(own) == 0 {
-		return nil, nil, nil, errors.New("at least one child or unknown passage is required")
+		return nil, nil, nil, errors.New("at least one child, absent or unknown passage is required")
 	}
 	return own, group, kindCounts, nil
 }

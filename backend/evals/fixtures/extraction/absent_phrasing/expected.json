@@ -1,0 +1,24 @@
+{
+  "_comment": "The same axis as absent_child, in phrasings the prompt does not spell out (#142). absent_child measures whether the model can spot absence at all; this one measures whether the trigger is broad enough to survive a real teacher — \"didn't make it in\", \"no Lina today\". Recall is the measurement: Théo and Lina reach a note only if the model read those sentences as being about them. The quoted text is matched loosely on purpose, because the teacher's words leave the model several honest rewrites. No group remark, deliberately: the roster-wide fan-out (#148 phase 2) must not move these numbers.",
+  "expected_students": [
+    {
+      "name": "Théo",
+      "class_name": "Gaspard · Fri · 17.00",
+      "must_quote_substrings": ["/didn.t make it|absent|(not|n.t) (in|there|here)/i"],
+      "must_not_quote_substrings": ["numbers", "Lina"]
+    },
+    {
+      "name": "Lina",
+      "class_name": "Gaspard · Fri · 17.00",
+      "must_quote_substrings": ["/no lina|absent|(not|n.t) (in|there|here)|didn.t come/i"],
+      "must_not_quote_substrings": ["numbers", "make it"]
+    },
+    {
+      "name": "Basile",
+      "class_name": "Gaspard · Fri · 17.00",
+      "must_quote_substrings": ["twenty"],
+      "must_not_quote_substrings": ["make it", "Lina"]
+    }
+  ],
+  "must_not_extract": ["Gaspard Friday"]
+}

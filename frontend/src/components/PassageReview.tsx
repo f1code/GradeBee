@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@clerk/react'
 import { listStudents } from '../api'
 import type { AssignPassagesRequest, AssignPassagesResponse, StudentItem } from '../api'
-import type { JobPassage } from '../api-types.gen'
+import type { JobPassage, NoteLink } from '../api-types.gen'
 import { PassageGroup } from '../api-types.gen'
 import { isUnattributed } from '../lib/passages'
 
@@ -14,6 +14,12 @@ interface PassageReviewProps {
    * then stay read-only. A class pick brings it with the assemble response.
    */
   classId?: number
+  /**
+   * The notes this recording made, which the card files against (#144). A
+   * child holding one sits below the rest. Not the passages' names: a group
+   * statement reaches children no passage names.
+   */
+  noteLinks?: NoteLink[]
   /** Files the body and resolves to the note link made. Rejects to show its message. */
   onAssign?: (body: AssignPassagesRequest) => Promise<AssignPassagesResponse>
   /**
@@ -61,7 +67,7 @@ interface Filing {
  * survives it; a pick's new rows match nothing, so the review starts over.
  * Nothing is stored anywhere but here: a refresh ends the review, by design.
  */
-export default function PassageReview({ passages, classId, onAssign, onUndo }: PassageReviewProps) {
+export default function PassageReview({ passages, classId, noteLinks, onAssign, onUndo }: PassageReviewProps) {
   const { getToken } = useAuth()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [filed, setFiled] = useState<Filing[]>([])
@@ -169,14 +175,15 @@ export default function PassageReview({ passages, classId, onAssign, onUndo }: P
     }
   }
 
-  // Children this recording already wrote to: the ones a passage reached, and
-  // the ones this tab filed. They stay pickable — a row that lost its name is
-  // often about a child already named, and the pick appends to that note —
-  // but they sit below the children nobody has written to yet, which is where
-  // a lost row usually belongs.
+  // Children this recording already wrote to: the ones holding a note link —
+  // the same links the card decides an append from — and the ones this tab
+  // filed. They stay pickable — a row that lost its name is often about a
+  // child already named, and the pick appends to that note — but they sit
+  // below the children nobody has written to yet, which is where a lost row
+  // usually belongs.
   const filedIds = new Set(filed.map(f => f.studentId))
-  const noteNames = new Set(passages.map(p => p.student).filter(n => n))
-  const hasNote = (s: StudentItem) => filedIds.has(s.id) || noteNames.has(s.name)
+  const linkedIds = new Set((noteLinks ?? []).map(l => l.studentId))
+  const hasNote = (s: StudentItem) => filedIds.has(s.id) || linkedIds.has(s.id)
   const fresh = (students ?? []).filter(s => !hasNote(s))
   const noted = (students ?? []).filter(hasNote)
 

@@ -1,0 +1,30 @@
+{
+  "_comment": "Absence and a group remark together (#143). Théo is named absent, so he keeps his absence note and does not get the group text. Camille is named, so she gets her own words and the group text. Noor and Jules are never named, and silence is presence: each gets a note holding only the group text. The absence also proves the class is right, so the fan-out fires. Each child carries the others' words as must-nots, so copying the transcript into every note fails.",
+  "expected_students": [
+    {
+      "name": "Théo",
+      "class_name": "Amandine · Thu · 15.30",
+      "must_quote_substrings": ["/absent|(not|n.t) (in|there|here)/i"],
+      "must_not_quote_substrings": ["counting", "book"]
+    },
+    {
+      "name": "Camille",
+      "class_name": "Amandine · Thu · 15.30",
+      "must_quote_substrings": ["book", "counting"],
+      "must_not_quote_substrings": ["/absent|(not|n.t) (in|there|here)/i"]
+    },
+    {
+      "name": "Noor",
+      "class_name": "Amandine · Thu · 15.30",
+      "must_quote_substrings": ["counting"],
+      "must_not_quote_substrings": ["book", "/absent|(not|n.t) (in|there|here)/i"]
+    },
+    {
+      "name": "Jules",
+      "class_name": "Amandine · Thu · 15.30",
+      "must_quote_substrings": ["counting"],
+      "must_not_quote_substrings": ["book", "/absent|(not|n.t) (in|there|here)/i"]
+    }
+  ],
+  "must_not_extract": ["Amandine Thursday"]
+}

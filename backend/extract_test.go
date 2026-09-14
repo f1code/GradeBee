@@ -58,7 +58,9 @@ func TestPassageSchemaScopesStudentToOneClass(t *testing.T) {
 	require.NotNil(t, items)
 	assert.Equal(t, []string{"Maxence", "Côme", ""}, items.Properties["student"].Enum)
 	assert.NotContains(t, items.Properties["student"].Enum, "Amara", "pass 2 must not be able to reach another class's child")
-	assert.Equal(t, []string{"child", "unknown", "group", "none"}, items.Properties["kind"].Enum)
+	// "absent" goes last, where #127 put pass 1's "": a new value appended is
+	// the one shape measured not to disturb the values already there.
+	assert.Equal(t, []string{"child", "unknown", "group", "none", "absent"}, items.Properties["kind"].Enum)
 	assert.Equal(t, []string{"kind", "spoken_labels", "student", "summary"}, items.Required)
 }
 
@@ -138,6 +140,16 @@ func TestGuardPassages(t *testing.T) {
 			name: "a name matching nobody still counts as a name",
 			in:   ExtractedPassage{Kind: PassageChild, SpokenLabels: []string{"Polly"}, Student: "", Summary: "x"},
 			want: ExtractedPassage{Kind: PassageChild, SpokenLabels: []string{"Polly"}, Student: "", Summary: "x"},
+		},
+		{
+			name: "a pronoun-only absent passage is demoted",
+			in:   ExtractedPassage{Kind: PassageAbsent, SpokenLabels: []string{"She"}, Student: "Ombeline", Summary: "she wasn't here today"},
+			want: ExtractedPassage{Kind: PassageUnknown, Summary: "she wasn't here today"},
+		},
+		{
+			name: "a named absent passage passes",
+			in:   ExtractedPassage{Kind: PassageAbsent, SpokenLabels: []string{"Théo"}, Student: "Théo", Summary: "Théo was absent today."},
+			want: ExtractedPassage{Kind: PassageAbsent, SpokenLabels: []string{"Théo"}, Student: "Théo", Summary: "Théo was absent today."},
 		},
 		{
 			name: "a group passage is left alone",
