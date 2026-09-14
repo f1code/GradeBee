@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Élodie · Mon · 16.00",
+    "students": [
+      { "name": "Inès" },
+      { "name": "Nathan" },
+      { "name": "Clara" }
+    ]
+  },
+  {
+    "name": "Élodie · Wed · 16.00",
+    "students": [
+      { "name": "Hugo" },
+      { "name": "Maëlle" },
+      { "name": "Sacha" }
+    ]
+  }
+]

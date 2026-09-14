@@ -1037,7 +1037,7 @@ export interface NoteLink {
   className: string;
 }
 /**
- * PassageKind says what a passage is about. Extraction returns all four, and
+ * PassageKind says what a passage is about. Extraction returns all five, and
  * what the pipeline does with each is in voice_note_process.go.
  */
 export type PassageKind = string;
@@ -1046,6 +1046,11 @@ export type PassageKind = string;
  */
 export const PassageChild: PassageKind = "child";
 /**
+ * PassageAbsent: the teacher says a named child was not there today. Same
+ * shape and same note as PassageChild, but group statements skip the child.
+ */
+export const PassageAbsent: PassageKind = "absent";
+/**
  * PassageUnknown: the teacher is talking about one child, but no name was
  * spoken for them — only a pronoun, or a name matching nobody on the
  * class's roster. Its summary reaches the unattributed list, never a note.
@@ -1053,7 +1058,7 @@ export const PassageChild: PassageKind = "child";
 export const PassageUnknown: PassageKind = "unknown";
 /**
  * PassageGroup: a statement about the class as a whole. It joins the note
- * of every child this recording already reached.
+ * of every child on the pinned class's roster except those named absent.
  */
 export const PassageGroup: PassageKind = "group";
 /**

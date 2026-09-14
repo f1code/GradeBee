@@ -85,6 +85,58 @@ return "" — an empty string — rather than guessing.
 
 // passagePromptPrefix is the whole of pass 2's system prompt except the roster,
 // which BuildPassagePrompt appends.
+//
+// #142 added the "absent" kind. Two edits, both measured on
+// mistral-medium-2508, 5 samples per arm:
+//
+// The bullet carries no scope exclusions. Late arrival and early departure come
+// back "child" 20/20 with or without a sentence excluding them. An absence on
+// another day does not — 10/10 "absent" with no exclusion, 10/10 "child" with
+// one reading `An absence on another day ("Margot was out all last week") is a
+// "child" passage, not this one`, whose example is load-bearing (without it,
+// 3/5, and the other child's passage lost). It is left out anyway: five months
+// of notes (260 rows, 646 children, 140 classes) mention no absence at all, on
+// this day or another, and when it is wrong the child still gets their note —
+// only #148's fan-out skips them, for one recording. Paste the sentence back
+// if a teacher ever dictates last week.
+//
+// "Children on the list who are never named were absent or not discussed
+// today" lost "absent or", which the kind makes false: silence now reads as
+// presence. Trimmed, not deleted — deleting it whole took date_drill 4/4 → 1/4
+// (the example date stops reaching the group summary), and the kind alone
+// holds 4/4, so that row rests on the sentence, not on the kind.
+//
+// #151 added the sentence on a shared remark that opens its own sentence after
+// the names ("… Bruno had to be talked to. They both worked well"). Without it
+// the model returns that sentence "group" 5/5, and since #143 group text
+// reaches the whole roster, so a child never named gets it. Measured on
+// mistral-medium-2508 against shared_clause and date_drill:
+//   - no edit: shared_clause 0/5, date_drill 15/15
+//   - this sentence: shared_clause 10/10, date_drill 39/40
+//   - plus a group-bullet line excluding "they both": shared_clause 5/5,
+//     date_drill 12/15
+//   - plus that line and an example transcript inside this sentence:
+//     date_drill 0/5
+//
+// In the 0/5 arm the model cut the example date in date_drill into its own
+// "none" passage, so no child got it. Raw output of the 12/15 arm was not
+// inspected, and the example alone was not measured. The
+// sentence demands the child's name in "spoken_labels" because "they" and
+// "both" are on labelStopList, and guardPassages would demote the copy.
+//
+// #152 tried dropping "the date" from the "none" bullet: teachers speak only
+// the weekday, inside the header. Kept, because the drop does not fix the case
+// that matters. Measured on mistral-medium-2508 against date_drill, counting
+// runs where the example date reaches the group passage, under #151's 0/5 arm
+// as the stress wording:
+//   - stress, header on: with "the date" 0/5, without 2/15
+//   - stress, header removed: with 0/5, without 5/5
+//   - this wording, header on: with 17/20 and 20/20 (two batches), without
+//     20/20; full suite without it matches baseline.json
+//
+// Without "the date" the model still files the example date under "none" when
+// a header opens the transcript, and real recordings have one. Drop it only
+// with a fix that holds with the header on.
 const passagePromptPrefix = `You are extracting a teacher's spoken notes about the children in one class.
 
 The notes arrive as a transcript, in the order the teacher spoke them. The children in this
@@ -97,6 +149,7 @@ per owner, together covering the whole transcript.
 Each passage has:
 - "kind":
   - "child" — the teacher is talking about one individual child and speaks a name for them.
+  - "absent" — the teacher says a named child was not there today ("Théo wasn't in today").
   - "unknown" — the teacher is talking about one individual child but no name is spoken for
     them in this passage or the passage it continues: only a pronoun, or a name that
     matches nobody listed. Do not guess. The teacher will assign it.
@@ -107,10 +160,10 @@ Each passage has:
   - "none" — not an observation about children: the date, the class header, a greeting,
     vocabulary the children are being taught, thinking aloud that describes no child and
     no class.
-- "spoken_labels": for a "child" passage, the name the teacher speaks for it, verbatim as
-  spoken, uncorrected. Empty list for "unknown", "group" and "none".
-- "student": for a "child" passage, the listed child's name exactly as listed below, or ""
-  when no listed child fits. "" for every other kind.
+- "spoken_labels": for a "child" or "absent" passage, the name the teacher speaks for it,
+  verbatim as spoken, uncorrected. Empty list for "unknown", "group" and "none".
+- "student": for a "child" or "absent" passage, the listed child's name exactly as listed
+  below, or "" when no listed child fits. "" for every other kind.
 - "summary": the observations in that passage, rewritten as clear sentences.
 
 Rules:
@@ -122,14 +175,16 @@ Rules:
 - When the teacher makes the same observation about several named children at once
   ("Zachariah and Anaya did very well", "they both worked well"), return that passage once
   PER CHILD: the same summary repeated, each copy with its own "student". Never fold two
-  named children into one passage. If the observations differ between the children, they
+  named children into one passage. This holds when the shared remark opens its own sentence
+  after the names: each copy's "spoken_labels" holds the name the teacher spoke for that
+  child, never "they" or "both". If the observations differ between the children, they
   are separate passages with different summaries. A statement about the class as a whole
   is still one "group" passage, not one per child.
 - "student" is set ONLY when the passage's own words, or the passage it continues, speak
   a name for the child — a name that appears in "spoken_labels". A passage that refers to
   the child only by a pronoun ("she", "he") has NO student: it is "unknown", even when
   exactly one listed child has not been mentioned yet. Children on the list who are never
-  named were absent or not discussed today. Never assign a passage to a child by
+  named were not discussed today. Never assign a passage to a child by
   elimination, by roster order, or because they are the only one left.
 - The list of children exists to spell spoken names correctly, not to decide who is
   present.

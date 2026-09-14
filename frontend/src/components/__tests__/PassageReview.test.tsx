@@ -51,6 +51,20 @@ describe('unattributed', () => {
     expect(rows).toHaveLength(1)
   })
 
+  // A spoken name that matched nobody is the teacher's to file whether the
+  // sentence was about a child who was there or one who was not (#142). Before
+  // absent existed this same utterance came back as a child passage with no
+  // student, and it must not stop being a row.
+  it('counts an absent passage with no student', () => {
+    const rows = unattributed([{ kind: 'absent', spokenLabels: ['Téo'], summary: "Téo wasn't in today." }])
+    expect(rows).toHaveLength(1)
+  })
+
+  // An absent child the pipeline did pin has a note already; nothing to file.
+  it('never lists an absent passage that reached a child', () => {
+    expect(unattributed([{ kind: 'absent', spokenLabels: ['Théo'], student: 'Théo', summary: 'Théo was absent today.' }])).toEqual([])
+  })
+
   // A class-wide remark joins every note this recording made; it is not
   // something to file to one child.
   it('never lists a group passage', () => {
@@ -363,17 +377,42 @@ describe('PassageReview filing', () => {
   })
 
   // The point of the split (#131): a row that lost its name usually belongs to
-  // a child nobody has written about yet, so those come first. Lévy resolved
-  // on this recording, so she is demoted — not dropped, because assigning to
+  // a child nobody has written about yet, so those come first. Lévy has a note
+  // from this recording, so she is demoted — not dropped, because assigning to
   // her appends to the note she already has.
+  const levyLink = { name: 'Lévy', noteId: 50, studentId: 21, className: 'Tuesday' }
   it('puts the children who already have a note below the rest', async () => {
-    render(<PassageReview passages={note694} classId={3} onAssign={vi.fn()} />)
+    render(<PassageReview passages={note694} classId={3} noteLinks={[levyLink]} onAssign={vi.fn()} />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Lévy' })).toBeInTheDocument())
 
     const noted = screen.getByTestId('passage-review-noted')
     expect(noted).toHaveTextContent('Already has a note')
     expect(noted).toContainElement(screen.getByRole('button', { name: 'Lévy' }))
     expect(noted).not.toContainElement(screen.getByRole('button', { name: 'Eleonore' }))
+  })
+
+  // A group statement reaches the whole roster (#143), so Eleonore holds a
+  // note no passage names her on. The card appends to it; the chip must say
+  // so rather than offer her as fresh (#144).
+  it('demotes a child whose only note came from a group statement', async () => {
+    const eleonoreLink = { name: 'Eleonore', noteId: 60, studentId: 22, className: 'Tuesday' }
+    const passages: JobPassage[] = [
+      { kind: 'unknown', summary: 'She was helping the younger ones with their blocks.' },
+      { kind: 'group', summary: 'Everyone worked hard.' },
+    ]
+    render(<PassageReview passages={passages} classId={3} noteLinks={[eleonoreLink]} onAssign={vi.fn()} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Eleonore' })).toBeInTheDocument())
+
+    const noted = screen.getByTestId('passage-review-noted')
+    expect(noted).toContainElement(screen.getByRole('button', { name: 'Eleonore' }))
+    expect(noted).not.toContainElement(screen.getByRole('button', { name: 'Lévy' }))
+  })
+
+  // A passage naming a child is not a note: without a link, Lévy stays fresh.
+  it('keeps a child with no note link fresh, even when a passage names them', async () => {
+    render(<PassageReview passages={note694} classId={3} noteLinks={[]} onAssign={vi.fn()} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Lévy' })).toBeInTheDocument())
+    expect(screen.queryByTestId('passage-review-noted')).not.toBeInTheDocument()
   })
 
   // The common case: a recording that reached nobody. Every child is fresh,
@@ -410,6 +449,7 @@ describe('PassageReview filing', () => {
       <PassageReview
         passages={note694}
         classId={3}
+        noteLinks={[levyLink]}
         onAssign={vi.fn().mockResolvedValue(filed)}
         onUndo={vi.fn().mockResolvedValue(undefined)}
       />,

@@ -108,8 +108,8 @@ evals/
 
 ## Extraction scoring axes
 
-`scoring/extraction.js` grades four hard axes plus one soft one; the assertion
-passes only if the hard four do and nothing forbidden leaked.
+`scoring/extraction.js` grades five hard axes plus one soft one; the assertion
+passes only if the hard five do and nothing forbidden leaked.
 
 | Axis | Fixture field | What it catches |
 | --- | --- | --- |
@@ -117,6 +117,7 @@ passes only if the hard four do and nothing forbidden leaked.
 | voice_preservation | `must_quote_substrings` | a student's own observation was dropped or paraphrased away |
 | attribution | `must_not_quote_substrings` | cross-student bleed — another student's observation landed in this entry |
 | (global) | `must_not_extract` | forbidden content leaked into any entry |
+| (global) | `no_note_students` | a roster child who must get nothing got a note, whatever it says |
 | preference (soft) | `should_quote_substrings` | text that makes a note better and whose absence is not a defect |
 
 `should_quote_substrings` scores as the fraction matched and is deliberately kept
@@ -168,19 +169,24 @@ assembly rules as production — it is the JavaScript twin of `guardPassages`
 grading what ships.
 
 Scores are `gradebee-extract` (`mistral-medium-2508`), the run pinned in
-`baseline.json` on 2026-09-05.
+`baseline.json` on 2026-09-13, after group passages began reaching the whole
+roster (#148).
 
 | Fixture | Score | State |
 | --- | --- | --- |
 | `voice_preservation` | 1.000 | green |
 | `cross_student_bleed` | 1.000 | green |
-| `group_observation` | 1.000 | green |
+| `group_observation` | 1.000 | green — the group remark reaches the whole pinned roster, never the sibling class. |
 | `shared_clause` | 1.000 | green |
 | `full_name_roster` | 1.000 | green |
 | `numbered_roster` | 1.000 | green |
 | `pronoun_run_bleed` | 1.000 | green — was 0.333. Two blocks are owned by nobody; passages are the unit that lets them reach no note. 5 runs in 5. |
-| `date_drill` | 1.000 | green — was 0.000. A group passage reaches every child the recording named. 5 runs in 5. |
+| `date_drill` | 1.000 | green — was 0.000. A group passage reaches every child. 5 runs in 5. |
 | `roster_phantom` | 1.000 | green — new. Note 694's shape at the roster order that produces the phantom. 5 runs in 5. |
+| `absent_child` | 1.000 | green — new. A child named absent keeps their own note. |
+| `absent_phrasing` | 1.000 | green — new. Absence in wording the prompt does not spell out. |
+| `absent_group` | 1.000 | green — new. A group remark skips the absent child, reaches everyone else. |
+| `wrong_class_group` | 1.000 | green — new. Names off the roster suppress the group remark; no note. |
 | `fuzzy_name_matching` | 0.800 | **red — was 1.000.** See below. |
 
 `multi_class` is no longer a row here. #127 gave pass 1 a `""` to return, so the
