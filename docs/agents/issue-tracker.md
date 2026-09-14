@@ -18,6 +18,13 @@ the `kanban-md` skill for the full command reference.
 
 Statuses and priorities are board-specific — check `kanban-md board --compact` before using values.
 
+## Referencing tasks in commits
+
+End the commit subject with `(task <ID>)`, e.g. `Roster-wide group statements (task 148)`.
+Never write `#<ID>`: GitHub reads `#N` as a PR or issue link, and squash-merge appends the
+PR number in the same `(#N)` form, so the two collide. Find commits for a task with
+`git log --grep "task 148"`.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a Kanban task.
