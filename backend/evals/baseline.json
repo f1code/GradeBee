@@ -3424,7 +3424,7 @@
         "score": 0.5,
         "success": false,
         "testCase": {
-          "description": "extraction: a group remark in a wrong-class recording makes no note",
+          "description": "extraction: a wrong class picked on a declined card gets no note from a group remark",
           "vars": {
             "task": "build-extract-prompt",
             "transcript": "file://fixtures/extraction/wrong_class_group/transcript.txt",
@@ -3542,7 +3542,7 @@
         "score": 1,
         "success": true,
         "testCase": {
-          "description": "extraction: a group remark in a wrong-class recording makes no note",
+          "description": "extraction: a wrong class picked on a declined card gets no note from a group remark",
           "vars": {
             "task": "build-extract-prompt",
             "transcript": "file://fixtures/extraction/wrong_class_group/transcript.txt",

@@ -289,7 +289,13 @@ tests:
           expected: file://fixtures/extraction/absent_group/expected.json
           metric: attribution
 
-  - description: "extraction: a group remark in a wrong-class recording makes no note"
+  # The transcript has no header, so pass 1 declines it (5/5, #128) and the
+  # card shows the picker. This row is the teacher picking the wrong sibling
+  # class there: pass 2 runs against a roster the recording never named, and
+  # the group remark must not write a note for each of its children, which
+  # would also hide the picker behind the note count. The transcript's names
+  # keep their spoken labels (child, student ""); that is what suppresses it.
+  - description: "extraction: a wrong class picked on a declined card gets no note from a group remark"
     vars:
       task: build-extract-prompt
       transcript: "file://fixtures/extraction/wrong_class_group/transcript.txt"

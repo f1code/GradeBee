@@ -193,7 +193,7 @@ pass 2 (#155).
 | `absent_child` | 1.000 | green — new. A child named absent keeps their own note. |
 | `absent_phrasing` | 1.000 | green — new. Absence in wording the prompt does not spell out. |
 | `absent_group` | 1.000 | green — new. A group remark skips the absent child, reaches everyone else. |
-| `wrong_class_group` | 1.000 | green — new. Names off the roster suppress the group remark; no note. |
+| `wrong_class_group` | 1.000 | green — a wrong pick on a declined card. Names off the roster suppress the group remark; no note. Pass 1 declines this transcript; the row is pass 2 after the pick. |
 | `fuzzy_name_matching` | 0.800 | green — was 0.600 under #155's cut; every hard axis passes. See below. |
 
 `multi_class` is no longer a row here. #127 gave pass 1 a `""` to return, so the
