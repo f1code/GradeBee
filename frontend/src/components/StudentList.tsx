@@ -627,6 +627,7 @@ function InlineClassEdit({
     if (e.key === 'Enter') {
       doSave()
     } else if (e.key === 'Escape') {
+      e.stopPropagation()
       onCancel()
     }
   }

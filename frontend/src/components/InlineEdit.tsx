@@ -36,6 +36,7 @@ export default function InlineEdit({ value, onSave, onCancel }: InlineEditProps)
       if (trimmed) onSave(trimmed)
       else onCancel()
     } else if (e.key === 'Escape') {
+      e.stopPropagation()
       onCancel()
     }
   }

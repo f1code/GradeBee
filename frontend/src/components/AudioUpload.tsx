@@ -7,6 +7,7 @@ import { useDrivePicker, AUDIO_MIME_TYPES } from '../hooks/useDrivePicker'
 import { useHasLinkedGoogleAccount } from '../hooks/useHasLinkedGoogleAccount'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
+import { useEscape } from '../hooks/useEscape'
 
 type UploadStatus = 'idle' | 'uploading' | 'error' | 'recording' | 'recorded'
 
@@ -165,14 +166,7 @@ export default function AudioUpload({ onUploadDone }: { onUploadDone?: () => voi
     pasteBtnRef.current?.focus()
   }, [showPaste])
 
-  useEffect(() => {
-    if (!showPaste) return
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') closePasteModal()
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [showPaste])
+  useEscape(closePasteModal, showPaste)
 
   function reset() {
     setStatus('idle')

@@ -8,6 +8,7 @@ import ClassPicker from './ClassPicker'
 import PassageReview from './PassageReview'
 import StudentDetail from './StudentDetail'
 import TranscriptReview from './TranscriptReview'
+import { useEscape } from '../hooks/useEscape'
 
 /** Polling intervals in milliseconds. */
 const POLL_ACTIVE_MS = 3_000
@@ -88,6 +89,7 @@ export default function JobStatus({ pollNowRef }: { pollNowRef?: React.MutableRe
   const [error, setError] = useState<string | null>(null)
   const [newDoneIds, setNewDoneIds] = useState<Set<number>>(new Set())
   const [modalStudent, setModalStudent] = useState<{ studentId: number; name: string; className: string } | null>(null)
+  useEscape(() => setModalStudent(null), modalStudent !== null)
   const prevDoneIdsRef = useRef<Set<number>>(new Set())
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // `poll` reads the retained cards from a ref, not from state: state in its

@@ -1127,5 +1127,16 @@ describe('JobStatus', () => {
       expect(screen.getByTestId('student-modal-overlay')).toBeInTheDocument()
       expect(screen.getByTestId('student-detail-7')).toBeInTheDocument()
     })
+
+    // Escape inside the alias input cancels the input, not the modal
+    await user.click(screen.getByLabelText('Add alias'))
+    await user.keyboard('{Escape}')
+    expect(screen.getByTestId('student-modal-overlay')).toBeInTheDocument()
+
+    // Escape at the modal level closes it
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(screen.queryByTestId('student-modal-overlay')).not.toBeInTheDocument()
+    })
   })
 })

@@ -4,6 +4,7 @@ import { motion } from 'motion/react'
 import { listClasses, moveStudent, MoveConflictError, type ClassItem } from '../api'
 import InlineError from './InlineError'
 import { HexBullet, ChevronIcon } from './Icons'
+import { useEscape } from '../hooks/useEscape'
 
 export interface MoveStudentModalProps {
   studentId: number
@@ -56,13 +57,7 @@ export default function MoveStudentModal({
       .catch(() => setLoadStatus('error'))
   }, [getToken])
 
-  useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [onClose])
+  useEscape(onClose)
 
   const levelGroups = useMemo(() => {
     const map = new Map<number, { levelName: string; classes: ClassItem[] }>()

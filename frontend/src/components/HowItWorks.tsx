@@ -1,5 +1,6 @@
 import { forwardRef } from 'react'
 import { motion } from 'motion/react'
+import { useEscape } from '../hooks/useEscape'
 
 const steps = [
   {
@@ -25,6 +26,7 @@ const steps = [
 ]
 
 const HowItWorks = forwardRef<HTMLDivElement, { onClose: () => void }>(function HowItWorks({ onClose }, ref) {
+  useEscape(onClose)
   return (
     <motion.div
       ref={ref}
