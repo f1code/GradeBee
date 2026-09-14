@@ -10,7 +10,8 @@ the `kanban-md` skill for the full command reference.
   bodies, write the body to a temp file and pass `--body "$(cat /tmp/body.md)"`.
 - **Read a task**: `kanban-md show <ID>` — includes the full body and all fields.
 - **List tasks**: `kanban-md list --compact [--status ...] [--tag ...] [--priority ...]`.
-  Use `--not-blocked --status todo` for ready work, `--blocked` for stuck items.
+  Use `--unblocked --status todo` for ready work — see the blocking note below before
+  reaching for `--blocked` / `--not-blocked`, which mean something else.
 - **Comment on a task**: `kanban-md edit <ID> -a "..." -t` — appends a timestamped note.
 - **Apply / remove labels**: tags — `kanban-md edit <ID> --add-tag "..."` / `--remove-tag "..."`.
 - **Close**: `kanban-md move <ID> done`.
@@ -37,10 +38,11 @@ via kanban-md's parent field.
   `kanban-md create "<question>" --parent <map-id> --tags wayfinder:task`. Once claimed, the
   ticket carries the driving dev's claim.
 - **Blocking**: kanban-md's **native dependencies** — the canonical representation. Add an
-  edge with `kanban-md edit <child> --add-dep <blocker-id>` (or at creation,
-  `--depends-on <id1>,<id2>`). A ticket is unblocked when every dependency is at a terminal
-  status (`done`); `kanban-md list --not-blocked` / `--unblocked` reflect this live.
-- **Frontier query**: `kanban-md list --compact --parent <map-id> --not-blocked --status todo`
+  edge at creation with `--depends-on <id1>,<id2>`, or afterwards with
+  `kanban-md edit <child> --add-dep <blocker-id>`. Both work, and `--add-dep` is idempotent.
+  A ticket is unblocked when every dependency is at a terminal status (`done`);
+  `kanban-md list --unblocked` reflects this live.
+- **Frontier query**: `kanban-md list --compact --parent <map-id> --unblocked --status todo`
   — the map's open children with all deps resolved and no active claim; first in order wins.
 - **Claim**: `kanban-md pick --claim <agent> --parent <map-id> --status todo --move in-progress`
   — atomically picks the next unclaimed, unblocked child of the map, claims it, and moves it
@@ -50,3 +52,14 @@ via kanban-md's parent field.
   append a context pointer (gist + link) to the map's Decisions-so-far with
   `kanban-md edit <map-id> -a "..." -t`.
 
+## Gotchas
+
+Verified against kanban-md 0.38.0.
+
+- **`--unblocked` is the dependency filter. `--blocked` / `--not-blocked` are not.** Those two
+  read a separate manual `blocked: true` field in a task's frontmatter and ignore `depends_on`
+  entirely, so `--not-blocked` happily lists a task whose blockers are all still open. Use
+  `--unblocked` for the frontier, every time.
+- **`show` does not print dependencies.** A task with `depends_on` set displays the same as one
+  without. To confirm an edge landed, read the task file's frontmatter or query with
+  `--unblocked` and check the task is absent.
