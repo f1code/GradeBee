@@ -54,6 +54,7 @@ export default function AddClassForm({ onCreated, onCancel }: AddClassFormProps)
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') {
+      e.stopPropagation()
       onCancel?.()
     }
   }

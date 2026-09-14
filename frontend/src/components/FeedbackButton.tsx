@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import * as Sentry from '@sentry/react'
 import { useDiagnosticsConsent } from '../hooks/useDiagnosticsConsent'
+import { useEscape } from '../hooks/useEscape'
 
 type FeedbackType = 'bug' | 'suggestion'
 
@@ -52,15 +53,7 @@ export default function FeedbackButton({ userId, userEmail }: FeedbackButtonProp
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  // Close on Escape
-  useEffect(() => {
-    if (!open) return
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
-  }, [open])
+  useEscape(() => setOpen(false), open)
 
   async function openWidget(type: FeedbackType) {
     setOpen(false)

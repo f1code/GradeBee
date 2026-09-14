@@ -71,7 +71,7 @@ export default function StudentAliases({ studentId, aliases, onAliasesChange }: 
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === 'Enter') { e.preventDefault(); handleAdd() }
-    if (e.key === 'Escape') { setAdding(false); setInput(''); setError(null); setConflictStudentName(null); setConflictAlias(null) }
+    if (e.key === 'Escape') { e.stopPropagation(); setAdding(false); setInput(''); setError(null); setConflictStudentName(null); setConflictAlias(null) }
   }
 
   function handleDismissError() {

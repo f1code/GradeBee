@@ -19,4 +19,12 @@ describe('HowItWorks', () => {
     await user.click(screen.getByText('Got it'))
     expect(onClose).toHaveBeenCalled()
   })
+
+  it('calls onClose on Escape', async () => {
+    const onClose = vi.fn()
+    render(<HowItWorks onClose={onClose} />)
+    const { default: userEvent } = await import('@testing-library/user-event')
+    await userEvent.setup().keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
 })
