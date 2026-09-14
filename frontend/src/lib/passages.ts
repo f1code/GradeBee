@@ -3,8 +3,9 @@ import { PassageAbsent, PassageChild, PassageUnknown } from '../api-types.gen'
 
 /**
  * The passages a recording holds that reached nobody: an `unknown` block (a
- * pronoun only, or a spoken name matching no one on the roster), or a `child`
- * or `absent` block the pipeline could not pin to a student. Group passages
+ * pronoun only), or a `child` or `absent` block the pipeline could not pin to
+ * a student, which since #128 is where a spoken name matching no one on the
+ * roster lands. Group passages
  * ride along with whatever note is made and are never a row; `none` is dropped
  * at assembly and never reaches the wire.
  *

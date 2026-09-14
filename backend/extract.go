@@ -31,6 +31,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // Extractor takes a transcript + student roster and returns structured extraction.
@@ -68,10 +70,13 @@ type ExtractResponse struct {
 type ExtractedPassage struct {
 	Kind PassageKind `json:"kind"`
 	// SpokenLabels is each name the teacher spoke for this passage, verbatim
-	// and uncorrected. Empty for every kind but child, and by the prompt's
-	// instruction also empty when the name matches nobody listed. Two jobs: the
-	// pronoun guard reads it, and generating it before student is what keeps
-	// the model from picking a child and inventing a label to justify it.
+	// and uncorrected. Empty for every kind but child and absent. A name that
+	// matches nobody listed is still a child passage with its label and an
+	// empty student (#128): that label is what anySpokenLabel and
+	// assemblePassages read to keep a group remark off a wrong roster. Two more
+	// jobs: the pronoun guard reads it, and generating it before student is
+	// what keeps the model from picking a child and inventing a label to
+	// justify it.
 	// Since #127 nobody re-resolves it: the class picker re-runs pass 2.
 	SpokenLabels []string `json:"spoken_labels"`
 	// Student is the roster name this passage reached, or "" when no child on
@@ -113,19 +118,12 @@ func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 		return &ExtractResponse{}, nil
 	}
 
-	var pass1 struct {
-		ClassName string `json:"class_name"`
-	}
-	if _, err := e.provider.ChatJSON(ctx, ChatJSONRequest{
-		SystemPrompt: BuildClassPickPrompt(req.Classes),
-		UserPrompt:   req.Transcript,
-		SchemaName:   "class_pick",
-		Schema:       classPickSchema(req.Classes),
-	}, &pass1); err != nil {
-		return nil, fmt.Errorf("extraction pass 1 failed: %w", err)
+	className, header, err := e.pickClass(ctx, req.Transcript, req.Classes)
+	if err != nil {
+		return nil, err
 	}
 
-	if pass1.ClassName == "" {
+	if className == "" {
 		// The decline. The header was missing, or it named more than one class,
 		// and the prompt tells the model to say so rather than guess. No pass 2:
 		// there is no roster to run it against. The caller reads the empty class
@@ -134,20 +132,67 @@ func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 		return &ExtractResponse{}, nil
 	}
 
-	class, ok := findClass(req.Classes, pass1.ClassName)
+	class, ok := findClass(req.Classes, className)
 	if !ok {
 		// The pass-1 schema is a strict enum over these very names plus "", so
 		// this is a provider that ignored it. Failing loudly beats returning no
 		// notes and calling the recording empty.
-		return nil, fmt.Errorf("extraction pass 1 returned class %q, which is not on the roster", pass1.ClassName)
+		return nil, fmt.Errorf("extraction pass 1 returned class %q, which is not on the roster", className)
 	}
 
-	passages, err := e.ExtractPassages(ctx, req.Transcript, class)
+	passages, err := e.ExtractPassages(ctx, CutHeader(req.Transcript, header), class)
 	if err != nil {
 		return nil, err
 	}
 	return &ExtractResponse{ClassName: class.Name, Passages: passages}, nil
 }
+
+// pickClass runs pass 1: the class the recording is about, "" for a decline,
+// and the spoken header as pass 1 copied it.
+func (e *llmExtractor) pickClass(ctx context.Context, transcript string, classes []ClassGroup) (className, header string, err error) {
+	var pass1 struct {
+		ClassName string `json:"class_name"`
+		Header    string `json:"header"`
+	}
+	if _, err := e.provider.ChatJSON(ctx, ChatJSONRequest{
+		SystemPrompt: BuildClassPickPrompt(classes),
+		UserPrompt:   transcript,
+		SchemaName:   "class_pick",
+		Schema:       classPickSchema(classes),
+	}, &pass1); err != nil {
+		return "", "", fmt.Errorf("extraction pass 1 failed: %w", err)
+	}
+	return pass1.ClassName, pass1.Header, nil
+}
+
+// CutHeader removes the spoken header from the front of the transcript, so
+// pass 2 never reads it (#155). With the header in front, pass 2 filed a date
+// the children practise under "none" alongside the header's weekday.
+//
+// Only an exact prefix is cut, then the separators after it. Anything else —
+// no header, a header pass 1 did not copy verbatim, one ending inside a word,
+// or a transcript that is all header — cuts nothing: the worst case is today's
+// behaviour, never a lost observation.
+//
+// Exported for eval-cli, which cuts fixture transcripts the same way.
+func CutHeader(transcript, header string) string {
+	rest, ok := strings.CutPrefix(transcript, header)
+	if header == "" || !ok {
+		return transcript
+	}
+	last, _ := utf8.DecodeLastRuneInString(header)
+	first, _ := utf8.DecodeRuneInString(rest)
+	if isWordRune(last) && isWordRune(first) {
+		return transcript
+	}
+	rest = strings.TrimLeftFunc(rest, func(r rune) bool { return unicode.IsSpace(r) || strings.ContainsRune(",.;:", r) })
+	if rest == "" {
+		return transcript
+	}
+	return rest
+}
+
+func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
 
 // ExtractPassages runs pass 2 against one class and guards what comes back.
 func (e *llmExtractor) ExtractPassages(ctx context.Context, transcript string, class ClassGroup) ([]ExtractedPassage, error) {
@@ -245,14 +290,17 @@ func findClass(classes []ClassGroup, name string) (ClassGroup, bool) {
 	return ClassGroup{}, false
 }
 
-// classPickSchema is pass 1's schema: one field, constrained to the teacher's
-// own class names plus "".
+// classPickSchema is pass 1's schema: class_name, constrained to the teacher's
+// own class names plus "", then the spoken header.
 //
 // The "" is the decline, and it is the whole of #127's model-facing change:
 // classPickPromptSuffix already told the model to return it when no class is
 // identifiable, and until this value existed the instruction could not be
 // obeyed. It goes last, which is where the measured probe put it
 // (research/2026-09-05-123-summaries-vs-spans, classNamesEnum).
+//
+// header goes after class_name: before it, the #152 probe lost one class
+// (research/2026-09-13-152-header-strip, arm text_first).
 func classPickSchema(classes []ClassGroup) json.RawMessage {
 	names := make([]string, 0, len(classes)+1)
 	for _, c := range classes {
@@ -261,10 +309,11 @@ func classPickSchema(classes []ClassGroup) json.RawMessage {
 	names = append(names, "")
 	return jsonObject(
 		field("type", "object"),
-		field("properties", map[string]any{
-			"class_name": map[string]any{"type": "string", "enum": names},
-		}),
-		field("required", []string{"class_name"}),
+		field("properties", jsonObject(
+			field("class_name", map[string]any{"type": "string", "enum": names}),
+			field("header", map[string]any{"type": "string"}),
+		)),
+		field("required", []string{"class_name", "header"}),
 		field("additionalProperties", false),
 	)
 }

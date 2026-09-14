@@ -78,9 +78,18 @@ time. Match it to one of:
 // live on mistral-medium-2508 against the two-class multi_class fixture: the
 // no-"" enum pins 3/3, the same prompt with "" in the enum declines. The text
 // did not change between those two measurements and does not change here.
+//
+// The header paragraph is #155's, the text arm of
+// research/2026-09-13-152-header-strip (probe152_test.go, headerWhat): 102/102
+// exact cuts over 37 transcripts × 3 runs, class 105/108 as before it.
 const classPickPromptSuffix = `
 If the header is missing, or does not clearly identify exactly one of the classes listed,
 return "" — an empty string — rather than guessing.
+
+Also return "header": the spoken header at the start of the transcript: from the first word through the last word
+that gives the class, weekday or time. Stop before the first word about a child, the class or
+the lesson. Copy it character for character, exactly as transcribed,
+misspellings and punctuation included. Return "" if the transcript does not open with a header.
 `
 
 // passagePromptPrefix is the whole of pass 2's system prompt except the roster,
@@ -124,19 +133,49 @@ return "" — an empty string — rather than guessing.
 // sentence demands the child's name in "spoken_labels" because "they" and
 // "both" are on labelStopList, and guardPassages would demote the copy.
 //
-// #152 tried dropping "the date" from the "none" bullet: teachers speak only
-// the weekday, inside the header. Kept, because the drop does not fix the case
-// that matters. Measured on mistral-medium-2508 against date_drill, counting
-// runs where the example date reaches the group passage, under #151's 0/5 arm
-// as the stress wording:
+// #155 dropped "the date" from the "none" bullet: teachers speak only the
+// weekday, inside the header, and since #155 Extract cuts the header before
+// pass 2 (CutHeader). Neither change holds alone. Measured on
+// mistral-medium-2508 against date_drill, counting runs where the example date
+// reaches the group passage, under #151's 0/5 arm as the stress wording
+// (research/2026-09-13-152-header-strip):
 //   - stress, header on: with "the date" 0/5, without 2/15
-//   - stress, header removed: with 0/5, without 5/5
-//   - this wording, header on: with 17/20 and 20/20 (two batches), without
-//     20/20; full suite without it matches baseline.json
+//   - stress, header cut: without 20/20
+//   - this wording, header on: with 17/20 and 20/20, without 20/20
+//   - this wording, header cut: with 0/5 (date or drill sentence lost),
+//     without 20/20
 //
-// Without "the date" the model still files the example date under "none" when
-// a header opens the transcript, and real recordings have one. Drop it only
-// with a fix that holds with the header on.
+// The header rules below ("the class header", the header-passage rule) stay:
+// ExtractPassages still reads uncut transcripts on the class picker, and a
+// header pass 1 did not copy verbatim cuts nothing. Measure before trimming.
+//
+// #128 added the three sentences on the shared passage's extent ("runs from
+// the names to where the teacher moves on … a copy shorter than another is
+// wrong"). Without them the model read "contiguous passages … covering the
+// whole transcript" as a partition and split "Liana and Lucie did well. They
+// did well with …" into "Liana did well." and the rest for Lucie, so Lina's
+// note lost her half. Measured on mistral-medium-2508, cut transcripts, 10
+// runs per cell (research/2026-09-14-128-residue):
+//   - shipped: fuzzy_name_matching 2/10
+//   - these sentences: 10/10
+//   - plus a coverage sentence admitting the repeated stretch: 10/10, and
+//     shared_clause 9/10 (one run doubled Bruno's copy)
+//   - plus a worked example in the bullet: 10/10
+//
+// date_drill, roster_phantom and pronoun_run_bleed held 10/10 on every arm;
+// shared_clause 9/10 on shipped (a group passage) and on the coverage arm,
+// 10/10 on the other two. The smallest arm shipped.
+//
+// #128 also cut "or a name that matches nobody listed" from the "unknown"
+// bullet. It contradicted the "child" bullet and the "student" field ("" when
+// no listed child fits), and the wrong-class rule in Go and scoring/assemble.js
+// (a group remark reaches nobody when names were spoken and none were on the
+// roster) reads spoken_labels — which "unknown" empties. wrong_class_group
+// passed only when the model disobeyed that clause. Uncut, 30 runs: with the
+// clause 10/30 on the shipped bullet and 4/30 with the extent sentences
+// above; without it 30/30, and the other five rows 10/10. Adding "even when it
+// matches nobody listed" to the spoken_labels bullet as well was measured and
+// not shipped: shared_clause 8/10 (Bruno's copy doubled), date_drill 9/10.
 const passagePromptPrefix = `You are extracting a teacher's spoken notes about the children in one class.
 
 The notes arrive as a transcript, in the order the teacher spoke them. The children in this
@@ -151,13 +190,13 @@ Each passage has:
   - "child" — the teacher is talking about one individual child and speaks a name for them.
   - "absent" — the teacher says a named child was not there today ("Théo wasn't in today").
   - "unknown" — the teacher is talking about one individual child but no name is spoken for
-    them in this passage or the passage it continues: only a pronoun, or a name that
-    matches nobody listed. Do not guess. The teacher will assign it.
+    them in this passage or the passage it continues: only a pronoun. Do not guess. The
+    teacher will assign it.
   - "group" — a statement about the class as a whole, using a collective referent
     ("everyone", "all the kids", "the class", "they" meaning the whole group). A statement
     that names one child, or describes only one child, is NEVER "group", however it is
     joined to the rest of the sentence.
-  - "none" — not an observation about children: the date, the class header, a greeting,
+  - "none" — not an observation about children: the class header, a greeting,
     vocabulary the children are being taught, thinking aloud that describes no child and
     no class.
 - "spoken_labels": for a "child" or "absent" passage, the name the teacher speaks for it,
@@ -177,9 +216,13 @@ Rules:
   PER CHILD: the same summary repeated, each copy with its own "student". Never fold two
   named children into one passage. This holds when the shared remark opens its own sentence
   after the names: each copy's "spoken_labels" holds the name the teacher spoke for that
-  child, never "they" or "both". If the observations differ between the children, they
-  are separate passages with different summaries. A statement about the class as a whole
-  is still one "group" passage, not one per child.
+  child, never "they" or "both". The shared passage runs from the names to where the teacher
+  moves on, pronoun sentences included: after "Maya and Noor did well", a "They did well with
+  the colours" belongs to both, so every copy carries the whole of it. The copies differ only
+  in "student" and "spoken_labels"; a copy shorter than another is wrong. If the
+  observations differ between the children, they are separate passages with different
+  summaries. A statement about the class as a whole is still one "group" passage, not one
+  per child.
 - "student" is set ONLY when the passage's own words, or the passage it continues, speak
   a name for the child — a name that appears in "spoken_labels". A passage that refers to
   the child only by a pronoun ("she", "he") has NO student: it is "unknown", even when

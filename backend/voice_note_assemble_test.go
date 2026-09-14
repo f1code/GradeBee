@@ -79,10 +79,10 @@ func rosterPass2(labels ...string) func(ClassGroup) []ExtractedPassage {
 	}
 }
 
-// offRosterAsUnknown is the same recording under the prompt's other reading of
-// a name that fits nobody: kind "unknown", and an EMPTY spoken_labels, because
-// the prompt says "a name that matches nobody listed" is unknown and "Empty
-// list for 'unknown', 'group' and 'none'".
+// offRosterAsUnknown is the same recording under the shape the model may still
+// return for a name that fits nobody: kind "unknown", and an EMPTY
+// spoken_labels. The prompt asked for exactly this until #128 cut the clause;
+// nothing enforces the labelled child it asks for now.
 //
 // It is the dangerous shape. Those passages carry no spoken name, so
 // noNotesReason answers nobody_named — the same answer a recording that truly
@@ -348,8 +348,8 @@ func TestAssembleNotes_APickThatMadeNoNoteCanBeRetried(t *testing.T) {
 
 // A pass 2 that came back with no spoken name anywhere. It reads as
 // nobody_named — and that must NOT end the picker, because it is also what the
-// wrong roster produces: the prompt calls a name fitting no listed child
-// "unknown", and unknown carries an empty spoken_labels. A handler that
+// wrong roster can produce: the model may still return a name fitting no
+// listed child as "unknown", which carries an empty spoken_labels. A handler that
 // terminated on this reason would strand exactly the recording the picker
 // exists for, with the job written and no way back.
 //
@@ -535,8 +535,8 @@ func TestAssembleNotes_WorksWithNoJobInTheQueue(t *testing.T) {
 // response is all the teacher gets — and it wins over the poll for the rest of
 // that card's life (JobStatus.tsx keeps a forgotten job's done card, and an
 // assemble result overrides it). So it may report the pick, but must not name
-// a cause from this run's own reading: pass 2 against the wrong roster returns
-// an off-roster name as an unlabelled unknown, which reads as nobody_named and
+// a cause from this run's own reading: pass 2 against the wrong roster may
+// still return an off-roster name as an unlabelled unknown, which reads as nobody_named and
 // would take the picker away for good in that tab.
 func TestAssembleNotes_WithNoJobAPickThatMadeNothingKeepsThePicker(t *testing.T) {
 	w := newAssembleWorld(t)

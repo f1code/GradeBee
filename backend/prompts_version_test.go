@@ -10,10 +10,10 @@ import (
 // #127's two enum shapes, written out rather than built by classPickSchema, so
 // this test keeps discriminating whichever shape the builder emits today.
 // decliningEnum is pinned to the builder's current output below; pinningEnum is
-// the pre-#127 shape and nothing emits it any more.
+// the same shape without the "" — the pre-#127 enum — and nothing emits it.
 const (
-	pinningEnum   = `{"type":"object","properties":{"class_name":{"enum":["SENTINEL_CLASS_A","SENTINEL_CLASS_B"],"type":"string"}},"required":["class_name"],"additionalProperties":false}`
-	decliningEnum = `{"type":"object","properties":{"class_name":{"enum":["SENTINEL_CLASS_A","SENTINEL_CLASS_B",""],"type":"string"}},"required":["class_name"],"additionalProperties":false}`
+	pinningEnum   = `{"type":"object","properties":{"class_name":{"enum":["SENTINEL_CLASS_A","SENTINEL_CLASS_B"],"type":"string"},"header":{"type":"string"}},"required":["class_name","header"],"additionalProperties":false}`
+	decliningEnum = `{"type":"object","properties":{"class_name":{"enum":["SENTINEL_CLASS_A","SENTINEL_CLASS_B",""],"type":"string"},"header":{"type":"string"}},"required":["class_name","header"],"additionalProperties":false}`
 )
 
 // TestExtractionHashMovesWithSchema is the failure this task closes. #127's
