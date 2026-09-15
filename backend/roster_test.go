@@ -27,7 +27,7 @@ func TestDBRoster_Students(t *testing.T) {
 	require.NoError(t, err)
 
 	// Students and aliases inserted out of order so ordering is the query's.
-	_, err = r.students.Create(ctx, math.ID, "Beatrice")
+	beatrice, err := r.students.Create(ctx, math.ID, "Beatrice")
 	require.NoError(t, err)
 	alexander, err := r.students.Create(ctx, math.ID, "Alexander")
 	require.NoError(t, err)
@@ -49,11 +49,11 @@ func TestDBRoster_Students(t *testing.T) {
 	// it, and the prompt builders never read it.
 	assert.Equal(t, []ClassGroup{
 		{ID: science.ID, Name: "Science · Mon · 14:10", Students: []ClassStudent{
-			{Name: "Carl", Aliases: []string{"Charlie"}},
+			{ID: carl.ID, Name: "Carl", Aliases: []string{"Charlie"}},
 		}},
 		{ID: math.ID, Name: "Math · Mon", Students: []ClassStudent{
-			{Name: "Alexander", Aliases: []string{"Alex", "Xander"}},
-			{Name: "Beatrice", Aliases: []string{}},
+			{ID: alexander.ID, Name: "Alexander", Aliases: []string{"Alex", "Xander"}},
+			{ID: beatrice.ID, Name: "Beatrice", Aliases: []string{}},
 		}},
 	}, got)
 
@@ -68,7 +68,7 @@ func TestDBRoster_Students(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []ClassGroup{
 		{ID: bMath.ID, Name: "Math · Mon", Students: []ClassStudent{
-			{Name: "Dora", Aliases: []string{"Dee"}},
+			{ID: dora.ID, Name: "Dora", Aliases: []string{"Dee"}},
 		}},
 	}, gotB)
 }
@@ -80,13 +80,13 @@ func TestDBRoster_Students_EmptyClass(t *testing.T) {
 
 	math := newTestClass(t, r.classes, "test-group", "userA", "Math", "")
 	art := newTestClass(t, r.classes, "test-group", "userA", "Art", "")
-	_, err := r.students.Create(ctx, math.ID, "Alexander")
+	alexander, err := r.students.Create(ctx, math.ID, "Alexander")
 	require.NoError(t, err)
 
 	got, err := newDBRoster(r.classes, r.students, "userA").Students(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, []ClassGroup{
-		{ID: math.ID, Name: "Math · Mon", Students: []ClassStudent{{Name: "Alexander", Aliases: []string{}}}},
+		{ID: math.ID, Name: "Math · Mon", Students: []ClassStudent{{ID: alexander.ID, Name: "Alexander", Aliases: []string{}}}},
 		{ID: art.ID, Name: "Art · Mon", Students: []ClassStudent{}},
 	}, got)
 }

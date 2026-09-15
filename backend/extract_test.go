@@ -217,7 +217,8 @@ func TestExtractRunsBothPasses(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "Period 3", got.ClassName)
+	require.NotNil(t, got.Class)
+	assert.Equal(t, testClasses()[0], *got.Class, "the pinned class comes back whole, roster included")
 	assert.Equal(t, []ExtractedPassage{
 		{Kind: PassageChild, SpokenLabels: []string{"Colm"}, Student: "Côme", Summary: "read well"},
 		// The guard demoted this one: the model named a child for a block whose
@@ -306,7 +307,7 @@ func TestExtractWithNoRosterSkipsTheModel(t *testing.T) {
 	got, err := newLLMExtractor(provider).Extract(t.Context(), ExtractRequest{Transcript: "words"})
 	require.NoError(t, err)
 
-	assert.Empty(t, got.ClassName)
+	assert.Nil(t, got.Class)
 	assert.Empty(t, got.Passages)
 	assert.Empty(t, provider.calls, "no roster means nothing to ask")
 }
@@ -325,7 +326,7 @@ func TestExtractDeclines(t *testing.T) {
 	})
 	require.NoError(t, err, "a decline must not fail the job: a failed card offers retry, not a class")
 
-	assert.Empty(t, got.ClassName)
+	assert.Nil(t, got.Class)
 	assert.Empty(t, got.Passages)
 	assert.Len(t, provider.calls, 1, "pass 2 has no roster to run against")
 }

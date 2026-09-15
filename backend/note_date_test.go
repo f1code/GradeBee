@@ -44,7 +44,7 @@ func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
 			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
 		},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			ClassName: "Math · Mon",
+			Class: mathMon("Alice"),
 			Passages: []ExtractedPassage{
 				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "Did great"},
 			},

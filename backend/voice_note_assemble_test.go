@@ -35,6 +35,7 @@ type assembleWorld struct {
 	extractor   *stubExtractor
 	uploadID    int64
 	alice, bob  int64
+	zephyrine   int64
 	monday      string
 	tuesday     string
 	mondayID    int64
@@ -133,8 +134,9 @@ func newAssembleWorld(t *testing.T) *assembleWorld {
 
 	monday := newTestClass(t, w.classRepo, "test-group", "u1", "Monday", "")
 	w.monday, w.mondayID = monday.Name, monday.ID
-	_, err = w.studentRepo.Create(ctx, monday.ID, "Zephyrine")
+	zephyrine, err := w.studentRepo.Create(ctx, monday.ID, "Zephyrine")
 	require.NoError(t, err)
+	w.zephyrine = zephyrine.ID
 	_, err = w.studentRepo.Create(ctx, monday.ID, "Ozymandias")
 	require.NoError(t, err)
 

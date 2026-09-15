@@ -183,17 +183,16 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		return fail("update status to creating_notes", err)
 	}
 
-	noteCreator := d.GetNoteCreator()
-	studentRepo := d.GetStudentRepo()
-
 	// One note per child, and the passages the done card gets back. The card
 	// shows them as what the recording held; it does not hand them back to the
 	// assemble endpoint, which since #127 runs pass 2 itself against the class
 	// the teacher picks. Group passages reach the pinned class's whole roster.
-	pinned, pinnedOK := findClass(classes, extractResult.ClassName)
+	// The zero ClassGroup is the decline: no name, no id, no roster.
+	var pinned ClassGroup
+	if extractResult.Class != nil {
+		pinned = *extractResult.Class
+	}
 	notes, passages := assemblePassages(extractResult.Passages, pinned.Students)
-
-	var noteLinks []NoteLink
 
 	// The note's date is the day the teacher recorded, which is the day the job was
 	// created at upload (voice_note_dispatch.go) — not time.Now(). Processing is queued
@@ -214,7 +213,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// denominator and a per-reason breakdown. note_count alone yields notes-created,
 	// never passages-extracted.
 	kinds := countKinds(extractResult.Passages)
-	droppedNoRosterMatch, droppedUnattributed := 0, 0
+	droppedUnattributed := 0
 
 	// Every passage about one child that reached none, counted once and logged
 	// once, absent included: a name nobody answers to is unreachable whichever
@@ -232,60 +231,34 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		// "process voice note: mention dropped" is a stable query key: the Sentry
 		// readout filters on this exact string paired with reason, and reason is
 		// already a live attribute elsewhere in this project, so it is not
-		// selective on its own. Both drop sites share the string deliberately;
-		// do not reword either without updating the saved queries.
-		// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
+		// selective on its own. Do not reword it without updating the saved
+		// queries. No student name in telemetry: these logs reach Sentry. See
+		// docs/adr/0003.
 		log.Info("process voice note: mention dropped",
 			"reason", "unattributed",
 			"key", key, "user_id", userID, "upload_id", uploadID, "trace_id", job.TraceID,
 			"kind", string(p.Kind),
 			"label_count", len(p.SpokenLabels),
-			"class_name", extractResult.ClassName,
+			"class_name", pinned.Name,
 			"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	}
 
-	for _, n := range notes {
-		studentID, err := studentRepo.FindByNameAndClass(ctx, n.Name, extractResult.ClassName, userID)
-		if err != nil {
-			if errors.Is(err, ErrNotFound) {
-				droppedNoRosterMatch++
-				// Same stable query key as the unattributed site; only reason
-				// separates them. Pass 2's schema constrains the student to
-				// this class's roster, so reaching here means the roster read
-				// and this lookup disagree — a child deleted mid-run.
-				// No student name in telemetry: these logs reach Sentry. See docs/adr/0003.
-				log.Info("process voice note: mention dropped",
-					"reason", "no_roster_match",
-					"key", key, "user_id", userID, "upload_id", uploadID, "trace_id", job.TraceID,
-					"passage_count", n.Passages,
-					"class_name", extractResult.ClassName,
-					"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
-				continue
-			}
-			// The failed lookup is the only source of an identifier here, so telemetry
-			// carries none; the teacher still gets the name that failed to resolve.
-			return failWith("find student", "find student "+n.Name, err)
-		}
-
-		result, err := noteCreator.CreateNote(ctx, CreateNoteRequest{
-			StudentID:    studentID,
-			StudentName:  n.Name,
-			QuotedText:   n.Summary,
-			Transcript:   transcript,
-			Date:         noteDate,
-			ModelVersion: extractor.Model(),
-			TraceID:      job.TraceID,
-		})
-		if err != nil {
-			return failWith(
-				fmt.Sprintf("create note for student %d", studentID),
-				"create note for "+n.Name,
-				err)
-		}
-		noteLinks = append(noteLinks, NoteLink{
-			Name: n.Name, NoteID: result.NoteID,
-			StudentID: studentID, ClassName: extractResult.ClassName,
-		})
+	noteLinks, err := fileNotes(ctx, d.GetNoteCreator(), recording{
+		Transcript:   transcript,
+		Date:         noteDate,
+		ClassName:    pinned.Name,
+		ModelVersion: extractor.Model(),
+		TraceID:      job.TraceID,
+	}, notes, NoteSourceAuto)
+	if err != nil {
+		// The links cover the notes filed before the failure, so the next one
+		// is the one that failed. The step carries its id and the teacher's
+		// message its name (docs/adr/0003).
+		n := notes[len(noteLinks)]
+		return failWith(
+			fmt.Sprintf("create note for student %d", n.StudentID),
+			"create note for "+n.Name,
+			err)
 	}
 
 	// --- Done ---
@@ -303,17 +276,15 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// hand; "" is a decline. The reason switch below and assembleOutcome read
 	// this as "the class in force", never as "notes exist", and the card gates
 	// its class picker on CanPickClass alone.
-	job.ClassName = extractResult.ClassName
-	if pinnedOK {
-		job.ClassID = pinned.ID
-	}
+	job.ClassName = pinned.Name
+	job.ClassID = pinned.ID
 	// One reason, chosen once. A decline is not a noNotesReason case at all:
 	// pass 1 could not pin a class, so pass 2 never ran and there are no
 	// passages, and anySpokenLabel(nil) is false — noNotesReason would answer
 	// nobody_named and the card would suppress the class picker on exactly the
 	// recording that needs it.
 	switch {
-	case extractResult.ClassName == "":
+	case extractResult.Class == nil:
 		job.NoNotesReason = NoNotesClassUnclear
 	default:
 		job.NoNotesReason = noNotesReason(len(noteLinks), passages)
@@ -360,7 +331,6 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		"passages_group", kinds[PassageGroup],
 		"passages_none", kinds[PassageNone],
 		"dropped_unattributed", droppedUnattributed,
-		"dropped_no_roster_match", droppedNoRosterMatch,
 		"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	return nil
 }

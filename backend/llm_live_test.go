@@ -88,7 +88,8 @@ func TestLLM_PinsTheClassFromTheHeader(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "Math 101", result.ClassName)
+	require.NotNil(t, result.Class)
+	assert.Equal(t, "Math 101", result.Class.Name)
 	assert.Equal(t, []string{"Alice Johnson"}, notedChildren(result))
 }
 
@@ -112,13 +113,11 @@ func TestLLM_TwoClassesInOneRecordingKeepsOneRoster(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	if result.ClassName == "" {
+	if result.Class == nil {
 		assert.Empty(t, result.Passages, "a decline stops before pass 2")
 		return
 	}
-
-	pinned, ok := findClass(classes, result.ClassName)
-	require.True(t, ok, "pass 1 must not invent a class")
+	pinned := *result.Class
 
 	// Whoever got a note is on the pinned class's roster. Nobody is filed under
 	// a class the recording did not put them in.
@@ -127,7 +126,7 @@ func TestLLM_TwoClassesInOneRecordingKeepsOneRoster(t *testing.T) {
 		onRoster[s.Name] = true
 	}
 	for _, name := range notedChildren(result) {
-		assert.True(t, onRoster[name], "%q got a note but is not in the pinned class %q", name, result.ClassName)
+		assert.True(t, onRoster[name], "%q got a note but is not in the pinned class %q", name, pinned.Name)
 	}
 }
 
@@ -148,7 +147,9 @@ func TestLLM_ChildOffEveryRosterReachesNobody(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Contains(t, []string{"", "Math 101", "Science 202"}, result.ClassName, "pass 1 must not invent a class")
+	if result.Class != nil {
+		assert.Contains(t, []string{"Math 101", "Science 202"}, result.Class.Name, "pass 1 must not invent a class")
+	}
 	assert.Empty(t, notedChildren(result), "no child of the teacher's own classes was named")
 }
 
@@ -167,7 +168,8 @@ func TestLLM_TruncatedNameMatch(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, "English 101", result.ClassName)
+	require.NotNil(t, result.Class)
+	assert.Equal(t, "English 101", result.Class.Name)
 	assert.Contains(t, noteOf(t, result, "Amalia Rodriguez"), "presentation")
 }
 
@@ -373,7 +375,7 @@ func TestLLM_DeclinesWhenNoHeaderPinsOneClass(t *testing.T) {
 	result, err := ext.Extract(t.Context(), ExtractRequest{Transcript: transcript, Classes: classes})
 	require.NoError(t, err, "a decline is a finished recording, not a failed one")
 
-	assert.Empty(t, result.ClassName, "two classes named and no header: pass 1 must decline")
+	assert.Nil(t, result.Class, "two classes named and no header: pass 1 must decline")
 	assert.Empty(t, result.Passages, "a decline stops before pass 2")
 }
 
@@ -421,7 +423,8 @@ func TestLLM_PickingTheClassOnADeclinedRecordingMakesThePipelineNotes(t *testing
 		Classes:    w.classes,
 	})
 	require.NoError(t, err)
-	require.Equal(t, classA.Name, pinned.ClassName, "the yardstick run must pin the class")
+	require.NotNil(t, pinned.Class, "the yardstick run must pin the class")
+	require.Equal(t, classA.Name, pinned.Class.Name, "the yardstick run must pin the class")
 	wantNotes, _ := assemblePassages(pinned.Passages, classA.Students)
 	require.NotEmpty(t, wantNotes, "the yardstick made no note; passages: %+v", pinned.Passages)
 
