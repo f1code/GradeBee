@@ -264,42 +264,20 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 	notes, passages := assemblePassages(extracted, class.Students)
 
 	// No second roster check. Pass 2's schema constrains student to this class's
-	// roster, and the loop below already skips and logs a name it cannot find —
-	// the same as the pipeline's. A second matcher here is the divergence #127
-	// deleted.
-	studentRepo := serviceDeps.GetStudentRepo()
-	noteCreator := serviceDeps.GetNoteCreator()
-	noteLinks := []NoteLink{}
+	// roster, and the fold above filed each note to that roster's id. A second
+	// matcher here is the divergence #127 deleted.
+	noteLinks, err := fileNotes(r.Context(), serviceDeps.GetNoteCreator(), recording{
+		Transcript:   transcript,
+		Date:         noteDate,
+		ClassName:    req.ClassName,
+		ModelVersion: extractor.Model(),
+		TraceID:      row.TraceID,
+	}, notes, NoteSourceReviewed)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	for _, n := range notes {
-		studentID, err := studentRepo.FindByNameAndClass(r.Context(), n.Name, req.ClassName, userID)
-		if err != nil {
-			if errors.Is(err, ErrNotFound) {
-				log.Info("assemble notes: student vanished between roster read and lookup",
-					"upload_id", uploadID, "user_id", userID, "class_name", req.ClassName)
-				continue
-			}
-			writeInternalError(w, r, err)
-			return
-		}
-		result, err := noteCreator.CreateNote(r.Context(), CreateNoteRequest{
-			StudentID:    studentID,
-			StudentName:  n.Name,
-			QuotedText:   n.Summary,
-			Transcript:   transcript,
-			Date:         noteDate,
-			ModelVersion: extractor.Model(),
-			Source:       NoteSourceReviewed,
-			TraceID:      row.TraceID,
-		})
-		if err != nil {
-			writeInternalError(w, r, err)
-			return
-		}
-		noteLinks = append(noteLinks, NoteLink{
-			Name: n.Name, NoteID: result.NoteID,
-			StudentID: studentID, ClassName: req.ClassName,
-		})
-
 		// One record per recovered note, keyed on the exact string
 		// "process voice note: passage recovered" — the Sentry readout filters
 		// on it. No name, no text (docs/adr/0003); passage_count says how much
@@ -307,7 +285,7 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 		log.Info("process voice note: passage recovered",
 			"route", "class_picker",
 			"passage_count", n.Passages,
-			"user_id", userID, "upload_id", uploadID, "trace_id", row.TraceID, "student_id", studentID,
+			"user_id", userID, "upload_id", uploadID, "trace_id", row.TraceID, "student_id", n.StudentID,
 			"model", extractor.Model(), "prompt_hash", ExtractionPromptHash)
 	}
 

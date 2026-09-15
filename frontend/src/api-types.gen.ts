@@ -803,6 +803,12 @@ export interface ClassGroup {
   students: ClassStudent[];
 }
 export interface ClassStudent {
+  /**
+   * ID is the students row, so a note assembled from this roster is filed
+   * without a second lookup by name. Like ClassGroup.ID it never reaches the
+   * model; fixtures and sentinelClasses omit it.
+   */
+  id?: number /* int64 */;
   name: string;
   aliases?: string[];
 }

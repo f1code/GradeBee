@@ -129,9 +129,9 @@ User uploads audio
         │      group → every child on the pinned roster except those absent;
         │        nobody when names were spoken and none resolved (wrong class)
         │      none  → dropped, and kept off the card entirely
-        │    Resolve name → student ID via FindByNameAndClass
-        │    Create note in SQLite via dbNoteCreator, stamped with
-        │      the job's trace_id
+        │      each note carries the roster row's id: no lookup by name
+        │    fileNotes: create note in SQLite via dbNoteCreator, stamped
+        │      with the job's trace_id (the class picker files the same way)
         │
         └─ Done (status → "done", mark voice note processed)
 ```
@@ -344,7 +344,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `migrate.go` | Embed + run SQL migrations on startup |
 | `sql/` | Embedded SQL migrations; applied in lexical filename order and tracked in `_migrations` |
 | `repo_class.go` | `ClassRepo` — CRUD for classes, scoped by `group_id` on Create/Update to validate `level_id` belongs to the caller's Group |
-| `repo_student.go` | `StudentRepo` — CRUD for students, `FindByNameAndClass` (matches canonical name + aliases, case-insensitive), `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases`. `Move` is transactional: updates `students.class_id` and re-homes `student_aliases.class_id` together, aborting on a canonical-name collision in the target class (`*ErrDuplicateStudentName`) and silently dropping (not blocking on) any of the student's aliases that collide with the target class's names/aliases |
+| `repo_student.go` | `StudentRepo` — CRUD for students, `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases`. `Move` is transactional: updates `students.class_id` and re-homes `student_aliases.class_id` together, aborting on a canonical-name collision in the target class (`*ErrDuplicateStudentName`) and silently dropping (not blocking on) any of the student's aliases that collide with the target class's names/aliases |
 | `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range), `ListForRecording` (one child's notes from one recording, by `trace_id`) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
 | `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes (`Create` mints `trace_id`), `SetTranscript`, `MarkProcessed`, `MarkPurged`, `ListStale` |
@@ -369,7 +369,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `job_queue_mem.go` | `MemQueue[T]` — generic in-memory `JobQueue` implementation with worker pool |
 | `voice_note_job.go` | `VoiceNoteJob` type, job status constants, `NoteLink`, `JobPassage`, the `NoNotes*` reasons |
 | `voice_note_process.go` | `processVoiceNote` pipeline (transcribe→extract→notes) |
-| `voice_note_passages.go` | `assemblePassages`: extraction's passages → one note per child, and the card's passage list; `joinPassageText`, the join both it and the assign endpoint use. Pure |
+| `voice_note_passages.go` | `assemblePassages`: extraction's passages → one note per child (with the roster row's id), and the card's passage list; `joinPassageText`, the join both it and the assign endpoint use. Pure |
 | `voice_note_cleanup.go` | Background goroutine to delete voice note rows, transcripts and any leftover audio after retention |
 | `voice_note_jobs.go` | GET /voice-notes/jobs, POST /voice-notes/jobs/retry, POST /voice-notes/jobs/dismiss — voice note job list, retry, dismiss handlers |
 | `voice_note_assemble.go` | POST /voice-notes/{uploadId}/assemble — run extraction's second pass against a class the teacher picked, and file its notes. Owns the per-upload lock the assign endpoint shares |
@@ -455,12 +455,12 @@ In `voice_note_process.go`, the two `process voice note: mention dropped` record
 The two-pass contract (#125) renamed what those records count, and any saved Sentry
 query on the old names is now reading a field nothing writes. There is no confidence
 score in the contract, so `dropped_low_confidence`, `mentions_total` and
-`mentions_below_0_7` are gone. The drop reasons are now `unattributed` (a passage about
-one child that reached none of them) and `no_roster_match` (a child the roster lookup
-could not find). The completion record carries `passages_total` with a per-kind
+`mentions_below_0_7` are gone. The one drop reason is `unattributed` (a passage about
+one child that reached none of them); `no_roster_match` went with the name lookup (#157):
+extraction hands back the pinned `ClassGroup`, roster ids included, so there is no second
+lookup to miss. The completion record carries `passages_total` with a per-kind
 breakdown — `passages_child`, `passages_absent`, `passages_unknown`, `passages_group`,
-`passages_none` —
-plus `dropped_unattributed` and `dropped_no_roster_match`. The per-kind counts are what
+`passages_none` — plus `dropped_unattributed`. The per-kind counts are what
 separate a prompt regression (every block `unknown`) from a quiet recording.
 
 The class picker is the second place pass 2 runs, and the one where it works against a

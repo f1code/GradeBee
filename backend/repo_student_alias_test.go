@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -91,60 +90,6 @@ func TestStudentAliasRepo_AliasCollidesWithName(t *testing.T) {
 	var dupErr *ErrDuplicateAlias
 	require.ErrorAs(t, err, &dupErr, "alias should collide with existing student name, got: %v", err)
 	assert.Equal(t, "Alex", dupErr.ConflictStudentName)
-}
-
-// TestFindByNameAndClass_MatchesAlias verifies that FindByNameAndClass resolves
-// an alias to the canonical student.
-func TestFindByNameAndClass_MatchesAlias(t *testing.T) {
-	ctx, r := testDBAndRepos(t)
-
-	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
-	s, err := r.students.Create(ctx, c.ID, "Alexander")
-	require.NoError(t, err)
-	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
-	require.NoError(t, err)
-
-	// Lookup by alias — should return the canonical student ID
-	id, err := r.students.FindByNameAndClass(ctx, "Alex", "Math · Mon", "user1")
-	require.NoError(t, err, "find by alias")
-	assert.Equal(t, s.ID, id)
-}
-
-// TestFindByNameAndClass_MatchesWithTimeSlot checks that lookup resolves for
-// a class name that includes the day and time slot qualifiers
-// (e.g. "Math · Thu · Thursday").
-func TestFindByNameAndClass_MatchesWithTimeSlot(t *testing.T) {
-	ctx, r := testDBAndRepos(t)
-
-	c, err := r.classes.Create(ctx, "test-group", "user1", testLevelID(t, r.classes.db, "test-group", "Math"), "Thursday", "AM")
-	require.NoError(t, err)
-	s, err := r.students.Create(ctx, c.ID, "Alexander")
-	require.NoError(t, err)
-
-	id, err := r.students.FindByNameAndClass(ctx, "Alexander", "Math · Thu · AM", "user1")
-	require.NoError(t, err, "find by name in qualified class")
-	assert.Equal(t, s.ID, id)
-}
-
-// TestFindByNameAndClass_MatchesCaseInsensitive checks case-insensitive matching.
-func TestFindByNameAndClass_MatchesCaseInsensitive(t *testing.T) {
-	ctx, r := testDBAndRepos(t)
-
-	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
-	s, err := r.students.Create(ctx, c.ID, "Alexander")
-	require.NoError(t, err)
-	_, err = r.students.AddAlias(ctx, s.ID, "Alex")
-	require.NoError(t, err)
-
-	// Case-insensitive alias match
-	id, err := r.students.FindByNameAndClass(ctx, "alex", "Math · Mon", "user1")
-	require.NoError(t, err, "find by lowercase alias")
-	assert.Equal(t, s.ID, id)
-
-	// Case-insensitive canonical name match
-	id, err = r.students.FindByNameAndClass(ctx, "alexander", "Math · Mon", "user1")
-	require.NoError(t, err, "find by lowercase canonical")
-	assert.Equal(t, s.ID, id)
 }
 
 // TestListWithAliases verifies ListWithAliases folds the single LEFT JOIN
@@ -299,34 +244,6 @@ func TestRenameStudent_CollidesWithAlias(t *testing.T) {
 	assert.True(t, errors.Is(err, ErrDuplicate), "rename should collide with existing alias, got: %v", err)
 }
 
-func TestFindByNameAndClass_AliasNotFoundInDifferentClass(t *testing.T) {
-	ctx := context.Background()
-	db, err := OpenDB(":memory:")
-	require.NoError(t, err)
-	require.NoError(t, RunMigrations(db))
-	t.Cleanup(func() { db.Close() })
-
-	classRepo := &ClassRepo{db: db}
-	studentRepo := &StudentRepo{db: db}
-
-	c1 := newTestClass(t, classRepo, "test-group", "user1", "Math", "")
-	_ = newTestClass(t, classRepo, "test-group", "user1", "Science", "")
-
-	s1, err := studentRepo.Create(ctx, c1.ID, "Alexander")
-	require.NoError(t, err)
-	_, err = studentRepo.AddAlias(ctx, s1.ID, "Alex")
-	require.NoError(t, err)
-
-	// Alex alias exists in Math, not in Science
-	_, err = studentRepo.FindByNameAndClass(ctx, "Alex", "Science · Mon", "user1")
-	assert.True(t, errors.Is(err, ErrNotFound), "alias should not match across classes, got: %v", err)
-
-	// Should still work for Math
-	id, err := studentRepo.FindByNameAndClass(ctx, "Alex", "Math · Mon", "user1")
-	require.NoError(t, err)
-	assert.Equal(t, s1.ID, id)
-}
-
 // TestMoveStudent_AliasesFollowToTargetClass verifies that Move updates
 // student_aliases.class_id along with students.class_id, so no alias row is
 // left pointing at the old class.
@@ -354,10 +271,6 @@ func TestMoveStudent_AliasesFollowToTargetClass(t *testing.T) {
 	require.Len(t, aliases, 1)
 	assert.Equal(t, c2.ID, aliases[0].ClassID, "alias did not follow the student to the new class")
 	assert.Equal(t, a.Alias, aliases[0].Alias)
-
-	// Old class's alias uniqueness index should no longer see this alias.
-	_, err = r.students.FindByNameAndClass(ctx, "Alex", "Math · Mon", "user1")
-	assert.True(t, errors.Is(err, ErrNotFound), "alias should no longer resolve in the source class")
 }
 
 // TestMoveStudent_NameConflictBlocksMove verifies that moving into a class

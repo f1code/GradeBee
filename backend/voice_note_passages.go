@@ -12,7 +12,10 @@ import "strings"
 // assembledNote is one child's note from one recording: everything the teacher
 // said about them, in the order they said it.
 type assembledNote struct {
-	Name string
+	// StudentID is the roster row the note is filed to. Pass 2's schema
+	// constrains a student to the pinned roster, so every named child is on it.
+	StudentID int64
+	Name      string
 	// Summary is the child's passages joined, then the recording's class-wide
 	// passages. Blank line between them: they are separate stretches of speech,
 	// and running them together invents a sentence the teacher never said.
@@ -51,9 +54,9 @@ type assembledNote struct {
 //     offering the class picker over a passage there is nothing to pick for.
 //
 // Notes come in the order the teacher first spoke each child, then children
-// reached only by group passages in roster order. A child with their own
-// passages gets the group text whatever roster holds, so a nil roster — a
-// failed roster read — degrades to reaching only the children named.
+// reached only by group passages in roster order. roster is the pinned class's
+// children, the same list pass 2's schema constrained student to, so it is
+// where each note's StudentID comes from.
 //
 // Group passages come last in a note rather than at the point they were
 // spoken. A teacher's "everyone did well" is about the hour, not about the
@@ -91,6 +94,10 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 		group = nil
 	}
 
+	ids := make(map[string]int64, len(roster))
+	for _, s := range roster {
+		ids[s.Name] = s.ID
+	}
 	notes := make([]assembledNote, 0, len(names))
 	reached := map[string]bool{}
 	for _, name := range names {
@@ -100,9 +107,10 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 			g = nil
 		}
 		notes = append(notes, assembledNote{
-			Name:     name,
-			Summary:  joinPassageText(own[name], g),
-			Passages: len(own[name]) + len(g),
+			StudentID: ids[name],
+			Name:      name,
+			Summary:   joinPassageText(own[name], g),
+			Passages:  len(own[name]) + len(g),
 		})
 	}
 	if len(group) == 0 {
@@ -115,9 +123,10 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 		}
 		reached[foldName(s.Name)] = true
 		notes = append(notes, assembledNote{
-			Name:     s.Name,
-			Summary:  joinPassageText(nil, group),
-			Passages: len(group),
+			StudentID: s.ID,
+			Name:      s.Name,
+			Summary:   joinPassageText(nil, group),
+			Passages:  len(group),
 		})
 	}
 	return notes, out

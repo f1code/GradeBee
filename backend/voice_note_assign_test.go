@@ -288,9 +288,7 @@ func TestAssignPassages_GroupTextGoesLast(t *testing.T) {
 // is what proves the roster the card showed is the one the note is filed to.
 func TestAssignPassages_RefusesWhatTheCallerDoesNotOwn(t *testing.T) {
 	w := newAssembleWorld(t)
-	ctx := context.Background()
-	zephyrine, err := w.studentRepo.FindByNameAndClass(ctx, "Zephyrine", w.monday, "u1")
-	require.NoError(t, err)
+	zephyrine := w.zephyrine
 
 	for _, tc := range []struct {
 		name string

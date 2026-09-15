@@ -312,3 +312,42 @@ func handleDeleteNote(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
 }
+
+// recording is what filing a note needs to know about where it came from.
+type recording struct {
+	Transcript   string
+	Date         string
+	ClassName    string
+	ModelVersion string
+	TraceID      string
+}
+
+// fileNotes creates one note per assembled note, in order, and returns their
+// links. The pipeline and the class picker both file through here so a note
+// reads the same whichever route made it.
+//
+// On error the links returned are the notes filed before the failure, so
+// notes[len(links)] is the one that failed. The error itself names nobody.
+func fileNotes(ctx context.Context, nc NoteCreator, rec recording, notes []assembledNote, source string) ([]NoteLink, error) {
+	links := make([]NoteLink, 0, len(notes))
+	for _, n := range notes {
+		result, err := nc.CreateNote(ctx, CreateNoteRequest{
+			StudentID:    n.StudentID,
+			StudentName:  n.Name,
+			QuotedText:   n.Summary,
+			Transcript:   rec.Transcript,
+			Date:         rec.Date,
+			ModelVersion: rec.ModelVersion,
+			Source:       source,
+			TraceID:      rec.TraceID,
+		})
+		if err != nil {
+			return links, err
+		}
+		links = append(links, NoteLink{
+			Name: n.Name, NoteID: result.NoteID,
+			StudentID: n.StudentID, ClassName: rec.ClassName,
+		})
+	}
+	return links, nil
+}

@@ -15,10 +15,12 @@ func absentChild(name, summary string) ExtractedPassage {
 	return ExtractedPassage{Kind: PassageAbsent, SpokenLabels: []string{name}, Student: name, Summary: summary}
 }
 
+// rosterOf is a roster whose ids are 1, 2, 3… in the order given, so a test
+// can assert which row a note was filed to.
 func rosterOf(names ...string) []ClassStudent {
 	out := make([]ClassStudent, len(names))
 	for i, n := range names {
-		out[i] = ClassStudent{Name: n}
+		out[i] = ClassStudent{ID: int64(i + 1), Name: n}
 	}
 	return out
 }
@@ -31,11 +33,11 @@ func TestAssemblePassages_PairReachesBothChildren(t *testing.T) {
 	notes, passages := assemblePassages([]ExtractedPassage{
 		child("Zachariah", "Zachariah", "Zachariah did very well."),
 		child("Anaya", "Anaya", "Anaya did very well."),
-	}, nil)
+	}, rosterOf("Anaya", "Zachariah"))
 
 	assert.Equal(t, []assembledNote{
-		{Name: "Zachariah", Summary: "Zachariah did very well.", Passages: 1},
-		{Name: "Anaya", Summary: "Anaya did very well.", Passages: 1},
+		{StudentID: 2, Name: "Zachariah", Summary: "Zachariah did very well.", Passages: 1},
+		{StudentID: 1, Name: "Anaya", Summary: "Anaya did very well.", Passages: 1},
 	}, notes)
 	assert.Len(t, passages, 2)
 }
@@ -48,13 +50,15 @@ func TestAssemblePassages_OneNotePerChildInSpokenOrder(t *testing.T) {
 		child("Rémi", "Rémi", "He was a little active."),
 		child("Capucine", "Capucine", "She read her book."),
 		child("Rémi", "Rémi", "He settled by the end."),
-	}, nil)
+	}, rosterOf("Capucine", "Rémi"))
 
 	require.Len(t, notes, 2)
 	assert.Equal(t, "Rémi", notes[0].Name, "notes follow first mention, not roster order")
+	assert.Equal(t, int64(2), notes[0].StudentID)
 	assert.Equal(t, "He was a little active.\n\nHe settled by the end.", notes[0].Summary)
 	assert.Equal(t, 2, notes[0].Passages)
 	assert.Equal(t, "Capucine", notes[1].Name)
+	assert.Equal(t, int64(1), notes[1].StudentID)
 }
 
 // A class-wide statement reaches every child on the roster. A child the teacher
@@ -70,23 +74,10 @@ func TestAssemblePassages_GroupReachesTheWholeRoster(t *testing.T) {
 	assert.Equal(t, []assembledNote{
 		// Spoken first, but the group text belongs to the hour rather than to
 		// the sentence it preceded, so it closes each note.
-		{Name: "Lina", Summary: "She was quiet.\n\nWe practised the date all hour.", Passages: 2},
-		{Name: "Théo", Summary: "He read well.\n\nWe practised the date all hour.", Passages: 2},
-		{Name: "Noor", Summary: "We practised the date all hour.", Passages: 1},
-		{Name: "Ada", Summary: "We practised the date all hour.", Passages: 1},
-	}, notes)
-}
-
-// No roster — a failed roster read — reaches the children named and nobody
-// else, rather than dropping the group text from them too.
-func TestAssemblePassages_NoRosterStillReachesTheChildrenNamed(t *testing.T) {
-	notes, _ := assemblePassages([]ExtractedPassage{
-		child("Théo", "Théo", "He read well."),
-		{Kind: PassageGroup, Summary: "Everyone worked hard."},
-	}, nil)
-
-	assert.Equal(t, []assembledNote{
-		{Name: "Théo", Summary: "He read well.\n\nEveryone worked hard.", Passages: 2},
+		{StudentID: 4, Name: "Lina", Summary: "She was quiet.\n\nWe practised the date all hour.", Passages: 2},
+		{StudentID: 2, Name: "Théo", Summary: "He read well.\n\nWe practised the date all hour.", Passages: 2},
+		{StudentID: 1, Name: "Noor", Summary: "We practised the date all hour.", Passages: 1},
+		{StudentID: 3, Name: "Ada", Summary: "We practised the date all hour.", Passages: 1},
 	}, notes)
 }
 
@@ -99,8 +90,8 @@ func TestAssemblePassages_GroupAloneReachesTheWholeRoster(t *testing.T) {
 	}, rosterOf("Ada", "Bo"))
 
 	assert.Equal(t, []assembledNote{
-		{Name: "Ada", Summary: "Everyone worked hard.", Passages: 1},
-		{Name: "Bo", Summary: "Everyone worked hard.", Passages: 1},
+		{StudentID: 1, Name: "Ada", Summary: "Everyone worked hard.", Passages: 1},
+		{StudentID: 2, Name: "Bo", Summary: "Everyone worked hard.", Passages: 1},
 	}, notes)
 	assert.Len(t, passages, 1)
 	assert.Empty(t, noNotesReason(len(notes), passages))
@@ -117,9 +108,9 @@ func TestAssemblePassages_AbsentChildSkipsTheGroup(t *testing.T) {
 	}, rosterOf("Théo", "Camille", "Noor"))
 
 	assert.Equal(t, []assembledNote{
-		{Name: "Théo", Summary: "Théo was absent today.\n\nHe sent his homework in.", Passages: 2},
-		{Name: "Camille", Summary: "Camille worked hard on the letter sounds.\n\nEveryone loved the song.", Passages: 2},
-		{Name: "Noor", Summary: "Everyone loved the song.", Passages: 1},
+		{StudentID: 1, Name: "Théo", Summary: "Théo was absent today.\n\nHe sent his homework in.", Passages: 2},
+		{StudentID: 2, Name: "Camille", Summary: "Camille worked hard on the letter sounds.\n\nEveryone loved the song.", Passages: 2},
+		{StudentID: 3, Name: "Noor", Summary: "Everyone loved the song.", Passages: 1},
 	}, notes)
 	assert.Len(t, passages, 4)
 }
@@ -133,8 +124,8 @@ func TestAssemblePassages_AbsenceAloneCountsAsResolving(t *testing.T) {
 	}, rosterOf("Théo", "Noor"))
 
 	assert.Equal(t, []assembledNote{
-		{Name: "Théo", Summary: "Théo wasn't in today.", Passages: 1},
-		{Name: "Noor", Summary: "Everyone else did really well.", Passages: 1},
+		{StudentID: 1, Name: "Théo", Summary: "Théo wasn't in today.", Passages: 1},
+		{StudentID: 2, Name: "Noor", Summary: "Everyone else did really well.", Passages: 1},
 	}, notes)
 }
 
@@ -178,7 +169,7 @@ func TestAssemblePassages_NoGroupPassageLeavesTheRosterAlone(t *testing.T) {
 	}, rosterOf("Théo", "Noor", "Ada"))
 
 	assert.Equal(t, []assembledNote{
-		{Name: "Théo", Summary: "He read well.", Passages: 1},
+		{StudentID: 1, Name: "Théo", Summary: "He read well.", Passages: 1},
 	}, notes)
 }
 
