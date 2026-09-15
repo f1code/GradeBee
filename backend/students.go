@@ -31,6 +31,10 @@ type ClassGroup struct {
 }
 
 type ClassStudent struct {
+	// ID is the students row, so a note assembled from this roster is filed
+	// without a second lookup by name. Like ClassGroup.ID it never reaches the
+	// model; fixtures and sentinelClasses omit it.
+	ID      int64    `json:"id,omitempty"`
 	Name    string   `json:"name"`
 	Aliases []string `json:"aliases,omitempty"`
 }

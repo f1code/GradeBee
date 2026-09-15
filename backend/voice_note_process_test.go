@@ -16,17 +16,7 @@ import (
 )
 
 func TestProcessJob_HappyPath(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	// Seed class + students.
-	cls := newTestClass(t, classRepo, "test-group", "user1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Bob")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	// Write a temp audio file.
 	tmpDir := t.TempDir()
@@ -44,13 +34,10 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	transcriber := &stubTranscriber{result: "Alice did great today. Bob needs improvement."}
 	d := &mockDepsAll{
 		transcriber: transcriber,
-		roster: &stubRoster{
-			classNames: []string{"Math"},
-			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
-		},
+		roster:      &stubRoster{classNames: []string{"Math"}},
 		extractor: &stubExtractor{
 			result: &ExtractResponse{
-				ClassName: "Math · Mon",
+				Class: mathMon("Alice", "Bob"),
 				Passages: []ExtractedPassage{
 					{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "Did great"},
 					{Kind: PassageChild, SpokenLabels: []string{"Bob"}, Student: "Bob", Summary: "Needs improvement"},
@@ -58,7 +45,6 @@ func TestProcessJob_HappyPath(t *testing.T) {
 			},
 		},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -77,7 +63,10 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	got, err := queue.GetJob(ctx, voiceNoteKey("user1", uploadID))
 	require.NoError(t, err)
 	assert.Equal(t, JobStatusDone, got.Status)
-	assert.Len(t, got.NoteLinks, 2)
+	require.Len(t, got.NoteLinks, 2)
+	// Filed to the roster's ids, with no lookup by name in between.
+	assert.Equal(t, int64(1), got.NoteLinks[0].StudentID)
+	assert.Equal(t, int64(2), got.NoteLinks[1].StudentID)
 	assert.Len(t, nc.calls, 2)
 	assert.Equal(t, []string{"Math"}, transcriber.gotBias, "transcriber should receive class names as context bias")
 
@@ -157,14 +146,7 @@ func TestProcessJob_ExtractFail(t *testing.T) {
 }
 
 func TestProcessJob_NoteCreateFail(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
@@ -175,18 +157,17 @@ func TestProcessJob_NoteCreateFail(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			ClassName: "Math · Mon",
-			Passages:  []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"}},
+			Class:    mathMon("Alice"),
+			Passages: []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"}},
 		}},
 		noteCreator:   &stubNoteCreator{err: io.ErrUnexpectedEOF},
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
 	ctx := context.Background()
 	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: 1, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 
-	err = processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
+	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", 1))
 	require.Error(t, err)
 
 	got, gErr := queue.GetJob(ctx, voiceNoteKey("u1", 1))
@@ -210,74 +191,11 @@ func TestProcessJob_AlreadyProcessed(t *testing.T) {
 	assert.Equal(t, JobStatusDone, got.Status, "status changed, should remain done")
 }
 
-// TestProcessJob_StudentMissingFromRosterSkipped: pass 2's schema constrains
-// student to the pinned class's roster, so a name that the lookup cannot find
-// means the roster read and the lookup disagreed — a child deleted mid-run. It
-// costs that child their note and nobody else theirs.
-func TestProcessJob_StudentMissingFromRosterSkipped(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
-
-	tmpDir := t.TempDir()
-	audioPath := filepath.Join(tmpDir, "test.m4a")
-	require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
-
-	uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
-	queue := newStubVoiceNoteQueue()
-	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
-	d := &mockDepsAll{
-		transcriber: &stubTranscriber{result: "transcript"},
-		roster:      &stubRoster{},
-		extractor: &stubExtractor{result: &ExtractResponse{
-			ClassName: "Math · Mon",
-			Passages: []ExtractedPassage{
-				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"},
-				{Kind: PassageChild, SpokenLabels: []string{"Ghost"}, Student: "Ghost", Summary: "vanished"},
-			},
-		}},
-		noteCreator:   nc,
-		studentRepo:   studentRepo,
-		voiceNoteRepo: voiceNoteRepo,
-	}
-
-	ctx := context.Background()
-	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
-	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)), "processVoiceNote should succeed despite a student the lookup cannot find")
-
-	got, err := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
-	require.NoError(t, err)
-	assert.Equal(t, JobStatusDone, got.Status)
-	assert.Len(t, nc.calls, 1, "note creator calls: the missing student should be skipped")
-
-	// The passage stays as extraction wrote it, name and all. It says what the
-	// model read the recording as, not what the note store managed to do with
-	// it — and its spoken label is what a class pick re-resolves.
-	require.Len(t, got.Passages, 2)
-	assert.Equal(t, "Alice", got.Passages[0].Student)
-	assert.Equal(t, "Ghost", got.Passages[1].Student)
-	assert.Equal(t, "vanished", got.Passages[1].Summary)
-}
-
 // TestProcessJob_UnattributedPassagesReachNobody: the two ways a passage can
 // be about a child and reach none of them. There is no confidence score to
 // gate on any more — either the recording named the child or it did not.
 func TestProcessJob_UnattributedPassagesReachNobody(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Maybe")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
@@ -290,7 +208,7 @@ func TestProcessJob_UnattributedPassagesReachNobody(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			ClassName: "Math · Mon",
+			Class: mathMon("Alice", "Maybe"),
 			Passages: []ExtractedPassage{
 				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"},
 				// A name was spoken and nobody on the roster fits it.
@@ -300,7 +218,6 @@ func TestProcessJob_UnattributedPassagesReachNobody(t *testing.T) {
 			},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -324,16 +241,7 @@ func TestProcessJob_UnattributedPassagesReachNobody(t *testing.T) {
 // A group passage reaches the pinned class's whole roster through the
 // pipeline: Bob is never named and still gets a note holding it.
 func TestProcessJob_GroupPassageReachesTheWholeRoster(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Bob")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	audioPath := filepath.Join(t.TempDir(), "recording.m4a")
 	require.NoError(t, os.WriteFile(audioPath, []byte("fake audio"), 0o644))
@@ -343,18 +251,15 @@ func TestProcessJob_GroupPassageReachesTheWholeRoster(t *testing.T) {
 	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}, {NoteID: 2}}}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "some transcript"},
-		roster: &stubRoster{
-			students: []ClassGroup{{Name: "Math · Mon", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
-		},
+		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			ClassName: "Math · Mon",
+			Class: mathMon("Alice", "Bob"),
 			Passages: []ExtractedPassage{
 				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "Did great"},
 				{Kind: PassageGroup, Summary: "Everyone worked hard"},
 			},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -366,6 +271,7 @@ func TestProcessJob_GroupPassageReachesTheWholeRoster(t *testing.T) {
 	assert.Equal(t, "Alice", nc.calls[0].StudentName)
 	assert.Equal(t, "Did great\n\nEveryone worked hard", nc.calls[0].QuotedText)
 	assert.Equal(t, "Bob", nc.calls[1].StudentName)
+	assert.Equal(t, int64(2), nc.calls[1].StudentID, "filed to the roster's id")
 	assert.Equal(t, "Everyone worked hard", nc.calls[1].QuotedText)
 
 	// The recording is filed, so the card offers no class pick.
@@ -380,14 +286,7 @@ func TestProcessJob_GroupPassageReachesTheWholeRoster(t *testing.T) {
 // is the note's visible text, so anything rewriting it here rewrites what the
 // teacher reads under the model's name.
 func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
@@ -401,18 +300,14 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "some transcript"},
-		roster: &stubRoster{
-			classNames: []string{"Math"},
-			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
-		},
+		roster:      &stubRoster{classNames: []string{"Math"}},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			ClassName: "Math · Mon",
+			Class: mathMon("Alice"),
 			Passages: []ExtractedPassage{
 				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: rawQuote},
 			},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -430,14 +325,7 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 // TestProcessJob_DeletesAudioAfterTranscription verifies that the audio file is
 // deleted from disk and purged_at is set in the DB immediately after transcription.
 func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
@@ -451,16 +339,12 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did well"},
-		roster: &stubRoster{
-			classNames: []string{"Math"},
-			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
-		},
+		roster:      &stubRoster{classNames: []string{"Math"}},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			ClassName: "Math · Mon",
-			Passages:  []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "did well"}},
+			Class:    mathMon("Alice"),
+			Passages: []ExtractedPassage{{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "did well"}},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -492,9 +376,7 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 // voice_notes row. Before this, notes.transcript was the only copy, so a job that
 // created no note left the teacher's words nowhere.
 func TestProcessJob_PersistsTranscriptWithoutNotes(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
@@ -509,7 +391,7 @@ func TestProcessJob_PersistsTranscriptWithoutNotes(t *testing.T) {
 		transcriber: &stubTranscriber{result: "Nobody on the roster did anything"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{result: &ExtractResponse{
-			ClassName: "Math · Mon",
+			Class: mathMon("Alice"),
 			// A spoken name nobody answers to, and a block with no name at all:
 			// both ways to reach nobody, no note.
 			Passages: []ExtractedPassage{
@@ -518,7 +400,6 @@ func TestProcessJob_PersistsTranscriptWithoutNotes(t *testing.T) {
 			},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -666,7 +547,6 @@ func TestProcessJob_PersistsPastedText(t *testing.T) {
 		roster:        &stubRoster{},
 		extractor:     &stubExtractor{result: &ExtractResponse{}},
 		noteCreator:   &stubNoteCreator{},
-		studentRepo:   &StudentRepo{db: db},
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -684,22 +564,13 @@ func TestProcessJob_PersistsPastedText(t *testing.T) {
 	assert.Nil(t, got.PurgedAt, "a text job has no audio to purge")
 }
 
-// TestProcessJob_DropSitesOmitStudentName locks in ADR 0003: neither silent-drop
-// path may put a student name in the logs, because the log handler ships them to
-// Sentry. Asserting the records are still emitted keeps the test from passing
-// just because the paths never ran, and asserting on the name *value* rather
-// than on a field name also catches a name interpolated into a message.
+// TestProcessJob_DropSitesOmitStudentName locks in ADR 0003: the silent-drop
+// path may not put a student name in the logs, because the log handler ships
+// them to Sentry. Asserting the record is still emitted keeps the test from
+// passing just because the path never ran, and asserting on the name *value*
+// rather than on a field name also catches a name interpolated into a message.
 func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Quillon")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
@@ -712,41 +583,34 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{model: "test-model-v1", result: &ExtractResponse{
-			ClassName: "Math · Mon",
+			Class: mathMon("Alice"),
 			Passages: []ExtractedPassage{
 				{Kind: PassageChild, SpokenLabels: []string{"Alice"}, Student: "Alice", Summary: "ok"},
 				// Dropped: a name was spoken and nobody on the roster fits it. The
 				// spoken label is the teacher's word for a child and must not escape.
 				{Kind: PassageChild, SpokenLabels: []string{"Quillon"}, Student: "", Summary: "unsure"},
-				// Dropped: named a child the lookup cannot find.
-				{Kind: PassageChild, SpokenLabels: []string{"Zephyrine"}, Student: "Zephyrine", Summary: "vanished"},
 			},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
 	ctx, logs := captureLogs(context.Background())
 	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID)))
-	require.Len(t, nc.calls, 1, "note creator calls: both the unattributed and the off-roster passage should be dropped")
+	require.Len(t, nc.calls, 1, "note creator calls: the unattributed passage should be dropped")
 
 	out := logs.String()
-	// Both sites emit one shared message string, so a record is identified by its
-	// reason rather than by its message.
 	require.Contains(t, out, `"reason":"unattributed"`, "unattributed drop was not logged at all")
-	require.Contains(t, out, `"reason":"no_roster_match"`, "off-roster drop was not logged at all")
 
 	assert.NotContains(t, out, "Quillon", "unattributed drop leaked a spoken label into the logs")
-	assert.NotContains(t, out, "Zephyrine", "off-roster drop leaked a student name into the logs")
 
 	// key is fmt.Sprintf("%s/%d", userID, uploadID) (voice_note_job.go), so it is
 	// redundant with the user_id/upload_id fields beside it. It is asserted for
 	// field-set uniformity with the completion record, not because it is the only
 	// thing tying a drop to a teacher and an upload — it no longer is.
 	unattributed := logRecord(t, out, `"reason":"unattributed"`)
-	assert.Contains(t, unattributed, "process voice note: mention dropped", "both drop sites must share the stable query key")
+	assert.Contains(t, unattributed, "process voice note: mention dropped", "the stable query key")
 	assert.Contains(t, unattributed, `"key":"u1/1"`, "unattributed drop should carry the job key")
 	// By value, not just by key: kind separates a passage that spoke a name
 	// nobody answers to from one that spoke no name at all, which are different
@@ -755,28 +619,16 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 	// 0 is the ambiguous answer here, indistinguishable from logging the wrong
 	// expression, so assert the count by value.
 	assert.Contains(t, unattributed, `"label_count":1`, "unattributed drop should carry how many labels were spoken")
-	// The Change spec names user_id and upload_id explicitly, and class_name is here
-	// so both drop records carry an identical field set and aggregate cleanly. Locked
-	// by assertion so neither can be dropped as redundant-looking noise.
+	// The Change spec names user_id and upload_id explicitly, and class_name says
+	// which roster the recording was read against. Locked by assertion so none
+	// can be dropped as redundant-looking noise.
 	assert.Contains(t, unattributed, `"user_id":"u1"`, "unattributed drop should carry the user id")
 	assert.Contains(t, unattributed, `"upload_id":1`, "unattributed drop should carry the upload id")
-	assert.Contains(t, unattributed, `"class_name"`, "both drop records should carry the same field set")
+	assert.Contains(t, unattributed, `"class_name":"Math · Mon"`, "unattributed drop should keep the class the recording was pinned to")
 	// Model and prompt version turn a bare drop rate into a figure attributable to a
 	// specific model/prompt change (#96).
 	assert.Contains(t, unattributed, `"model":"test-model-v1"`, "unattributed drop should carry the model that produced the extraction")
 	assert.Contains(t, unattributed, promptHashAttr, "unattributed drop should carry the extraction prompt hash")
-
-	offRoster := logRecord(t, out, `"reason":"no_roster_match"`)
-	assert.Contains(t, offRoster, "process voice note: mention dropped", "both drop sites must share the stable query key")
-	assert.Contains(t, offRoster, `"key":"u1/1"`, "off-roster drop should carry the job key")
-	// By value: class_name is the diagnostic field for this reason, and it is
-	// now the class pass 1 pinned for the whole recording — an empty one would
-	// defeat the readout while still passing a presence check.
-	assert.Contains(t, offRoster, `"class_name":"Math · Mon"`, "off-roster drop should keep the class the recording was pinned to")
-	assert.Contains(t, offRoster, `"user_id":"u1"`, "off-roster drop should carry the user id")
-	assert.Contains(t, offRoster, `"upload_id":1`, "off-roster drop should carry the upload id")
-	assert.Contains(t, offRoster, `"model":"test-model-v1"`, "off-roster drop should carry the model that produced the extraction")
-	assert.Contains(t, offRoster, promptHashAttr, "off-roster drop should carry the extraction prompt hash")
 }
 
 // TestProcessJob_CompletionRecordCountsPassages covers the denominator half of the
@@ -788,16 +640,7 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 // counters that all happen to be 1 cannot catch a counter wired to the wrong
 // variable. The fixture is sized for that discrimination, not for realism.
 func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
-	_, err = studentRepo.Create(t.Context(), cls.ID, "Bram")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
@@ -810,7 +653,7 @@ func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
 		extractor: &stubExtractor{model: "test-model-v1", result: &ExtractResponse{
-			ClassName: "Math · Mon",
+			Class: mathMon("Alice", "Bram"),
 			Passages: []ExtractedPassage{
 				// 5 child passages. Alice's three fold into one note, so
 				// passages_child cannot be read as a note count.
@@ -836,7 +679,6 @@ func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
 			},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -855,9 +697,6 @@ func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
 	// Quillon's passage, Téo's, and the two unknowns. A group passage has no
 	// student because it belongs to every child, so it is not a drop.
 	assert.Contains(t, done, `"dropped_unattributed":4`, "a passage about one child that reached none of them is the drop")
-	// Both children are on the roster, so nothing fails the lookup: 0 has to be
-	// distinguishable from the counter never being wired.
-	assert.Contains(t, done, `"dropped_no_roster_match":0`)
 	// Model and prompt version turn the drop rate into a figure attributable to a
 	// specific model/prompt change (#96).
 	assert.Contains(t, done, `"model":"test-model-v1"`, "completion record should carry the model that produced the extraction")
@@ -869,12 +708,7 @@ func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
 // job completes with no notes and no drops. It is indistinguishable from a job
 // whose passages all reached nobody unless passages_total says so.
 func TestProcessJob_CompletionRecordNamesZeroPassageMode(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	newTestClass(t, classRepo, "test-group", "u1", "Math", "")
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "test.m4a")
@@ -887,7 +721,6 @@ func TestProcessJob_CompletionRecordNamesZeroPassageMode(t *testing.T) {
 		roster:        &stubRoster{},
 		extractor:     &stubExtractor{result: &ExtractResponse{}},
 		noteCreator:   &stubNoteCreator{},
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -900,7 +733,6 @@ func TestProcessJob_CompletionRecordNamesZeroPassageMode(t *testing.T) {
 	assert.Contains(t, done, `"passages_total":0`, "zero-passage mode is what passages_total:0 names")
 	assert.Contains(t, done, `"note_count":0`)
 	assert.Contains(t, done, `"dropped_unattributed":0`)
-	assert.Contains(t, done, `"dropped_no_roster_match":0`)
 	assert.NotContains(t, out, "mention dropped", "no passages means nothing to drop")
 }
 
@@ -930,100 +762,56 @@ func logRecord(t *testing.T, out, substr string) string {
 	return found[0]
 }
 
-// TestProcessJob_FailurePathsOmitStudentName covers the other half of ADR 0003:
-// the two fail() paths log at Error, and job_queue_mem re-logs the returned error
-// at Error too, so each one becomes a Sentry Issue rather than a log record. These
-// are the sites where the name used to be interpolated into the step string.
-func TestProcessJob_FailurePathsOmitStudentName(t *testing.T) {
-	newDeps := func(studentRepo *StudentRepo, voiceNoteRepo *VoiceNoteRepo, nc NoteCreator) *mockDepsAll {
-		return &mockDepsAll{
-			transcriber: &stubTranscriber{result: "transcript"},
-			roster:      &stubRoster{},
-			extractor: &stubExtractor{result: &ExtractResponse{
-				ClassName: "Math · Mon",
-				Passages: []ExtractedPassage{
-					{Kind: PassageChild, SpokenLabels: []string{"Zephyrine"}, Student: "Zephyrine", Summary: "ok"},
-				},
-			}},
-			noteCreator:   nc,
-			studentRepo:   studentRepo,
-			voiceNoteRepo: voiceNoteRepo,
-		}
+// TestProcessJob_NoteCreateFailureOmitsStudentName covers the other half of ADR
+// 0003: fail() logs at Error, and job_queue_mem re-logs the returned error at
+// Error too, so it becomes a Sentry Issue rather than a log record. This is the
+// site where the name used to be interpolated into the step string.
+func TestProcessJob_NoteCreateFailureOmitsStudentName(t *testing.T) {
+	nc := &stubNoteCreator{err: errors.New("note store unavailable")}
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
+	audioPath := newTestAudio(t)
+	uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
+	d := &mockDepsAll{
+		transcriber: &stubTranscriber{result: "transcript"},
+		roster:      &stubRoster{},
+		extractor: &stubExtractor{result: &ExtractResponse{
+			Class: mathMon("Zephyrine"),
+			Passages: []ExtractedPassage{
+				{Kind: PassageChild, SpokenLabels: []string{"Zephyrine"}, Student: "Zephyrine", Summary: "ok"},
+			},
+		}},
+		noteCreator:   nc,
+		voiceNoteRepo: voiceNoteRepo,
 	}
 
-	t.Run("student lookup fails", func(t *testing.T) {
-		db := setupTestDB(t)
-		classRepo := &ClassRepo{db: db}
-		cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-		_, err := (&StudentRepo{db: db}).Create(t.Context(), cls.ID, "Zephyrine")
-		require.NoError(t, err)
+	queue := newStubVoiceNoteQueue()
+	ctx, logs := captureLogs(context.Background())
+	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
 
-		// The voice note lives in its own DB so the transcript write still succeeds
-		// once the students DB is closed below.
-		voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
-		audioPath := newTestAudio(t)
-		uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
+	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID))
+	require.Error(t, err, "a failed note creation should fail the job")
+	require.Len(t, nc.calls, 1, "note creation should have been attempted")
 
-		d := newDeps(&StudentRepo{db: db}, voiceNoteRepo, &stubNoteCreator{})
-		// Close the DB so the lookup fails with something other than ErrNotFound,
-		// which is the branch that used to interpolate the name into the step.
-		require.NoError(t, db.Close())
+	out := logs.String()
+	require.Contains(t, out, "process voice note failed", "the failure was not logged at all")
+	// Every fail() in the pipeline shares that message, so pin the step: otherwise a
+	// fail() promoted earlier would keep this green while no longer covering this branch.
+	require.Contains(t, out, `"step":"create note for student 1"`, "a different fail() ran; this branch is no longer covered")
+	assert.NotContains(t, out, "Zephyrine", "failure step leaked a student name into the logs")
+	assert.NotContains(t, err.Error(), "Zephyrine", "returned error leaks the name, and job_queue_mem re-logs it")
 
-		queue := newStubVoiceNoteQueue()
-		ctx, logs := captureLogs(context.Background())
-		require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
+	// job.Error is the teacher's copy, not telemetry — it should still name the
+	// student, which is the whole point of splitting it from the logged step.
+	got, gerr := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
+	require.NoError(t, gerr)
+	assert.Contains(t, got.Error, "Zephyrine", "the teacher should still be told which student failed")
+	assert.NotContains(t, got.Error, "student 1", "the teacher should not be shown a raw student id")
+}
 
-		err = processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID))
-		require.Error(t, err, "a failed student lookup should fail the job")
-
-		out := logs.String()
-		require.Contains(t, out, "process voice note failed", "the failure was not logged at all")
-		// Every fail() in the pipeline shares that message, so pin the step: otherwise a
-		// fail() promoted earlier would keep this green while no longer covering this branch.
-		require.Contains(t, out, `"step":"find student"`, "a different fail() ran; this branch is no longer covered")
-		assert.NotContains(t, out, "Zephyrine", "failure step leaked a student name into the logs")
-		assert.NotContains(t, err.Error(), "Zephyrine", "returned error leaks the name, and job_queue_mem re-logs it")
-
-		// job.Error is the teacher's copy, not telemetry — it should still name the
-		// student, which is the whole point of splitting it from the logged step.
-		got, gerr := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
-		require.NoError(t, gerr)
-		assert.Contains(t, got.Error, "Zephyrine", "the teacher should still be told which student failed")
-	})
-
-	t.Run("note creation fails", func(t *testing.T) {
-		db := setupTestDB(t)
-		classRepo := &ClassRepo{db: db}
-		studentRepo := &StudentRepo{db: db}
-		cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-		_, err := studentRepo.Create(t.Context(), cls.ID, "Zephyrine")
-		require.NoError(t, err)
-
-		nc := &stubNoteCreator{err: errors.New("note store unavailable")}
-		voiceNoteRepo := &VoiceNoteRepo{db: db}
-		audioPath := newTestAudio(t)
-		uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
-		d := newDeps(studentRepo, voiceNoteRepo, nc)
-
-		queue := newStubVoiceNoteQueue()
-		ctx, logs := captureLogs(context.Background())
-		require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
-
-		err = processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID))
-		require.Error(t, err, "a failed note creation should fail the job")
-		require.Len(t, nc.calls, 1, "note creation should have been attempted")
-
-		out := logs.String()
-		require.Contains(t, out, "process voice note failed", "the failure was not logged at all")
-		require.Contains(t, out, `"step":"create note for student`, "a different fail() ran; this branch is no longer covered")
-		assert.NotContains(t, out, "Zephyrine", "failure step leaked a student name into the logs")
-		assert.NotContains(t, err.Error(), "Zephyrine", "returned error leaks the name, and job_queue_mem re-logs it")
-
-		got, gerr := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
-		require.NoError(t, gerr)
-		assert.Contains(t, got.Error, "Zephyrine", "the teacher should still be told which student failed")
-		assert.NotContains(t, got.Error, "student 1", "the teacher should not be shown a raw student id")
-	})
+// mathMon is the class the stub extractor pins: id 7, and roster ids 1, 2, 3…
+// in the order given.
+func mathMon(names ...string) *ClassGroup {
+	return &ClassGroup{ID: 7, Name: "Math · Mon", Students: rosterOf(names...)}
 }
 
 // newTestVoiceNote inserts the voice_notes row a job needs. processVoiceNote writes
@@ -1117,26 +905,22 @@ func TestProcessJob_NoNotesReasonAndClassName(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			db := setupTestDB(t)
-			studentRepo := &StudentRepo{db: db}
-			classRepo := &ClassRepo{db: db}
-			voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-			cls := newTestClass(t, classRepo, "test-group", "u1", "Math", "")
-			_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-			require.NoError(t, err)
+			voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 			audioPath := filepath.Join(t.TempDir(), "test.m4a")
 			require.NoError(t, os.WriteFile(audioPath, []byte("audio"), 0o644))
 			uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
 
+			var class *ClassGroup
+			if tc.pass1Class != "" {
+				class = mathMon("Alice")
+			}
 			queue := newStubVoiceNoteQueue()
 			d := &mockDepsAll{
 				transcriber:   &stubTranscriber{result: "transcript"},
-				roster:        &stubRoster{students: []ClassGroup{{ID: 7, Name: "Math · Mon", Students: []ClassStudent{{Name: "Alice"}}}}},
-				extractor:     &stubExtractor{result: &ExtractResponse{ClassName: tc.pass1Class, Passages: tc.passages}},
+				roster:        &stubRoster{},
+				extractor:     &stubExtractor{result: &ExtractResponse{Class: class, Passages: tc.passages}},
 				noteCreator:   &stubNoteCreator{},
-				studentRepo:   studentRepo,
 				voiceNoteRepo: voiceNoteRepo,
 			}
 

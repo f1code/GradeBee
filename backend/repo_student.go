@@ -296,29 +296,6 @@ func (r *StudentRepo) Delete(ctx context.Context, id int64) error {
 	return rowsAffectedOrNotFound(res)
 }
 
-// FindByNameAndClass looks up a student by canonical name OR alias (case-insensitive)
-// for a given class name and user. Returns the student ID or ErrNotFound.
-func (r *StudentRepo) FindByNameAndClass(ctx context.Context, name, className, userID string) (int64, error) {
-	var id int64
-	err := r.db.QueryRowContext(ctx, `
-		SELECT s.id FROM students s
-		JOIN classes c ON s.class_id = c.id
-		JOIN levels l ON l.id = c.level_id
-		LEFT JOIN student_aliases sa ON sa.student_id = s.id
-		WHERE `+classDisplayNameSQL+` = ?
-		  AND c.user_id = ?
-		  AND (s.name = ? COLLATE NOCASE OR sa.alias = ? COLLATE NOCASE)
-		LIMIT 1`,
-		className, userID, name, name).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, ErrNotFound
-	}
-	if err != nil {
-		return 0, fmt.Errorf("find student by name and class: %w", err)
-	}
-	return id, nil
-}
-
 // BelongsToUser checks if a student belongs to a class owned by the given user.
 func (r *StudentRepo) BelongsToUser(ctx context.Context, studentID int64, userID string) (bool, error) {
 	var exists int

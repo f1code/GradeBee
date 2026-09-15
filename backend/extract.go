@@ -57,8 +57,10 @@ type ExtractRequest struct {
 // ExtractResponse is the structured output from extraction: the class pass 1
 // pinned, and the passages pass 2 cut the transcript into.
 type ExtractResponse struct {
-	ClassName string
-	Passages  []ExtractedPassage
+	// Class is the pinned class, roster and all, so the caller files notes
+	// against it without a second roster lookup. nil is the decline.
+	Class    *ClassGroup
+	Passages []ExtractedPassage
 }
 
 // ExtractedPassage is one stretch of the recording as pass 2 read it.
@@ -103,9 +105,9 @@ func (e *llmExtractor) Model() string {
 
 // Extract runs both passes and returns the guarded passages.
 //
-// An empty ClassName on the way out means the class was not pinned, and the
-// caller puts the class picker on the card. Two paths reach it: pass 1 declined,
-// and the teacher has no classes at all.
+// A nil Class on the way out means the class was not pinned, and the caller
+// puts the class picker on the card. Two paths reach it: pass 1 declined, and
+// the teacher has no classes at all.
 //
 // A roster read that returned nothing short-circuits: there is no class to pin
 // and no child to reach, and an enum of no values is not a schema the provider
@@ -126,9 +128,8 @@ func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 	if className == "" {
 		// The decline. The header was missing, or it named more than one class,
 		// and the prompt tells the model to say so rather than guess. No pass 2:
-		// there is no roster to run it against. The caller reads the empty class
-		// name and puts the class picker on the card
-		// (voice_note_process.go).
+		// there is no roster to run it against. The caller reads the nil class
+		// and puts the class picker on the card (voice_note_process.go).
 		return &ExtractResponse{}, nil
 	}
 
@@ -144,7 +145,7 @@ func (e *llmExtractor) Extract(ctx context.Context, req ExtractRequest) (*Extrac
 	if err != nil {
 		return nil, err
 	}
-	return &ExtractResponse{ClassName: class.Name, Passages: passages}, nil
+	return &ExtractResponse{Class: &class, Passages: passages}, nil
 }
 
 // pickClass runs pass 1: the class the recording is about, "" for a decline,
