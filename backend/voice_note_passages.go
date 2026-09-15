@@ -94,11 +94,11 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 		group = nil
 	}
 
-	// Folded like reached and absent below, so a provider that drifts on
-	// case or accent still files to the right row.
+	// Exact, not folded: pass 2's schema is a strict enum of these spellings,
+	// and "Léa" and "Lea" are two rows the students index allows in one class.
 	ids := make(map[string]int64, len(roster))
 	for _, s := range roster {
-		ids[foldName(s.Name)] = s.ID
+		ids[s.Name] = s.ID
 	}
 	notes := make([]assembledNote, 0, len(names))
 	reached := map[string]bool{}
@@ -109,7 +109,7 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 			g = nil
 		}
 		notes = append(notes, assembledNote{
-			StudentID: ids[foldName(name)],
+			StudentID: ids[name],
 			Name:      name,
 			Summary:   joinPassageText(own[name], g),
 			Passages:  len(own[name]) + len(g),
