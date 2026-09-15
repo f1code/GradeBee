@@ -94,9 +94,11 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 		group = nil
 	}
 
+	// Folded like reached and absent below, so a provider that drifts on
+	// case or accent still files to the right row.
 	ids := make(map[string]int64, len(roster))
 	for _, s := range roster {
-		ids[s.Name] = s.ID
+		ids[foldName(s.Name)] = s.ID
 	}
 	notes := make([]assembledNote, 0, len(names))
 	reached := map[string]bool{}
@@ -107,7 +109,7 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 			g = nil
 		}
 		notes = append(notes, assembledNote{
-			StudentID: ids[name],
+			StudentID: ids[foldName(name)],
 			Name:      name,
 			Summary:   joinPassageText(own[name], g),
 			Passages:  len(own[name]) + len(g),

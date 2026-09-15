@@ -359,7 +359,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `voice_note_drive_import.go` | POST /voice-notes/drive-import — download from Drive → disk + voice_notes table + dispatch job |
 | `google_token.go` | GET /google-token — return user's Google OAuth access token |
 | `extract.go` | `Extractor` interface + `llmExtractor`: both extraction passes, their schemas, and the pronoun guard |
-| `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers |
+| `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers; `fileNotes` + `recording`, the one note-filing loop the pipeline and the class picker share |
 | `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output) |
 | `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections: the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers. Both generation endpoints pre-flight-resolve every selected student's Class → Level and refuse the whole request with `400` (naming the offending Levels) if any Level's `report_instructions` is trimmed-empty — no report row created, no LLM call made. |
