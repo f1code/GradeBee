@@ -17,10 +17,8 @@ providers:
     label: gradebee-report-1
   - id: mistral:mistral-small-2603
     label: gradebee-report-3
-  - id: openai:chat:gpt-5.4-mini
+  - id: openai:chat:gpt-5.6-luna
     label: gradebee-report-openai
-    config:
-      reasoning_effort: 'high'
   - id: mistral:mistral-small-2603
     label: gradebee-report-4
     config:
