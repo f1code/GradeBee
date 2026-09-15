@@ -246,7 +246,9 @@ func TestAssembleNotes_RescuesARecordingFiledToTheSiblingClass(t *testing.T) {
 	assert.False(t, resp.CanPickClass, "the recording is filed; there is nothing left to pick")
 	require.Len(t, resp.NoteLinks, 2)
 	assert.Equal(t, "Alice", resp.NoteLinks[0].Name)
+	assert.Equal(t, w.alice, resp.NoteLinks[0].StudentID, "filed to the picked roster's row")
 	assert.Equal(t, "Bob", resp.NoteLinks[1].Name)
+	assert.Equal(t, w.bob, resp.NoteLinks[1].StudentID)
 
 	// The passages come back saying who each one reached, so the card can stop
 	// offering the picker.
