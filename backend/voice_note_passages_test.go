@@ -160,6 +160,20 @@ func TestAssemblePassages_OffRosterNameAsUnknownIsNotSuppressed(t *testing.T) {
 	assert.Empty(t, noNotesReason(len(notes), passages))
 }
 
+// Two children whose names differ only by an accent are two rows, and the
+// students index allows them in one class. Each passage files to its own row.
+func TestAssemblePassages_AccentSiblingsFileToTheirOwnRow(t *testing.T) {
+	notes, _ := assemblePassages([]ExtractedPassage{
+		child("Léa", "Léa", "She read well."),
+		child("Lea", "Lea", "She sang."),
+	}, rosterOf("Léa", "Lea"))
+
+	assert.Equal(t, []assembledNote{
+		{StudentID: 1, Name: "Léa", Summary: "She read well.", Passages: 1},
+		{StudentID: 2, Name: "Lea", Summary: "She sang.", Passages: 1},
+	}, notes)
+}
+
 // Without a group passage the roster changes nothing: children never mentioned
 // get no note.
 func TestAssemblePassages_NoGroupPassageLeavesTheRosterAlone(t *testing.T) {
