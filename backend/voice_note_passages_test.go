@@ -174,6 +174,20 @@ func TestAssemblePassages_AccentSiblingsFileToTheirOwnRow(t *testing.T) {
 	}, notes)
 }
 
+// The same pair through group fan-out: naming one twin must not mark the other
+// reached, and one twin absent must not strip the other's group text.
+func TestAssemblePassages_AccentSiblingsAreDistinctOnFanOut(t *testing.T) {
+	notes, _ := assemblePassages([]ExtractedPassage{
+		absentChild("Léa", "Léa was away."),
+		{Kind: PassageGroup, Summary: "Everyone sang."},
+	}, rosterOf("Léa", "Lea"))
+
+	assert.Equal(t, []assembledNote{
+		{StudentID: 1, Name: "Léa", Summary: "Léa was away.", Passages: 1},
+		{StudentID: 2, Name: "Lea", Summary: "Everyone sang.", Passages: 1},
+	}, notes)
+}
+
 // Without a group passage the roster changes nothing: children never mentioned
 // get no note.
 func TestAssemblePassages_NoGroupPassageLeavesTheRosterAlone(t *testing.T) {
