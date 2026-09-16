@@ -72,10 +72,7 @@ func (r *NoteRepo) GetByID(ctx context.Context, id int64) (Note, error) {
 // Create inserts a new note. The ID, CreatedAt, and UpdatedAt fields of the
 // passed Note are populated on return.
 func (r *NoteRepo) Create(ctx context.Context, n *Note) error {
-	if err := insertNote(ctx, r.db, n); err != nil {
-		return fmt.Errorf("create note: %w", err)
-	}
-	return nil
+	return r.CreateAll(ctx, []*Note{n})
 }
 
 // CreateAll inserts every note or none: one transaction, rolled back on the
@@ -97,20 +94,13 @@ func (r *NoteRepo) CreateAll(ctx context.Context, notes []*Note) error {
 	return nil
 }
 
-// queryRower is what insertNote needs from *sql.DB or *sql.Tx.
-type queryRower interface {
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-func insertNote(ctx context.Context, q queryRower, n *Note) error {
-	err := q.QueryRowContext(ctx, `
+func insertNote(ctx context.Context, tx *sql.Tx, n *Note) error {
+	return tx.QueryRowContext(ctx, `
 		INSERT INTO notes (student_id, date, summary, transcript, source, model_version, prompt_hash, trace_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at, updated_at`,
 		n.StudentID, n.Date, n.Summary, n.Transcript, n.Source, n.ModelVersion, n.PromptHash, n.TraceID,
 	).Scan(&n.ID, &n.CreatedAt, &n.UpdatedAt)
-	// Bare: Create and CreateAll each name the operation once.
-	return err
 }
 
 // Update changes a note's summary and sets updated_at.

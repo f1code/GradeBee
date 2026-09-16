@@ -29,7 +29,7 @@ func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
 
 	uploadID := newTestVoiceNote(t, voiceNoteRepo, "user1", audioPath)
 	queue := newStubVoiceNoteQueue()
-	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
+	nc := &stubNoteCreator{ids: []int64{1}}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did great today."},
 		roster:      &stubRoster{classNames: []string{"Math"}},

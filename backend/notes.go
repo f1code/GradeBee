@@ -40,7 +40,6 @@ func isModelWritten(source string) bool {
 
 // NoteCreator creates notes in the database.
 type NoteCreator interface {
-	CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error)
 	// CreateNotes files every request or none and returns the ids in order.
 	// A refused note comes back as a *createNotesError.
 	CreateNotes(ctx context.Context, reqs []CreateNoteRequest) ([]int64, error)
@@ -77,11 +76,6 @@ type CreateNoteRequest struct {
 	TraceID string
 }
 
-// CreateNoteResponse contains the created note info.
-type CreateNoteResponse struct {
-	NoteID int64 `json:"noteId"`
-}
-
 // dbNoteCreator creates notes in the SQLite database.
 type dbNoteCreator struct {
 	noteRepo *NoteRepo
@@ -89,14 +83,6 @@ type dbNoteCreator struct {
 
 func newDBNoteCreator(nr *NoteRepo) *dbNoteCreator {
 	return &dbNoteCreator{noteRepo: nr}
-}
-
-func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
-	n := noteFromRequest(req)
-	if err := c.noteRepo.Create(ctx, n); err != nil {
-		return nil, err
-	}
-	return &CreateNoteResponse{NoteID: n.ID}, nil
 }
 
 func (c *dbNoteCreator) CreateNotes(ctx context.Context, reqs []CreateNoteRequest) ([]int64, error) {
@@ -363,9 +349,6 @@ type recording struct {
 // fileNotes files a recording's notes in one transaction and returns their
 // links, in order. The pipeline and the class picker both file through here so
 // a note reads the same whichever route made it.
-//
-// One refused insert writes nothing, and the error is a *createNotesError
-// naming it by index. The error names nobody.
 func fileNotes(ctx context.Context, nc NoteCreator, rec recording, notes []assembledNote, source string) ([]NoteLink, error) {
 	reqs := make([]CreateNoteRequest, len(notes))
 	for i, n := range notes {
