@@ -22,9 +22,8 @@ import (
 	"time"
 )
 
-// assemblePass2Timeout bounds the model call. Not the handler: a whole-handler
-// deadline would cancel the note loop mid-write and newly cause the partial
-// write this path only inherits.
+// assemblePass2Timeout bounds the model call, which is the only slow step: the
+// filing after it is one short transaction, so a deadline there buys nothing.
 //
 // llmChatTimeout is 120s, which is past any teacher's patience behind a
 // spinner. 30s turns a hung provider into "try again" rather than a card that
