@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 )
@@ -40,7 +41,24 @@ func isModelWritten(source string) bool {
 // NoteCreator creates notes in the database.
 type NoteCreator interface {
 	CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error)
+	// CreateNotes files every request or none and returns the ids in order.
+	// A refused note comes back as a *createNotesError.
+	CreateNotes(ctx context.Context, reqs []CreateNoteRequest) ([]int64, error)
 }
+
+// createNotesError names the note a CreateNotes batch failed on, by index and
+// student id. Never the name: the pipeline logs this error (docs/adr/0003).
+type createNotesError struct {
+	Index     int
+	StudentID int64
+	Err       error
+}
+
+func (e *createNotesError) Error() string {
+	return fmt.Sprintf("create note %d for student %d: %v", e.Index, e.StudentID, e.Err)
+}
+
+func (e *createNotesError) Unwrap() error { return e.Err }
 
 // CreateNoteRequest is the input for creating a single student note.
 type CreateNoteRequest struct {
@@ -74,6 +92,29 @@ func newDBNoteCreator(nr *NoteRepo) *dbNoteCreator {
 }
 
 func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
+	n := noteFromRequest(req)
+	if err := c.noteRepo.Create(ctx, n); err != nil {
+		return nil, err
+	}
+	return &CreateNoteResponse{NoteID: n.ID}, nil
+}
+
+func (c *dbNoteCreator) CreateNotes(ctx context.Context, reqs []CreateNoteRequest) ([]int64, error) {
+	notes := make([]*Note, len(reqs))
+	for i, req := range reqs {
+		notes[i] = noteFromRequest(req)
+	}
+	if err := c.noteRepo.CreateAll(ctx, notes); err != nil {
+		return nil, err
+	}
+	ids := make([]int64, len(notes))
+	for i, n := range notes {
+		ids[i] = n.ID
+	}
+	return ids, nil
+}
+
+func noteFromRequest(req CreateNoteRequest) *Note {
 	promptHash := ExtractionPromptHash
 	source := req.Source
 	if source == "" {
@@ -95,10 +136,7 @@ func (c *dbNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (
 	if req.TraceID != "" {
 		n.TraceID = &req.TraceID
 	}
-	if err := c.noteRepo.Create(ctx, n); err != nil {
-		return nil, err
-	}
-	return &CreateNoteResponse{NoteID: n.ID}, nil
+	return n
 }
 
 // --- Note CRUD handlers ---
@@ -322,16 +360,16 @@ type recording struct {
 	TraceID      string
 }
 
-// fileNotes creates one note per assembled note, in order, and returns their
-// links. The pipeline and the class picker both file through here so a note
-// reads the same whichever route made it.
+// fileNotes files a recording's notes in one transaction and returns their
+// links, in order. The pipeline and the class picker both file through here so
+// a note reads the same whichever route made it.
 //
-// On error the links returned are the notes filed before the failure, so
-// notes[len(links)] is the one that failed. The error itself names nobody.
+// One refused insert writes nothing, and the error is a *createNotesError
+// naming it by index. The error names nobody.
 func fileNotes(ctx context.Context, nc NoteCreator, rec recording, notes []assembledNote, source string) ([]NoteLink, error) {
-	links := make([]NoteLink, 0, len(notes))
-	for _, n := range notes {
-		result, err := nc.CreateNote(ctx, CreateNoteRequest{
+	reqs := make([]CreateNoteRequest, len(notes))
+	for i, n := range notes {
+		reqs[i] = CreateNoteRequest{
 			StudentID:    n.StudentID,
 			StudentName:  n.Name,
 			QuotedText:   n.Summary,
@@ -340,14 +378,18 @@ func fileNotes(ctx context.Context, nc NoteCreator, rec recording, notes []assem
 			ModelVersion: rec.ModelVersion,
 			Source:       source,
 			TraceID:      rec.TraceID,
-		})
-		if err != nil {
-			return links, err
 		}
-		links = append(links, NoteLink{
-			Name: n.Name, NoteID: result.NoteID,
+	}
+	ids, err := nc.CreateNotes(ctx, reqs)
+	if err != nil {
+		return nil, err
+	}
+	links := make([]NoteLink, len(notes))
+	for i, n := range notes {
+		links[i] = NoteLink{
+			Name: n.Name, NoteID: ids[i],
 			StudentID: n.StudentID, ClassName: rec.ClassName,
-		})
+		}
 	}
 	return links, nil
 }

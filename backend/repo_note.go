@@ -72,7 +72,35 @@ func (r *NoteRepo) GetByID(ctx context.Context, id int64) (Note, error) {
 // Create inserts a new note. The ID, CreatedAt, and UpdatedAt fields of the
 // passed Note are populated on return.
 func (r *NoteRepo) Create(ctx context.Context, n *Note) error {
-	err := r.db.QueryRowContext(ctx, `
+	return insertNote(ctx, r.db, n)
+}
+
+// CreateAll inserts every note or none: one transaction, rolled back on the
+// first refused insert, which comes back as a *createNotesError.
+func (r *NoteRepo) CreateAll(ctx context.Context, notes []*Note) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+	for i, n := range notes {
+		if err := insertNote(ctx, tx, n); err != nil {
+			return &createNotesError{Index: i, StudentID: n.StudentID, Err: err}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+	return nil
+}
+
+// queryRower is what insertNote needs from *sql.DB or *sql.Tx.
+type queryRower interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func insertNote(ctx context.Context, q queryRower, n *Note) error {
+	err := q.QueryRowContext(ctx, `
 		INSERT INTO notes (student_id, date, summary, transcript, source, model_version, prompt_hash, trace_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at, updated_at`,

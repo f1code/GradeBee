@@ -213,8 +213,31 @@ func (s *stubExtractor) Model() string {
 type stubNoteCreator struct {
 	results []*CreateNoteResponse // returned in order
 	err     error
-	calls   []CreateNoteRequest // recorded calls
+	// failAt is the index CreateNotes refuses with err; the batch is still
+	// recorded whole.
+	failAt  int
+	calls   []CreateNoteRequest // recorded calls, batches flattened
+	batches int                 // CreateNotes calls
 	idx     int
+}
+
+func (s *stubNoteCreator) CreateNotes(_ context.Context, reqs []CreateNoteRequest) ([]int64, error) {
+	s.batches++
+	s.calls = append(s.calls, reqs...)
+	if s.err != nil {
+		// Out-of-range failAt panics: a test set it wrong, and a silent
+		// success would pass for the wrong reason.
+		return nil, &createNotesError{Index: s.failAt, StudentID: reqs[s.failAt].StudentID, Err: s.err}
+	}
+	ids := make([]int64, len(reqs))
+	for i := range reqs {
+		ids[i] = 1
+		if s.idx < len(s.results) {
+			ids[i] = s.results[s.idx].NoteID
+			s.idx++
+		}
+	}
+	return ids, nil
 }
 
 func (s *stubNoteCreator) CreateNote(_ context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {

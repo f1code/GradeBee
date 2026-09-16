@@ -277,6 +277,8 @@ func handleAssembleNotes(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, r, err)
 		return
 	}
+	// Logged after a clean return: filing is one transaction, so there is no
+	// partial success to record.
 	for _, n := range notes {
 		// One record per recovered note, keyed on the exact string
 		// "process voice note: passage recovered" — the Sentry readout filters

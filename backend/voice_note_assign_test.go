@@ -68,13 +68,22 @@ type gatedNoteCreator struct {
 }
 
 func (g *gatedNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
+	g.wait()
+	return g.inner.CreateNote(ctx, req)
+}
+
+func (g *gatedNoteCreator) CreateNotes(ctx context.Context, reqs []CreateNoteRequest) ([]int64, error) {
+	g.wait()
+	return g.inner.CreateNotes(ctx, reqs)
+}
+
+func (g *gatedNoteCreator) wait() {
 	select {
 	case <-g.entered:
 	default:
 		close(g.entered)
 	}
 	<-g.gate
-	return g.inner.CreateNote(ctx, req)
 }
 
 // pipelineNoteFor is the note the pipeline made for a child on this recording,

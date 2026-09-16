@@ -766,46 +766,66 @@ func logRecord(t *testing.T, out, substr string) string {
 // 0003: fail() logs at Error, and job_queue_mem re-logs the returned error at
 // Error too, so it becomes a Sentry Issue rather than a log record. This is the
 // site where the name used to be interpolated into the step string.
+//
+// The mid-list case is the child deleted between the roster read and the
+// insert: the batch fails on the second child, the job fails, and only the
+// teacher's copy says who.
 func TestProcessJob_NoteCreateFailureOmitsStudentName(t *testing.T) {
-	nc := &stubNoteCreator{err: errors.New("note store unavailable")}
-	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
-	audioPath := newTestAudio(t)
-	uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
-	d := &mockDepsAll{
-		transcriber: &stubTranscriber{result: "transcript"},
-		roster:      &stubRoster{},
-		extractor: &stubExtractor{result: &ExtractResponse{
-			Class: mathMon("Zephyrine"),
-			Passages: []ExtractedPassage{
-				{Kind: PassageChild, SpokenLabels: []string{"Zephyrine"}, Student: "Zephyrine", Summary: "ok"},
-			},
-		}},
-		noteCreator:   nc,
-		voiceNoteRepo: voiceNoteRepo,
+	for _, tc := range []struct {
+		name   string
+		roster []string
+		failAt int
+	}{
+		{"first", []string{"Zephyrine"}, 0},
+		{"mid-list", []string{"Zephyrine", "Bartholomew"}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			nc := &stubNoteCreator{err: errors.New("note store unavailable"), failAt: tc.failAt}
+			voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
+			audioPath := newTestAudio(t)
+			uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
+			var passages []ExtractedPassage
+			for _, name := range tc.roster {
+				passages = append(passages, ExtractedPassage{Kind: PassageChild, SpokenLabels: []string{name}, Student: name, Summary: "ok"})
+			}
+			d := &mockDepsAll{
+				transcriber:   &stubTranscriber{result: "transcript"},
+				roster:        &stubRoster{},
+				extractor:     &stubExtractor{result: &ExtractResponse{Class: mathMon(tc.roster...), Passages: passages}},
+				noteCreator:   nc,
+				voiceNoteRepo: voiceNoteRepo,
+			}
+
+			queue := newStubVoiceNoteQueue()
+			ctx, logs := captureLogs(context.Background())
+			require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
+
+			err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID))
+			require.Error(t, err, "a failed note creation should fail the job")
+			require.Equal(t, 1, nc.batches, "the whole batch should reach the creator in one call")
+			require.Len(t, nc.calls, len(tc.roster))
+
+			failed := tc.roster[tc.failAt]
+			out := logs.String()
+			require.Contains(t, out, "process voice note failed", "the failure was not logged at all")
+			// Every fail() in the pipeline shares that message, so pin the step: otherwise a
+			// fail() promoted earlier would keep this green while no longer covering this branch.
+			require.Contains(t, out, fmt.Sprintf(`"step":"create note for student %d"`, tc.failAt+1), "a different fail() ran; this branch is no longer covered")
+			for _, name := range tc.roster {
+				assert.NotContains(t, out, name, "failure step leaked a student name into the logs")
+				assert.NotContains(t, err.Error(), name, "returned error leaks the name, and job_queue_mem re-logs it")
+			}
+
+			// job.Error is the teacher's copy, not telemetry — it should still name the
+			// student, which is the whole point of splitting it from the logged step.
+			got, gerr := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
+			require.NoError(t, gerr)
+			assert.Equal(t, JobStatusFailed, got.Status)
+			assert.Empty(t, got.NoteLinks, "nothing was filed, so nothing to link")
+			assert.Contains(t, got.Error, failed, "the teacher should still be told which student failed")
+			assert.NotContains(t, got.Error, fmt.Sprintf("student %d", tc.failAt+1), "the teacher should not be shown a raw student id")
+		})
 	}
-
-	queue := newStubVoiceNoteQueue()
-	ctx, logs := captureLogs(context.Background())
-	require.NoError(t, queue.Publish(ctx, VoiceNoteJob{UserID: "u1", UploadID: uploadID, FilePath: audioPath, Status: JobStatusQueued, CreatedAt: time.Now()}))
-
-	err := processVoiceNote(ctx, d, queue, voiceNoteKey("u1", uploadID))
-	require.Error(t, err, "a failed note creation should fail the job")
-	require.Len(t, nc.calls, 1, "note creation should have been attempted")
-
-	out := logs.String()
-	require.Contains(t, out, "process voice note failed", "the failure was not logged at all")
-	// Every fail() in the pipeline shares that message, so pin the step: otherwise a
-	// fail() promoted earlier would keep this green while no longer covering this branch.
-	require.Contains(t, out, `"step":"create note for student 1"`, "a different fail() ran; this branch is no longer covered")
-	assert.NotContains(t, out, "Zephyrine", "failure step leaked a student name into the logs")
-	assert.NotContains(t, err.Error(), "Zephyrine", "returned error leaks the name, and job_queue_mem re-logs it")
-
-	// job.Error is the teacher's copy, not telemetry — it should still name the
-	// student, which is the whole point of splitting it from the logged step.
-	got, gerr := queue.GetJob(ctx, voiceNoteKey("u1", uploadID))
-	require.NoError(t, gerr)
-	assert.Contains(t, got.Error, "Zephyrine", "the teacher should still be told which student failed")
-	assert.NotContains(t, got.Error, "student 1", "the teacher should not be shown a raw student id")
 }
 
 // mathMon is the class the stub extractor pins: id 7, and roster ids 1, 2, 3…
