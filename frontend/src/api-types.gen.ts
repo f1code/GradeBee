@@ -310,12 +310,6 @@ export interface CreateNoteRequest {
   TraceID: string;
 }
 /**
- * CreateNoteResponse contains the created note info.
- */
-export interface CreateNoteResponse {
-  noteId: number /* int64 */;
-}
-/**
  * ListNotesResponse is the JSON envelope for handleListNotes.
  */
 export interface ListNotesResponse {
