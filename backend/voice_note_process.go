@@ -251,14 +251,19 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		TraceID:      job.TraceID,
 	}, notes, NoteSourceAuto)
 	if err != nil {
-		// The links cover the notes filed before the failure, so the next one
-		// is the one that failed. The step carries its id and the teacher's
-		// message its name (docs/adr/0003).
-		n := notes[len(noteLinks)]
-		return failWith(
-			fmt.Sprintf("create note for student %d", n.StudentID),
-			"create note for "+n.Name,
-			err)
+		// Nothing was written. A refused note names itself by index: the step
+		// carries its id and the teacher's message its name (docs/adr/0003),
+		// over the cause rather than the typed error, which spells the id out.
+		// A transaction that failed to open or commit names no note.
+		var refused *createNotesError
+		if errors.As(err, &refused) {
+			n := notes[refused.Index]
+			return failJob(
+				fmt.Sprintf("create note for student %d", n.StudentID),
+				fmt.Sprintf("create note for %s: %s", n.Name, refused.Err),
+				err)
+		}
+		return fail("create notes", err)
 	}
 
 	// --- Done ---
