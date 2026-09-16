@@ -26,10 +26,7 @@ func TestProcessJob_HappyPath(t *testing.T) {
 	uploadID := newTestVoiceNote(t, voiceNoteRepo, "user1", audioPath)
 	queue := newStubVoiceNoteQueue()
 	nc := &stubNoteCreator{
-		results: []*CreateNoteResponse{
-			{NoteID: 1},
-			{NoteID: 2},
-		},
+		ids: []int64{1, 2},
 	}
 	transcriber := &stubTranscriber{result: "Alice did great today. Bob needs improvement."}
 	d := &mockDepsAll{
@@ -248,7 +245,7 @@ func TestProcessJob_GroupPassageReachesTheWholeRoster(t *testing.T) {
 
 	uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
 	queue := newStubVoiceNoteQueue()
-	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}, {NoteID: 2}}}
+	nc := &stubNoteCreator{ids: []int64{1, 2}}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "some transcript"},
 		roster:      &stubRoster{},
@@ -294,7 +291,7 @@ func TestProcessJob_QuotedTextPassedToNoteCreator(t *testing.T) {
 
 	uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
 	queue := newStubVoiceNoteQueue()
-	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
+	nc := &stubNoteCreator{ids: []int64{1}}
 
 	rawQuote := "Alice was impossibly good today - she blew my mind with her presentation"
 
@@ -336,7 +333,7 @@ func TestProcessJob_DeletesAudioAfterTranscription(t *testing.T) {
 	require.NoError(t, err)
 
 	queue := newStubVoiceNoteQueue()
-	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
+	nc := &stubNoteCreator{ids: []int64{1}}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did well"},
 		roster:      &stubRoster{classNames: []string{"Math"}},
@@ -578,7 +575,7 @@ func TestProcessJob_DropSitesOmitStudentName(t *testing.T) {
 
 	uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
 	queue := newStubVoiceNoteQueue()
-	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
+	nc := &stubNoteCreator{ids: []int64{1}}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},
@@ -648,7 +645,7 @@ func TestProcessJob_CompletionRecordCountsPassages(t *testing.T) {
 
 	uploadID := newTestVoiceNote(t, voiceNoteRepo, "u1", audioPath)
 	queue := newStubVoiceNoteQueue()
-	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}, {NoteID: 2}}}
+	nc := &stubNoteCreator{ids: []int64{1, 2}}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "transcript"},
 		roster:      &stubRoster{},

@@ -310,7 +310,7 @@ func handleAssignPassages(w http.ResponseWriter, r *http.Request) {
 		// The extractor's model, as the pipeline and assemble stamp it: it
 		// produced the words, it only missed the assignment. The job carries
 		// no version, and the window for a mismatch is the card's lifetime.
-		result, err := serviceDeps.GetNoteCreator().CreateNote(r.Context(), CreateNoteRequest{
+		ids, err := serviceDeps.GetNoteCreator().CreateNotes(r.Context(), []CreateNoteRequest{{
 			StudentID:    student.ID,
 			StudentName:  student.Name,
 			QuotedText:   joinPassageText(own, group),
@@ -319,12 +319,12 @@ func handleAssignPassages(w http.ResponseWriter, r *http.Request) {
 			ModelVersion: extractor.Model(),
 			Source:       NoteSourceAssigned,
 			TraceID:      row.TraceID,
-		})
+		}})
 		if err != nil {
 			writeInternalError(w, r, err)
 			return
 		}
-		link = NoteLink{Name: student.Name, NoteID: result.NoteID, StudentID: student.ID, ClassName: class.Name}
+		link = NoteLink{Name: student.Name, NoteID: ids[0], StudentID: student.ID, ClassName: class.Name}
 
 		// The link goes on the queued job, as assemble writes its links at
 		// the end of its handler. Nothing else on the job moves. An append

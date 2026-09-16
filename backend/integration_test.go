@@ -30,10 +30,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	uploadID := newTestVoiceNote(t, voiceNoteRepo, "int-user", audioPath)
 	queue := newTestQueue(t)
 	nc := &stubNoteCreator{
-		results: []*CreateNoteResponse{
-			{NoteID: 1},
-			{NoteID: 2},
-		},
+		ids: []int64{1, 2},
 	}
 
 	d := &mockDepsAll{

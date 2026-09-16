@@ -29,10 +29,8 @@ func captureLogs(ctx context.Context) (context.Context, *bytes.Buffer) {
 
 // stubRoster implements Roster for tests.
 type stubRoster struct {
-	classNames  []string
-	classErr    error
-	students    []ClassGroup
-	studentsErr error
+	classNames []string
+	classErr   error
 }
 
 func (s *stubRoster) ClassNames(_ context.Context) ([]string, error) {
@@ -40,7 +38,7 @@ func (s *stubRoster) ClassNames(_ context.Context) ([]string, error) {
 }
 
 func (s *stubRoster) Students(_ context.Context) ([]ClassGroup, error) {
-	return s.students, s.studentsErr
+	return nil, nil
 }
 
 // stubTranscriber implements Transcriber for tests.
@@ -211,7 +209,7 @@ func (s *stubExtractor) Model() string {
 
 // stubNoteCreator implements NoteCreator for tests.
 type stubNoteCreator struct {
-	results []*CreateNoteResponse // returned in order
+	ids []int64 // returned in order
 	err     error
 	// failAt is the index CreateNotes refuses with err; the batch is still
 	// recorded whole.
@@ -232,25 +230,12 @@ func (s *stubNoteCreator) CreateNotes(_ context.Context, reqs []CreateNoteReques
 	ids := make([]int64, len(reqs))
 	for i := range reqs {
 		ids[i] = 1
-		if s.idx < len(s.results) {
-			ids[i] = s.results[s.idx].NoteID
+		if s.idx < len(s.ids) {
+			ids[i] = s.ids[s.idx]
 			s.idx++
 		}
 	}
 	return ids, nil
-}
-
-func (s *stubNoteCreator) CreateNote(_ context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
-	s.calls = append(s.calls, req)
-	if s.err != nil {
-		return nil, s.err
-	}
-	if s.idx < len(s.results) {
-		r := s.results[s.idx]
-		s.idx++
-		return r, nil
-	}
-	return &CreateNoteResponse{NoteID: 1}, nil
 }
 
 // stubVoiceNoteQueue implements JobQueue[VoiceNoteJob] for tests.

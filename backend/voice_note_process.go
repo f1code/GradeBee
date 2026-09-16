@@ -57,12 +57,6 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		}
 		return fmt.Errorf("process voice note: %s: %w", step, err)
 	}
-	// failWith composes the teacher's message from detail plus the raw error. detail
-	// may name the student they are entitled to see; step must not.
-	failWith := func(step, detail string, err error) error {
-		return failJob(step, fmt.Sprintf("%s: %s", detail, err.Error()), err)
-	}
-
 	// failTooOld is for a retry that outlived the retention cleanup: the audio file
 	// or the voice_notes row is gone, and no wording of the raw error helps the
 	// teacher. Same telemetry step as the raw failure would have carried.
@@ -73,7 +67,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// Helper to mark job as failed and return the error, where the same wording
 	// serves both audiences because no student is named.
 	fail := func(step string, err error) error {
-		return failWith(step, step, err)
+		return failJob(step, fmt.Sprintf("%s: %s", step, err), err)
 	}
 
 	// --- Step 1: Transcribe (skip if text was pasted) ---
@@ -187,7 +181,6 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 	// shows them as what the recording held; it does not hand them back to the
 	// assemble endpoint, which since #127 runs pass 2 itself against the class
 	// the teacher picks. Group passages reach the pinned class's whole roster.
-	// The zero ClassGroup is the decline: no name, no id, no roster.
 	var pinned ClassGroup
 	if extractResult.Class != nil {
 		pinned = *extractResult.Class
@@ -251,10 +244,8 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 		TraceID:      job.TraceID,
 	}, notes, NoteSourceAuto)
 	if err != nil {
-		// Nothing was written. A refused note names itself by index: the step
-		// carries its id and the teacher's message its name (docs/adr/0003),
-		// over the cause rather than the typed error, which spells the id out.
-		// A transaction that failed to open or commit names no note.
+		// The step carries the id and the teacher's line the name (docs/adr/0003),
+		// so the message is built over refused.Err, which spells out neither.
 		var refused *createNotesError
 		if errors.As(err, &refused) {
 			n := notes[refused.Index]

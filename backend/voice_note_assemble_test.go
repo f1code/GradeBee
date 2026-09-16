@@ -436,6 +436,7 @@ func TestAssembleNotes_RefusedInsertFilesNothingAndKeepsThePicker(t *testing.T) 
 	assert.True(t, job.CanPickClass, "the picker stays up")
 	assert.NotContains(t, logs, "Bob", "the refusal reached the log by id only")
 	assert.NotContains(t, logs, "Alice")
+	assert.Contains(t, logs, fmt.Sprintf("create note 1 for student %d", w.bob), "the refusal names the note by index and id")
 
 	// The second pick reads the roster without Bob and files Alice once.
 	w.extractor.passagesFn = pass2
