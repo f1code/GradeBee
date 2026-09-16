@@ -21,16 +21,7 @@ import (
 )
 
 func TestIntegration_PublishToNoteCreation(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "int-user", "Math", "")
-	alice, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
-	bob, err := studentRepo.Create(t.Context(), cls.ID, "Bob")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
@@ -47,10 +38,7 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did great. Bob needs work."},
-		roster: &stubRoster{
-			classNames: []string{"Math"},
-			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}, {Name: "Bob"}}}},
-		},
+		roster:      &stubRoster{classNames: []string{"Math"}},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Class: mathMon("Alice", "Bob"),
 			Passages: []ExtractedPassage{
@@ -59,7 +47,6 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 			},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
@@ -86,15 +73,16 @@ func TestIntegration_PublishToNoteCreation(t *testing.T) {
 	got, err = queue.GetJob(ctx, voiceNoteKey("int-user", uploadID))
 	require.NoError(t, err, "get job after process")
 	assert.Equal(t, JobStatusDone, got.Status)
-	// Each link must point at the resolved student, with name and class in
-	// their own fields — a count alone passes with them transposed.
+	// Each link carries the pinned roster's row id, with name and class in
+	// their own fields — a count alone passes with them transposed. mathMon
+	// numbers its roster 1, 2 in the order given.
 	assert.Equal(t, []NoteLink{
-		{Name: "Alice", NoteID: 1, StudentID: alice.ID, ClassName: "Math · Mon"},
-		{Name: "Bob", NoteID: 2, StudentID: bob.ID, ClassName: "Math · Mon"},
+		{Name: "Alice", NoteID: 1, StudentID: 1, ClassName: "Math · Mon"},
+		{Name: "Bob", NoteID: 2, StudentID: 2, ClassName: "Math · Mon"},
 	}, got.NoteLinks)
 	require.Len(t, nc.calls, 2)
-	assert.Equal(t, alice.ID, nc.calls[0].StudentID)
-	assert.Equal(t, bob.ID, nc.calls[1].StudentID)
+	assert.Equal(t, int64(1), nc.calls[0].StudentID)
+	assert.Equal(t, int64(2), nc.calls[1].StudentID)
 }
 
 func TestIntegration_PublishToFailure(t *testing.T) {

@@ -58,14 +58,18 @@ func TestExtractionHashIsSentinelBuilt(t *testing.T) {
 }
 
 // TestClassGroupIDNeverReachesThePrompt pins that ClassGroup.ID — the row the
-// done card's student picker needs (#134) — is invisible to the model. The
-// prompt builders read Name only, so the text is byte-identical with and
-// without it, and the hash is built from sentinelClasses, which carry none.
+// done card's student picker needs (#134) — and ClassStudent.ID — the row a
+// note is filed to (#157) — are invisible to the model. The prompt builders
+// read Name and Aliases only, so the text is byte-identical with and without
+// them, and the hash is built from sentinelClasses, which carry none.
 func TestClassGroupIDNeverReachesThePrompt(t *testing.T) {
 	bare := testClasses()
 	withIDs := testClasses()
 	for i := range withIDs {
 		withIDs[i].ID = int64(100 + i)
+		for j := range withIDs[i].Students {
+			withIDs[i].Students[j].ID = int64(200 + j)
+		}
 	}
 
 	assert.Equal(t, BuildClassPickPrompt(bare), BuildClassPickPrompt(withIDs))
