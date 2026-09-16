@@ -85,7 +85,7 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 			}
 			own[p.Student] = append(own[p.Student], p.Summary)
 			if p.Kind == PassageAbsent {
-				absent[foldName(p.Student)] = true
+				absent[p.Student] = true
 			}
 		}
 	}
@@ -94,8 +94,9 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 		group = nil
 	}
 
-	// Exact, not folded: pass 2's schema is a strict enum of these spellings,
-	// and "Léa" and "Lea" are two rows the students index allows in one class.
+	// Every map here keys by exact name, never foldName: pass 2's schema is a
+	// strict enum of these spellings, and "Léa" and "Lea" are two rows the
+	// students index allows in one class.
 	ids := make(map[string]int64, len(roster))
 	for _, s := range roster {
 		ids[s.Name] = s.ID
@@ -103,9 +104,9 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 	notes := make([]assembledNote, 0, len(names))
 	reached := map[string]bool{}
 	for _, name := range names {
-		reached[foldName(name)] = true
+		reached[name] = true
 		g := group
-		if absent[foldName(name)] {
+		if absent[name] {
 			g = nil
 		}
 		notes = append(notes, assembledNote{
@@ -120,10 +121,10 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 	}
 	// An absent child always has an own passage, so reached covers them.
 	for _, s := range roster {
-		if reached[foldName(s.Name)] {
+		if reached[s.Name] {
 			continue
 		}
-		reached[foldName(s.Name)] = true
+		reached[s.Name] = true
 		notes = append(notes, assembledNote{
 			StudentID: s.ID,
 			Name:      s.Name,
