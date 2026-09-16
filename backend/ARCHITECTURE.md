@@ -130,8 +130,8 @@ User uploads audio
         │        nobody when names were spoken and none resolved (wrong class)
         │      none  → dropped, and kept off the card entirely
         │      each note carries the roster row's id: no lookup by name
-        │    fileNotes: create note in SQLite via dbNoteCreator, stamped
-        │      with the job's trace_id (the class picker files the same way)
+        │    fileNotes: every note or none, one transaction via dbNoteCreator,
+        │      stamped with the job's trace_id (the class picker files the same way)
         │
         └─ Done (status → "done", mark voice note processed)
 ```
@@ -447,7 +447,7 @@ Production LLM quality signals live in `artifact_feedback` and the eval harness
 
 `InitLogger()` (`logger.go`) must be called after `InitSentry()`. When `SENTRY_DSN` is set it builds a `slog.NewMultiHandler` combining the stdout handler with a `sentryslog` handler (`github.com/getsentry/sentry-go/slog`). All `log.Info/Warn/Error` call sites are unchanged. Default `sentryslog` behaviour: `Debug`/`Info`/`Warn` → Sentry structured log entry only; `Error`/`Fatal` → structured log entry **and** a Sentry event (Issue).
 
-In `voice_note_process.go`, the two `process voice note: mention dropped` records and the
+In `voice_note_process.go`, the `process voice note: mention dropped` record and the
 `process voice note completed` record carry `model` (`extractor.Model()`) and `prompt_hash`
 (`ExtractionPromptHash`, `prompts_version.go`) — the same values stamped on the note row
 (task #96).
@@ -487,7 +487,7 @@ voice-note paths, and let the reader resolve it against the DB. `BeforeSend`'s n
 scrubbing (above) is not a backstop for this: it only inspects exception values, never log
 attributes, and it misses single first names and non-ASCII ones. New telemetry on a path that
 touches a student is expected to carry a test asserting the name's absence, as
-`TestProcessJob_DropSitesOmitStudentName` and `TestProcessJob_FailurePathsOmitStudentName` do.
+`TestProcessJob_DropSitesOmitStudentName` and `TestProcessJob_NoteCreateFailureOmitsStudentName` do.
 
 ## Testing
 
