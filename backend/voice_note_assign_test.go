@@ -57,7 +57,7 @@ func (w *assembleWorld) toAlice(passages ...AssignPassage) AssignPassagesRequest
 	return AssignPassagesRequest{ClassID: w.tuesdayID, StudentID: w.alice, Passages: passages}
 }
 
-// gatedNoteCreator holds every CreateNote open until gate is closed. It is
+// gatedNoteCreator holds every CreateNotes open until gate is closed. It is
 // how a test keeps the upload lock taken while a second request arrives.
 type gatedNoteCreator struct {
 	inner NoteCreator
@@ -65,11 +65,6 @@ type gatedNoteCreator struct {
 	// entered is closed once the first call is inside, so the test can
 	// send the second request only after the lock is held.
 	entered chan struct{}
-}
-
-func (g *gatedNoteCreator) CreateNote(ctx context.Context, req CreateNoteRequest) (*CreateNoteResponse, error) {
-	g.wait()
-	return g.inner.CreateNote(ctx, req)
 }
 
 func (g *gatedNoteCreator) CreateNotes(ctx context.Context, reqs []CreateNoteRequest) ([]int64, error) {
@@ -98,19 +93,19 @@ func (w *assembleWorld) pipelineNoteFor(t *testing.T, studentID int64, name stri
 	require.NoError(t, err)
 	day, err := uploadDay(row.CreatedAt)
 	require.NoError(t, err)
-	res, err := w.deps.noteCreator.CreateNote(ctx, CreateNoteRequest{
+	ids, err := w.deps.noteCreator.CreateNotes(ctx, []CreateNoteRequest{{
 		StudentID: studentID, StudentName: name,
 		QuotedText: name + " finished the puzzle alone\n\neveryone worked hard",
 		Transcript: assembleTranscript, Date: day, ModelVersion: "pipeline-model",
 		TraceID: row.TraceID,
-	})
+	}})
 	require.NoError(t, err)
 	require.NoError(t, w.queue.Publish(ctx, VoiceNoteJob{
 		UserID: "u1", UploadID: w.uploadID, FileName: "monday.m4a", Status: JobStatusDone,
 		ClassName: w.tuesday, ClassID: w.tuesdayID,
-		NoteLinks: []NoteLink{{Name: name, NoteID: res.NoteID, StudentID: studentID, ClassName: w.tuesday}},
+		NoteLinks: []NoteLink{{Name: name, NoteID: ids[0], StudentID: studentID, ClassName: w.tuesday}},
 	}))
-	note, err := w.noteRepo.GetByID(ctx, res.NoteID)
+	note, err := w.noteRepo.GetByID(ctx, ids[0])
 	require.NoError(t, err)
 	return note
 }
