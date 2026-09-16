@@ -21,14 +21,7 @@ import (
 // backlog, and the processing clock would then drop the note out of the report
 // window it belongs to.
 func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
-	db := setupTestDB(t)
-	studentRepo := &StudentRepo{db: db}
-	classRepo := &ClassRepo{db: db}
-	voiceNoteRepo := &VoiceNoteRepo{db: db}
-
-	cls := newTestClass(t, classRepo, "test-group", "user1", "Math", "")
-	_, err := studentRepo.Create(t.Context(), cls.ID, "Alice")
-	require.NoError(t, err)
+	voiceNoteRepo := &VoiceNoteRepo{db: setupTestDB(t)}
 
 	tmpDir := t.TempDir()
 	audioPath := filepath.Join(tmpDir, "recording.m4a")
@@ -39,10 +32,7 @@ func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
 	nc := &stubNoteCreator{results: []*CreateNoteResponse{{NoteID: 1}}}
 	d := &mockDepsAll{
 		transcriber: &stubTranscriber{result: "Alice did great today."},
-		roster: &stubRoster{
-			classNames: []string{"Math"},
-			students:   []ClassGroup{{Name: "Math", Students: []ClassStudent{{Name: "Alice"}}}},
-		},
+		roster:      &stubRoster{classNames: []string{"Math"}},
 		extractor: &stubExtractor{result: &ExtractResponse{
 			Class: mathMon("Alice"),
 			Passages: []ExtractedPassage{
@@ -50,7 +40,6 @@ func TestProcessJob_DatesNoteFromUploadTime(t *testing.T) {
 			},
 		}},
 		noteCreator:   nc,
-		studentRepo:   studentRepo,
 		voiceNoteRepo: voiceNoteRepo,
 	}
 
