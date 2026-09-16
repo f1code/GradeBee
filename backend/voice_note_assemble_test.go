@@ -413,9 +413,40 @@ func TestAssembleNotes_AWrongRosterPickThatReturnedNoLabelsCanStillBeRetried(t *
 	assert.Len(t, w.notesFor(t, w.bob), 1)
 }
 
-// The model call is bounded on its own, not by the handler: a whole-handler
-// deadline would cancel the note loop mid-write. 30s, because llmChatTimeout is
-// 120s and no teacher waits that long behind a spinner.
+// A refused insert files nothing on this route either: the batch rolls back,
+// the job is untouched so the picker stays up, the log names nobody
+// (docs/adr/0003), and a second pick files cleanly. Bob is deleted inside pass
+// 2, after the roster read handed his row to the batch.
+func TestAssembleNotes_RefusedInsertFilesNothingAndKeepsThePicker(t *testing.T) {
+	w := newAssembleWorld(t)
+	w.misfiledJob(t)
+	pass2 := rosterPass2()
+	w.extractor.passagesFn = func(class ClassGroup) []ExtractedPassage {
+		require.NoError(t, w.studentRepo.Delete(context.Background(), w.bob))
+		return pass2(class)
+	}
+
+	rec, logs := w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
+	assert.Empty(t, w.notesFor(t, w.alice), "Alice's note rolled back with Bob's refusal")
+	assert.Empty(t, w.notesFor(t, w.bob))
+	job := w.job(t)
+	assert.Empty(t, job.NoteLinks, "a refused batch leaves the job as it was")
+	assert.Empty(t, job.ClassName)
+	assert.True(t, job.CanPickClass, "the picker stays up")
+	assert.NotContains(t, logs, "Bob", "the refusal reached the log by id only")
+	assert.NotContains(t, logs, "Alice")
+
+	// The second pick reads the roster without Bob and files Alice once.
+	w.extractor.passagesFn = pass2
+	rec, _ = w.post(t, "u1", w.uploadID, AssembleNotesRequest{ClassName: w.tuesday})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Len(t, w.notesFor(t, w.alice), 1)
+	assert.Empty(t, w.notesFor(t, w.bob))
+}
+
+// The model call is bounded on its own, not by the handler. 30s, because
+// llmChatTimeout is 120s and no teacher waits that long behind a spinner.
 func TestAssembleNotes_BoundsPass2WithItsOwnDeadline(t *testing.T) {
 	w := newAssembleWorld(t)
 	w.misfiledJob(t)
