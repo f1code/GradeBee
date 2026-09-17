@@ -3,7 +3,6 @@ module github.com/nicogaller/gradebee/backend
 go 1.26.3
 
 require (
-	github.com/ZaguanLabs/mistral-go/v2 v2.4.4
 	github.com/clerk/clerk-sdk-go/v2 v2.6.0
 	github.com/getsentry/sentry-go v0.46.2
 	github.com/getsentry/sentry-go/slog v0.46.2
@@ -12,6 +11,7 @@ require (
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/oauth2 v0.36.0
+	golang.org/x/text v0.37.0
 	google.golang.org/api v0.281.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.50.1
@@ -43,7 +43,6 @@ require (
 	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect

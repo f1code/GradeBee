@@ -3,9 +3,9 @@ package handler
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -32,7 +32,7 @@ func (p *openaiProvider) Name() string { return "openai" }
 
 func (p *openaiProvider) Model(task LLMTask) string { return p.models[task] }
 
-func (p *openaiProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (string, error) {
+func (p *openaiProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (LLMResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
 	defer cancel()
 	model := p.models[LLMTaskExtraction]
@@ -52,19 +52,20 @@ func (p *openaiProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out 
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("openai chat json failed: %w", err)
+		return LLMResponse{}, fmt.Errorf("openai chat json failed: %w", err)
 	}
+	res := LLMResponse{Usage: chatUsage(resp)}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("openai returned no choices")
+		return res, fmt.Errorf("openai returned no choices")
 	}
-	raw := resp.Choices[0].Message.Content
-	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
-		return "", fmt.Errorf("failed to parse extraction response: %w", parseErr)
+	res.Text = resp.Choices[0].Message.Content
+	if parseErr := json.Unmarshal([]byte(res.Text), out); parseErr != nil {
+		return res, fmt.Errorf("failed to parse extraction response: %w", parseErr)
 	}
-	return raw, nil
+	return res, nil
 }
 
-func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (string, error) {
+func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (LLMResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
 	defer cancel()
 	resp, err := p.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
@@ -74,62 +75,17 @@ func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (str
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("openai chat text failed: %w", err)
+		return LLMResponse{}, fmt.Errorf("openai chat text failed: %w", err)
 	}
+	res := LLMResponse{Usage: chatUsage(resp)}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("openai returned no choices")
+		return res, fmt.Errorf("openai returned no choices")
 	}
-	return resp.Choices[0].Message.Content, nil
+	res.Text = resp.Choices[0].Message.Content
+	return res, nil
 }
 
-func (p *openaiProvider) Vision(ctx context.Context, req VisionRequest, out any) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
-	defer cancel()
-	model := p.models[LLMTaskVision]
-	b64 := encodeImageBase64(req.ImageData)
-	dataURL := fmt.Sprintf("data:%s;base64,%s", req.MediaType, b64)
-
-	resp, err := p.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: model,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role: openai.ChatMessageRoleUser,
-				MultiContent: []openai.ChatMessagePart{
-					{Type: openai.ChatMessagePartTypeText, Text: req.Prompt},
-					{
-						Type: openai.ChatMessagePartTypeImageURL,
-						ImageURL: &openai.ChatMessageImageURL{
-							URL:    dataURL,
-							Detail: openai.ImageURLDetailHigh,
-						},
-					},
-				},
-			},
-		},
-		MaxCompletionTokens: 4096,
-		ResponseFormat: &openai.ChatCompletionResponseFormat{
-			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-				Name:   req.SchemaName,
-				Strict: true,
-				Schema: req.Schema,
-			},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("openai vision failed: %w", err)
-	}
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("openai vision returned no choices")
-	}
-	raw := resp.Choices[0].Message.Content
-	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
-		return "", fmt.Errorf("failed to parse vision response: %w", parseErr)
-	}
-	return raw, nil
-}
-
-func (p *openaiProvider) Transcribe(ctx context.Context, req TranscribeRequest) (TranscribeResponse, error) {
+func (p *openaiProvider) Transcribe(ctx context.Context, req TranscribeRequest) (LLMResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, llmTranscribeTimeout)
 	defer cancel()
 	// OpenAI Whisper: pass context bias as a comma-separated prompt string.
@@ -142,14 +98,17 @@ func (p *openaiProvider) Transcribe(ctx context.Context, req TranscribeRequest) 
 		FilePath: req.Filename,
 		Reader:   req.Audio,
 		Prompt:   prompt,
+		// verbose_json carries duration, which OpenAI bills by.
+		Format: openai.AudioResponseFormatVerboseJSON,
 	})
 	if err != nil {
-		return TranscribeResponse{}, fmt.Errorf("whisper transcription failed: %w", err)
+		return LLMResponse{}, fmt.Errorf("whisper transcription failed: %w", err)
 	}
-	return TranscribeResponse{Text: resp.Text}, nil
+	return LLMResponse{Text: resp.Text, Usage: &LLMUsage{AudioSeconds: int(math.Round(resp.Duration))}}, nil
 }
 
-// encodeImageBase64 encodes image bytes as base64.
-func encodeImageBase64(data []byte) string {
-	return base64.StdEncoding.EncodeToString(data)
+// chatUsage reads token usage from a go-openai chat response; Mistral's
+// OpenAI-compat endpoint fills the same fields.
+func chatUsage(resp openai.ChatCompletionResponse) *LLMUsage {
+	return &LLMUsage{InputTokens: resp.Usage.PromptTokens, OutputTokens: resp.Usage.CompletionTokens}
 }

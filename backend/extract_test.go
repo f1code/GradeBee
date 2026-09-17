@@ -176,28 +176,24 @@ var _ LLMProvider = (*twoPassProvider)(nil)
 func (p *twoPassProvider) Name() string           { return "two-pass-fake" }
 func (p *twoPassProvider) Model(_ LLMTask) string { return fakeExtractModel }
 
-func (p *twoPassProvider) ChatJSON(_ context.Context, req ChatJSONRequest, out any) (string, error) {
+func (p *twoPassProvider) ChatJSON(_ context.Context, req ChatJSONRequest, out any) (LLMResponse, error) {
 	i := len(p.calls)
 	p.calls = append(p.calls, req)
 	if i < len(p.errs) && p.errs[i] != nil {
-		return "", p.errs[i]
+		return LLMResponse{}, p.errs[i]
 	}
 	if i >= len(p.replies) {
-		return "", errors.New("twoPassProvider: unexpected extra call")
+		return LLMResponse{}, errors.New("twoPassProvider: unexpected extra call")
 	}
-	return p.replies[i], json.Unmarshal([]byte(p.replies[i]), out)
+	return LLMResponse{Text: p.replies[i]}, json.Unmarshal([]byte(p.replies[i]), out)
 }
 
-func (p *twoPassProvider) ChatText(_ context.Context, _ ChatTextRequest) (string, error) {
-	return "", errors.New("twoPassProvider: ChatText not expected on the extraction path")
+func (p *twoPassProvider) ChatText(_ context.Context, _ ChatTextRequest) (LLMResponse, error) {
+	return LLMResponse{}, errors.New("twoPassProvider: ChatText not expected on the extraction path")
 }
 
-func (p *twoPassProvider) Vision(_ context.Context, _ VisionRequest, _ any) (string, error) {
-	return "", errors.New("twoPassProvider: Vision not expected on the extraction path")
-}
-
-func (p *twoPassProvider) Transcribe(_ context.Context, _ TranscribeRequest) (TranscribeResponse, error) {
-	return TranscribeResponse{}, errors.New("twoPassProvider: Transcribe not expected on the extraction path")
+func (p *twoPassProvider) Transcribe(_ context.Context, _ TranscribeRequest) (LLMResponse, error) {
+	return LLMResponse{}, errors.New("twoPassProvider: Transcribe not expected on the extraction path")
 }
 
 // TestExtractRunsBothPasses: pass 1 names the class, pass 2 is scoped to it,

@@ -51,11 +51,13 @@ func TestProcessJob_HappyPath(t *testing.T) {
 		UploadID:  uploadID,
 		FilePath:  audioPath,
 		FileName:  "recording.m4a",
+		TraceID:   "trace-1",
 		Status:    JobStatusQueued,
 		CreatedAt: time.Now(),
 	}
 	require.NoError(t, queue.Publish(ctx, job))
 	require.NoError(t, processVoiceNote(ctx, d, queue, voiceNoteKey("user1", uploadID)))
+	assert.Equal(t, llmCaller{userID: "user1", traceID: "trace-1"}, transcriber.gotCaller, "AI calls bill to the job's user and recording")
 
 	got, err := queue.GetJob(ctx, voiceNoteKey("user1", uploadID))
 	require.NoError(t, err)

@@ -22,23 +22,21 @@ type metricsFakeProvider struct {
 	models      map[LLMTask]string
 	delay       time.Duration
 	chatJSONErr error
+	resp        LLMResponse
 }
 
 func (f *metricsFakeProvider) Name() string              { return f.name }
 func (f *metricsFakeProvider) Model(task LLMTask) string { return f.models[task] }
 
-func (f *metricsFakeProvider) ChatJSON(_ context.Context, _ ChatJSONRequest, _ any) (string, error) {
+func (f *metricsFakeProvider) ChatJSON(_ context.Context, _ ChatJSONRequest, _ any) (LLMResponse, error) {
 	time.Sleep(f.delay)
-	return "", f.chatJSONErr
+	return f.resp, f.chatJSONErr
 }
-func (f *metricsFakeProvider) ChatText(_ context.Context, _ ChatTextRequest) (string, error) {
-	return "", f.chatJSONErr
+func (f *metricsFakeProvider) ChatText(_ context.Context, _ ChatTextRequest) (LLMResponse, error) {
+	return f.resp, f.chatJSONErr
 }
-func (f *metricsFakeProvider) Vision(_ context.Context, _ VisionRequest, _ any) (string, error) {
-	return "", f.chatJSONErr
-}
-func (f *metricsFakeProvider) Transcribe(_ context.Context, _ TranscribeRequest) (TranscribeResponse, error) {
-	return TranscribeResponse{}, f.chatJSONErr
+func (f *metricsFakeProvider) Transcribe(_ context.Context, _ TranscribeRequest) (LLMResponse, error) {
+	return f.resp, f.chatJSONErr
 }
 
 // metricsTestHub binds a fresh client + mock transport to a context, mirroring
@@ -104,7 +102,7 @@ func TestInstrumentedProvider_EmitsDurationAndCount(t *testing.T) {
 		models: map[LLMTask]string{LLMTaskExtraction: "gpt-5.4-mini"},
 		delay:  25 * time.Millisecond,
 	}
-	wrapped := instrumentProvider(provider)
+	wrapped := instrumentProvider(provider, nil)
 
 	_, err := wrapped.ChatJSON(ctx, ChatJSONRequest{}, &struct{}{})
 	require.NoError(t, err)
@@ -133,21 +131,6 @@ func TestInstrumentedProvider_EmitsDurationAndCount(t *testing.T) {
 	assert.False(t, hasErrors, "no error metric expected on a successful call")
 }
 
-func TestInstrumentedProvider_VisionTask(t *testing.T) {
-	ctx, transport, hub := metricsTestHub()
-	provider := &metricsFakeProvider{name: "openai", models: map[LLMTask]string{LLMTaskVision: "gpt-5.4-mini"}}
-	wrapped := instrumentProvider(provider)
-
-	_, err := wrapped.Vision(ctx, VisionRequest{}, &struct{}{})
-	require.NoError(t, err)
-	flushMetrics(hub)
-
-	count, ok := metricByName(transport, metricLLMCallCount)
-	require.True(t, ok, "expected a %s metric", metricLLMCallCount)
-	assert.Equal(t, "vision", count.Attributes["task"].AsString())
-	assert.Equal(t, "gpt-5.4-mini", count.Attributes["model"].AsString())
-}
-
 func TestInstrumentedProvider_ErrorKindDeadlineExceeded(t *testing.T) {
 	ctx, transport, hub := metricsTestHub()
 	provider := &metricsFakeProvider{
@@ -155,7 +138,7 @@ func TestInstrumentedProvider_ErrorKindDeadlineExceeded(t *testing.T) {
 		models:      map[LLMTask]string{LLMTaskReport: "mistral-medium-2508"},
 		chatJSONErr: fmt.Errorf("mistral chat text failed: %w", context.DeadlineExceeded),
 	}
-	wrapped := instrumentProvider(provider)
+	wrapped := instrumentProvider(provider, nil)
 
 	_, err := wrapped.ChatText(ctx, ChatTextRequest{})
 	require.Error(t, err)
@@ -174,7 +157,7 @@ func TestInstrumentedProvider_ErrorKindCanceled(t *testing.T) {
 		models:      map[LLMTask]string{LLMTaskExtraction: "gpt-5.4-mini"},
 		chatJSONErr: fmt.Errorf("openai chat json failed: %w", context.Canceled),
 	}
-	wrapped := instrumentProvider(provider)
+	wrapped := instrumentProvider(provider, nil)
 
 	_, err := wrapped.ChatJSON(ctx, ChatJSONRequest{}, &struct{}{})
 	require.Error(t, err)
@@ -192,7 +175,7 @@ func TestInstrumentedProvider_ErrorKindOther(t *testing.T) {
 		models:      map[LLMTask]string{LLMTaskTranscription: "voxtral-mini-latest"},
 		chatJSONErr: errors.New("boom"),
 	}
-	wrapped := instrumentProvider(provider)
+	wrapped := instrumentProvider(provider, nil)
 
 	_, err := wrapped.Transcribe(ctx, TranscribeRequest{})
 	require.Error(t, err)
@@ -216,10 +199,9 @@ func TestLoadProvider_WrapsWithInstrumentation(t *testing.T) {
 	// assertion below reflects defaultModels(), not a developer's local env.
 	t.Setenv("LLM_MODEL_EXTRACTION", "")
 	t.Setenv("LLM_MODEL_REPORT", "")
-	t.Setenv("LLM_MODEL_VISION", "")
 	t.Setenv("LLM_MODEL_TRANSCRIPTION", "")
 
-	p, err := LoadProvider()
+	p, err := LoadProvider(nil)
 	require.NoError(t, err)
 
 	_, ok := p.(*instrumentedProvider)

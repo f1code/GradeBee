@@ -61,18 +61,7 @@ func clerkAuthMiddleware(next http.Handler) http.Handler {
 		verified := false
 		inner := clerkhttp.RequireHeaderAuthorization()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			verified = true
-			// Enforce active Clerk Organisation — every API request must belong
-			// to a Group. Personal (org-less) sessions are not permitted.
-			claims, ok := clerk.SessionClaimsFromContext(r.Context())
-			if !ok || claims == nil || claims.ActiveOrganizationID == "" {
-				writeAPIError(w, r, &apiError{
-					Status:  http.StatusForbidden,
-					Code:    "no_active_org",
-					Message: "no active organization \u2014 ask your admin for an invitation",
-				})
-				return
-			}
-			next.ServeHTTP(w, r)
+			requireActiveOrg(next).ServeHTTP(w, r)
 		}))
 		inner.ServeHTTP(w, r)
 
@@ -83,6 +72,24 @@ func clerkAuthMiddleware(next http.Handler) http.Handler {
 				"token_expired", decoded.Expiry != nil && time.Unix(*decoded.Expiry, 0).Before(time.Now()),
 			)
 		}
+	})
+}
+
+// requireActiveOrg runs on verified session claims. Every API request must
+// belong to a Group: personal (org-less) sessions are refused. It names the
+// caller for llm_calls.
+func requireActiveOrg(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims, ok := clerk.SessionClaimsFromContext(r.Context())
+		if !ok || claims == nil || claims.ActiveOrganizationID == "" {
+			writeAPIError(w, r, &apiError{
+				Status:  http.StatusForbidden,
+				Code:    "no_active_org",
+				Message: "no active organization \u2014 ask your admin for an invitation",
+			})
+			return
+		}
+		next.ServeHTTP(w, r.WithContext(withLLMCaller(r.Context(), claims.Subject, "")))
 	})
 }
 

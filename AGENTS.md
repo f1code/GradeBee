@@ -58,6 +58,7 @@ Keeping docs in sync with code is part of "done". Before considering a task comp
 | Change the schema | `backend/ARCHITECTURE.md` (Tables / current schema — not individual migration files) |
 | Add a new design token, component pattern, color, or typography rule | `frontend/DESIGN.md` |
 | Ship a change a Teacher can see or do | `frontend/src/whatsNew.ts` — ask the user whether to add an entry; if yes, one at the top, one sentence, opens "Since your last visit:" |
+| Add or change an LLM model or provider | Price row in `scripts/ai_cost.sql` |
 | Add or rename an environment variable | `.env.example` (always) + `README.md` (if user-facing) |
 | Change the tech stack or complete a phase | `README.md` |
 | Complete or supersede an implementation plan | Mark status in the relevant `../plans/*.md` |
@@ -78,7 +79,7 @@ Files under `docs/analysis/` (e.g. `CODEBASE_ANALYSIS.md`, `ARCHITECTURE_DIAGRAM
 
 ## LLM
 
-Mistral (`mistral-medium-2508`) is the default provider for extraction, report generation, and vision. Voxtral (`voxtral-mini-latest`) is the default for transcription. Both OpenAI and Mistral are supported via `LLM_PROVIDER` env var (`openai` / `mistral`). The active provider's API key must be set (`OPENAI_API_KEY` or `MISTRAL_API_KEY`). Provider abstraction lives in `backend/llm_provider*.go`.
+Mistral (`mistral-medium-2508`) is the default provider for extraction and report generation. Voxtral (`voxtral-mini-latest`) is the default for transcription. Both OpenAI and Mistral are supported via `LLM_PROVIDER` env var (`openai` / `mistral`). The active provider's API key must be set (`OPENAI_API_KEY` or `MISTRAL_API_KEY`). Provider abstraction lives in `backend/llm_provider*.go`.
 
 ## Git Worktrees
 

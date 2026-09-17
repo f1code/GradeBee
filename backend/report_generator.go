@@ -142,9 +142,9 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 }
 
 func (g *llmReportGenerator) callLLM(ctx context.Context, prompt string) (string, error) {
-	text, err := g.provider.ChatText(ctx, ChatTextRequest{UserPrompt: prompt})
+	resp, err := g.provider.ChatText(ctx, ChatTextRequest{UserPrompt: prompt})
 	if err != nil {
 		return "", fmt.Errorf("report: LLM call failed: %w", err)
 	}
-	return text, nil
+	return resp.Text, nil
 }

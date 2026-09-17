@@ -67,6 +67,25 @@ func TestGroupIDFromRequest_NoClaims_ReturnsUnauthorized(t *testing.T) {
 	assert.Equal(t, "unauthorized", ae.Code)
 }
 
+// --- requireActiveOrg ---
+
+func TestRequireActiveOrg_NamesLLMCaller(t *testing.T) {
+	var got llmCaller
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		if c, ok := r.Context().Value(llmCallerKey).(llmCaller); ok {
+			got = c
+		}
+	})
+	requireActiveOrg(next).ServeHTTP(httptest.NewRecorder(), clerkReqWithOrg("org_abc123", "org:member"))
+	assert.Equal(t, llmCaller{userID: "user_test"}, got)
+}
+
+func TestRequireActiveOrg_NoOrgRefused(t *testing.T) {
+	rec := httptest.NewRecorder()
+	requireActiveOrg(http.NotFoundHandler()).ServeHTTP(rec, clerkReqNoOrg())
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+}
+
 // --- isAdmin ---
 
 func TestIsAdmin_AdminRole_ReturnsTrue(t *testing.T) {
