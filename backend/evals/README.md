@@ -241,7 +241,7 @@ passages with a spoken label and an empty `student`, so the no-names rule can
 suppress the group remark. The `unknown` bullet told it the opposite: "a name
 that matches nobody listed" was listed as `unknown`, which carries no label.
 #128 cut that clause. 30 runs in 30 afterwards; the other five measured rows
-held 10/10. The `mistral-small-2603` comparison row, since removed (#164), went the other way on this
+held 10/10. The untracked `gradebee-extract-small` went the other way on this
 row in the same run, 1.000 to 0.500; not measured further.
 
 ### `roster_phantom` and the negative it is paired with
