@@ -35,6 +35,7 @@ func processVoiceNote(ctx context.Context, d deps, q JobQueue[VoiceNoteJob], key
 
 	userID := job.UserID
 	uploadID := job.UploadID
+	ctx = withLLMCaller(ctx, userID, job.TraceID)
 
 	// failJob marks the job failed and returns the error, writing to two audiences.
 	//

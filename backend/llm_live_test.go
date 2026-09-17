@@ -29,7 +29,7 @@ import (
 // It returns the configured provider for live tests that need it.
 func requireLiveLLM(t *testing.T) LLMProvider {
 	t.Helper()
-	p, err := LoadProvider()
+	p, err := LoadProvider(setupTestDB(t))
 	if err != nil {
 		t.Skipf("LLM provider not configured: %v", err)
 	}

@@ -117,7 +117,7 @@ func InitVoiceNoteQueue(d deps, workers int) *MemQueue[VoiceNoteJob] {
 // and uploads directory. It calls LoadProvider() and fails fast on
 // misconfiguration.
 func NewProdDeps(db *sql.DB, uploadsDir string) deps {
-	provider, err := LoadProvider()
+	provider, err := LoadProvider(db)
 	if err != nil {
 		slog.Error("LLM provider misconfigured — cannot start", "error", err)
 		panic(fmt.Sprintf("LLM provider misconfigured: %v", err))

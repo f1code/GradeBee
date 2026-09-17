@@ -254,12 +254,16 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 ### LLM Provider (`llm_provider*.go`)
 
 A `LLMProvider` interface abstracts all LLM call sites. Two production implementations exist:
-- `openaiProvider` — wraps `go-openai` client against `https://api.openai.com/v1` (chat/vision) and OpenAI Whisper (transcription).
-- `mistralProvider` — wraps `go-openai` client against `https://api.mistral.ai/v1` (chat/vision via OpenAI-compat endpoint) and ZaguanLabs `mistral-go/v2/sdk` for Voxtral transcription.
+- `openaiProvider` — wraps `go-openai` client against `https://api.openai.com/v1` (chat) and OpenAI Whisper (transcription).
+- `mistralProvider` — wraps `go-openai` client against `https://api.mistral.ai/v1` (chat via OpenAI-compat endpoint); Voxtral transcription posts multipart to `{MISTRAL_BASE_URL}/audio/transcriptions` over `net/http` and returns `usage.prompt_audio_seconds`.
 
-`LoadProvider()` reads `LLM_PROVIDER` (default `"mistral"`), validates the active provider's API key, logs the selected models, and returns the provider. Called from `NewProdDeps` so the binary fails fast on misconfiguration.
+`LoadProvider(db)` reads `LLM_PROVIDER` (default `"mistral"`), validates the active provider's API key, logs the selected models, and returns the provider wrapped by `instrumentProvider`. Called from `NewProdDeps`, which passes its DB handle, so the binary fails fast on misconfiguration.
 
-Per-task model IDs are configured via `LLM_MODEL_EXTRACTION`, `LLM_MODEL_REPORT`, `LLM_MODEL_VISION`, `LLM_MODEL_TRANSCRIPTION` env vars (provider-specific defaults apply if unset).
+Each method returns `LLMResponse{Text, Usage}`. `Usage` is nil when no response arrived; set, even alongside an error, once one did.
+
+Usage recording: `instrumentedProvider` inserts one `llm_calls` row per call with non-nil `Usage`, synchronously. The caller comes from `withLLMCaller(ctx, userID, traceID)`: `requireActiveOrg` (inside `clerkAuthMiddleware`) sets the verified Clerk user on every authenticated request; `processVoiceNote` sets `job.UserID` and `job.TraceID`. No user on ctx, or a failed insert, logs a warning and returns the AI result anyway.
+
+Per-task model IDs are configured via `LLM_MODEL_EXTRACTION`, `LLM_MODEL_REPORT`, `LLM_MODEL_TRANSCRIPTION` env vars (provider-specific defaults apply if unset).
 
 
 Context bias: `providerTranscriber` passes class names from the DB roster to `provider.Transcribe(...)`. `openaiProvider` joins them as a Whisper prompt; `mistralProvider` sanitises them (space→`_`, drop commas, dedup, cap 100) and passes via Voxtral's `context_bias` field.
@@ -281,6 +285,7 @@ SQLite with WAL mode (`db.go`). Migrations in `sql/` are embedded via `embed.FS`
 | `notes` | Observation notes per student. `trace_id` (nullable, indexed) names the recording the note was made from — `voice_notes.trace_id` — whether the pipeline, the class picker or the assign endpoint made it; `NULL` on a manual note and on every note made before the column existed. No foreign key: the recording row dies with retention, the note does not. `source` is `auto` (written by the pipeline end to end), `reviewed` (the model wrote the text, the teacher supplied only the class — see the assemble endpoint), `assigned` (the teacher filed a passage that reached nobody to a child from the done card; the text is the model's summary as the card sent it back — see the assign endpoint) or `manual` (typed by the teacher). The column has no `CHECK`, so the `NoteSource*` constants in `notes.go` are the contract; `auto` and `reviewed` are model-written and fire the implicit thumbs-down on edit or delete; `assigned` is teacher-attributed and does not, since the server never saw the model produce its text. |
 | `reports` | Generated HTML report cards |
 | `voice_notes` | Audio file tracking (file path, processed_at, purged_at) plus the `transcript`, written before the audio is deleted and kept for the row's lifetime, and `trace_id`, a UUID minted by `VoiceNoteRepo.Create` (unique index; rows from before the column got a random one). It is the key a note carries to name its recording: not the job, which is in memory, and not the row id, which the table reuses — no `AUTOINCREMENT` — once retention deletes the newest row |
+| `llm_calls` | One row per AI provider call that got a response: `user_id`, `trace_id` (queue jobs only), `provider`, `model` (as sent), `task`, `input_tokens`/`output_tokens` (chat) or `audio_seconds` (transcription), `ok` (0 when the response failed to decode). Written by `instrumentedProvider`; read by `scripts/ai_cost.sql`. Kept forever. See `docs/ai-usage.md`. |
 | `levels` | Group-owned curriculum tiers. `name` unique within `group_id`; `report_instructions` defaults to `''`. A Level with trimmed-empty `report_instructions` cannot generate or regenerate reports — `handleGenerateReports`/`handleRegenerateReport` refuse with `400` before any LLM call (see `report_prompt.go`/`reports_handler.go` below). Seeded with 8 hand-authored Levels against the production Clerk org ID. |
 
 ### Repository Layer
@@ -334,9 +339,9 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `handler.go` | `Handle` entrypoint, CORS, request logging, `clerkAuthMiddleware`, `userIDFromRequest`, `requireStudentOwnership`, `callerName`/`callerAt` |
 | `router.go` | `newAPIMux` route table (`http.ServeMux` method+pattern strings), `idParam`, JSON 404 catch-all |
 | `deps.go` | DI interface, prod implementations, `serviceDeps` variable |
-| `llm_provider.go` | `LLMProvider` interface, request/response types, `LLMTask` enum, `LoadProvider()` factory |
-| `llm_provider_openai.go` | `openaiProvider` — OpenAI chat/vision via go-openai + Whisper transcription |
-| `llm_provider_mistral.go` | `mistralProvider` — Mistral chat/vision via OpenAI-compat endpoint + Voxtral transcription via ZaguanLabs SDK |
+| `llm_provider.go` | `LLMProvider` interface, request/response types, `LLMTask` enum, `LoadProvider(db)` factory, `instrumentedProvider` (Sentry metrics + `llm_calls` rows) |
+| `llm_provider_openai.go` | `openaiProvider` — OpenAI chat via go-openai + Whisper transcription |
+| `llm_provider_mistral.go` | `mistralProvider` — Mistral chat via OpenAI-compat endpoint + Voxtral transcription via `net/http` |
 | `errors_http.go` | `apiError` type, `writeAPIError`, `writeError`, `writeInternalError` — the error-response contract |
 | `google.go` | `newDriveReadClient` (Drive-read-only) |
 | `auth.go` | `groupIDFromRequest`, `isAdmin` — Clerk org/role helpers; `getGoogleOAuthToken` — Clerk → Google OAuth token |
@@ -421,8 +426,8 @@ never set by `InitSentry()`), so no config change was needed. `NewMeter` returns
 whenever no client is bound to the hub, which is why these metrics no-op cleanly when
 `SENTRY_DSN` is unset in local dev (`TestRecordLLMCall_NoopWhenSentryUninitialised`).
 
-Every `ChatJSON` / `ChatText` / `Vision` / `Transcribe` call emits, tagged with `task`
-(`LLMTask`: `extraction` / `report` / `vision` / `transcription`), `model`
+Every `ChatJSON` / `ChatText` / `Transcribe` call emits, tagged with `task`
+(`LLMTask`: `extraction` / `report` / `transcription`), `model`
 (`provider.Model(task)`) and `provider` (`provider.Name()`):
 
 - `llm.call.duration` — Distribution, milliseconds, call latency.
@@ -430,11 +435,7 @@ Every `ChatJSON` / `ChatText` / `Vision` / `Transcribe` call emits, tagged with 
 - `llm.call.errors` — Count, emitted only on failure, with an additional `kind` attribute:
   `deadline_exceeded` (`errors.Is(err, context.DeadlineExceeded)` — the 120s chat / 300s
   transcribe deadlines in `llm_provider.go`), `canceled` (`context.Canceled` — caller
-  disconnects, job shutdown), or `other`. On the Mistral transcribe path specifically, the
-  SDK's own `http.Client` timeout races the ctx deadline (both set to `llmTranscribeTimeout`,
-  `llm_provider_mistral.go`); if the SDK timeout wins, its error does not satisfy
-  `errors.Is(err, context.DeadlineExceeded)` and lands in `other` instead — pre-existing to how
-  the SDK is wired, not introduced by this instrumentation.
+  disconnects, job shutdown), or `other`.
 
 These measure the provider boundary's operational health, not answer quality — the three
 attributes this code sets are durations, counts, model IDs, and task names, never a prompt,
@@ -526,11 +527,10 @@ confirm the suite fails; a fix without that evidence is not a fix.
 |----------|----------|---------|
 | `CLERK_SECRET_KEY` | Yes | Clerk Backend API key |
 | `LLM_PROVIDER` | No | `"openai"` or `"mistral"` (default: `"mistral"`) — selects the LLM backend |
-| `OPENAI_API_KEY` | When `LLM_PROVIDER=openai` | OpenAI API key (chat, vision, Whisper) |
-| `MISTRAL_API_KEY` | When `LLM_PROVIDER=mistral` | Mistral API key (chat, vision, Voxtral) |
+| `OPENAI_API_KEY` | When `LLM_PROVIDER=openai` | OpenAI API key (chat, Whisper) |
+| `MISTRAL_API_KEY` | When `LLM_PROVIDER=mistral` | Mistral API key (chat, Voxtral) |
 | `LLM_MODEL_EXTRACTION` | No | Extraction model ID (default: `mistral-medium-2508` / `gpt-5.4-mini`) |
 | `LLM_MODEL_REPORT` | No | Report generation model ID |
-| `LLM_MODEL_VISION` | No | Vision model ID |
 | `LLM_MODEL_TRANSCRIPTION` | No | Transcription model ID (default: `voxtral-mini-latest` / `whisper-1`) |
 | `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |
 | `UPLOADS_DIR` | No | Audio upload directory (default `/data/uploads`) |

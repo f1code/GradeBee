@@ -23,7 +23,10 @@ import (
 
 type contextKey int
 
-const loggerKey contextKey = iota
+const (
+	loggerKey contextKey = iota
+	llmCallerKey
+)
 
 // loggerFromRequest returns a request-scoped logger with request_id, or the package logger.
 func loggerFromRequest(r *http.Request) *slog.Logger {

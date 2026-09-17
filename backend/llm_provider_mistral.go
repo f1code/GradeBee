@@ -1,48 +1,52 @@
 // llm_provider_mistral.go implements LLMProvider backed by Mistral.
-// Chat and vision use the OpenAI-compatible endpoint via go-openai.
-// Transcription uses the ZaguanLabs mistral-go/v2/sdk for Voxtral support.
+// Chat uses the OpenAI-compatible endpoint via go-openai.
+// Transcription posts multipart to Voxtral's /audio/transcriptions directly.
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"mime/multipart"
+	"net/http"
+	"path/filepath"
 	"strings"
 	"unicode"
 
-	mistralSDK "github.com/ZaguanLabs/mistral-go/v2/sdk"
 	openai "github.com/sashabaranov/go-openai"
 )
 
 const mistralDefaultBaseURL = "https://api.mistral.ai/v1"
 
-// mistralProvider wraps an OpenAI-compat client for chat/vision and the
-// ZaguanLabs SDK for Voxtral transcription.
+// mistralProvider wraps an OpenAI-compat client for chat and calls
+// Voxtral transcription over plain HTTP.
 type mistralProvider struct {
-	chatClient  *openai.Client
-	audioClient *mistralSDK.MistralClient
-	models      map[LLMTask]string
+	chatClient *openai.Client
+	apiKey     string
+	baseURL    string
+	models     map[LLMTask]string
 }
 
 func newMistralProvider(apiKey, baseURL string, models map[LLMTask]string) *mistralProvider {
 	if baseURL == "" {
 		baseURL = mistralDefaultBaseURL
 	}
+	// go-openai trims it for chat; transcription joins paths itself.
+	baseURL = strings.TrimRight(baseURL, "/")
 
 	// OpenAI-compat client pointed at Mistral.
 	cfg := openai.DefaultConfig(apiKey)
 	cfg.BaseURL = baseURL
 
-	// ZaguanLabs client for Voxtral transcription. Its Transcribe method takes
-	// no ctx, so the per-attempt HTTP timeout is the only cancellation it
-	// honours; align it with llmTranscribeTimeout (see Transcribe below).
-	audioClient := mistralSDK.NewMistralClient(apiKey, mistralSDK.Endpoint, mistralSDK.DefaultMaxRetries, llmTranscribeTimeout)
-
 	return &mistralProvider{
-		chatClient:  openai.NewClientWithConfig(cfg),
-		audioClient: audioClient,
-		models:      models,
+		chatClient: openai.NewClientWithConfig(cfg),
+		apiKey:     apiKey,
+		baseURL:    baseURL,
+		models:     models,
 	}
 }
 
@@ -50,7 +54,7 @@ func (p *mistralProvider) Name() string { return "mistral" }
 
 func (p *mistralProvider) Model(task LLMTask) string { return p.models[task] }
 
-func (p *mistralProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (string, error) {
+func (p *mistralProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (LLMResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
 	defer cancel()
 	model := p.models[LLMTaskExtraction]
@@ -70,19 +74,20 @@ func (p *mistralProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("mistral chat json failed: %w", err)
+		return LLMResponse{}, fmt.Errorf("mistral chat json failed: %w", err)
 	}
+	res := LLMResponse{Usage: chatUsage(resp)}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("mistral returned no choices")
+		return res, fmt.Errorf("mistral returned no choices")
 	}
-	raw := resp.Choices[0].Message.Content
-	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
-		return "", fmt.Errorf("failed to parse extraction response: %w", parseErr)
+	res.Text = resp.Choices[0].Message.Content
+	if parseErr := json.Unmarshal([]byte(res.Text), out); parseErr != nil {
+		return res, fmt.Errorf("failed to parse extraction response: %w", parseErr)
 	}
-	return raw, nil
+	return res, nil
 }
 
-func (p *mistralProvider) ChatText(ctx context.Context, req ChatTextRequest) (string, error) {
+func (p *mistralProvider) ChatText(ctx context.Context, req ChatTextRequest) (LLMResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
 	defer cancel()
 	resp, err := p.chatClient.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
@@ -92,59 +97,14 @@ func (p *mistralProvider) ChatText(ctx context.Context, req ChatTextRequest) (st
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("mistral chat text failed: %w", err)
+		return LLMResponse{}, fmt.Errorf("mistral chat text failed: %w", err)
 	}
+	res := LLMResponse{Usage: chatUsage(resp)}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("mistral returned no choices")
+		return res, fmt.Errorf("mistral returned no choices")
 	}
-	return resp.Choices[0].Message.Content, nil
-}
-
-func (p *mistralProvider) Vision(ctx context.Context, req VisionRequest, out any) (string, error) {
-	ctx, cancel := context.WithTimeout(ctx, llmChatTimeout)
-	defer cancel()
-	model := p.models[LLMTaskVision]
-	b64 := encodeImageBase64(req.ImageData)
-	dataURL := fmt.Sprintf("data:%s;base64,%s", req.MediaType, b64)
-
-	resp, err := p.chatClient.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: model,
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role: openai.ChatMessageRoleUser,
-				MultiContent: []openai.ChatMessagePart{
-					{Type: openai.ChatMessagePartTypeText, Text: req.Prompt},
-					{
-						Type: openai.ChatMessagePartTypeImageURL,
-						ImageURL: &openai.ChatMessageImageURL{
-							URL:    dataURL,
-							Detail: openai.ImageURLDetailHigh,
-						},
-					},
-				},
-			},
-		},
-		MaxCompletionTokens: 4096,
-		ResponseFormat: &openai.ChatCompletionResponseFormat{
-			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-				Name:   req.SchemaName,
-				Strict: true,
-				Schema: req.Schema,
-			},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("mistral vision failed: %w", err)
-	}
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("mistral vision returned no choices")
-	}
-	raw := resp.Choices[0].Message.Content
-	if parseErr := json.Unmarshal([]byte(raw), out); parseErr != nil {
-		return "", fmt.Errorf("failed to parse vision response: %w", parseErr)
-	}
-	return raw, nil
+	res.Text = resp.Choices[0].Message.Content
+	return res, nil
 }
 
 // sanitiseContextBias applies Voxtral's wire-format rules to a slice of raw
@@ -192,41 +152,54 @@ func sanitiseContextBias(terms []string) []string {
 }
 
 // Transcribe runs Voxtral transcription bounded by llmTranscribeTimeout.
-//
-// mistral-go/v2 (v2.4.4) exposes no ctx-aware Transcribe variant: the SDK
-// builds its own http.Request without a context and only honours the
-// http.Client timeout it was constructed with. To still respect ctx we run
-// the SDK call in a goroutine and select on ctx.Done(); on cancellation the
-// caller returns immediately but the underlying HTTP call keeps running
-// until the SDK's own timeout (set to llmTranscribeTimeout) expires, at
-// which point the goroutine exits and its result is discarded.
-func (p *mistralProvider) Transcribe(ctx context.Context, req TranscribeRequest) (TranscribeResponse, error) {
+// No retry: the user can retry the job (handleJobRetry).
+func (p *mistralProvider) Transcribe(ctx context.Context, req TranscribeRequest) (LLMResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, llmTranscribeTimeout)
 	defer cancel()
 
-	bias := sanitiseContextBias(req.ContextBias)
-	model := p.models[LLMTaskTranscription]
-
-	type result struct {
-		resp *mistralSDK.TranscriptionResponse
-		err  error
+	body := &bytes.Buffer{}
+	w := multipart.NewWriter(body)
+	part, err := w.CreateFormFile("file", filepath.Base(req.Filename))
+	if err != nil {
+		return LLMResponse{}, fmt.Errorf("voxtral transcription failed: %w", err)
 	}
-	// Buffered so the goroutine never leaks if ctx wins the select.
-	done := make(chan result, 1)
-	go func() {
-		resp, err := p.audioClient.Transcribe(model, req.Audio, req.Filename, &mistralSDK.TranscriptionRequest{
-			ContextBias: bias,
-		})
-		done <- result{resp: resp, err: err}
-	}()
-
-	select {
-	case <-ctx.Done():
-		return TranscribeResponse{}, fmt.Errorf("voxtral transcription failed: %w", ctx.Err())
-	case r := <-done:
-		if r.err != nil {
-			return TranscribeResponse{}, fmt.Errorf("voxtral transcription failed: %w", r.err)
-		}
-		return TranscribeResponse{Text: r.resp.Text}, nil
+	if _, err := io.Copy(part, req.Audio); err != nil {
+		return LLMResponse{}, fmt.Errorf("voxtral transcription failed: read audio: %w", err)
 	}
+	err = w.WriteField("model", p.models[LLMTaskTranscription])
+	for _, term := range sanitiseContextBias(req.ContextBias) {
+		err = errors.Join(err, w.WriteField("context_bias[]", term))
+	}
+	if err := errors.Join(err, w.Close()); err != nil {
+		return LLMResponse{}, fmt.Errorf("voxtral transcription failed: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/audio/transcriptions", body)
+	if err != nil {
+		return LLMResponse{}, fmt.Errorf("voxtral transcription failed: %w", err)
+	}
+	httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	httpReq.Header.Set("Content-Type", w.FormDataContentType())
+
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return LLMResponse{}, fmt.Errorf("voxtral transcription failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096)) //nolint:errcheck // best-effort error detail
+		return LLMResponse{}, fmt.Errorf("voxtral transcription failed: status %d: %s", resp.StatusCode, msg)
+	}
+
+	// Schema: official Python SDK TranscriptionResponse / UsageInfo.
+	var out struct {
+		Text  string `json:"text"`
+		Usage struct {
+			PromptAudioSeconds int `json:"prompt_audio_seconds"`
+		} `json:"usage"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return LLMResponse{Usage: &LLMUsage{}}, fmt.Errorf("voxtral transcription failed: decode response: %w", err)
+	}
+	return LLMResponse{Text: out.Text, Usage: &LLMUsage{AudioSeconds: out.Usage.PromptAudioSeconds}}, nil
 }

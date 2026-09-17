@@ -43,13 +43,17 @@ func (s *stubRoster) Students(_ context.Context) ([]ClassGroup, error) {
 
 // stubTranscriber implements Transcriber for tests.
 type stubTranscriber struct {
-	result  string
-	err     error
-	gotBias []string
+	result    string
+	err       error
+	gotBias   []string
+	gotCaller llmCaller
 }
 
-func (s *stubTranscriber) Transcribe(_ context.Context, _ string, _ io.Reader, contextBias []string) (string, error) {
+func (s *stubTranscriber) Transcribe(ctx context.Context, _ string, _ io.Reader, contextBias []string) (string, error) {
 	s.gotBias = contextBias
+	if c, ok := ctx.Value(llmCallerKey).(llmCaller); ok {
+		s.gotCaller = c
+	}
 	return s.result, s.err
 }
 

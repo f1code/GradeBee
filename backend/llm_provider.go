@@ -1,10 +1,11 @@
 // llm_provider.go defines the LLMProvider abstraction that backs all LLM call
-// sites (extraction, report generation, vision, transcription). Two production
+// sites (extraction, report generation, transcription). Two production
 // implementations exist: openaiProvider and mistralProvider.
 package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,7 +23,7 @@ import (
 // with context.WithTimeout; a caller ctx that already carries a shorter
 // deadline wins naturally.
 const (
-	// llmChatTimeout bounds ChatJSON, ChatText and Vision calls.
+	// llmChatTimeout bounds ChatJSON and ChatText calls.
 	llmChatTimeout = 120 * time.Second
 	// llmTranscribeTimeout bounds Transcribe calls, which upload audio and
 	// can legitimately run for several minutes.
@@ -35,7 +36,6 @@ type LLMTask string
 const (
 	LLMTaskExtraction    LLMTask = "extraction"
 	LLMTaskReport        LLMTask = "report"
-	LLMTaskVision        LLMTask = "vision"
 	LLMTaskTranscription LLMTask = "transcription"
 )
 
@@ -52,16 +52,6 @@ type ChatTextRequest struct {
 	UserPrompt string
 }
 
-// VisionRequest is input to a multimodal vision call.
-type VisionRequest struct {
-	Prompt    string
-	MediaType string // e.g. "image/jpeg"
-	ImageData []byte // raw image bytes
-	// JSON schema for structured output
-	SchemaName string
-	Schema     json.RawMessage
-}
-
 // TranscribeRequest is input to an audio transcription call.
 type TranscribeRequest struct {
 	Filename    string
@@ -69,9 +59,21 @@ type TranscribeRequest struct {
 	ContextBias []string
 }
 
-// TranscribeResponse is the output of a transcription call.
-type TranscribeResponse struct {
+// LLMResponse is the output of a provider call. For ChatJSON, Text is the raw JSON.
+type LLMResponse struct {
 	Text string
+	// Usage is nil when no response arrived. A provider sets it, even alongside
+	// an error, once a response came back: a reply that failed to decode still
+	// cost money.
+	Usage *LLMUsage
+}
+
+// LLMUsage is what a call billed. Chat fills tokens; transcription fills
+// AudioSeconds, 0 when the provider does not report it.
+type LLMUsage struct {
+	InputTokens  int
+	OutputTokens int
+	AudioSeconds int
 }
 
 // LLMProvider abstracts a single LLM backend (OpenAI or Mistral).
@@ -82,14 +84,11 @@ type LLMProvider interface {
 	Model(task LLMTask) string
 	// ChatJSON calls the provider for a structured JSON response and unmarshals
 	// the result into out.
-	ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (rawJSON string, err error)
+	ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (LLMResponse, error)
 	// ChatText calls the provider for a free-form text response.
-	ChatText(ctx context.Context, req ChatTextRequest) (string, error)
-	// Vision calls the provider with an image+text prompt and unmarshals the
-	// structured JSON response into out.
-	Vision(ctx context.Context, req VisionRequest, out any) (rawJSON string, err error)
+	ChatText(ctx context.Context, req ChatTextRequest) (LLMResponse, error)
 	// Transcribe converts audio to text with optional context bias terms.
-	Transcribe(ctx context.Context, req TranscribeRequest) (TranscribeResponse, error)
+	Transcribe(ctx context.Context, req TranscribeRequest) (LLMResponse, error)
 }
 
 // Sentry metric names for the provider boundary. Named for the call, not the
@@ -101,45 +100,80 @@ const (
 )
 
 // instrumentedProvider wraps an LLMProvider to emit Sentry metrics (call
-// latency, call count, and errors split by kind) at the provider boundary.
-// Wrapping here, rather than in each concrete provider, covers openaiProvider
-// and mistralProvider identically without touching either. Metrics no-op
-// automatically when Sentry is not initialised: sentry.NewMeter returns a
-// noop meter whenever no client is bound to the hub (see TestRecordLLMCall_NoopWhenSentryUninitialised).
+// latency, call count, and errors split by kind) and an llm_calls row at the
+// provider boundary. Wrapping here, rather than in each concrete provider,
+// covers openaiProvider and mistralProvider identically without touching
+// either. Metrics no-op automatically when Sentry is not initialised:
+// sentry.NewMeter returns a noop meter whenever no client is bound to the hub
+// (see TestRecordLLMCall_NoopWhenSentryUninitialised).
 type instrumentedProvider struct {
 	LLMProvider
+	db *sql.DB
 }
 
-func instrumentProvider(p LLMProvider) LLMProvider {
-	return &instrumentedProvider{LLMProvider: p}
+func instrumentProvider(p LLMProvider, db *sql.DB) LLMProvider {
+	return &instrumentedProvider{LLMProvider: p, db: db}
 }
 
-func (p *instrumentedProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (string, error) {
+func (p *instrumentedProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (LLMResponse, error) {
 	start := time.Now()
-	raw, err := p.LLMProvider.ChatJSON(ctx, req, out)
+	resp, err := p.LLMProvider.ChatJSON(ctx, req, out)
 	recordLLMCall(ctx, p.LLMProvider, LLMTaskExtraction, start, err)
-	return raw, err
+	p.saveLLMCall(ctx, LLMTaskExtraction, resp.Usage, err)
+	return resp, err
 }
 
-func (p *instrumentedProvider) ChatText(ctx context.Context, req ChatTextRequest) (string, error) {
+func (p *instrumentedProvider) ChatText(ctx context.Context, req ChatTextRequest) (LLMResponse, error) {
 	start := time.Now()
-	text, err := p.LLMProvider.ChatText(ctx, req)
+	resp, err := p.LLMProvider.ChatText(ctx, req)
 	recordLLMCall(ctx, p.LLMProvider, LLMTaskReport, start, err)
-	return text, err
+	p.saveLLMCall(ctx, LLMTaskReport, resp.Usage, err)
+	return resp, err
 }
 
-func (p *instrumentedProvider) Vision(ctx context.Context, req VisionRequest, out any) (string, error) {
-	start := time.Now()
-	raw, err := p.LLMProvider.Vision(ctx, req, out)
-	recordLLMCall(ctx, p.LLMProvider, LLMTaskVision, start, err)
-	return raw, err
-}
-
-func (p *instrumentedProvider) Transcribe(ctx context.Context, req TranscribeRequest) (TranscribeResponse, error) {
+func (p *instrumentedProvider) Transcribe(ctx context.Context, req TranscribeRequest) (LLMResponse, error) {
 	start := time.Now()
 	resp, err := p.LLMProvider.Transcribe(ctx, req)
 	recordLLMCall(ctx, p.LLMProvider, LLMTaskTranscription, start, err)
+	p.saveLLMCall(ctx, LLMTaskTranscription, resp.Usage, err)
 	return resp, err
+}
+
+type llmCaller struct{ userID, traceID string }
+
+// withLLMCaller names who AI calls on ctx bill to, for the llm_calls row.
+// traceID may be empty.
+func withLLMCaller(ctx context.Context, userID, traceID string) context.Context {
+	return context.WithValue(ctx, llmCallerKey, llmCaller{userID: userID, traceID: traceID})
+}
+
+// saveLLMCall inserts the llm_calls row for a call that got a response. It
+// never fails the call: the result already cost money and the caller needs it.
+func (p *instrumentedProvider) saveLLMCall(ctx context.Context, task LLMTask, usage *LLMUsage, callErr error) {
+	if usage == nil {
+		return
+	}
+	log := loggerFromContext(ctx)
+	caller, ok := ctx.Value(llmCallerKey).(llmCaller)
+	if !ok || caller.userID == "" {
+		log.Warn("llm call not recorded: no user on context", "task", task)
+		return
+	}
+	var inputTokens, outputTokens, audioSeconds any
+	if task == LLMTaskTranscription {
+		audioSeconds = usage.AudioSeconds
+	} else {
+		inputTokens, outputTokens = usage.InputTokens, usage.OutputTokens
+	}
+	// WithoutCancel: a client gone mid-report still got billed.
+	_, err := p.db.ExecContext(context.WithoutCancel(ctx), `
+		INSERT INTO llm_calls (user_id, trace_id, provider, model, task, input_tokens, output_tokens, audio_seconds, ok)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		caller.userID, sql.NullString{String: caller.traceID, Valid: caller.traceID != ""},
+		p.Name(), p.Model(task), string(task), inputTokens, outputTokens, audioSeconds, callErr == nil)
+	if err != nil {
+		log.Warn("llm call not recorded", "task", task, "error", err)
+	}
 }
 
 // recordLLMCall emits call duration, call count, and (on failure) an error
@@ -176,14 +210,12 @@ func defaultModels(provider string) map[LLMTask]string {
 		return map[LLMTask]string{
 			LLMTaskExtraction:    "gpt-5.4-mini",
 			LLMTaskReport:        "gpt-5.4-mini",
-			LLMTaskVision:        "gpt-5.4-mini",
 			LLMTaskTranscription: "whisper-1",
 		}
 	default: // "mistral"
 		return map[LLMTask]string{
 			LLMTaskExtraction:    "mistral-medium-2508",
 			LLMTaskReport:        "mistral-medium-2508",
-			LLMTaskVision:        "mistral-medium-2508",
 			LLMTaskTranscription: "voxtral-mini-latest",
 		}
 	}
@@ -198,9 +230,6 @@ func resolveModels(provider string) map[LLMTask]string {
 	if v := os.Getenv("LLM_MODEL_REPORT"); v != "" {
 		m[LLMTaskReport] = v
 	}
-	if v := os.Getenv("LLM_MODEL_VISION"); v != "" {
-		m[LLMTaskVision] = v
-	}
 	if v := os.Getenv("LLM_MODEL_TRANSCRIPTION"); v != "" {
 		m[LLMTaskTranscription] = v
 	}
@@ -209,8 +238,9 @@ func resolveModels(provider string) map[LLMTask]string {
 
 // LoadProvider reads LLM_PROVIDER from the environment, validates the active
 // provider's API key, and returns the configured LLMProvider. It is called
-// from NewProdDeps so the binary fails to start on misconfiguration.
-func LoadProvider() (LLMProvider, error) {
+// from NewProdDeps so the binary fails to start on misconfiguration. db
+// receives the llm_calls rows.
+func LoadProvider(db *sql.DB) (LLMProvider, error) {
 	providerName := os.Getenv("LLM_PROVIDER")
 	if providerName == "" {
 		providerName = "mistral"
@@ -242,8 +272,7 @@ func LoadProvider() (LLMProvider, error) {
 		"provider", p.Name(),
 		"extraction", p.Model(LLMTaskExtraction),
 		"report", p.Model(LLMTaskReport),
-		"vision", p.Model(LLMTaskVision),
 		"transcription", p.Model(LLMTaskTranscription),
 	)
-	return instrumentProvider(p), nil
+	return instrumentProvider(p, db), nil
 }

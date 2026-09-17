@@ -116,7 +116,7 @@ export interface ListLevelsResponse {
 // source: llm_provider.go
 /*
 llm_provider.go defines the LLMProvider abstraction that backs all LLM call
-sites (extraction, report generation, vision, transcription). Two production
+sites (extraction, report generation, transcription). Two production
 implementations exist: openaiProvider and mistralProvider.
 */
 
@@ -126,7 +126,6 @@ implementations exist: openaiProvider and mistralProvider.
 export type LLMTask = string;
 export const LLMTaskExtraction: LLMTask = "extraction";
 export const LLMTaskReport: LLMTask = "report";
-export const LLMTaskVision: LLMTask = "vision";
 export const LLMTaskTranscription: LLMTask = "transcription";
 /**
  * ChatJSONRequest is input to a structured-JSON chat call.
@@ -144,19 +143,6 @@ export interface ChatTextRequest {
   UserPrompt: string;
 }
 /**
- * VisionRequest is input to a multimodal vision call.
- */
-export interface VisionRequest {
-  Prompt: string;
-  MediaType: string; // e.g. "image/jpeg"
-  ImageData: string /* []byte */; // raw image bytes
-  /**
-   * JSON schema for structured output
-   */
-  SchemaName: string;
-  Schema: any /* json.RawMessage */;
-}
-/**
  * TranscribeRequest is input to an audio transcription call.
  */
 export interface TranscribeRequest {
@@ -165,10 +151,25 @@ export interface TranscribeRequest {
   ContextBias: string[];
 }
 /**
- * TranscribeResponse is the output of a transcription call.
+ * LLMResponse is the output of a provider call. For ChatJSON, Text is the raw JSON.
  */
-export interface TranscribeResponse {
+export interface LLMResponse {
   Text: string;
+  /**
+   * Usage is nil when no response arrived. A provider sets it, even alongside
+   * an error, once a response came back: a reply that failed to decode still
+   * cost money.
+   */
+  Usage?: LLMUsage;
+}
+/**
+ * LLMUsage is what a call billed. Chat fills tokens; transcription fills
+ * AudioSeconds, 0 when the provider does not report it.
+ */
+export interface LLMUsage {
+  InputTokens: number /* int */;
+  OutputTokens: number /* int */;
+  AudioSeconds: number /* int */;
 }
 /**
  * LLMProvider abstracts a single LLM backend (OpenAI or Mistral).
@@ -179,8 +180,8 @@ export type LLMProvider = any;
 // source: llm_provider_mistral.go
 /*
 llm_provider_mistral.go implements LLMProvider backed by Mistral.
-Chat and vision use the OpenAI-compatible endpoint via go-openai.
-Transcription uses the ZaguanLabs mistral-go/v2/sdk for Voxtral support.
+Chat uses the OpenAI-compatible endpoint via go-openai.
+Transcription posts multipart to Voxtral's /audio/transcriptions directly.
 */
 
 

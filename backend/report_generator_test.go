@@ -37,24 +37,20 @@ func (f *fakeLLMProvider) Model(task LLMTask) string {
 	return fakeExtractModel
 }
 
-func (f *fakeLLMProvider) ChatText(_ context.Context, req ChatTextRequest) (string, error) {
+func (f *fakeLLMProvider) ChatText(_ context.Context, req ChatTextRequest) (LLMResponse, error) {
 	f.calls = append(f.calls, req)
 	if f.err != nil {
-		return "", f.err
+		return LLMResponse{}, f.err
 	}
-	return f.text, nil
+	return LLMResponse{Text: f.text}, nil
 }
 
-func (f *fakeLLMProvider) ChatJSON(_ context.Context, _ ChatJSONRequest, _ any) (string, error) {
-	return "", errors.New("fakeLLMProvider: ChatJSON not expected on the report path")
+func (f *fakeLLMProvider) ChatJSON(_ context.Context, _ ChatJSONRequest, _ any) (LLMResponse, error) {
+	return LLMResponse{}, errors.New("fakeLLMProvider: ChatJSON not expected on the report path")
 }
 
-func (f *fakeLLMProvider) Vision(_ context.Context, _ VisionRequest, _ any) (string, error) {
-	return "", errors.New("fakeLLMProvider: Vision not expected on the report path")
-}
-
-func (f *fakeLLMProvider) Transcribe(_ context.Context, _ TranscribeRequest) (TranscribeResponse, error) {
-	return TranscribeResponse{}, errors.New("fakeLLMProvider: Transcribe not expected on the report path")
+func (f *fakeLLMProvider) Transcribe(_ context.Context, _ TranscribeRequest) (LLMResponse, error) {
+	return LLMResponse{}, errors.New("fakeLLMProvider: Transcribe not expected on the report path")
 }
 
 // reportGenFixture is one student with notes on both sides of the report
