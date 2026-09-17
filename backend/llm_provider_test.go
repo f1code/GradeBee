@@ -24,8 +24,8 @@ func TestLLMProvider_InterfaceConformance(t *testing.T) {
 // TestLLMProvider_DefaultModels verifies default model IDs for each provider.
 func TestLLMProvider_DefaultModels(t *testing.T) {
 	mistralModels := defaultModels("mistral")
-	assert.Equal(t, "mistral-medium-2508", mistralModels[LLMTaskExtraction])
-	assert.Equal(t, "mistral-medium-2508", mistralModels[LLMTaskReport])
+	assert.Equal(t, "mistral-medium-3-5", mistralModels[LLMTaskExtraction])
+	assert.Equal(t, "mistral-medium-3-5", mistralModels[LLMTaskReport])
 	assert.Equal(t, "voxtral-mini-latest", mistralModels[LLMTaskTranscription])
 
 	openaiModels := defaultModels("openai")

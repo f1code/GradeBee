@@ -207,5 +207,5 @@ func TestLoadProvider_WrapsWithInstrumentation(t *testing.T) {
 	_, ok := p.(*instrumentedProvider)
 	require.True(t, ok, "LoadProvider() must return an *instrumentedProvider, got %T", p)
 	assert.Equal(t, "mistral", p.Name())
-	assert.Equal(t, "mistral-medium-2508", p.Model(LLMTaskExtraction))
+	assert.Equal(t, defaultModels("mistral")[LLMTaskExtraction], p.Model(LLMTaskExtraction))
 }

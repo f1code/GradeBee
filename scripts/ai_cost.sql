@@ -10,6 +10,7 @@ prices (model, per_1m_input, per_1m_output, per_minute) AS (
     -- https://mistral.ai/pricing/api, 2026-09-17. mistral-medium-2508 is no
     -- longer listed there; price from third-party trackers.
     ('mistral-medium-2508', 0.40, 2.00, NULL),
+    ('mistral-medium-3-5', 1.50, 7.50, NULL),
     ('voxtral-mini-latest', NULL, NULL, 0.003),
     -- https://developers.openai.com/api/docs/pricing, 2026-09-17
     ('gpt-5.4-mini', 0.75, 4.50, NULL),

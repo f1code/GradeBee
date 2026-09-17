@@ -12,7 +12,7 @@ prompts:
 # TestEvalConfigsTrackProductionModels (backend/evals_config_test.go) fails if
 # it drifts from defaultModels() in llm_provider.go.
 providers:
-  - id: mistral:mistral-medium-2508
+  - id: mistral:mistral-medium-3-5
     label: gradebee-extract
     config: &extract_schema
       response_format:
@@ -54,11 +54,11 @@ providers:
             required: [observations]
             additionalProperties: false
 
-  # Comparison provider. Not tracked for regressions — it is the weaker model,
-  # kept so a prompt change that outgrows mistral-small shows up as a widening
-  # gap against the canonical row before it reaches production's model.
-  - id: mistral:mistral-small-2603
-    label: gradebee-extract-small
+  # Comparison provider, not tracked for regressions: cheaper than the canonical
+  # model, and short of it on wrong_class_group and shared_clause when
+  # measured for #164.
+  - id: mistral:mistral-large-2512
+    label: gradebee-extract-large-2512
     config: *extract_schema
 
 # Default options for every row.
