@@ -529,7 +529,7 @@ confirm the suite fails; a fix without that evidence is not a fix.
 | `LLM_PROVIDER` | No | `"openai"` or `"mistral"` (default: `"mistral"`) — selects the LLM backend |
 | `OPENAI_API_KEY` | When `LLM_PROVIDER=openai` | OpenAI API key (chat, Whisper) |
 | `MISTRAL_API_KEY` | When `LLM_PROVIDER=mistral` | Mistral API key (chat, Voxtral) |
-| `LLM_MODEL_EXTRACTION` | No | Extraction model ID (default: `mistral-medium-2508` / `gpt-5.4-mini`) |
+| `LLM_MODEL_EXTRACTION` | No | Extraction model ID (default: `mistral-medium-3-5` / `gpt-5.4-mini`) |
 | `LLM_MODEL_REPORT` | No | Report generation model ID |
 | `LLM_MODEL_TRANSCRIPTION` | No | Transcription model ID (default: `voxtral-mini-latest` / `whisper-1`) |
 | `DB_PATH` | No | SQLite path (default `/data/gradebee.db`) |

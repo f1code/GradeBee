@@ -61,14 +61,14 @@ Each config runs a **canonical** provider plus any number of **comparison** prov
 
 | Config | Canonical label | Model | Tracked by `diff-baseline.js` |
 |---|---|---|---|
-| `promptfooconfig.extract.yaml` | `gradebee-extract` | `mistral-medium-2508` | yes (★) |
-| `promptfooconfig.report.yaml` | `gradebee-report` | `mistral-medium-2508` | yes (★) |
+| `promptfooconfig.extract.yaml` | `gradebee-extract` | `mistral-medium-3-5` | yes (★) |
+| `promptfooconfig.report.yaml` | `gradebee-report` | `mistral-medium-3-5` | yes (★) |
 
-The canonical provider must grade the model **production actually runs** — `defaultModels()` in `backend/llm_provider.go`, which resolves to `mistral-medium-2508` for both extraction and report generation. `diff-baseline.js` counts regressions on canonical rows alone, so a canonical provider pinned to anything else means the regression signal describes a model we do not ship. That is exactly what happened before: the extraction config graded `mistral-small-2603` for its whole life while production ran `mistral-medium-2508`.
+The canonical provider must grade the model **production actually runs** — `defaultModels()` in `backend/llm_provider.go`, which resolves to `mistral-medium-3-5` for both extraction and report generation. `diff-baseline.js` counts regressions on canonical rows alone, so a canonical provider pinned to anything else means the regression signal describes a model we do not ship. That is exactly what happened before: the extraction config graded `mistral-small-2603` for its whole life while production ran `mistral-medium-2508`.
 
 `TestEvalConfigsTrackProductionModels` in `backend/evals_config_test.go` parses both configs and fails if a canonical provider's `id` drifts from `defaultModels()`. It needs no API key and runs under `make test`. It checks the Mistral defaults only — the configs hardcode `mistral:`-prefixed provider ids, so a deployment overriding `LLM_PROVIDER` or `LLM_MODEL_*` is outside what this guard can see. **If you deliberately change a production model, update `defaultModels()` and the config together, then regenerate the baseline.**
 
-Comparison providers are unconstrained — they exist to measure other models and the test ignores them. `gradebee-extract-small` (`mistral-small-2603`) is kept as the weaker model: a prompt change that outgrows it shows up as a widening gap against the canonical row before it costs anything in production. Note that extraction providers pin no `temperature`, so comparison scores move a little between runs; treat small deltas on non-canonical rows as noise.
+Comparison providers are unconstrained — they exist to measure other models and the test ignores them. Note that extraction providers pin no `temperature`, so comparison scores move a little between runs; treat small deltas on non-canonical rows as noise.
 
 ## Debugging a single case
 
@@ -175,16 +175,16 @@ assembly rules as production — it is the JavaScript twin of `guardPassages`
 (`backend/voice_note_passages.go`). Change one, change both, or the eval stops
 grading what ships.
 
-Scores are `gradebee-extract` (`mistral-medium-2508`), the run pinned in
-`baseline.json` on 2026-09-14 by #128, with pass 1 cutting the header before
-pass 2 (#155).
+Scores are `gradebee-extract` (`mistral-medium-3-5`), the run pinned in
+`baseline.json` on 2026-09-17 by #164, with pass 1 cutting the header before
+pass 2 (#155). `mistral-medium-2508` scored the same on every row.
 
 | Fixture | Score | State |
 | --- | --- | --- |
 | `voice_preservation` | 1.000 | green |
 | `cross_student_bleed` | 1.000 | green |
 | `group_observation` | 1.000 | green — the group remark reaches the whole pinned roster, never the sibling class. |
-| `shared_clause` | 1.000 | green |
+| `shared_clause` | 1.000 | green — 6 runs in 7 on `mistral-medium-3-5`, no cache (#164); the miss gave the shared "colours" sentence to Bruno alone. |
 | `full_name_roster` | 1.000 | green |
 | `numbered_roster` | 1.000 | green |
 | `pronoun_run_bleed` | 1.000 | green — was 0.333. Two blocks are owned by nobody; passages are the unit that lets them reach no note. 5 runs in 5. |
@@ -241,7 +241,7 @@ passages with a spoken label and an empty `student`, so the no-names rule can
 suppress the group remark. The `unknown` bullet told it the opposite: "a name
 that matches nobody listed" was listed as `unknown`, which carries no label.
 #128 cut that clause. 30 runs in 30 afterwards; the other five measured rows
-held 10/10. The untracked `gradebee-extract-small` went the other way on this
+held 10/10. The `mistral-small-2603` comparison row, since removed (#164), went the other way on this
 row in the same run, 1.000 to 0.500; not measured further.
 
 ### `roster_phantom` and the negative it is paired with

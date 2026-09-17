@@ -214,8 +214,8 @@ func defaultModels(provider string) map[LLMTask]string {
 		}
 	default: // "mistral"
 		return map[LLMTask]string{
-			LLMTaskExtraction:    "mistral-medium-2508",
-			LLMTaskReport:        "mistral-medium-2508",
+			LLMTaskExtraction:    "mistral-medium-3-5",
+			LLMTaskReport:        "mistral-medium-3-5",
 			LLMTaskTranscription: "voxtral-mini-latest",
 		}
 	}
