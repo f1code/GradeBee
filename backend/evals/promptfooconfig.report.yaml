@@ -13,8 +13,6 @@ providers:
     label: gradebee-report
 
   # Comparison / experimental providers:
-  - id: mistral:mistral-large-2512
-    label: gradebee-report-large
   - id: openai:chat:gpt-5.6-luna
     label: gradebee-report-openai
 

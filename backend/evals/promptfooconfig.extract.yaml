@@ -54,11 +54,11 @@ providers:
             required: [observations]
             additionalProperties: false
 
-  # Comparison provider, not tracked for regressions: cheaper than the canonical
-  # model, and short of it on wrong_class_group and shared_clause when
-  # measured for #164.
-  - id: mistral:mistral-large-2512
-    label: gradebee-extract-large-2512
+  # Comparison provider, not tracked for regressions: a tenth of the canonical
+  # model's price and short of it (#164), kept to measure how far prompt and
+  # guard changes close the gap.
+  - id: mistral:mistral-small-2603
+    label: gradebee-extract-small
     config: *extract_schema
 
 # Default options for every row.
