@@ -54,9 +54,27 @@ providers:
             required: [observations]
             additionalProperties: false
 
-  # No comparison provider. mistral-small-2603 and mistral-large-2512 were both
-  # measured and dropped — see "Cheaper models, and why none is graded here" in
-  # README.md before adding one back.
+  # mistral-small-2603 and mistral-large-2512 were both measured and dropped —
+  # see "Cheaper models, and why none is graded here" in README.md before
+  # adding either back.
+  #
+  # require_parameters keeps the routing on a backend that honours
+  # response_format: 4 of the 10 OpenRouter endpoints serving this model do not.
+  #
+  # Reasoning off: it runs 1-16k+ tokens on these prompts and can end with
+  # empty content, sending the reasoning text to assemble.js.
+  #
+  # Commented out: every run spends OpenRouter credits. Uncomment with
+  # OPENROUTER_API_KEY in .env. Results in README.md, "DeepSeek via OpenRouter".
+  # - id: openrouter:deepseek/deepseek-v4.1-flash
+  #   label: openrouter-deepseek
+  #   config:
+  #     <<: *extract_schema
+  #     provider:
+  #       require_parameters: true
+  #     passthrough:
+  #       reasoning:
+  #         enabled: false
 
 # Default options for every row.
 #

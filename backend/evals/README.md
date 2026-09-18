@@ -51,6 +51,7 @@ cd backend && make eval-baseline
 |---|---|---|
 | `OPENAI_API_KEY` | Yes (for OpenAI) | Used by promptfoo's native provider and the judge model |
 | `MISTRAL_API_KEY` | Yes (for Mistral) | Required when `LLM_PROVIDER=mistral` |
+| `OPENROUTER_API_KEY` | No | Only for the commented-out DeepSeek row |
 | `LLM_PROVIDER` | No | `"openai"` (default for evals) or `"mistral"`; selects which API key is required |
 
 > Model selection lives in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml` (`providers[].id`). To test a different model, add a provider there — but see "Which model the evals grade" below before touching a canonical one.
@@ -72,8 +73,9 @@ Comparison providers are unconstrained — they exist to measure other models an
 
 ### Cheaper models, and why none is graded here
 
-Neither config carries a cheaper comparison row. Both candidates were measured in
-#164 and dropped; re-adding one costs a run per eval, so read this first.
+Neither config carries a cheaper comparison row. The two Mistral candidates were
+measured in #164 and dropped; DeepSeek, measured since, sits commented out.
+Re-adding one costs a run per eval, so read this first.
 
 `mistral-small-2603` (a tenth of the canonical price) missed in three ways, over
 5 runs per fixture, no cache:
@@ -103,6 +105,38 @@ known; the instability is what rules the model out.
 scored below the canonical model on reports: 4.05 against 4.30 over 3 runs. This
 account also rate-limits it hard enough that the Go live tests pass only one test
 at a time, with pauses between them.
+
+#### DeepSeek via OpenRouter
+
+`deepseek/deepseek-v4.1-flash` through promptfoo's `openrouter:` provider,
+commented out in `promptfooconfig.extract.yaml`. $0.30 / $1.20 per M tokens in /
+out, half that off-peak.
+
+Extraction, 5 runs per fixture, no cache, reasoning off:
+
+| | `mistral-medium-3-5` | `deepseek-v4.1-flash` |
+|---|---|---|
+| Passing runs | 70/70 | 70/70 |
+| Mean score | 0.989 | 1.000 |
+| Median latency | 1.1s | 2.0s |
+
+Mistral lost points on `fuzzy_name_matching` alone (0.84). DeepSeek passed
+`wrong_class_group`, `fuzzy_name_matching` and `shared_clause` 5 in 5, the three
+that ruled out small. The fixtures sit near ceiling, so this shows DeepSeek no
+worse on these cases, not better.
+
+Two config traps:
+
+- Reasoning. promptfoo sends `max_tokens: 1024` by default; reasoning ends most
+  calls there (`finish=length`, empty content), and promptfoo hands the reasoning
+  text to `assemble.js`, which fails to parse it. A 16k cap still left 2 in 8
+  `pronoun_run_bleed` calls reasoning past 14k with no answer.
+  `passthrough.reasoning.enabled: false` fixes both.
+- Routing. 4 of the 10 OpenRouter endpoints serving this model ignore
+  `response_format`; `provider.require_parameters: true` keeps calls off them.
+
+Not measured: pass 1, the class pick that ruled out small (graded only in
+`backend/llm_live_test.go`, which has no OpenRouter path), and reports.
 
 ## Debugging a single case
 
