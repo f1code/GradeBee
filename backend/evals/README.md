@@ -70,6 +70,40 @@ The canonical provider must grade the model **production actually runs** — `de
 
 Comparison providers are unconstrained — they exist to measure other models and the test ignores them. Note that extraction providers pin no `temperature`, so comparison scores move a little between runs; treat small deltas on non-canonical rows as noise.
 
+### Cheaper models, and why none is graded here
+
+Neither config carries a cheaper comparison row. Both candidates were measured in
+#164 and dropped; re-adding one costs a run per eval, so read this first.
+
+`mistral-small-2603` (a tenth of the canonical price) missed in three ways, over
+5 runs per fixture, no cache:
+
+- It files a spoken name that is on no roster under a listed child anyway
+  (`wrong_class_group`, 4 runs in 5). That also defeats the suppression in
+  `assemblePassages`, which relies on no name reaching a child, so a wrong pick
+  writes a note for every child instead of showing the picker.
+- A remark about two named children reaches the whole class
+  (`fuzzy_name_matching`, 4 in 5).
+- It drops the sentence shared by two children (`shared_clause`, 5 in 5).
+
+Two fixes were probed against those runs. A roster-name check — clear `student`
+when no spoken label resolves to the chosen child through `MatchStudent` — fixes
+the first failure only: 54 to 56 passing runs in 66, and it fired on none of the
+canonical model's outputs. A second model pass, the draft handed back with a
+checklist of these weak areas, was a wash: it fixed the same first failure, broke
+a name it had already matched, left the dropped sentence untouched, and cost a
+third more tokens.
+
+Pass 1 is the harder problem. Replayed over the stored recordings three times,
+small declined 1, then 3, then 2 of 16 — same inputs, and every decline shows the
+teacher a class picker instead of notes. Whether a given decline is right is not
+known; the instability is what rules the model out.
+
+`mistral-large-2512` missed `wrong_class_group` and `shared_clause` as well, and
+scored below the canonical model on reports: 4.05 against 4.30 over 3 runs. This
+account also rate-limits it hard enough that the Go live tests pass only one test
+at a time, with pauses between them.
+
 ## Debugging a single case
 
 ```bash
@@ -241,7 +275,7 @@ passages with a spoken label and an empty `student`, so the no-names rule can
 suppress the group remark. The `unknown` bullet told it the opposite: "a name
 that matches nobody listed" was listed as `unknown`, which carries no label.
 #128 cut that clause. 30 runs in 30 afterwards; the other five measured rows
-held 10/10. The untracked `gradebee-extract-small` went the other way on this
+held 10/10. The then-untracked `mistral-small-2603` comparison row went the other way on this
 row in the same run, 1.000 to 0.500; not measured further.
 
 ### `roster_phantom` and the negative it is paired with
