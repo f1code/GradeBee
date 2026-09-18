@@ -54,12 +54,9 @@ providers:
             required: [observations]
             additionalProperties: false
 
-  # Comparison provider, not tracked for regressions: a tenth of the canonical
-  # model's price and short of it (#164), kept to measure how far prompt and
-  # guard changes close the gap.
-  - id: mistral:mistral-small-2603
-    label: gradebee-extract-small
-    config: *extract_schema
+  # No comparison provider. mistral-small-2603 and mistral-large-2512 were both
+  # measured and dropped — see "Cheaper models, and why none is graded here" in
+  # README.md before adding one back.
 
 # Default options for every row.
 #
