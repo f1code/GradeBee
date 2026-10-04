@@ -583,7 +583,7 @@ Report cases carry real names and notes, so only `fixtures.manifest.json` (case 
 
 `make eval-add-report STUDENT_ID=N [REPORT_ID=M]` runs `eval-cli add-report-case`: it lists the student's reports and prints a draft manifest entry for the chosen report (default: newest one not already in the manifest that `gen-report-cases` would accept), validated through the same case loader. Terminal output only.
 
-`make eval-dump-report STUDENT_ID=N REPORT_ID=M` runs `eval-cli dump-report`: it loads the report through `ReportInputResolver.ForReport` and prints its ad-hoc instructions, notes (date, summary) and reference HTML with the class roster redacted. `ReportInputResolver.ClassRoster` supplies the roster with aliases; each name and alias, matched whole-word on folded text (case, accents composed or combining, stroke letters, ligatures such as ß and œ, compatibility forms; space and dash runs count as one separator, so `Elodie` matches `Élodie` and `Jean Luc` matches `Jean-Luc`), becomes `STUDENT` for the report's student or `CLASSMATE_n` (roster order) for a classmate. Level and class names stay. Agents read report content for case selection only through this dump. Terminal output only: non-name sensitive content remains.
+`make eval-dump-report STUDENT_ID=N REPORT_ID=M` runs `eval-cli dump-report`: it loads the report through `ReportInputResolver.ForReport` and prints its ad-hoc instructions, notes (date, summary) and reference HTML with the class roster redacted. `ReportInputResolver.ClassRoster` supplies the roster with aliases; each name and alias, matched whole-word on folded text (case, accents composed or combining, stroke letters, ligatures such as ß and œ, compatibility forms; space and dash runs count as one separator, so `Elodie` matches `Élodie` and `Jean Luc` matches `Jean-Luc`), becomes `STUDENT` for the report's student or `CLASSMATE_n` (roster order) for a classmate. A second pass catches names off the roster (other classes, misspellings, the teacher): a capitalized word seen mid-sentence (not after `.` `!` `?`, a line start or `>`; a colon does not end a sentence) becomes `NAME_n`, numbered by first sighting, at every capitalized occurrence in the dump, sentence starts included. It keeps all-caps words, Level name words from the student's Group, weekday and month names, and any word whose lowercase form appears in the DB's notes or report HTML. A name seen only at sentence starts still prints. Agents read report content for case selection only through this dump. Terminal output only: non-name sensitive content remains.
 
 ### Running evals
 
@@ -630,7 +630,7 @@ make bin/eval-cli
 | `build-report-prompt` | `student_name`, `class`, `notes`, `report_instructions`, `instructions` | `BuildReportPrompt` → messages array (user only) |
 | `gen-report-cases` subcommand (not a task) | `-db`, `-manifest`, `-cases-dir`, `-tests` flags | Report case files + promptfoo test list from the DB |
 | `add-report-case` subcommand (not a task) | `-db`, `-manifest`, `-student`, `-report` flags | Student's report table + draft manifest entry, on stdout |
-| `dump-report` subcommand (not a task) | `-db`, `-student`, `-report` flags | Report's notes and reference HTML, roster names redacted, on stdout |
+| `dump-report` subcommand (not a task) | `-db`, `-student`, `-report` flags | Report's notes and reference HTML, roster names and other likely names redacted, on stdout |
 
 Model selection and the actual LLM call belong to promptfoo, not eval-cli.
 

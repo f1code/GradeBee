@@ -167,6 +167,87 @@ Report cases live in the DB, keyed by id in
 
 See `backend/evals/README.md`, "Report cases".
 
+### Selecting report cases
+
+Pick cases that widen coverage, then hand the list to the user before any
+manifest change.
+
+**Content rule.** Read notes and reports only through
+`make eval-dump-report STUDENT_ID=N REPORT_ID=M`. Skip the Orientation
+Queries above (they print names and transcripts); never `SELECT` `s.name`,
+`n.summary`, `n.transcript`, `r.html` or `r.instructions` with sqlite. The
+dump redacts the class roster, then other capitalized words seen
+mid-sentence (`NAME_n`); a name that only opens sentences can still appear.
+Copy no proper noun into a description.
+
+**Term rule.** Use current-term notes only: every range starts on or after
+the term's first day (2026-09-01 for autumn 2026), never before a break.
+Drop a case whose range then holds no notes.
+
+**1. Survey students** (metadata only, all Levels with Report Instructions):
+
+```bash
+sqlite3 -header -column data/gradebee.db "
+SELECT l.name AS level, c.id AS class, s.id AS student,
+       count(n.id) AS notes, min(n.date) AS first, max(n.date) AS last,
+       min(length(n.summary)) AS min_len,
+       CAST(avg(length(n.summary)) AS INT) AS avg_len,
+       max(length(n.summary)) AS max_len,
+       (SELECT count(*) FROM reports r WHERE r.student_id = s.id) AS reports,
+       (SELECT max(length(r.instructions)) FROM reports r
+         WHERE r.student_id = s.id) AS max_adhoc_len
+FROM students s
+JOIN classes c ON c.id = s.class_id
+JOIN levels l ON l.id = c.level_id
+JOIN notes n ON n.student_id = s.id AND n.date >= '<term_start>'
+WHERE l.report_instructions != ''
+GROUP BY s.id
+ORDER BY l.name, notes DESC"
+```
+
+Distinct instruction texts (Levels sharing one text count once):
+
+```bash
+sqlite3 data/gradebee.db "
+SELECT group_concat(name, ', '), length(report_instructions)
+FROM levels WHERE report_instructions != ''
+GROUP BY report_instructions"
+```
+
+**2. Survey reports** of a candidate student, to find ranges and overlaps:
+
+```bash
+sqlite3 -header -column data/gradebee.db "
+SELECT r.id AS report, r.start_date, r.end_date, count(n.id) AS notes,
+       coalesce(length(r.instructions), 0) AS adhoc_len,
+       substr(r.created_at, 1, 10) AS created
+FROM reports r
+LEFT JOIN notes n ON n.student_id = r.student_id
+  AND n.date BETWEEN r.start_date AND r.end_date
+WHERE r.student_id = <student_id>
+GROUP BY r.id"
+```
+
+**3. Rank by coverage.** Cover each distinct instruction text at least once,
+then widen along:
+
+- ad-hoc instructions present / absent
+- note count: 1-2, typical, many
+- long range with sparse notes
+- regenerated reports (overlapping ranges for one student)
+- very short notes (often absences) / very long notes
+- two students in one class (consistency)
+
+**4. Read each pick** through the dump and write a description saying what
+the case tests. A student with no report in the range has nothing to dump:
+describe from survey metadata only (note count, span, lengths).
+
+**5. Output** per case: student id, start, end, source report id (optional),
+ad-hoc instructions to use (if any; propose name-free text when the axis needs
+one the DB lacks), description. Save it under `../research/` (local, never
+committed). Generate fresh reports from student, range and ad-hoc text under
+current Level instructions before pasting entries into the manifest; the user then reviews the manifest diff.
+
 ---
 
 ## Wiring into promptfooconfig.yaml

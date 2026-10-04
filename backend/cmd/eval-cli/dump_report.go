@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode"
@@ -18,7 +19,7 @@ import (
 )
 
 // runDumpReport prints one report's notes and reference HTML with the class
-// roster's names redacted, so an agent can read it to pick and describe cases.
+// roster's names and other likely names redacted, so an agent can read it to pick and describe cases.
 // Terminal only: the text still carries sensitive non-name content.
 func runDumpReport(args []string) error {
 	fls := flag.NewFlagSet("dump-report", flag.ContinueOnError)
@@ -52,18 +53,128 @@ func dumpReport(ctx context.Context, db *sql.DB, w io.Writer, studentID, reportI
 	if err != nil {
 		return err
 	}
+	allowed, err := loadAllowedCapitals(ctx, db, studentID)
+	if err != nil {
+		return err
+	}
 	r := newRedactor(roster, studentID)
 
+	texts := []string{in.Instructions, rpt.HTML}
+	for _, n := range in.Notes {
+		texts = append(texts, n.Summary)
+	}
+	for i, t := range texts {
+		texts[i] = r.redact(t)
+	}
+	texts = redactCapitalized(texts, allowed)
+
 	fmt.Fprintf(w, "Report %d, student %d, %s..%s, %d notes\n", reportID, studentID, in.StartDate, in.EndDate, len(in.Notes))
-	if strings.TrimSpace(in.Instructions) != "" {
-		fmt.Fprintf(w, "\n## Ad-hoc instructions\n\n%s\n", r.redact(in.Instructions))
+	if strings.TrimSpace(texts[0]) != "" {
+		fmt.Fprintf(w, "\n## Ad-hoc instructions\n\n%s\n", texts[0])
 	}
 	fmt.Fprintln(w, "\n## Notes")
-	for _, n := range in.Notes {
-		fmt.Fprintf(w, "\n%s: %s\n", n.Date, r.redact(n.Summary))
+	for i, n := range in.Notes {
+		fmt.Fprintf(w, "\n%s: %s\n", n.Date, texts[i+2])
 	}
-	fmt.Fprintf(w, "\n## Reference report\n\n%s\n", r.redact(rpt.HTML))
+	fmt.Fprintf(w, "\n## Reference report\n\n%s\n", texts[1])
 	return nil
+}
+
+// calendarWords are capitalized words that are never names.
+var calendarWords = strings.Fields(`English
+	Monday Tuesday Wednesday Thursday Friday Saturday Sunday Mon Tue Wed Thu Fri Sat Sun
+	January February March April May June July August September October November December
+	Jan Feb Mar Apr Jun Jul Aug Sep Sept Oct Nov Dec`)
+
+// loadAllowedCapitals returns words that redactCapitalized keeps: every Level
+// name word in the student's Group (Level characters such as Marcia appear in
+// notes), calendarWords, and every all-lowercase word in the DB's notes and reports, so "The" or
+// "Learning" stays because "the" and "learning" occur.
+func loadAllowedCapitals(ctx context.Context, db *sql.DB, studentID int64) (map[string]bool, error) {
+	allowed := map[string]bool{}
+	for _, w := range calendarWords {
+		allowed[w] = true
+	}
+	rows, err := db.QueryContext(ctx, `SELECT name, 1 FROM levels
+		WHERE group_id = (SELECT l.group_id FROM students s
+			JOIN classes c ON c.id = s.class_id
+			JOIN levels l ON l.id = c.level_id
+			WHERE s.id = ?)
+		UNION ALL SELECT summary, 0 FROM notes
+		UNION ALL SELECT html, 0 FROM reports`, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("vocabulary: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var text string
+		var isLevel bool
+		if err := rows.Scan(&text, &isLevel); err != nil {
+			return nil, fmt.Errorf("vocabulary: %w", err)
+		}
+		for _, w := range wordRe.FindAllStringIndex(text, -1) {
+			word := text[w[0]:w[1]]
+			if isLevel || strings.ToLower(word) == word {
+				allowed[word] = true
+			}
+		}
+	}
+	return allowed, rows.Err()
+}
+
+// redactCapitalized catches names the roster misses (other classes,
+// misspellings, teacher). A capitalized word not at a sentence start counts
+// as a name; every capitalized occurrence of it, sentence starts included,
+// becomes NAME_n, numbered by first sighting across texts. All-caps words
+// (roster tokens, acronyms, "I") and allowed words, in any case, stay.
+func redactCapitalized(texts []string, allowed map[string]bool) []string {
+	tokens := map[string]string{}
+	for _, t := range texts {
+		for _, w := range wordRe.FindAllStringIndex(t, -1) {
+			word := t[w[0]:w[1]]
+			if tokens[word] == "" && isNameCandidate(word, allowed) && !atSentenceStart(t, w[0]) {
+				tokens[word] = fmt.Sprintf("NAME_%d", len(tokens)+1)
+			}
+		}
+	}
+	out := make([]string, len(texts))
+	for i, t := range texts {
+		out[i] = wordRe.ReplaceAllStringFunc(t, func(w string) string {
+			if tok := tokens[w]; tok != "" {
+				return tok
+			}
+			return w
+		})
+	}
+	return out
+}
+
+// wordRe matches letter/digit runs; combining marks stay inside a word.
+var wordRe = regexp.MustCompile(`[\pL\p{Nd}][\pL\p{Nd}\p{Mn}]*`)
+
+func isNameCandidate(word string, allowed map[string]bool) bool {
+	first, _ := utf8.DecodeRuneInString(word)
+	return unicode.IsUpper(first) && strings.ToUpper(word) != word &&
+		!allowed[word] && !allowed[strings.ToLower(word)]
+}
+
+// atSentenceStart reports whether the word at byte i opens the text, a line,
+// a sentence (after . ! ?) or an HTML element's text (after >). Opening
+// quotes and brackets in between are skipped; a colon is not a boundary, so
+// "Teacher: Jane" still counts Jane as mid-sentence.
+func atSentenceStart(s string, i int) bool {
+	for i > 0 {
+		r, size := utf8.DecodeLastRuneInString(s[:i])
+		switch {
+		case r == '\n' || r == '.' || r == '!' || r == '?' || r == '>':
+			return true
+		case unicode.IsSpace(r) || unicode.In(r, unicode.Ps, unicode.Pi) || r == '"' || r == '\'':
+			i -= size
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 type redactTerm struct {

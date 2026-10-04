@@ -212,8 +212,10 @@ its task and rubric from the report config's `defaultTest`.
    `make eval-fixtures` would accept; pick another with `REPORT_ID=M`. Output goes to the terminal only.
 2. Optional: `make eval-dump-report STUDENT_ID=N REPORT_ID=M` prints the
    report's notes and reference HTML with class roster names and aliases
-   replaced by `STUDENT` / `CLASSMATE_n`, for reading the case before
-   describing it. Terminal only: health and family details remain.
+   replaced by `STUDENT` / `CLASSMATE_n` and other capitalized words seen
+   mid-sentence (unknown to the DB in lowercase) by `NAME_n`, for reading the
+   case before describing it. Terminal only: health and family details
+   remain, and a name seen only at sentence starts still prints.
 3. Paste the entry into `fixtures.manifest.json`; rewrite the description to
    say what the case tests, without names.
 4. `make eval` to see the score.
