@@ -85,3 +85,43 @@ func TestLoadReportEvalCase_Errors(t *testing.T) {
 		assert.ErrorContains(t, err, "has no Report Instructions")
 	})
 }
+
+func TestListReportEvalCandidates(t *testing.T) {
+	ctx := context.Background()
+	f := newReportEvalFixture(t)
+	older := &Report{StudentID: f.studentID, StartDate: "2026-05-01", EndDate: "2026-05-31", HTML: "<p>old</p>", Instructions: new(string)}
+	require.NoError(t, (&ReportRepo{db: f.db}).Create(ctx, older))
+	_, err := f.db.Exec("UPDATE reports SET created_at = '2020-01-01T00:00:00Z' WHERE id = ?", older.ID)
+	require.NoError(t, err)
+
+	got, err := ListReportEvalCandidates(ctx, f.db, f.studentID)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, f.reportID, got[0].ReportID, "newest first")
+	assert.Equal(t, "2026-03-05", got[0].StartDate)
+	assert.Equal(t, "2026-03-20", got[0].EndDate)
+	assert.True(t, got[0].HasReportInstructions)
+	assert.True(t, got[0].HasInstructions)
+	assert.Equal(t, 1, got[0].NoteCount)
+	assert.Equal(t, older.ID, got[1].ReportID)
+	assert.False(t, got[1].HasInstructions, "empty ad-hoc instructions")
+	assert.Equal(t, 0, got[1].NoteCount)
+
+	require.NoError(t, (&LevelRepo{db: f.db}).UpdateReportInstructions(ctx, "org_a", f.levelID, "  \n"))
+	got, err = ListReportEvalCandidates(ctx, f.db, f.studentID)
+	require.NoError(t, err)
+	assert.False(t, got[0].HasReportInstructions, "blank Report Instructions")
+}
+
+func TestListReportEvalCandidates_Errors(t *testing.T) {
+	ctx := context.Background()
+	f := newReportEvalFixture(t)
+
+	_, err := ListReportEvalCandidates(ctx, f.db, f.studentID+1)
+	assert.ErrorContains(t, err, "not found")
+
+	_, err = f.db.Exec("DELETE FROM reports")
+	require.NoError(t, err)
+	_, err = ListReportEvalCandidates(ctx, f.db, f.studentID)
+	assert.ErrorContains(t, err, "has no reports")
+}

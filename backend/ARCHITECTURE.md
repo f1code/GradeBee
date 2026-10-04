@@ -579,6 +579,8 @@ backend/evals/
 
 Report cases carry real names and notes, so only `fixtures.manifest.json` (case id, description, `student_id`, `report_id`) is committed. `make eval-fixtures` runs `eval-cli gen-report-cases`, which calls `LoadReportEvalCase` (`report_eval_case.go`) to resolve each case from the local DB (`EVAL_DB`, default `../data/gradebee.db`) with the inputs `handleRegenerateReport` uses: student name, class display name, `NoteRepo.ListForStudents` over the report's range, the Level's Report Instructions, the report's ad-hoc instructions. It fails on an unknown id, no notes in range, or blank Report Instructions. `make eval` / `make eval-report` regenerate when the manifest, DB or DB WAL is newer than the generated test list.
 
+`make eval-add-report STUDENT_ID=N [REPORT_ID=M]` runs `eval-cli add-report-case`: it lists the student's reports via `ListReportEvalCandidates` and prints a draft manifest entry for the chosen report (default: newest usable one not already in the manifest), validated through `LoadReportEvalCase`. Terminal output only.
+
 ### Running evals
 
 ```bash
@@ -593,7 +595,7 @@ cd backend && make eval-baseline
 ### How to add a fixture
 
 - Extraction: create `backend/evals/fixtures/extraction/<descriptive-name>/` (see layout above) and add a test entry in `promptfooconfig.extract.yaml`.
-- Report: append an entry to `fixtures.manifest.json`, then `make eval-fixtures`.
+- Report: `make eval-add-report STUDENT_ID=N`, paste the draft entry into `fixtures.manifest.json`, then `make eval-fixtures`.
 - Run `make eval` to see the score; if it looks right, run `make eval-baseline`.
 
 ### Baseline lifecycle
@@ -623,6 +625,7 @@ make bin/eval-cli
 | `build-extract-prompt` | `transcript`, `classes`, `class_name` | `BuildPassagePrompt` for the named class → messages array (system + user) |
 | `build-report-prompt` | `student_name`, `class`, `notes`, `report_instructions`, `instructions` | `BuildReportPrompt` → messages array (user only) |
 | `gen-report-cases` subcommand (not a task) | `-db`, `-manifest`, `-cases-dir`, `-tests` flags | Report case files + promptfoo test list from the DB |
+| `add-report-case` subcommand (not a task) | `-db`, `-manifest`, `-student`, `-report` flags | Student's report table + draft manifest entry, on stdout |
 
 Model selection and the actual LLM call belong to promptfoo, not eval-cli.
 

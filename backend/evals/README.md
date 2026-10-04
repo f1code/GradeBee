@@ -198,6 +198,18 @@ report with no notes in its range, or a Level without Report Instructions.
 its WAL is newer than `tests.report.generated.yaml`. Every generated test gets
 its task and rubric from the report config's `defaultTest`.
 
+### Adding a report case
+
+1. `make eval-add-report STUDENT_ID=N` lists the student's reports, newest
+   first: id, date range, created date, Level, whether the Level has Report
+   Instructions, whether the report has ad-hoc instructions, notes in range.
+   It prints a draft entry for the newest usable report not yet in the
+   manifest; pick another with `REPORT_ID=M`. Output goes to the terminal only.
+2. Paste the entry into `fixtures.manifest.json`; rewrite the description to
+   say what the case tests, without names.
+3. `make eval` to see the score.
+4. `make eval-baseline` once the score looks right.
+
 ## Extraction scoring axes
 
 `scoring/extraction.js` grades five hard axes plus one soft one; the assertion

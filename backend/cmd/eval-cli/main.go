@@ -11,6 +11,10 @@
 // # Usage (report case generation — invoked by make eval-fixtures)
 //
 //	eval-cli gen-report-cases -db PATH -manifest PATH -cases-dir DIR -tests PATH
+//
+// # Usage (curated report case drafting — invoked by make eval-add-report)
+//
+//	eval-cli add-report-case -db PATH -manifest PATH -student N [-report M]
 package main
 
 import (
@@ -31,18 +35,21 @@ func main() {
 
 func run(args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("usage: eval-cli <json> | eval-cli gen-report-cases ...")
+		return fmt.Errorf("usage: eval-cli <json> | eval-cli gen-report-cases|add-report-case ...")
 	}
 
 	// Exec-prompt mode: promptfoo passes a single JSON argument.
 	if strings.HasPrefix(args[1], "{") {
 		return runPromptMode(args[1])
 	}
-	if args[1] == "gen-report-cases" {
+	switch args[1] {
+	case "gen-report-cases":
 		return runGenReportCases(args[2:])
+	case "add-report-case":
+		return runAddReportCase(args[2:])
 	}
 
-	return fmt.Errorf("usage: eval-cli <json> | eval-cli gen-report-cases ...; got %q", args[1])
+	return fmt.Errorf("usage: eval-cli <json> | eval-cli gen-report-cases|add-report-case ...; got %q", args[1])
 }
 
 // promptRequest is the shape promptfoo passes to exec-prompt functions.

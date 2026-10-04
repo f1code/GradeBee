@@ -156,11 +156,16 @@ ORDER BY n.id"
 
 Report cases live in the DB, keyed by id in
 `backend/evals/fixtures.manifest.json`; `make eval-fixtures` materializes them
-(git-ignored). Add one by appending `id`, `description`, `student_id`,
-`report_id`. Keep the entry to ids plus a name-free description: the manifest
-is public. Pick a report whose Level has Report Instructions and whose student
-has notes in the report's date range. See `backend/evals/README.md`,
-"Report cases".
+(git-ignored). To add one:
+
+1. `make eval-add-report STUDENT_ID=N` (from the repo root or `backend/`)
+   lists the student's reports and prints a draft entry for the newest usable
+   one; `REPORT_ID=M` picks another.
+2. Paste the entry into the manifest. Rewrite the description to say what the
+   case tests, without names: the manifest is public.
+3. `make eval`, then `make eval-baseline` once the score looks right.
+
+See `backend/evals/README.md`, "Report cases".
 
 ---
 

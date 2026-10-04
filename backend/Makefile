@@ -1,7 +1,7 @@
 -include ../.env
 export
 
-.PHONY: lint test dev generate check-types eval eval-fixtures eval-extract eval-report eval-baseline eval-view bin/eval-cli
+.PHONY: lint test dev generate check-types eval eval-fixtures eval-add-report eval-extract eval-report eval-baseline eval-view bin/eval-cli
 
 lint:
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run
@@ -57,6 +57,13 @@ $(EVAL_REPORT_TESTS): $(EVAL_MANIFEST) $(wildcard $(EVAL_DB) $(EVAL_DB)-wal) | b
 # Regenerate report cases unconditionally.
 eval-fixtures: bin/eval-cli
 	$(GEN_REPORT_CASES)
+
+# List a student's reports and print a draft manifest entry (terminal only).
+# Usage: make eval-add-report STUDENT_ID=N [REPORT_ID=M]
+eval-add-report: bin/eval-cli
+	$(if $(STUDENT_ID),,$(error usage: make eval-add-report STUDENT_ID=N [REPORT_ID=M]))
+	@./bin/eval-cli add-report-case -db $(EVAL_DB) -manifest $(EVAL_MANIFEST) \
+		-student $(STUDENT_ID) $(if $(REPORT_ID),-report $(REPORT_ID))
 
 # Regenerates report cases first when the manifest or DB changed.
 # promptfoo exits non-zero when any assertion fails, so its exit code can't
