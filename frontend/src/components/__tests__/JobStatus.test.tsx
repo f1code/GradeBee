@@ -251,7 +251,7 @@ describe('JobStatus', () => {
         expect(screen.getAllByTestId('class-picker-option')).toHaveLength(2)
       })
 
-      await user.click(screen.getByText('Tuesday'))
+      await user.click(await screen.findByText('Tuesday'))
 
       await waitFor(() => {
         expect(screen.getByText('1 note created')).toBeInTheDocument()
@@ -288,7 +288,7 @@ describe('JobStatus', () => {
       await waitFor(() => {
         expect(screen.getByTestId('class-picker')).toBeInTheDocument()
       })
-      await user.click(screen.getByText('Monday'))
+      await user.click(await screen.findByText('Monday'))
 
       await waitFor(() => {
         expect(mockAssembleNotes).toHaveBeenCalled()
@@ -318,7 +318,7 @@ describe('JobStatus', () => {
       })
       expect(screen.getByText("No notes — the class wasn't clear. Say the class and time at the start.")).toBeInTheDocument()
 
-      await user.click(screen.getByText('Tuesday'))
+      await user.click(await screen.findByText('Tuesday'))
 
       await waitFor(() => {
         expect(screen.getByText('1 note created')).toBeInTheDocument()
@@ -443,7 +443,7 @@ describe('JobStatus', () => {
       await waitFor(() => {
         expect(screen.getAllByTestId('passage-review-row')).toHaveLength(2)
       })
-      await user.click(screen.getByText('Tuesday'))
+      await user.click(await screen.findByText('Tuesday'))
 
       await waitFor(() => {
         expect(screen.getAllByTestId('passage-review-row')).toHaveLength(1)
