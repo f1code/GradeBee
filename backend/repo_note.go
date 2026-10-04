@@ -149,8 +149,8 @@ func (r *NoteRepo) ListForRecording(ctx context.Context, studentID int64, traceI
 	return result, rows.Err()
 }
 
-// ListForStudents returns notes for multiple students within a date range.
-// Used by report generation.
+// ListForStudents returns notes for multiple students within a date range,
+// oldest first. Used by report generation.
 func (r *NoteRepo) ListForStudents(ctx context.Context, studentIDs []int64, startDate, endDate string) ([]Note, error) {
 	if len(studentIDs) == 0 {
 		return nil, nil
@@ -168,7 +168,7 @@ func (r *NoteRepo) ListForStudents(ctx context.Context, studentIDs []int64, star
 		SELECT id, student_id, date, summary, transcript, source, model_version, prompt_hash, trace_id, created_at, updated_at
 		FROM notes
 		WHERE student_id IN (%s) AND date BETWEEN ? AND ?
-		ORDER BY student_id, date DESC`,
+		ORDER BY student_id, date, created_at, id`,
 		strings.Join(placeholders, ","))
 
 	rows, err := r.db.QueryContext(ctx, query, args...)

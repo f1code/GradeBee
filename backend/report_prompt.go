@@ -3,6 +3,7 @@ package handler
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -29,6 +30,10 @@ func BuildReportPrompt(student, className string, notes []Note, reportInstructio
 	sb.WriteString(reportNotesHeader)
 	sb.WriteString(fmt.Sprintf("Student: %s, Class: %s\n\n", student, className))
 
+	// Oldest first, so the newest notes sit next to the task, where the model
+	// weighs them most. Sorted here, not only in SQL: eval fixtures bypass the repo.
+	notes = slices.Clone(notes)
+	slices.SortStableFunc(notes, func(a, b Note) int { return strings.Compare(a.Date, b.Date) })
 	for _, n := range notes {
 		sb.WriteString(fmt.Sprintf("- %s: %s\n", n.Date, n.Summary))
 	}

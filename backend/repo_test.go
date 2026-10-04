@@ -204,7 +204,21 @@ func TestNoteRepo_CRUD(t *testing.T) {
 	// ListForStudents
 	batch, err := r.notes.ListForStudents(ctx, []int64{s.ID}, "2026-01-01", "2026-12-31")
 	require.NoError(t, err, "list for students")
-	assert.Len(t, batch, 2)
+	require.Len(t, batch, 2)
+	assert.Equal(t, "2026-01-16", batch[1].Date, "report notes must be oldest first")
+
+	// Same date: insertion order holds (id breaks created_at ties within one recording).
+	same := []*Note{
+		{StudentID: s.ID, Date: "2026-01-20", Summary: "first", Source: "manual"},
+		{StudentID: s.ID, Date: "2026-01-20", Summary: "second", Source: "manual"},
+	}
+	for _, sn := range same {
+		require.NoError(t, r.notes.Create(ctx, sn), "create same-date")
+	}
+	batch, err = r.notes.ListForStudents(ctx, []int64{s.ID}, "2026-01-01", "2026-12-31")
+	require.NoError(t, err, "list for students")
+	require.Len(t, batch, 4)
+	assert.Equal(t, []string{"first", "second"}, []string{batch[2].Summary, batch[3].Summary})
 
 	// Delete
 	require.NoError(t, r.notes.Delete(ctx, n.ID), "delete")

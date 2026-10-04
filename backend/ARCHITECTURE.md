@@ -350,7 +350,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `sql/` | Embedded SQL migrations; applied in lexical filename order and tracked in `_migrations` |
 | `repo_class.go` | `ClassRepo` — CRUD for classes, scoped by `group_id` on Create/Update to validate `level_id` belongs to the caller's Group |
 | `repo_student.go` | `StudentRepo` — CRUD for students, `BelongsToUser`, `AddAlias`, `RemoveAlias`, `ListAliases`, `ListWithAliases`. `Move` is transactional: updates `students.class_id` and re-homes `student_aliases.class_id` together, aborting on a canonical-name collision in the target class (`*ErrDuplicateStudentName`) and silently dropping (not blocking on) any of the student's aliases that collide with the target class's names/aliases |
-| `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range), `ListForRecording` (one child's notes from one recording, by `trace_id`) |
+| `repo_note.go` | `NoteRepo` — CRUD for notes, `ListForStudents` (date range, oldest first), `ListForRecording` (one child's notes from one recording, by `trace_id`) |
 | `repo_report.go` | `ReportRepo` — CRUD for reports |
 | `repo_voice_note.go` | `VoiceNoteRepo` — CRUD for voice_notes (`Create` mints `trace_id`), `SetTranscript`, `MarkProcessed`, `MarkPurged`, `ListStale` |
 | `repo_level.go` | `LevelRepo` — CRUD for levels, every method scoped by `group_id` |
@@ -366,7 +366,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `extract.go` | `Extractor` interface + `llmExtractor`: both extraction passes, their schemas, and the pronoun guard |
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers; `fileNotes` + `recording`, the one filing call the pipeline and the class picker share. Filing is atomic: `CreateNotes` writes every note or none, and a refused note comes back as `createNotesError` naming it by index and student id |
 | `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output) |
-| `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections: the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
+| `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections (notes sorted oldest first, so the newest sit next to the task): the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers. Both generation endpoints pre-flight-resolve every selected student's Class → Level and refuse the whole request with `400` (naming the offending Levels) if any Level's `report_instructions` is trimmed-empty — no report row created, no LLM call made. |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
 | `logger.go` | Dual stdout+Sentry structured logging via `log/slog`; `InitLogger()` wires `slog.NewMultiHandler` when `SENTRY_DSN` is set; request-scoped logger via context |

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,4 +43,11 @@ func TestBuildReportPrompt_FeedbackSectionOnlyWhenGiven(t *testing.T) {
 
 	with := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", "make it shorter")
 	assert.Contains(t, with, reportFeedbackHeader+"make it shorter")
+}
+
+func TestBuildReportPrompt_NotesOldestFirst(t *testing.T) {
+	notes := []Note{{Date: "2026-11-05", Summary: "late"}, {Date: "2026-10-01", Summary: "early"}}
+	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, "spec text", "", "")
+	assert.Less(t, strings.Index(prompt, "early"), strings.Index(prompt, "late"))
+	assert.Equal(t, "late", notes[0].Summary, "caller's slice untouched")
 }
