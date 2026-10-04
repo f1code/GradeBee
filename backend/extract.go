@@ -272,7 +272,7 @@ func guardPassages(passages []ExtractedPassage) []ExtractedPassage {
 // hasSpokenName reports whether any label could be a name at all.
 func hasSpokenName(labels []string) bool {
 	for _, l := range labels {
-		key := foldName(l)
+		key := FoldName(l)
 		if key != "" && !labelStopList[key] {
 			return true
 		}

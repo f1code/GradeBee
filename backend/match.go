@@ -85,7 +85,7 @@ var labelStopList = map[string]bool{
 // caller must scope students to the pinned class: against the whole roster
 // a level name like `Linda` outscores every true positive.
 func MatchStudent(label string, students []ClassStudent) (string, bool) {
-	key := foldName(label)
+	key := FoldName(label)
 	if key == "" {
 		return "", false
 	}
@@ -143,14 +143,14 @@ type studentKeys struct {
 }
 
 func keysOf(s ClassStudent) studentKeys {
-	name := foldName(s.Name)
+	name := FoldName(s.Name)
 	k := studentKeys{typed: []string{name}, num: digitsOf(name)}
 	for _, a := range s.Aliases {
-		k.typed = append(k.typed, foldName(a))
+		k.typed = append(k.typed, FoldName(a))
 	}
 	if parts := strings.Fields(s.Name); len(parts) > 1 {
 		for _, p := range parts {
-			if f := foldName(p); f != "" && digitsOf(f) != f {
+			if f := FoldName(p); f != "" && digitsOf(f) != f {
 				k.parts = append(k.parts, f)
 			}
 		}
@@ -193,9 +193,9 @@ func (k studentKeys) bestScore(key, labelNum string) float64 {
 	return best
 }
 
-// foldName lowercases, strips accents and drops everything that is not a
+// FoldName lowercases, strips accents and drops everything that is not a
 // letter or digit, so `Rémi` → `remi` and `As a Million` → `maxamillion`.
-func foldName(s string) string {
+func FoldName(s string) string {
 	var b strings.Builder
 	for _, r := range norm.NFD.String(strings.ToLower(s)) {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
@@ -224,10 +224,10 @@ func similarity(a, b string) float64 {
 	if longest == 0 {
 		return 0
 	}
-	return 1 - float64(levenshtein(ra, rb))/float64(longest)
+	return 1 - float64(Levenshtein(ra, rb))/float64(longest)
 }
 
-func levenshtein(a, b []rune) int {
+func Levenshtein(a, b []rune) int {
 	prev := make([]int, len(b)+1)
 	cur := make([]int, len(b)+1)
 	for j := range prev {

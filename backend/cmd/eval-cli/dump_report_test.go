@@ -41,11 +41,10 @@ func seedDumpDB(t *testing.T) *sql.DB {
 func TestDumpReport_RedactsRoster(t *testing.T) {
 	db := seedDumpDB(t)
 	var out bytes.Buffer
-	require.NoError(t, dumpReport(context.Background(), db, &out, 1, 10))
+	require.NoError(t, dumpReport(context.Background(), db, &out, nil, 1, 10))
 	got := out.String()
 
-	// "Annual" never occurs lowercase in this DB, so the capitalized pass takes it.
-	assert.Contains(t, got, "2026-03-10: STUDENT played the Marcia piece with CLASSMATE_1; NAME_1 recital next.")
+	assert.Contains(t, got, "2026-03-10: STUDENT played the Marcia piece with CLASSMATE_1; Annual recital next.")
 	assert.Contains(t, got, "2026-03-11: STUDENT and CLASSMATE_2 argued; CLASSMATE_2's sister came. Zoé visited.")
 	assert.Contains(t, got, "Mention STUDENT's solo")
 	assert.Contains(t, got, "<p>STUDENT helped CLASSMATE_1.</p>")
@@ -98,39 +97,45 @@ func TestRedact_FoldsDiacritics(t *testing.T) {
 	}
 }
 
-func TestDumpReport_RedactsOffRosterCapitals(t *testing.T) {
+func TestDumpReport_RedactsMisspelledRoster(t *testing.T) {
 	db := seedDumpDB(t)
-	// Another Group's Level words do not count as Level names here.
-	_, err := db.Exec(`INSERT INTO levels (group_id, name) VALUES ('other', 'Ruiz')`)
+	_, err := db.Exec(`INSERT INTO notes (student_id, date, summary) VALUES
+		(1, '2026-03-12', 'Recently Elodi sang. And Bobb came; recently Marie left.')`)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO notes (student_id, date, summary) VALUES
-		(1, '2026-03-12', 'Gwen sang. She and Gwen hugged Marcia in May. The class met Mrs Ruiz, and the teacher said I can.'),
-		(1, '2026-03-13', 'Teacher: Jane Doe. (Learning) went well; she sang with "Gwen".')`)
-	require.NoError(t, err)
-	var out bytes.Buffer
-	require.NoError(t, dumpReport(context.Background(), db, &out, 1, 10))
-	got := out.String()
+	var out, repl bytes.Buffer
+	require.NoError(t, dumpReport(context.Background(), db, &out, &repl, 1, 10))
 
-	assert.Contains(t, got, "2026-03-12: NAME_2 sang. She and NAME_2 hugged Marcia in May. The class met NAME_3 NAME_4, and the teacher said I can.")
-	assert.Contains(t, got, "2026-03-13: Teacher: NAME_5 NAME_6. (Learning) went well; she sang with \"NAME_2\".")
+	assert.Contains(t, out.String(), "2026-03-12: Recently STUDENT sang. And CLASSMATE_2 came; recently Marie left.")
+	assert.Equal(t, "# report 10, student 1\nBobb\tCLASSMATE_2\nElodi\tSTUDENT\n", repl.String())
 }
 
-func TestRedactCapitalized(t *testing.T) {
-	allowed := map[string]bool{"the": true, "Marcia": true}
+func TestFuzzyRedact(t *testing.T) {
+	r := newRedactor([]handler.Student{
+		{ID: 1, Name: "John"},
+		{ID: 2, Name: "Ann"},
+		{ID: 3, Name: "Theo"},
+		{ID: 4, Name: "Emma Torres"},
+		{ID: 5, Name: "Mara"},
+		{ID: 6, Name: "Maya"},
+		{ID: 7, Name: "Stuart", Aliases: []string{"Sébastien"}},
+	}, 1)
 	cases := map[string]string{
-		// Sentence starts, line starts, element text and opening quotes stay.
-		"Ivo ran. Ivo sat!\nIvo <p>Ivo</p> (\"Ivo\")": "Ivo ran. Ivo sat!\nIvo <p>Ivo</p> (\"Ivo\")",
-		// Once seen mid-sentence, every capitalized occurrence goes; lowercase stays.
-		"Ivo ran with Ana. Ana, ana.":         "Ivo ran with NAME_1. NAME_1, ana.",
-		"Name: Ana":                           "Name: NAME_1",
-		"say The, Marcia, CLASSMATE_1, I, OK": "say The, Marcia, CLASSMATE_1, I, OK",
-		"with Éva\u0301 and Zoe\u0301":        "with NAME_1 and NAME_2",
+		"Recently Jon ran; he left Recently.": "Recently STUDENT ran; he left Recently.",
+		"And Marie met him.":                  "And Marie met him.",
+		"Then Thea left, then sat.":           "Then CLASSMATE_2 left, then sat.",
+		"Ema and Tores sang.":                 "CLASSMATE_3 and CLASSMATE_3 sang.",
+		"Mala sat.":                           "CLASSMATE_? sat.",
+		"Sebastian and STUDENT, CLASSMATE_1":  "CLASSMATE_6 and STUDENT, CLASSMATE_1",
+		"Jón, Jon":                            "STUDENT, STUDENT",
 	}
 	for in, want := range cases {
-		assert.Equal(t, want, redactCapitalized([]string{in}, allowed)[0], in)
+		got, _ := r.fuzzyRedact([]string{in})
+		assert.Equal(t, want, got[0], in)
 	}
-	got := redactCapitalized([]string{"Bo sat.", "Ivo met Bo."}, allowed)
-	assert.Equal(t, []string{"NAME_1 sat.", "Ivo met NAME_1."}, got, "numbering and replacement span texts")
+
+	got, tokens := r.fuzzyRedact([]string{"Then Jon sat.", "then he left with Jon."})
+	assert.Equal(t, []string{"Then STUDENT sat.", "then he left with STUDENT."}, got, "lowercase and replacements span texts")
+	assert.Equal(t, map[string]string{"Jon": "STUDENT"}, tokens)
 }
 
 func TestDumpReport_Errors(t *testing.T) {
@@ -145,7 +150,7 @@ func TestDumpReport_Errors(t *testing.T) {
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
 			var out bytes.Buffer
-			err := dumpReport(context.Background(), db, &out, tc.studentID, tc.reportID)
+			err := dumpReport(context.Background(), db, &out, nil, tc.studentID, tc.reportID)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.want)
 			assert.Empty(t, out.String())

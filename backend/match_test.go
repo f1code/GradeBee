@@ -43,7 +43,7 @@ func TestFoldName(t *testing.T) {
 		"Arthur one":           "arthurone", // not folded: Voxtral writes digits
 	}
 	for in, want := range cases {
-		assert.Equal(t, want, foldName(in), "%q", in)
+		assert.Equal(t, want, FoldName(in), "%q", in)
 	}
 }
 

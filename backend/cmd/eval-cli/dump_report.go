@@ -6,8 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -19,18 +21,19 @@ import (
 )
 
 // runDumpReport prints one report's notes and reference HTML with the class
-// roster's names and other likely names redacted, so an agent can read it to pick and describe cases.
+// roster's names redacted, misspellings included, so an agent can read it to pick and describe cases.
 // Terminal only: the text still carries sensitive non-name content.
 func runDumpReport(args []string) error {
 	fls := flag.NewFlagSet("dump-report", flag.ContinueOnError)
 	dbPath := fls.String("db", "", "SQLite DB to read the report from")
 	studentID := fls.Int64("student", 0, "student id")
 	reportID := fls.Int64("report", 0, "report id")
+	replPath := fls.String("replacements", "", "append each fuzzy replacement (word, token) to this file; it holds names")
 	if err := fls.Parse(args); err != nil {
 		return err
 	}
 	if *dbPath == "" || *studentID <= 0 || *reportID <= 0 {
-		return fmt.Errorf("usage: eval-cli dump-report -db PATH -student N -report M")
+		return fmt.Errorf("usage: eval-cli dump-report -db PATH -student N -report M [-replacements FILE]")
 	}
 	if _, err := os.Stat(*dbPath); err != nil {
 		return fmt.Errorf("db: %w", err)
@@ -40,20 +43,27 @@ func runDumpReport(args []string) error {
 		return err
 	}
 	defer db.Close()
-	return dumpReport(context.Background(), db, os.Stdout, *studentID, *reportID)
+	var repl io.Writer
+	if *replPath != "" {
+		f, err := os.OpenFile(*replPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		repl = f
+	}
+	return dumpReport(context.Background(), db, os.Stdout, repl, *studentID, *reportID)
 }
 
-func dumpReport(ctx context.Context, db *sql.DB, w io.Writer, studentID, reportID int64) error {
+// dumpReport writes the redacted report to w and, when replacements is not
+// nil, each fuzzy-matched word with its token, for a human to check.
+func dumpReport(ctx context.Context, db *sql.DB, w, replacements io.Writer, studentID, reportID int64) error {
 	resolver := handler.NewReportInputResolver(db)
 	in, rpt, err := resolver.ForReport(ctx, "", studentID, reportID)
 	if err != nil {
 		return err
 	}
 	roster, err := resolver.ClassRoster(ctx, studentID)
-	if err != nil {
-		return err
-	}
-	allowed, err := loadAllowedCapitals(ctx, db, studentID)
 	if err != nil {
 		return err
 	}
@@ -66,7 +76,15 @@ func dumpReport(ctx context.Context, db *sql.DB, w io.Writer, studentID, reportI
 	for i, t := range texts {
 		texts[i] = r.redact(t)
 	}
-	texts = redactCapitalized(texts, allowed)
+	texts, fuzzed := r.fuzzyRedact(texts)
+	if replacements != nil {
+		words := slices.Sorted(maps.Keys(fuzzed))
+		fmt.Fprintf(replacements, "# report %d, student %d\n", reportID, studentID)
+		for _, word := range words {
+			fmt.Fprintf(replacements, "%s\t%s\n", word, fuzzed[word])
+		}
+		fmt.Fprintf(os.Stderr, "report %d: %d fuzzy replacements\n", reportID, len(words))
+	}
 
 	fmt.Fprintf(w, "Report %d, student %d, %s..%s, %d notes\n", reportID, studentID, in.StartDate, in.EndDate, len(in.Notes))
 	if strings.TrimSpace(texts[0]) != "" {
@@ -80,102 +98,8 @@ func dumpReport(ctx context.Context, db *sql.DB, w io.Writer, studentID, reportI
 	return nil
 }
 
-// calendarWords are capitalized words that are never names.
-var calendarWords = strings.Fields(`English
-	Monday Tuesday Wednesday Thursday Friday Saturday Sunday Mon Tue Wed Thu Fri Sat Sun
-	January February March April May June July August September October November December
-	Jan Feb Mar Apr Jun Jul Aug Sep Sept Oct Nov Dec`)
-
-// loadAllowedCapitals returns words that redactCapitalized keeps: every Level
-// name word in the student's Group (Level characters such as Marcia appear in
-// notes), calendarWords, and every all-lowercase word in the DB's notes and reports, so "The" or
-// "Learning" stays because "the" and "learning" occur.
-func loadAllowedCapitals(ctx context.Context, db *sql.DB, studentID int64) (map[string]bool, error) {
-	allowed := map[string]bool{}
-	for _, w := range calendarWords {
-		allowed[w] = true
-	}
-	rows, err := db.QueryContext(ctx, `SELECT name, 1 FROM levels
-		WHERE group_id = (SELECT l.group_id FROM students s
-			JOIN classes c ON c.id = s.class_id
-			JOIN levels l ON l.id = c.level_id
-			WHERE s.id = ?)
-		UNION ALL SELECT summary, 0 FROM notes
-		UNION ALL SELECT html, 0 FROM reports`, studentID)
-	if err != nil {
-		return nil, fmt.Errorf("vocabulary: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var text string
-		var isLevel bool
-		if err := rows.Scan(&text, &isLevel); err != nil {
-			return nil, fmt.Errorf("vocabulary: %w", err)
-		}
-		for _, w := range wordRe.FindAllStringIndex(text, -1) {
-			word := text[w[0]:w[1]]
-			if isLevel || strings.ToLower(word) == word {
-				allowed[word] = true
-			}
-		}
-	}
-	return allowed, rows.Err()
-}
-
-// redactCapitalized catches names the roster misses (other classes,
-// misspellings, teacher). A capitalized word not at a sentence start counts
-// as a name; every capitalized occurrence of it, sentence starts included,
-// becomes NAME_n, numbered by first sighting across texts. All-caps words
-// (roster tokens, acronyms, "I") and allowed words, in any case, stay.
-func redactCapitalized(texts []string, allowed map[string]bool) []string {
-	tokens := map[string]string{}
-	for _, t := range texts {
-		for _, w := range wordRe.FindAllStringIndex(t, -1) {
-			word := t[w[0]:w[1]]
-			if tokens[word] == "" && isNameCandidate(word, allowed) && !atSentenceStart(t, w[0]) {
-				tokens[word] = fmt.Sprintf("NAME_%d", len(tokens)+1)
-			}
-		}
-	}
-	out := make([]string, len(texts))
-	for i, t := range texts {
-		out[i] = wordRe.ReplaceAllStringFunc(t, func(w string) string {
-			if tok := tokens[w]; tok != "" {
-				return tok
-			}
-			return w
-		})
-	}
-	return out
-}
-
 // wordRe matches letter/digit runs; combining marks stay inside a word.
 var wordRe = regexp.MustCompile(`[\pL\p{Nd}][\pL\p{Nd}\p{Mn}]*`)
-
-func isNameCandidate(word string, allowed map[string]bool) bool {
-	first, _ := utf8.DecodeRuneInString(word)
-	return unicode.IsUpper(first) && strings.ToUpper(word) != word &&
-		!allowed[word] && !allowed[strings.ToLower(word)]
-}
-
-// atSentenceStart reports whether the word at byte i opens the text, a line,
-// a sentence (after . ! ?) or an HTML element's text (after >). Opening
-// quotes and brackets in between are skipped; a colon is not a boundary, so
-// "Teacher: Jane" still counts Jane as mid-sentence.
-func atSentenceStart(s string, i int) bool {
-	for i > 0 {
-		r, size := utf8.DecodeLastRuneInString(s[:i])
-		switch {
-		case r == '\n' || r == '.' || r == '!' || r == '?' || r == '>':
-			return true
-		case unicode.IsSpace(r) || unicode.In(r, unicode.Ps, unicode.Pi) || r == '"' || r == '\'':
-			i -= size
-		default:
-			return false
-		}
-	}
-	return true
-}
 
 type redactTerm struct {
 	folded []rune
@@ -183,15 +107,21 @@ type redactTerm struct {
 }
 
 // redactor replaces roster names and aliases, longest first, so a full name
-// wins over an alias that prefixes it.
-type redactor struct{ terms []redactTerm }
+// wins over an alias that prefixes it. fuzzy holds what fuzzyRedact compares
+// against, folded as match.go folds: each part of a name, each alias whole.
+type redactor struct{ terms, fuzzy []redactTerm }
 
 // newRedactor maps the student's name and aliases to STUDENT and each
 // classmate's to CLASSMATE_n, numbered in roster order.
 func newRedactor(roster []handler.Student, studentID int64) *redactor {
-	var terms []redactTerm
+	var terms, fuzzy []redactTerm
 	seen := map[string]bool{}
 	add := func(s handler.Student, token string) {
+		for _, t := range append(strings.Fields(s.Name), s.Aliases...) {
+			if f := handler.FoldName(t); f != "" {
+				fuzzy = append(fuzzy, redactTerm{[]rune(f), token})
+			}
+		}
 		for _, t := range append([]string{s.Name}, s.Aliases...) {
 			f, _, _ := foldText(strings.TrimSpace(t))
 			if len(f) == 0 || seen[string(f)] {
@@ -214,7 +144,7 @@ func newRedactor(roster []handler.Student, studentID int64) *redactor {
 		}
 	}
 	sort.SliceStable(terms, func(i, j int) bool { return len(terms[i].folded) > len(terms[j].folded) })
-	return &redactor{terms: terms}
+	return &redactor{terms: terms, fuzzy: fuzzy}
 }
 
 // foldText lowercases s, strips accents (composed, combining or stroke), spells out ligatures and
@@ -305,4 +235,86 @@ func (r *redactor) matchAt(f []rune, starts []int, i int) (redactTerm, bool) {
 
 func isWordRune(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
+}
+
+// fuzzyRedact catches roster names the exact pass misses: misspellings and
+// mistranscriptions. A capitalized word within editLimit of a roster term
+// takes that person's token at every occurrence, or CLASSMATE_? when two
+// people are equally close, so a reviewer never reads a wrong attribution.
+// A word whose lowercase form occurs in the dump is a common word: "Then"
+// beside roster Theo. Returns the texts and each replaced word's token.
+func (r *redactor) fuzzyRedact(texts []string) (out []string, tokens map[string]string) {
+	lower := map[string]bool{}
+	for _, t := range texts {
+		for _, w := range wordRe.FindAllString(t, -1) {
+			if strings.ToLower(w) == w {
+				lower[w] = true
+			}
+		}
+	}
+	tokens = map[string]string{}
+	for _, t := range texts {
+		for _, w := range wordRe.FindAllString(t, -1) {
+			first, _ := utf8.DecodeRuneInString(w)
+			if _, done := tokens[w]; done || !unicode.IsUpper(first) || ownTokens[w] || lower[strings.ToLower(w)] {
+				continue
+			}
+			if tok := r.closest(w); tok != "" {
+				tokens[w] = tok
+			}
+		}
+	}
+	out = make([]string, len(texts))
+	for i, t := range texts {
+		out[i] = wordRe.ReplaceAllStringFunc(t, func(w string) string {
+			if tok := tokens[w]; tok != "" {
+				return tok
+			}
+			return w
+		})
+	}
+	return out, tokens
+}
+
+// ownTokens are the words of the redactor's tokens: a roster name near
+// STUDENT or CLASSMATE must not rewrite a token.
+var ownTokens = map[string]bool{"STUDENT": true, "CLASSMATE": true}
+
+// closest returns the token of the one person whose term lies within
+// editLimit of word, the nearest if several, "CLASSMATE_?" on a tie and ""
+// when none does.
+func (r *redactor) closest(word string) string {
+	w := []rune(handler.FoldName(word))
+	best := map[string]int{}
+	for _, t := range r.fuzzy {
+		d := handler.Levenshtein(w, t.folded)
+		if d > editLimit(len(t.folded)) {
+			continue
+		}
+		if prev, ok := best[t.token]; !ok || d < prev {
+			best[t.token] = d
+		}
+	}
+	tok, nearest := "", -1
+	for t, d := range best {
+		switch {
+		case nearest < 0 || d < nearest:
+			tok, nearest = t, d
+		case d == nearest:
+			tok = "CLASSMATE_?"
+		}
+	}
+	return tok
+}
+
+// editLimit is the edit distance allowed against a roster term of n runes:
+// any edit to a short name lands on common words ("And" vs Ann).
+func editLimit(n int) int {
+	switch {
+	case n <= 3:
+		return 0
+	case n <= 6:
+		return 1
+	}
+	return 2
 }

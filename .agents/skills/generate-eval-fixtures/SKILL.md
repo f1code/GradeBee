@@ -176,8 +176,8 @@ manifest change.
 `make eval-dump-report STUDENT_ID=N REPORT_ID=M`. Skip the Orientation
 Queries above (they print names and transcripts); never `SELECT` `s.name`,
 `n.summary`, `n.transcript`, `r.html` or `r.instructions` with sqlite. The
-dump redacts the class roster, then other capitalized words seen
-mid-sentence (`NAME_n`); a name that only opens sentences can still appear.
+dump redacts the class roster, misspellings included; names off the roster
+(other classes, the teacher) can still appear.
 Copy no proper noun into a description.
 
 **Term rule.** Use current-term notes only: every range starts on or after

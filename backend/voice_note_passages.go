@@ -94,7 +94,7 @@ func assemblePassages(passages []ExtractedPassage, roster []ClassStudent) ([]ass
 		group = nil
 	}
 
-	// Every map here keys by exact name, never foldName: pass 2's schema is a
+	// Every map here keys by exact name, never FoldName: pass 2's schema is a
 	// strict enum of these spellings, and "Léa" and "Lea" are two rows the
 	// students index allows in one class.
 	ids := make(map[string]int64, len(roster))
