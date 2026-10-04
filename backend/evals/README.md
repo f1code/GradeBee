@@ -31,6 +31,7 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
 ```bash
 # Prerequisites: LLM_PROVIDER + the active provider's API key in env
 # (OPENAI_API_KEY when LLM_PROVIDER=openai; MISTRAL_API_KEY when LLM_PROVIDER=mistral)
+# and the local DB at ../data/gradebee.db for report cases (see "Report cases")
 
 # Run both domains, print one diff per domain vs its baseline
 cd backend && make eval
@@ -38,6 +39,9 @@ cd backend && make eval
 # Run a single domain
 cd backend && make eval-extract   # extraction only
 cd backend && make eval-report    # report only
+
+# Regenerate report cases from the DB (eval/eval-report do it when stale)
+cd backend && make eval-fixtures
 
 # Update both baselines after a deliberate prompt/model change
 cd backend && make eval-baseline
@@ -155,23 +159,44 @@ make bin/eval-cli
 ```
 evals/
   promptfooconfig.extract.yaml    extraction test suite
-  promptfooconfig.report.yaml     report test suite
+  promptfooconfig.report.yaml     report suite: shared settings + rubric; tests from tests.report.generated.yaml
+  fixtures.manifest.json          curated report cases by DB id (committed, PII-free)
+  tests.report.generated.yaml     report test list (generated, git-ignored)
   baseline-extract.json           pinned extraction scores (committed)
   scoring/extraction.js           custom JS scorer (precision/recall + voice preservation + attribution)
+  scoring/assemble.js             folds pass-2 passages into per-child notes before scoring
   scripts/diff-baseline.js        baseline diff reporter (Node, always exits 0)
   scripts/pin-baseline.js         copies a result JSON to a baseline, scores only
   results/                        per-run result JSONs (git-ignored)
   fixtures/
-    extraction/<case>/
+    extraction/<case>/            committed, anonymized by hand
       transcript.txt              teacher audio transcript (synthetic)
       classes.json                class roster
       expected.json               expected students + must_quote_substrings / must_not_quote_substrings
-  scoring/assemble.js             folds pass-2 passages into per-child notes before scoring
-    reports/<case>/
-      notes.json                  student notes
-      report_instructions.txt     Level's report specification — required for any live test case, drives structure/content
-      instructions.txt            ad-hoc per-run instructions (optional; override report_instructions where they conflict)
+    reports/<case>/               generated, git-ignored
+      notes.json                  the student's notes in the report's date range
+      report_instructions.txt     the Level's Report Instructions
+      instructions.txt            the report's ad-hoc instructions (may be empty)
+      reference.html              the report itself, as the judge's quality benchmark
 ```
+
+## Report cases
+
+Report cases hold real names, notes and report text, so the repo keeps only
+`fixtures.manifest.json`: per case an `id` (directory name), a `description`
+(test description, no names), a `student_id` and a `report_id`.
+
+`make eval-fixtures` runs `eval-cli gen-report-cases`, which reads each case
+from the local DB (`../data/gradebee.db`; override with `EVAL_DB=`) the way
+regenerating that report would: the student's name, the class display name, the
+notes in the report's date range, the Level's Report Instructions and the
+report's ad-hoc instructions. It rewrites `fixtures/reports/` and
+`tests.report.generated.yaml`, and fails naming the case for an unknown id, a
+report with no notes in its range, or a Level without Report Instructions.
+
+`make eval` and `make eval-report` regenerate first when the manifest, the DB or
+its WAL is newer than `tests.report.generated.yaml`. Every generated test gets
+its task and rubric from the report config's `defaultTest`.
 
 ## Extraction scoring axes
 
@@ -332,8 +357,8 @@ then prints nothing at all — no table, no summary, exit 0. Run
 
 ## Adding a fixture
 
-1. Create `fixtures/{extraction,reports}/<descriptive-name>/` with the required files — for a report fixture that means `report_instructions.txt` (the Level's report specification; the hard gate forbids generating from an empty one).
-2. Add a test entry in the appropriate config file (`promptfooconfig.extract.yaml` or `promptfooconfig.report.yaml`) with flat `vars` (no `body` wrapper).
+1. Extraction: create `fixtures/extraction/<descriptive-name>/` with the files above and add a test entry to `promptfooconfig.extract.yaml` with flat `vars` (no `body` wrapper).
+2. Report: append an entry to `fixtures.manifest.json` naming a report whose Level has Report Instructions, then run `make eval-fixtures`.
 3. Run `make eval` (or `make eval-extract` / `make eval-report`) to see the score; if correct, run `make eval-baseline`.
 
 ## Baseline lifecycle
@@ -369,8 +394,8 @@ they conflict. Grounding-to-notes is graded as a separate, unchanged axis
 regardless of instructions.
 
 `promptfooconfig.report.yaml` passes `report_instructions` and `instructions` as
-separate vars per test case and grades both with one shared rubric template
-(`rubric_template` YAML anchor) rather than a bespoke rubric per fixture — the
+separate vars per test case and grades both with one shared rubric in
+`defaultTest` rather than a bespoke rubric per case — the
 rubric never hardcodes a structure or length rule that belongs in
 `report_instructions` itself; it says "as instructed" and lets the var carry the
 specifics.

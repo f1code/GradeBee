@@ -12,6 +12,8 @@ packages:
       # the frontend actually receives. The done card's view of a passage is
       # JobPassage (voice_note_job.go), which arrives via VoiceNoteJob.
       - "extract.go"
+      # Eval-only: read by cmd/eval-cli, never sent to the frontend.
+      - "report_eval_case.go"
     include_types:
       # Core entities
       - Note

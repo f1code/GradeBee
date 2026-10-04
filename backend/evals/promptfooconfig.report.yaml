@@ -16,90 +16,43 @@ providers:
   - id: openai:chat:gpt-5.6-luna
     label: gradebee-report-openai
 
-# Default options: use a stronger judge model for llm-rubric assertions.
+# Every case shares the task, judge and rubric; generated tests carry only
+# vars. The rubric grades adherence to the Level's report_instructions only.
+# Report Examples are removed (#54); ad-hoc instructions (teacher overrides)
+# still rank above the Level's report_instructions.
 defaultTest:
+  vars:
+    task: build-report-prompt
   options:
     provider:
       id: openai:chat:gpt-5.6-terra
       config:
         temperature: 0
+  assert:
+    - type: llm-rubric
+      value: |
+        Report Specification (the Level's authored instructions — this defines the
+        required structure, sections, and content; the report must follow it):
+        {{report_instructions}}
 
-# Shared rubric template — every case grades adherence to the Level's
-# report_instructions only. Report Examples are removed (#54); ad-hoc
-# instructions (teacher overrides) still rank above the Level's
-# report_instructions.
-rubric_template: &rubric_template |
-  Report Specification (the Level's authored instructions — this defines the
-  required structure, sections, and content; the report must follow it):
-  {{report_instructions}}
+        Source notes (ground truth — every statement in the report must be traceable to these):
+        {{notes}}
 
-  Source notes (ground truth — every statement in the report must be traceable to these):
-  {{notes}}
+        Ad-hoc instructions for this run (override the Report Specification where they conflict, if present):
+        {{instructions}}
 
-  Ad-hoc instructions for this run (override the Report Specification where they conflict, if present):
-  {{instructions}}
+        Reference report (a known-good output for the same notes — use as a quality benchmark, student
+        name and exact structure may differ from the Report Specification above):
+        {{reference}}
 
-  Reference report (a known-good output for the same notes — use as a quality benchmark, student
-  name and exact structure may differ from the Report Specification above):
-  {{reference}}
+        Score 1-5 on:
+        - structure: follows the sections and layout defined in the Report Specification
+        - grounding: every statement traceable to notes (no invented observations, no fabricated marks,
+          absences counts, or other metadata not present in the notes)
+        - tone: matches whatever tone the Report Specification and ad-hoc instructions call for
+        - compliance: any concrete rule stated in the Report Specification or ad-hoc instructions (e.g. a
+          length limit, a required field, a required behaviour) is followed as instructed
 
-  Score 1-5 on:
-  - structure: follows the sections and layout defined in the Report Specification
-  - grounding: every statement traceable to notes (no invented observations, no fabricated marks,
-    absences counts, or other metadata not present in the notes)
-  - tone: matches whatever tone the Report Specification and ad-hoc instructions call for
-  - compliance: any concrete rule stated in the Report Specification or ad-hoc instructions (e.g. a
-    length limit, a required field, a required behaviour) is followed as instructed
-
-tests:
-  - description: "report: mousy-level structured format with a paragraph-length ad-hoc instruction"
-    vars:
-      task: build-report-prompt
-      student_name: "Lucas"
-      class_name: "Linda · Thu · 17:25"
-      notes: "file://fixtures/reports/mousy_with_instructions/notes.json"
-      report_instructions: "file://fixtures/reports/mousy_with_instructions/report_instructions.txt"
-      instructions: "file://fixtures/reports/mousy_with_instructions/instructions.txt"
-      reference: "file://fixtures/reports/mousy_with_instructions/reference.html"
-    assert:
-      - type: llm-rubric
-        value: *rubric_template
-
-  - description: "report: Emma · Sat class with Level instructions and multi-note synthesis"
-    vars:
-      task: build-report-prompt
-      student_name: "Chloé"
-      class_name: "Emma · Sat"
-      notes: "file://fixtures/reports/chloe_emma_saturday/notes.json"
-      report_instructions: "file://fixtures/reports/chloe_emma_saturday/report_instructions.txt"
-      instructions: ""
-      reference: "file://fixtures/reports/chloe_emma_saturday/reference.html"
-    assert:
-      - type: llm-rubric
-        value: *rubric_template
-
-  - description: "report: Oliver · Thu class with Level instructions and mood/behaviour challenges"
-    vars:
-      task: build-report-prompt
-      student_name: "Mila"
-      class_name: "Oliver · Thu"
-      notes: "file://fixtures/reports/mila_oliver_thu/notes.json"
-      report_instructions: "file://fixtures/reports/mila_oliver_thu/report_instructions.txt"
-      instructions: ""
-      reference: "file://fixtures/reports/mila_oliver_thu/reference.html"
-    assert:
-      - type: llm-rubric
-        value: *rubric_template
-
-  - description: "report: Oliver · Sat · Group 2 class with Level instructions and calm/positive profile"
-    vars:
-      task: build-report-prompt
-      student_name: "Camille"
-      class_name: "Oliver · Sat · Group 2"
-      notes: "file://fixtures/reports/camille_oliver_group2/notes.json"
-      report_instructions: "file://fixtures/reports/camille_oliver_group2/report_instructions.txt"
-      instructions: ""
-      reference: "file://fixtures/reports/camille_oliver_group2/reference.html"
-    assert:
-      - type: llm-rubric
-        value: *rubric_template
+# Written by `make eval-fixtures` from fixtures.manifest.json and the local DB.
+# Gitignored: it and fixtures/reports/ hold real names, notes and report text.
+tests: file://tests.report.generated.yaml

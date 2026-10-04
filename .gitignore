@@ -21,6 +21,10 @@ backend/dist/
 # LLM eval run results (per-run JSONs; baseline-extract.json is committed, results are not)
 backend/evals/results/
 
+# Report eval cases generated from the local DB (real names, notes, report text)
+backend/evals/fixtures/reports/
+backend/evals/tests.report.generated.yaml
+
 
 node_modules
 __pycache__

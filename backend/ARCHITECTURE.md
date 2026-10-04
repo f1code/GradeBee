@@ -553,7 +553,10 @@ Regression testing for extraction and report-generation quality. On-demand only 
 
 ```
 backend/evals/
-  promptfooconfig.yaml          promptfoo test suite
+  promptfooconfig.extract.yaml  extraction suite (inline tests)
+  promptfooconfig.report.yaml   report suite: shared settings + rubric; tests from tests.report.generated.yaml
+  fixtures.manifest.json        curated report cases by DB id (committed, PII-free)
+  tests.report.generated.yaml   generated report test list (git-ignored)
   baseline-extract.json         pinned extraction scores (committed to repo)
   scoring/extraction.js         custom JS precision/recall + voice-preservation scorer
   scoring/assemble.js           folds pass-2 passages into per-child notes before scoring
@@ -561,16 +564,20 @@ backend/evals/
   scripts/pin-baseline.js       copies a result JSON to a baseline, scores only
   results/                      per-run result JSONs (git-ignored)
   fixtures/
-    extraction/<case>/
+    extraction/<case>/          committed, anonymized
       transcript.txt            teacher audio transcript (synthetic)
       classes.json              class roster
       expected.json             expected students + must_quote_substrings
-    reports/<case>/
-      notes.json                student notes
-      report_instructions.txt   Level's report specification (structure/sections; drives content).
-      instructions.txt          ad-hoc per-run instructions (optional; override report_instructions
-                                 where they conflict)
+    reports/<case>/             generated from the local DB (git-ignored)
+      notes.json                notes in the report's date range
+      report_instructions.txt   Level's Report Instructions
+      instructions.txt          report's ad-hoc instructions (may be empty)
+      reference.html            the report, as the judge's benchmark
 ```
+
+### Report cases
+
+Report cases carry real names and notes, so only `fixtures.manifest.json` (case id, description, `student_id`, `report_id`) is committed. `make eval-fixtures` runs `eval-cli gen-report-cases`, which calls `LoadReportEvalCase` (`report_eval_case.go`) to resolve each case from the local DB (`EVAL_DB`, default `../data/gradebee.db`) with the inputs `handleRegenerateReport` uses: student name, class display name, `NoteRepo.ListForStudents` over the report's range, the Level's Report Instructions, the report's ad-hoc instructions. It fails on an unknown id, no notes in range, or blank Report Instructions. `make eval` / `make eval-report` regenerate when the manifest, DB or DB WAL is newer than the generated test list.
 
 ### Running evals
 
@@ -585,9 +592,9 @@ cd backend && make eval-baseline
 
 ### How to add a fixture
 
-1. Create `backend/evals/fixtures/{extraction,reports}/<descriptive-name>/` with the required files (see layout above).
-2. Add a test entry in `promptfooconfig.yaml` pointing at the new fixture.
-3. Run `make eval` to see the score; if it looks right, run `make eval-baseline`.
+- Extraction: create `backend/evals/fixtures/extraction/<descriptive-name>/` (see layout above) and add a test entry in `promptfooconfig.extract.yaml`.
+- Report: append an entry to `fixtures.manifest.json`, then `make eval-fixtures`.
+- Run `make eval` to see the score; if it looks right, run `make eval-baseline`.
 
 ### Baseline lifecycle
 
@@ -615,6 +622,7 @@ make bin/eval-cli
 |---|---|---|
 | `build-extract-prompt` | `transcript`, `classes`, `class_name` | `BuildPassagePrompt` for the named class → messages array (system + user) |
 | `build-report-prompt` | `student_name`, `class`, `notes`, `report_instructions`, `instructions` | `BuildReportPrompt` → messages array (user only) |
+| `gen-report-cases` subcommand (not a task) | `-db`, `-manifest`, `-cases-dir`, `-tests` flags | Report case files + promptfoo test list from the DB |
 
 Model selection and the actual LLM call belong to promptfoo, not eval-cli.
 

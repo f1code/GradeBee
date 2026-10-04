@@ -1,7 +1,7 @@
 -include ../.env
 export
 
-.PHONY: lint test dev generate check-types eval eval-extract eval-report eval-baseline eval-view bin/eval-cli
+.PHONY: lint test dev generate check-types eval eval-fixtures eval-extract eval-report eval-baseline eval-view bin/eval-cli
 
 lint:
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run
@@ -42,9 +42,26 @@ bin/eval-cli:
 	@mkdir -p bin
 	go build -o bin/eval-cli ./cmd/eval-cli
 
+# Report cases come from the local DB (see evals/README.md, "Report cases").
+# Not DB_PATH: .env sets that for the server's working directory (cmd/server).
+EVAL_DB ?= ../data/gradebee.db
+EVAL_MANIFEST := evals/fixtures.manifest.json
+EVAL_REPORT_TESTS := evals/tests.report.generated.yaml
+GEN_REPORT_CASES = ./bin/eval-cli gen-report-cases -db $(EVAL_DB) -manifest $(EVAL_MANIFEST) \
+	-cases-dir evals/fixtures/reports -tests $(EVAL_REPORT_TESTS)
+
+# Writes on the DB land in the WAL first, so its mtime counts too.
+$(EVAL_REPORT_TESTS): $(EVAL_MANIFEST) $(wildcard $(EVAL_DB) $(EVAL_DB)-wal) | bin/eval-cli
+	$(GEN_REPORT_CASES)
+
+# Regenerate report cases unconditionally.
+eval-fixtures: bin/eval-cli
+	$(GEN_REPORT_CASES)
+
+# Regenerates report cases first when the manifest or DB changed.
 # promptfoo exits non-zero when any assertion fails, so its exit code can't
 # tell a failed run from a low score. A run that failed writes no output file.
-eval: bin/eval-cli
+eval: bin/eval-cli $(EVAL_REPORT_TESTS)
 	-cd evals && pnpm exec promptfoo eval \
 	  --config promptfooconfig.extract.yaml \
 	  --output ../$(EXTRACT_RESULT)
@@ -64,7 +81,7 @@ eval-extract: bin/eval-cli
 	  --output results/$$(date +%Y%m%d-%H%M%S)-extract.json
 
 # Run report eval only.
-eval-report: bin/eval-cli
+eval-report: bin/eval-cli $(EVAL_REPORT_TESTS)
 	-cd evals && pnpm exec promptfoo eval \
 	  --config promptfooconfig.report.yaml \
 	  --output results/$$(date +%Y%m%d-%H%M%S)-report.json

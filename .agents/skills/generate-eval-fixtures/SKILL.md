@@ -152,60 +152,15 @@ ORDER BY n.id"
 
 ---
 
-## Report Fixtures
+## Report Cases
 
-### File layout
-
-```
-backend/evals/fixtures/reports/<fixture_name>/
-  notes.json        ← [{date, summary}, ...] from notes table (the LLM input)
-  instructions.txt  ← from reports.instructions (may be empty)
-  reference.html    ← from reports.html (cleaned ground-truth output)
-```
-
-### Strategy
-
-1. **Pick a student** with ≥ 2 notes and at least one generated report.
-
-2. **Build `notes.json`** from all `notes.summary` rows for that student,
-   ordered by `date DESC` (newest first) to match production behavior.
-
-3. **Write `instructions.txt`** from `reports.instructions` on the chosen
-   report. Leave the file empty if instructions were blank.
-
-4. **Choose the reference report.** When a student has many iterations,
-   prefer the one with the **longest `html`** among those with a non-empty
-   `instructions` field — this tends to be the most developed version.
-   Use the `instructions` of that report as `instructions.txt`.
-
-5. **Write `reference.html`** from `reports.html`. Then **clean it**:
-   - Replace the real student name with a generic invented name (e.g. "Lucas",
-     "Sophie"). Use the **same name** in `promptfooconfig.yaml`'s `student_name`
-     and throughout the HTML.
-   - Remove hallucinations: read each sentence and verify it traces back to a
-     phrase in `notes.json`. Common patterns: generic praise ("shows respect",
-     "with confidence"), foreign-language words, activities not in the notes.
-
-#### Queries — fetch everything for one student
-
-```bash
-# Notes (newest first, matching production order)
-sqlite3 data/gradebee.db "
-SELECT date, summary FROM notes WHERE student_id = <id> ORDER BY date DESC"
-
-# Choose reference: longest html with non-empty instructions
-sqlite3 data/gradebee.db "
-SELECT id, length(html) as html_len, instructions
-FROM reports
-WHERE student_id = <id> AND instructions != ''
-ORDER BY length(html) DESC LIMIT 3"
-
-# Fallback if no report has instructions
-sqlite3 data/gradebee.db "
-SELECT id, length(html) as html_len, instructions, html
-FROM reports WHERE student_id = <id> ORDER BY id DESC LIMIT 3"
-
-```
+Report cases live in the DB, keyed by id in
+`backend/evals/fixtures.manifest.json`; `make eval-fixtures` materializes them
+(git-ignored). Add one by appending `id`, `description`, `student_id`,
+`report_id`. Keep the entry to ids plus a name-free description: the manifest
+is public. Pick a report whose Level has Report Instructions and whose student
+has notes in the report's date range. See `backend/evals/README.md`,
+"Report cases".
 
 ---
 
@@ -230,39 +185,6 @@ After creating files, add a test entry to `backend/evals/promptfooconfig.yaml`.
       config:
         expected: file://fixtures/extraction/<name>/expected.json
         metric: precision_recall   # label only — has no effect on scoring logic
-```
-
-### Report entry template
-
-```yaml
-- description: "report: <what makes this case interesting>"
-  providers:
-    - gradebee-report
-  vars:
-    task: build-report-prompt
-    student_name: "<invented name matching reference.html>"
-    class: "<class name from DB>"
-    notes: "file://fixtures/reports/<name>/notes.json"
-    instructions: "file://fixtures/reports/<name>/instructions.txt"
-    reference: "file://fixtures/reports/<name>/reference.html"
-  assert:
-    - type: llm-rubric
-      value: |
-        Source notes (ground truth — every statement in the report must be traceable to these):
-        {{notes}}
-
-        Instructions given to the model:
-        {{instructions}}
-
-        Reference report (a known-good output for the same notes — use as a quality benchmark, student name may differ):
-        {{reference}}
-
-        <describe the specific structure/format requirements for this class type>
-        Score 1-5 on:
-        - structure: <expected sections>
-        - grounding: every statement traceable to notes (no invented observations)
-        - tone: warm, encouraging, as instructed
-        - length: <any character/paragraph constraints from instructions>
 ```
 
 **Critical:** Always pass `file://` paths through `vars:` fields and

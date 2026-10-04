@@ -21,10 +21,12 @@ Promptfoo (native OpenAI provider) → OpenAI API → JSON response
 
 ## Adding New Fixtures
 
-Use the **`generate-eval-fixtures`** skill (`.agents/skills/generate-eval-fixtures/SKILL.md`).
-It covers the full workflow for both extraction and report fixtures: orientation queries,
-file layout, how to derive `expected.json` / `reference.html` from real DB data,
-hallucination detection, and the `promptfooconfig.yaml` entry templates.
+Extraction: use the **`generate-eval-fixtures`** skill (`.agents/skills/generate-eval-fixtures/SKILL.md`).
+It covers orientation queries, file layout, how to derive `expected.json` from real DB data,
+and the config entry template.
+
+Report: append ids to `backend/evals/fixtures.manifest.json` and run `make eval-fixtures`;
+see `backend/evals/README.md`, "Report cases".
 
 ## How to Use
 
