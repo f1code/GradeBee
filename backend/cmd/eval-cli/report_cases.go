@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 
@@ -106,10 +108,17 @@ func readReportManifest(path string) (reportManifest, error) {
 	return m, nil
 }
 
+// reportCase is what report generation would feed BuildReportPrompt for an
+// existing report, plus that report's HTML as the eval reference.
+type reportCase struct {
+	handler.ReportInputs
+	ReferenceHTML string
+}
+
 // loadReportCases reads every case, then closes the DB before anything is
 // written: make compares the test list's mtime against the DB's, and a close
 // that checkpoints the WAL afterwards would mark the output stale.
-func loadReportCases(dbPath string, m reportManifest) ([]handler.ReportEvalCase, error) {
+func loadReportCases(dbPath string, m reportManifest) ([]reportCase, error) {
 	if _, err := os.Stat(dbPath); err != nil {
 		return nil, fmt.Errorf("db: %w", err)
 	}
@@ -118,9 +127,10 @@ func loadReportCases(dbPath string, m reportManifest) ([]handler.ReportEvalCase,
 		return nil, err
 	}
 	defer db.Close()
-	cases := make([]handler.ReportEvalCase, 0, len(m.Reports))
+	resolver := handler.NewReportInputResolver(db)
+	cases := make([]reportCase, 0, len(m.Reports))
 	for _, e := range m.Reports {
-		c, err := handler.LoadReportEvalCase(context.Background(), db, e.StudentID, e.ReportID)
+		c, err := loadReportCase(context.Background(), resolver, e.StudentID, e.ReportID)
 		if err != nil {
 			return nil, fmt.Errorf("case %q: %w", e.ID, err)
 		}
@@ -129,7 +139,54 @@ func loadReportCases(dbPath string, m reportManifest) ([]handler.ReportEvalCase,
 	return cases, nil
 }
 
-func writeReportCases(m reportManifest, cases []handler.ReportEvalCase, casesDir, testsPath string) error {
+// loadReportCase resolves a report through the resolver handleRegenerateReport
+// uses, then refuses a case the judge could not trust.
+func loadReportCase(ctx context.Context, resolver *handler.ReportInputResolver, studentID, reportID int64) (reportCase, error) {
+	in, rpt, err := resolver.ForReport(ctx, "", studentID, reportID)
+	if err != nil {
+		return reportCase{}, err
+	}
+	if err := checkReportCase(in, rpt); err != nil {
+		return reportCase{}, err
+	}
+	return reportCase{ReportInputs: in, ReferenceHTML: rpt.HTML}, nil
+}
+
+// checkReportCase rejects a report with no notes, or whose notes changed after
+// it was written: the reference would then come from different inputs than
+// the case feeds the model. A note deleted since goes unseen.
+func checkReportCase(in handler.ReportInputs, rpt handler.Report) error {
+	if len(in.Notes) == 0 {
+		return fmt.Errorf("report %d: student %d has no notes between %s and %s", rpt.ID, in.StudentID, in.StartDate, in.EndDate)
+	}
+	generated, err := time.Parse(time.RFC3339Nano, rpt.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("report %d created_at: %w", rpt.ID, err)
+	}
+	var stale []string
+	for _, n := range in.Notes {
+		for _, ts := range []string{n.CreatedAt, n.UpdatedAt} {
+			t, err := time.Parse(time.RFC3339Nano, ts)
+			if err != nil {
+				return fmt.Errorf("note %d: %w", n.ID, err)
+			}
+			if t.After(generated) {
+				stale = append(stale, fmt.Sprint(n.ID))
+				break
+			}
+		}
+	}
+	if len(stale) == 0 {
+		return nil
+	}
+	noun := "note"
+	if len(stale) > 1 {
+		noun = "notes"
+	}
+	return fmt.Errorf("%s %s changed after report %d was generated; pick a newer report", noun, strings.Join(stale, ", "), rpt.ID)
+}
+
+func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath string) error {
 	if err := os.RemoveAll(casesDir); err != nil {
 		return fmt.Errorf("clear %s: %w", casesDir, err)
 	}

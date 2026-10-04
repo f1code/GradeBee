@@ -625,54 +625,6 @@ export interface VoiceNote {
 }
 
 //////////
-// source: report_generator.go
-/*
-report_generator.go implements the ReportGenerator interface that creates
-HTML report cards using an LLMProvider and student notes from the database.
-*/
-
-/**
- * GenerateReportRequest is the input for generating a single student report.
- */
-export interface GenerateReportRequest {
-  StudentID: number /* int64 */;
-  Student: string;
-  ClassName: string;
-  StartDate: string; // YYYY-MM-DD
-  EndDate: string; // YYYY-MM-DD
-  UserID: string;
-  Instructions: string;
-  ReportInstructions: string;
-}
-/**
- * GenerateReportResponse contains the created report info.
- */
-export interface GenerateReportResponse {
-  reportId: number /* int64 */;
-  html: string;
-  createdAt: string;
-}
-/**
- * ReportGenerator creates report card documents.
- */
-export type ReportGenerator = any;
-/**
- * RegenerateReportRequest is the input for regenerating an existing report.
- */
-export interface RegenerateReportRequest {
-  ReportID: number /* int64 */;
-  Feedback: string;
-  StudentID: number /* int64 */;
-  Student: string;
-  ClassName: string;
-  StartDate: string;
-  EndDate: string;
-  UserID: string;
-  Instructions: string;
-  ReportInstructions: string;
-}
-
-//////////
 // source: reports_handler.go
 /*
 reports_handler.go handles report generation, regeneration, listing,

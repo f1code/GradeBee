@@ -22,6 +22,7 @@ type deps interface {
 	GetNoteCreator() NoteCreator
 	// GetReportGenerator returns a ReportGenerator.
 	GetReportGenerator() (ReportGenerator, error)
+	GetReportInputResolver() *ReportInputResolver
 	// GetVoiceNoteQueue returns the JobQueue for async voice note processing.
 	GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error)
 	// GetDriveClient returns a Drive-read-only client for the given user.
@@ -51,6 +52,7 @@ type prodDeps struct {
 	voiceNoteRepo *VoiceNoteRepo
 	feedbackRepo  *ArtifactFeedbackRepo
 	levelRepo     *LevelRepo
+	inputResolver *ReportInputResolver
 	uploadsDir    string
 	provider      LLMProvider
 }
@@ -72,7 +74,7 @@ func (p *prodDeps) GetNoteCreator() NoteCreator {
 }
 
 func (p *prodDeps) GetReportGenerator() (ReportGenerator, error) {
-	return newDBReportGenerator(p.provider, p.noteRepo, p.reportRepo)
+	return newDBReportGenerator(p.provider, p.reportRepo)
 }
 
 func (p *prodDeps) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
@@ -90,15 +92,16 @@ func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (DriveClie
 	return &googleDriveClient{svc: svc}, nil
 }
 
-func (p *prodDeps) GetDB() *sql.DB                         { return p.db }
-func (p *prodDeps) GetClassRepo() *ClassRepo               { return p.classRepo }
-func (p *prodDeps) GetStudentRepo() *StudentRepo           { return p.studentRepo }
-func (p *prodDeps) GetNoteRepo() *NoteRepo                 { return p.noteRepo }
-func (p *prodDeps) GetReportRepo() *ReportRepo             { return p.reportRepo }
-func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo       { return p.voiceNoteRepo }
-func (p *prodDeps) GetFeedbackRepo() *ArtifactFeedbackRepo { return p.feedbackRepo }
-func (p *prodDeps) GetLevelRepo() *LevelRepo               { return p.levelRepo }
-func (p *prodDeps) GetUploadsDir() string                  { return p.uploadsDir }
+func (p *prodDeps) GetDB() *sql.DB                               { return p.db }
+func (p *prodDeps) GetClassRepo() *ClassRepo                     { return p.classRepo }
+func (p *prodDeps) GetStudentRepo() *StudentRepo                 { return p.studentRepo }
+func (p *prodDeps) GetNoteRepo() *NoteRepo                       { return p.noteRepo }
+func (p *prodDeps) GetReportRepo() *ReportRepo                   { return p.reportRepo }
+func (p *prodDeps) GetVoiceNoteRepo() *VoiceNoteRepo             { return p.voiceNoteRepo }
+func (p *prodDeps) GetFeedbackRepo() *ArtifactFeedbackRepo       { return p.feedbackRepo }
+func (p *prodDeps) GetLevelRepo() *LevelRepo                     { return p.levelRepo }
+func (p *prodDeps) GetReportInputResolver() *ReportInputResolver { return p.inputResolver }
+func (p *prodDeps) GetUploadsDir() string                        { return p.uploadsDir }
 
 // Voice note queue singleton, initialised at startup via InitVoiceNoteQueue.
 var voiceNoteQueueInstance JobQueue[VoiceNoteJob]
@@ -131,6 +134,7 @@ func NewProdDeps(db *sql.DB, uploadsDir string) deps {
 		voiceNoteRepo: &VoiceNoteRepo{db: db},
 		feedbackRepo:  &ArtifactFeedbackRepo{db: db},
 		levelRepo:     &LevelRepo{db: db},
+		inputResolver: NewReportInputResolver(db),
 		uploadsDir:    uploadsDir,
 		provider:      provider,
 	}

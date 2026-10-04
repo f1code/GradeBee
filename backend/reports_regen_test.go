@@ -64,6 +64,7 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 		Instructions: &instructions,
 	}
 	require.NoError(t, reportRepo.Create(ctx, rpt))
+	require.NoError(t, (&NoteRepo{db: db}).Create(ctx, &Note{StudentID: stu.ID, Date: "2026-02-01", Summary: "in range", Source: "manual"}))
 
 	gen := &stubReportGenerator{
 		regenerateResp: &GenerateReportResponse{ReportID: 99, HTML: "<p>new</p>"},
@@ -92,12 +93,14 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 	handleRegenerateReport(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
-	assert.Equal(t, "Maxence", gen.lastRegenReq.Student)
+	assert.Equal(t, "Maxence", gen.lastRegenReq.StudentName)
 	assert.Equal(t, "Thursday Timezone · Mon", gen.lastRegenReq.ClassName)
 	assert.Equal(t, "2026-01-01", gen.lastRegenReq.StartDate)
 	assert.Equal(t, "make it shorter", gen.lastRegenReq.Feedback)
 	assert.Equal(t, "be concise", gen.lastRegenReq.Instructions)
 	assert.Equal(t, "Write three sections.", gen.lastRegenReq.ReportInstructions)
+	require.Len(t, gen.lastRegenReq.Notes, 1)
+	assert.Equal(t, "in range", gen.lastRegenReq.Notes[0].Summary)
 }
 
 func TestHandleGenerateReports_ResponseShape(t *testing.T) {
@@ -111,6 +114,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	cls := newTestClass(t, classRepo, "test-group", "user_abc", "Art", "")
 	stu, err := studentRepo.Create(ctx, cls.ID, "Alice")
 	require.NoError(t, err)
+	require.NoError(t, noteRepo.Create(ctx, &Note{StudentID: stu.ID, Date: "2026-02-01", Summary: "in range", Source: "manual"}))
 
 	gen := &stubReportGenerator{
 		generateResp: &GenerateReportResponse{ReportID: 42, HTML: "<p>hi</p>", CreatedAt: "2026-04-02T00:00:00Z"},
@@ -157,6 +161,8 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	}
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	require.Len(t, resp.Reports, 1)
+	require.Len(t, gen.lastGenReq.Notes, 1)
+	assert.Equal(t, "in range", gen.lastGenReq.Notes[0].Summary)
 	r := resp.Reports[0]
 	assert.Equal(t, int64(42), r.ID)
 	assert.Equal(t, stu.ID, r.StudentID)
@@ -291,4 +297,32 @@ func TestHandleGetReport_IncludesStudentAndClass(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	assert.Equal(t, "Carol", resp.Student)
 	assert.Equal(t, "History · Mon", resp.ClassName)
+}
+
+// TestHandleRegenerateReport_LevelOutsideGroup covers a resolver load error
+// failing the request before the generator runs.
+func TestHandleRegenerateReport_LevelOutsideGroup(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+	cls := newTestClass(t, &ClassRepo{db: db}, "other-group", "user_abc", "Elsewhere", "")
+	stu, err := (&StudentRepo{db: db}).Create(ctx, cls.ID, "Alice")
+	require.NoError(t, err)
+	rpt := &Report{StudentID: stu.ID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>old</p>"}
+	require.NoError(t, (&ReportRepo{db: db}).Create(ctx, rpt))
+	gen := &stubReportGenerator{}
+	withDeps(t, &mockDepsAll{
+		db:          db,
+		studentRepo: &StudentRepo{db: db},
+		reportRepo:  &ReportRepo{db: db},
+		reportGen:   gen,
+	})
+
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader([]byte(`{}`)))
+	req.SetPathValue("id", itoa(rpt.ID))
+	req = clerkReq(req, "user_abc")
+	rec := httptest.NewRecorder()
+	handleRegenerateReport(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code, "body = %s", rec.Body.String())
+	assert.Empty(t, gen.lastRegenReq.StudentName, "generator must not be called")
 }

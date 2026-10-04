@@ -64,7 +64,8 @@ func readExistingManifest(path string) (reportManifest, error) {
 }
 
 func addReportCase(ctx context.Context, db *sql.DB, w io.Writer, studentID, reportID int64, existing reportManifest) error {
-	candidates, err := handler.ListReportEvalCandidates(ctx, db, studentID)
+	resolver := handler.NewReportInputResolver(db)
+	candidates, err := listReportCandidates(ctx, db, resolver, studentID)
 	if err != nil {
 		return err
 	}
@@ -86,13 +87,13 @@ func addReportCase(ctx context.Context, db *sql.DB, w io.Writer, studentID, repo
 	}
 	if reportID == 0 {
 		for _, c := range candidates {
-			if _, dup := inManifest[c.ReportID]; !dup && c.HasReportInstructions && c.NoteCount > 0 {
+			if _, dup := inManifest[c.ReportID]; !dup && c.problem == nil {
 				reportID = c.ReportID
 				break
 			}
 		}
 		if reportID == 0 {
-			return fmt.Errorf("student %d has no report outside the manifest with Level Report Instructions and notes in range", studentID)
+			return fmt.Errorf("student %d has no report outside the manifest with Level Report Instructions and notes in range, none changed since", studentID)
 		}
 	}
 	if id, dup := inManifest[reportID]; dup {
@@ -100,7 +101,7 @@ func addReportCase(ctx context.Context, db *sql.DB, w io.Writer, studentID, repo
 	}
 	// Loading the case the way gen-report-cases will is what guarantees the
 	// pasted entry generates.
-	c, err := handler.LoadReportEvalCase(ctx, db, studentID, reportID)
+	c, err := loadReportCase(ctx, resolver, studentID, reportID)
 	if err != nil {
 		return err
 	}
@@ -128,6 +129,76 @@ func addReportCase(ctx context.Context, db *sql.DB, w io.Writer, studentID, repo
 	fmt.Fprintln(w, "say in the description what the case tests (no names), then run make eval-fixtures.")
 	fmt.Fprintf(w, "\n    %s\n", draft)
 	return nil
+}
+
+// reportCandidate summarizes one of a student's reports for picking a
+// curated eval case.
+type reportCandidate struct {
+	ReportID              int64
+	StartDate             string
+	EndDate               string
+	CreatedAt             string
+	LevelName             string
+	HasReportInstructions bool
+	HasInstructions       bool
+	NoteCount             int
+	// problem is why gen-report-cases would reject the report; nil if usable.
+	problem error
+}
+
+// listReportCandidates returns a student's reports, newest first. The Level
+// gate runs before notes are read, so a blank-instructions row counts none.
+func listReportCandidates(ctx context.Context, db *sql.DB, resolver *handler.ReportInputResolver, studentID int64) ([]reportCandidate, error) {
+	var exists bool
+	if err := db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM students WHERE id = ?)", studentID).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("student %d: %w", studentID, err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("student %d not found", studentID)
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT id, start_date, end_date, created_at, COALESCE(instructions, '')
+		FROM reports WHERE student_id = ?
+		ORDER BY created_at DESC, id DESC`, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("list reports for student %d: %w", studentID, err)
+	}
+	var out []reportCandidate
+	for rows.Next() {
+		var c reportCandidate
+		var instructions string
+		if err := rows.Scan(&c.ReportID, &c.StartDate, &c.EndDate, &c.CreatedAt, &instructions); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		c.HasInstructions = strings.TrimSpace(instructions) != ""
+		out = append(out, c)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("student %d has no reports", studentID)
+	}
+	for i := range out {
+		c := &out[i]
+		in, rpt, err := resolver.ForReport(ctx, "", studentID, c.ReportID)
+		var missing *handler.ErrLevelInstructionsMissing
+		if errors.As(err, &missing) {
+			c.LevelName = missing.LevelName
+			c.problem = err
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		c.LevelName = in.LevelName
+		c.HasReportInstructions = true
+		c.NoteCount = len(in.Notes)
+		c.problem = checkReportCase(in, rpt)
+	}
+	return out, nil
 }
 
 func yesNo(b bool) string {

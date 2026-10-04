@@ -23,6 +23,8 @@ type Class struct {
 	TimeSlot  string `json:"timeSlot"`
 	Position  int    `json:"position"`
 	CreatedAt string `json:"createdAt"`
+	// GroupID is the Level's Group, for server-side scoping only.
+	GroupID string `json:"-"`
 }
 
 // ClassWithCount is a Class with its student count.
@@ -68,12 +70,12 @@ func dayAbbrev(day string) string {
 const classDisplayNameSQL = `l.name || ' · ' || SUBSTR(c.day, 1, 3) || CASE WHEN c.time_slot <> '' THEN ' · ' || c.time_slot ELSE '' END`
 
 // classSelectColumns is the shared SELECT list used by every read query: the
-// stored columns, the Level's bare name, and the derived display name
-// (Level's name, Day abbreviated, plus Time slot when set).
+// stored columns, the Level's bare name, the derived display name (Level's
+// name, Day abbreviated, plus Time slot when set), and the Level's Group last.
 const classSelectColumns = `
 	c.id, c.user_id,
 	` + classDisplayNameSQL + `,
-	c.level_id, l.name, c.day, c.time_slot, c.position, c.created_at`
+	c.level_id, l.name, c.day, c.time_slot, c.position, c.created_at, l.group_id`
 
 // deriveClassDisplayName composes a Class's display name from its Level's
 // name, Day, and Time slot. This is the Go equivalent of classDisplayNameSQL
@@ -106,7 +108,7 @@ func (r *ClassRepo) List(ctx context.Context, userID string) ([]ClassWithCount, 
 	var result []ClassWithCount
 	for rows.Next() {
 		var c ClassWithCount
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.LevelID, &c.LevelName, &c.Day, &c.TimeSlot, &c.Position, &c.CreatedAt, &c.StudentCount); err != nil {
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.LevelID, &c.LevelName, &c.Day, &c.TimeSlot, &c.Position, &c.CreatedAt, &c.GroupID, &c.StudentCount); err != nil {
 			return nil, fmt.Errorf("scan class: %w", err)
 		}
 		result = append(result, c)
@@ -147,7 +149,7 @@ func (r *ClassRepo) ListWithStudents(ctx context.Context, userID string) ([]Clas
 		var c ClassWithStudents
 		var sID sql.NullInt64
 		var sName, sCreatedAt, alias sql.NullString
-		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.LevelID, &c.LevelName, &c.Day, &c.TimeSlot, &c.Position, &c.CreatedAt,
+		if err := rows.Scan(&c.ID, &c.UserID, &c.Name, &c.LevelID, &c.LevelName, &c.Day, &c.TimeSlot, &c.Position, &c.CreatedAt, &c.GroupID,
 			&sID, &sName, &sCreatedAt, &alias); err != nil {
 			return nil, fmt.Errorf("scan class with students: %w", err)
 		}
@@ -200,6 +202,7 @@ func (r *ClassRepo) Create(ctx context.Context, groupID, userID string, levelID 
 		return Class{}, fmt.Errorf("create class: %w", err)
 	}
 	c.LevelName = levelName
+	c.GroupID = groupID
 	c.Name = deriveClassDisplayName(levelName, day, timeSlot)
 	return c, nil
 }
@@ -230,7 +233,7 @@ func (r *ClassRepo) GetByID(ctx context.Context, id int64) (Class, error) {
 	var c Class
 	err := r.db.QueryRowContext(ctx,
 		"SELECT "+classSelectColumns+" FROM classes c JOIN levels l ON l.id = c.level_id WHERE c.id = ?", id,
-	).Scan(&c.ID, &c.UserID, &c.Name, &c.LevelID, &c.LevelName, &c.Day, &c.TimeSlot, &c.Position, &c.CreatedAt)
+	).Scan(&c.ID, &c.UserID, &c.Name, &c.LevelID, &c.LevelName, &c.Day, &c.TimeSlot, &c.Position, &c.CreatedAt, &c.GroupID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Class{}, ErrNotFound
 	}

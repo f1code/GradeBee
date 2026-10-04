@@ -209,6 +209,7 @@ deps interface {
     GetExtractor()        → Extractor
     GetNoteCreator()      → NoteCreator
     GetReportGenerator()  → ReportGenerator
+    GetReportInputResolver() → *ReportInputResolver
     GetVoiceNoteQueue()   → JobQueue[VoiceNoteJob]
     GetDriveClient(ctx, userID) → DriveClient
     GetDB()               → *sql.DB
@@ -365,9 +366,10 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `google_token.go` | GET /google-token — return user's Google OAuth access token |
 | `extract.go` | `Extractor` interface + `llmExtractor`: both extraction passes, their schemas, and the pronoun guard |
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers; `fileNotes` + `recording`, the one filing call the pipeline and the class picker share. Filing is atomic: `CreateNotes` writes every note or none, and a refused note comes back as `createNotesError` naming it by index and student id |
-| `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output) |
+| `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output). Requests embed `ReportInputs`; reads no notes itself |
+| `report_inputs.go` | `ReportInputResolver`, the one path from student → class → Level → Report Instructions gate → notes in range. `ForGenerate` (names, range, ad-hoc instructions from the request) and `ForReport` (from the report row, names from the DB). Level read scoped by the caller's Group; `""` (eval CLI only) uses the class's Group. Blank Report Instructions return `ErrLevelInstructionsMissing` (handlers answer `400`); other failures are plain wrapped errors (`500`) |
 | `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections (notes sorted oldest first, so the newest sit next to the task): the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
-| `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers. Both generation endpoints pre-flight-resolve every selected student's Class → Level and refuse the whole request with `400` (naming the offending Levels) if any Level's `report_instructions` is trimmed-empty — no report row created, no LLM call made. |
+| `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers. Both generation endpoints pre-flight-resolve every selected student's inputs through `ReportInputResolver` and refuse the whole request with `400` (naming the offending Levels) if any Level's `report_instructions` is trimmed-empty — no report row created, no LLM call made. |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
 | `logger.go` | Dual stdout+Sentry structured logging via `log/slog`; `InitLogger()` wires `slog.NewMultiHandler` when `SENTRY_DSN` is set; request-scoped logger via context |
 | `job_queue.go` | `Keyed` constraint, `JobQueue[T]` generic interface for async job queues |
@@ -577,9 +579,9 @@ backend/evals/
 
 ### Report cases
 
-Report cases carry real names and notes, so only `fixtures.manifest.json` (case id, description, `student_id`, `report_id`) is committed. `make eval-fixtures` runs `eval-cli gen-report-cases`, which calls `LoadReportEvalCase` (`report_eval_case.go`) to resolve each case from the local DB (`EVAL_DB`, default `../data/gradebee.db`) with the inputs `handleRegenerateReport` uses: student name, class display name, `NoteRepo.ListForStudents` over the report's range, the Level's Report Instructions, the report's ad-hoc instructions. It fails on an unknown id, no notes in range, or blank Report Instructions. `make eval` / `make eval-report` regenerate when the manifest, DB or DB WAL is newer than the generated test list.
+Report cases carry real names and notes, so only `fixtures.manifest.json` (case id, description, `student_id`, `report_id`) is committed. `make eval-fixtures` runs `eval-cli gen-report-cases`, which resolves each case from the local DB (`EVAL_DB`, default `../data/gradebee.db`) through `ReportInputResolver.ForReport`, as `handleRegenerateReport` does: student name, class display name, current notes in the report's range, the Level's Report Instructions, the report's ad-hoc instructions. It fails on an unknown id, no notes in range, blank Report Instructions, or a note in range created or edited after the report (the reference came from other inputs; pick a newer report). A note deleted since goes unseen. `make eval` / `make eval-report` regenerate when the manifest, DB or DB WAL is newer than the generated test list.
 
-`make eval-add-report STUDENT_ID=N [REPORT_ID=M]` runs `eval-cli add-report-case`: it lists the student's reports via `ListReportEvalCandidates` and prints a draft manifest entry for the chosen report (default: newest usable one not already in the manifest), validated through `LoadReportEvalCase`. Terminal output only.
+`make eval-add-report STUDENT_ID=N [REPORT_ID=M]` runs `eval-cli add-report-case`: it lists the student's reports and prints a draft manifest entry for the chosen report (default: newest one not already in the manifest that `gen-report-cases` would accept), validated through the same case loader. Terminal output only.
 
 ### Running evals
 

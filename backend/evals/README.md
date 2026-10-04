@@ -187,12 +187,17 @@ Report cases hold real names, notes and report text, so the repo keeps only
 (test description, no names), a `student_id` and a `report_id`.
 
 `make eval-fixtures` runs `eval-cli gen-report-cases`, which reads each case
-from the local DB (`../data/gradebee.db`; override with `EVAL_DB=`) the way
-regenerating that report would: the student's name, the class display name, the
-notes in the report's date range, the Level's Report Instructions and the
-report's ad-hoc instructions. It rewrites `fixtures/reports/` and
+from the local DB (`../data/gradebee.db`; override with `EVAL_DB=`) through the
+resolver regenerating that report uses: the student's name, the class display
+name, the notes in the report's date range, the Level's Report Instructions and
+the report's ad-hoc instructions. It rewrites `fixtures/reports/` and
 `tests.report.generated.yaml`, and fails naming the case for an unknown id, a
 report with no notes in its range, or a Level without Report Instructions.
+
+Notes come from today's DB. If a note in the range was created or edited after
+the report, the reference was written from other notes, so generation fails
+naming the case, the report and the notes; pick a newer report. A note deleted
+since the report goes unseen.
 
 `make eval` and `make eval-report` regenerate first when the manifest, the DB or
 its WAL is newer than `tests.report.generated.yaml`. Every generated test gets
@@ -203,8 +208,8 @@ its task and rubric from the report config's `defaultTest`.
 1. `make eval-add-report STUDENT_ID=N` lists the student's reports, newest
    first: id, date range, created date, Level, whether the Level has Report
    Instructions, whether the report has ad-hoc instructions, notes in range.
-   It prints a draft entry for the newest usable report not yet in the
-   manifest; pick another with `REPORT_ID=M`. Output goes to the terminal only.
+   It prints a draft entry for the newest report not yet in the manifest that
+   `make eval-fixtures` would accept; pick another with `REPORT_ID=M`. Output goes to the terminal only.
 2. Paste the entry into `fixtures.manifest.json`; rewrite the description to
    say what the case tests, without names.
 3. `make eval` to see the score.

@@ -136,7 +136,13 @@ func (m *mockDepsAll) GetReportRepo() *ReportRepo             { return m.reportR
 func (m *mockDepsAll) GetVoiceNoteRepo() *VoiceNoteRepo       { return m.voiceNoteRepo }
 func (m *mockDepsAll) GetFeedbackRepo() *ArtifactFeedbackRepo { return m.feedbackRepo }
 func (m *mockDepsAll) GetLevelRepo() *LevelRepo               { return m.levelRepo }
-func (m *mockDepsAll) GetUploadsDir() string                  { return m.uploadsDir }
+
+// GetReportInputResolver reads the mock's db: report handler tests resolve
+// inputs against a real SQLite DB.
+func (m *mockDepsAll) GetReportInputResolver() *ReportInputResolver {
+	return NewReportInputResolver(m.db)
+}
+func (m *mockDepsAll) GetUploadsDir() string { return m.uploadsDir }
 
 // stubExtractor implements Extractor for tests. Extract answers with result;
 // ExtractPassages answers with the same passages, so a caller that skips pass 1
@@ -214,7 +220,7 @@ func (s *stubExtractor) Model() string {
 // stubNoteCreator implements NoteCreator for tests.
 type stubNoteCreator struct {
 	ids []int64 // returned in order
-	err     error
+	err error
 	// failAt is the index CreateNotes refuses with err; the batch is still
 	// recorded whole.
 	failAt  int

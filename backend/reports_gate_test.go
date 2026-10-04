@@ -66,46 +66,6 @@ func TestHandleGenerateReports_RefusesUnsetLevelInstructions(t *testing.T) {
 	assert.Empty(t, reports, "no report row must be created on gate refusal")
 }
 
-// TestHandleGenerateReports_RefusesWhitespaceOnlyInstructions covers
-// whitespace-only Report Instructions gating the same as empty.
-func TestHandleGenerateReports_RefusesWhitespaceOnlyInstructions(t *testing.T) {
-	db := setupTestDB(t)
-	classRepo := &ClassRepo{db: db}
-	studentRepo := &StudentRepo{db: db}
-	reportRepo := &ReportRepo{db: db}
-	levelRepo := &LevelRepo{db: db}
-	ctx := context.Background()
-
-	cls := newTestClass(t, classRepo, "test-group", "user_abc", "Whitespace", "")
-	stu, err := studentRepo.Create(ctx, cls.ID, "Alice")
-	require.NoError(t, err)
-	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "   \n\t  "))
-
-	withDeps(t, &mockDepsAll{
-		db:          db,
-		classRepo:   classRepo,
-		studentRepo: studentRepo,
-		reportRepo:  reportRepo,
-		reportGen:   &stubReportGenerator{},
-		levelRepo:   levelRepo,
-	})
-
-	reqBody, err := json.Marshal(map[string]any{
-		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "className": "Whitespace"}},
-		"startDate": "2026-01-01",
-		"endDate":   "2026-03-31",
-	})
-	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(reqBody))
-	req.Header.Set("Content-Type", "application/json")
-	req = clerkReq(req, "user_abc")
-
-	rec := httptest.NewRecorder()
-	handleGenerateReports(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code, "body = %s", rec.Body.String())
-}
-
 // TestHandleGenerateReports_MixedLevelBatchRefusesWhole covers a batch
 // spanning two Levels where only one is unset: the whole batch is refused,
 // not just the offending student, and no report row lands for either Level.

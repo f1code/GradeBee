@@ -27,7 +27,9 @@ func seedAddReportDB(t *testing.T) *sql.DB {
 		`INSERT INTO levels (id, group_id, name, report_instructions) VALUES (1, 'g', 'Marcia', 'Three sections.')`,
 		`INSERT INTO classes (id, user_id, level_id, day) VALUES (1, 'u', 1, 'Monday')`,
 		`INSERT INTO students (id, class_id, name) VALUES (1, 1, 'Alice')`,
-		`INSERT INTO notes (student_id, date, summary) VALUES (1, '2026-03-10', 'a'), (1, '2026-03-11', 'b')`,
+		`INSERT INTO notes (id, student_id, date, summary, created_at, updated_at) VALUES
+			(1, 1, '2026-03-10', 'a', '2026-03-10T00:00:00Z', '2026-03-10T00:00:00Z'),
+			(2, 1, '2026-03-11', 'b', '2026-03-11T00:00:00Z', '2026-03-11T00:00:00Z')`,
 		`INSERT INTO reports (id, student_id, start_date, end_date, html, instructions, created_at) VALUES
 			(10, 1, '2026-03-01', '2026-03-31', '<p/>', 'be concise', '2026-04-03T00:00:00Z'),
 			(11, 1, '2026-05-01', '2026-05-31', '<p/>', NULL, '2026-04-02T00:00:00Z'),
@@ -61,6 +63,29 @@ func TestAddReportCase_SkipsReportsInManifest(t *testing.T) {
 	var out bytes.Buffer
 	require.NoError(t, addReportCase(context.Background(), db, &out, 1, 0, existing))
 	assertDraftParses(t, out.String(), reportManifestEntry{ID: "student1_report12", StudentID: 1, ReportID: 12})
+}
+
+func TestAddReportCase_SkipsStaleReports(t *testing.T) {
+	db := seedAddReportDB(t)
+	// Note 2 edited half a second after report 10 was written.
+	_, err := db.Exec(`UPDATE notes SET updated_at = '2026-04-03T00:00:00.500Z' WHERE id = 2`)
+	require.NoError(t, err)
+	var out bytes.Buffer
+	require.NoError(t, addReportCase(context.Background(), db, &out, 1, 0, reportManifest{}))
+	assertDraftParses(t, out.String(), reportManifestEntry{ID: "student1_report12", StudentID: 1, ReportID: 12})
+
+	err = addReportCase(context.Background(), db, &bytes.Buffer{}, 1, 10, reportManifest{})
+	assert.ErrorContains(t, err, "note 2 changed after report 10 was generated; pick a newer report")
+}
+
+func TestAddReportCase_BlankLevelInstructions(t *testing.T) {
+	db := seedAddReportDB(t)
+	_, err := db.Exec(`UPDATE levels SET report_instructions = '  ' WHERE id = 1`)
+	require.NoError(t, err)
+	var out bytes.Buffer
+	err = addReportCase(context.Background(), db, &out, 1, 0, reportManifest{})
+	assert.ErrorContains(t, err, "has no report outside the manifest")
+	assert.Regexp(t, `(?m)^10 .*Marcia +no +yes +0$`, out.String())
 }
 
 func TestAddReportCase_ExplicitReport(t *testing.T) {

@@ -43,15 +43,17 @@ func TestWriteReportCases(t *testing.T) {
 
 	m := reportManifest{Reports: []reportManifestEntry{{ID: "a_case", Description: "desc", StudentID: 1, ReportID: 2}}}
 	transcript := "raw transcript"
-	c := handler.ReportEvalCase{
-		StudentName:        "Alice",
-		ClassName:          "Marcia · Mon",
-		Notes:              []handler.Note{{ID: 9, Date: "2026-03-10", Summary: "read well", Transcript: &transcript}},
-		ReportInstructions: "Three sections.",
-		Instructions:       "be concise",
-		ReferenceHTML:      "<p>ref</p>",
+	c := reportCase{
+		ReportInputs: handler.ReportInputs{
+			StudentName:        "Alice",
+			ClassName:          "Marcia · Mon",
+			Notes:              []handler.Note{{ID: 9, Date: "2026-03-10", Summary: "read well", Transcript: &transcript}},
+			ReportInstructions: "Three sections.",
+			Instructions:       "be concise",
+		},
+		ReferenceHTML: "<p>ref</p>",
 	}
-	require.NoError(t, writeReportCases(m, []handler.ReportEvalCase{c}, casesDir, testsPath))
+	require.NoError(t, writeReportCases(m, []reportCase{c}, casesDir, testsPath))
 
 	assert.NoDirExists(t, stale, "cases dropped from the manifest must not linger")
 	notes, err := os.ReadFile(filepath.Join(casesDir, "a_case", "notes.json"))
@@ -77,5 +79,42 @@ func TestWriteReportCases(t *testing.T) {
 		got, err := os.ReadFile(filepath.Join(evals, ref[len("file://"):]))
 		require.NoError(t, err)
 		assert.Equal(t, want, string(got))
+	}
+}
+
+func TestCheckReportCase(t *testing.T) {
+	rpt := handler.Report{ID: 218, CreatedAt: "2026-04-03T10:00:00Z"}
+	note := func(id int64, created, updated string) handler.Note {
+		return handler.Note{ID: id, CreatedAt: created, UpdatedAt: updated}
+	}
+	cases := map[string]struct {
+		notes []handler.Note
+		want  string
+	}{
+		"same instant is not stale": {notes: []handler.Note{note(1, "2026-04-03T10:00:00.000Z", "2026-04-03T10:00:00Z")}},
+		// String order would put ".5Z" before "Z".
+		"created after, fractional seconds": {
+			notes: []handler.Note{note(605, "2026-04-03T10:00:00.500Z", "2026-04-03T10:00:00.500Z")},
+			want:  "note 605 changed after report 218 was generated; pick a newer report",
+		},
+		"edited after": {
+			notes: []handler.Note{
+				note(605, "2026-03-01T00:00:00Z", "2026-05-01T00:00:00Z"),
+				note(606, "2026-03-02T00:00:00Z", "2026-03-02T00:00:00Z"),
+				note(609, "2026-06-01T00:00:00Z", "2026-06-01T00:00:00Z"),
+			},
+			want: "notes 605, 609 changed after report 218 was generated",
+		},
+		"no notes": {want: "has no notes between"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := checkReportCase(handler.ReportInputs{Notes: tc.notes}, rpt)
+			if tc.want == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.ErrorContains(t, err, tc.want)
+		})
 	}
 }

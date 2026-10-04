@@ -1,5 +1,5 @@
 // report_generator.go implements the ReportGenerator interface that creates
-// HTML report cards using an LLMProvider and student notes from the database.
+// HTML report cards using an LLMProvider. Callers resolve the notes.
 package handler
 
 import (
@@ -9,14 +9,8 @@ import (
 
 // GenerateReportRequest is the input for generating a single student report.
 type GenerateReportRequest struct {
-	StudentID          int64
-	Student            string
-	ClassName          string
-	StartDate          string // YYYY-MM-DD
-	EndDate            string // YYYY-MM-DD
-	UserID             string
-	Instructions       string
-	ReportInstructions string
+	ReportInputs
+	UserID string
 }
 
 // GenerateReportResponse contains the created report info.
@@ -34,50 +28,36 @@ type ReportGenerator interface {
 
 // RegenerateReportRequest is the input for regenerating an existing report.
 type RegenerateReportRequest struct {
-	ReportID           int64
-	Feedback           string
-	StudentID          int64
-	Student            string
-	ClassName          string
-	StartDate          string
-	EndDate            string
-	UserID             string
-	Instructions       string
-	ReportInstructions string
+	ReportInputs
+	ReportID int64
+	Feedback string
+	UserID   string
 }
 
-// llmReportGenerator implements ReportGenerator using an LLMProvider + DB.
+// llmReportGenerator implements ReportGenerator using an LLMProvider + ReportRepo.
 type llmReportGenerator struct {
 	provider   LLMProvider
 	model      string
-	noteRepo   *NoteRepo
 	reportRepo *ReportRepo
 }
 
-func newDBReportGenerator(provider LLMProvider, nr *NoteRepo, rr *ReportRepo) (*llmReportGenerator, error) {
+func newDBReportGenerator(provider LLMProvider, rr *ReportRepo) (*llmReportGenerator, error) {
 	return &llmReportGenerator{
 		provider:   provider,
 		model:      provider.Model(LLMTaskReport),
-		noteRepo:   nr,
 		reportRepo: rr,
 	}, nil
 }
 
 func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportRequest) (*GenerateReportResponse, error) {
-	// 1. Query notes for the student in date range.
-	notes, err := g.noteRepo.ListForStudents(ctx, []int64{req.StudentID}, req.StartDate, req.EndDate)
-	if err != nil {
-		return nil, fmt.Errorf("report: read notes: %w", err)
-	}
-
-	// 2. Build prompt and call LLM.
-	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, req.ReportInstructions, req.Instructions, "")
+	// 1. Build prompt and call LLM.
+	prompt := BuildReportPrompt(req.StudentName, req.ClassName, req.Notes, req.ReportInstructions, req.Instructions, "")
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
 
-	// 3. Save report to DB.
+	// 2. Save report to DB.
 	modelVersion := g.model
 	promptHash := ReportPromptHash
 	rpt := &Report{
@@ -103,20 +83,14 @@ func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 }
 
 func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateReportRequest) (*GenerateReportResponse, error) {
-	// 1. Query notes.
-	notes, err := g.noteRepo.ListForStudents(ctx, []int64{req.StudentID}, req.StartDate, req.EndDate)
-	if err != nil {
-		return nil, fmt.Errorf("report: read notes: %w", err)
-	}
-
-	// 2. Build prompt with feedback and call LLM.
-	prompt := BuildReportPrompt(req.Student, req.ClassName, notes, req.ReportInstructions, req.Instructions, req.Feedback)
+	// 1. Build prompt with feedback and call LLM.
+	prompt := BuildReportPrompt(req.StudentName, req.ClassName, req.Notes, req.ReportInstructions, req.Instructions, req.Feedback)
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
 	}
 
-	// 4. Save as a new report (new row, preserves history).
+	// 2. Save as a new report (new row, preserves history).
 	modelVersion := g.model
 	promptHash := ReportPromptHash
 	rpt := &Report{

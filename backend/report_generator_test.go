@@ -58,11 +58,12 @@ func (f *fakeLLMProvider) Transcribe(_ context.Context, _ TranscribeRequest) (LL
 // can pair every "must not appear" with a "must appear" from the same table.
 type reportGenFixture struct {
 	ctx        context.Context
-	noteRepo   *NoteRepo
 	reportRepo *ReportRepo
 	studentID  int64
-	provider   *fakeLLMProvider
-	gen        *llmReportGenerator
+	// notes is what the resolver would pass: the student's in-range notes.
+	notes    []Note
+	provider *fakeLLMProvider
+	gen      *llmReportGenerator
 }
 
 const (
@@ -108,29 +109,35 @@ func newReportGenFixture(t *testing.T, provider *fakeLLMProvider) *reportGenFixt
 		require.NoError(t, noteRepo.Create(ctx, &n))
 	}
 
-	gen, err := newDBReportGenerator(provider, noteRepo, reportRepo)
+	notes, err := noteRepo.ListForStudents(ctx, []int64{stu.ID}, fixtureStart, fixtureEnd)
+	require.NoError(t, err)
+	gen, err := newDBReportGenerator(provider, reportRepo)
 	require.NoError(t, err)
 	return &reportGenFixture{
 		ctx:        ctx,
-		noteRepo:   noteRepo,
 		reportRepo: reportRepo,
 		studentID:  stu.ID,
+		notes:      notes,
 		provider:   provider,
 		gen:        gen,
 	}
 }
 
-func (f *reportGenFixture) generateReq() GenerateReportRequest {
-	return GenerateReportRequest{
+func (f *reportGenFixture) inputs() ReportInputs {
+	return ReportInputs{
 		StudentID:          f.studentID,
-		Student:            fixtureStudent,
+		StudentName:        fixtureStudent,
 		ClassName:          fixtureClassName,
 		StartDate:          fixtureStart,
 		EndDate:            fixtureEnd,
-		UserID:             "user_abc",
 		Instructions:       fixtureInstructions,
 		ReportInstructions: fixtureSpec,
+		Notes:              f.notes,
 	}
+}
+
+func (f *reportGenFixture) generateReq() GenerateReportRequest {
+	return GenerateReportRequest{ReportInputs: f.inputs(), UserID: "user_abc"}
 }
 
 // singlePrompt returns the one prompt the provider saw, failing on any other count.
@@ -151,7 +158,7 @@ func TestLLMReportGenerator_Generate_PromptAndPersistedRow(t *testing.T) {
 	assert.Contains(t, prompt, "Student: Fenwick, Class: Geology · Mon")
 	assert.Contains(t, prompt, reportSpecHeader+fixtureSpec)
 	assert.Contains(t, prompt, reportInstructionsHeader+fixtureInstructions)
-	// Only this student's in-range notes, each on its own dated line.
+	// Only the request's notes, each on its own dated line.
 	assert.Contains(t, prompt, "- 2026-01-15: "+noteInRangeJan)
 	assert.Contains(t, prompt, "- 2026-02-20: "+noteInRangeFeb)
 	assert.NotContains(t, prompt, noteBeforeRange, "note dated before StartDate leaked into the prompt")
@@ -204,8 +211,8 @@ func TestLLMReportGenerator_Generate_EmptyInstructionsStoresNull(t *testing.T) {
 	assert.Nil(t, rpt.Instructions)
 }
 
-// TestLLMReportGenerator_Generate_NoNotesInRange pins current behaviour: a
-// window with no notes is not an error — the LLM is still called with an
+// TestLLMReportGenerator_Generate_NoNotesInRange pins current behaviour: no
+// notes is not an error — the LLM is still called with an
 // empty notes list and the report is persisted.
 func TestLLMReportGenerator_Generate_NoNotesInRange(t *testing.T) {
 	f := newReportGenFixture(t, &fakeLLMProvider{text: cannedHTML})
@@ -213,6 +220,7 @@ func TestLLMReportGenerator_Generate_NoNotesInRange(t *testing.T) {
 	// A window between the in-range notes above and the April note.
 	req.StartDate = "2026-03-01"
 	req.EndDate = "2026-03-31"
+	req.Notes = nil
 
 	resp, err := f.gen.Generate(f.ctx, req)
 	require.NoError(t, err)
@@ -271,16 +279,10 @@ func TestLLMReportGenerator_Regenerate_WritesNewRowKeepsOld(t *testing.T) {
 	require.NoError(t, f.reportRepo.Create(f.ctx, old))
 
 	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{
-		ReportID:           old.ID,
-		Feedback:           fixtureFeedback,
-		StudentID:          f.studentID,
-		Student:            fixtureStudent,
-		ClassName:          fixtureClassName,
-		StartDate:          fixtureStart,
-		EndDate:            fixtureEnd,
-		UserID:             "user_abc",
-		Instructions:       fixtureInstructions,
-		ReportInstructions: fixtureSpec,
+		ReportInputs: f.inputs(),
+		ReportID:     old.ID,
+		Feedback:     fixtureFeedback,
+		UserID:       "user_abc",
 	})
 	require.NoError(t, err)
 
@@ -331,16 +333,10 @@ func TestLLMReportGenerator_Regenerate_LLMErrorLeavesOldRowIntact(t *testing.T) 
 	require.NoError(t, f.reportRepo.Create(f.ctx, old))
 
 	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{
-		ReportID:           old.ID,
-		Feedback:           fixtureFeedback,
-		StudentID:          f.studentID,
-		Student:            fixtureStudent,
-		ClassName:          fixtureClassName,
-		StartDate:          fixtureStart,
-		EndDate:            fixtureEnd,
-		UserID:             "user_abc",
-		Instructions:       fixtureInstructions,
-		ReportInstructions: fixtureSpec,
+		ReportInputs: f.inputs(),
+		ReportID:     old.ID,
+		Feedback:     fixtureFeedback,
+		UserID:       "user_abc",
 	})
 	require.Error(t, err)
 	assert.Nil(t, resp)
