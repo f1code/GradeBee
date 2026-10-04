@@ -210,10 +210,14 @@ its task and rubric from the report config's `defaultTest`.
    Instructions, whether the report has ad-hoc instructions, notes in range.
    It prints a draft entry for the newest report not yet in the manifest that
    `make eval-fixtures` would accept; pick another with `REPORT_ID=M`. Output goes to the terminal only.
-2. Paste the entry into `fixtures.manifest.json`; rewrite the description to
+2. Optional: `make eval-dump-report STUDENT_ID=N REPORT_ID=M` prints the
+   report's notes and reference HTML with class roster names and aliases
+   replaced by `STUDENT` / `CLASSMATE_n`, for reading the case before
+   describing it. Terminal only: health and family details remain.
+3. Paste the entry into `fixtures.manifest.json`; rewrite the description to
    say what the case tests, without names.
-3. `make eval` to see the score.
-4. `make eval-baseline` once the score looks right.
+4. `make eval` to see the score.
+5. `make eval-baseline` once the score looks right.
 
 ## Extraction scoring axes
 

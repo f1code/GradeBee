@@ -102,6 +102,16 @@ func (r *ReportInputResolver) ForReport(ctx context.Context, groupID string, stu
 	return out, rpt, nil
 }
 
+// ClassRoster returns the student's class roster with aliases. cmd/eval-cli
+// redacts these names out of report dumps.
+func (r *ReportInputResolver) ClassRoster(ctx context.Context, studentID int64) ([]Student, error) {
+	student, err := r.students.GetByID(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("student %d: %w", studentID, err)
+	}
+	return r.students.ListWithAliases(ctx, student.ClassID)
+}
+
 func (r *ReportInputResolver) resolve(ctx context.Context, groupID string, studentID int64, startDate, endDate string) (ReportInputs, error) {
 	student, err := r.students.GetByID(ctx, studentID)
 	if err != nil {

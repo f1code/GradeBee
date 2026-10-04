@@ -367,7 +367,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `extract.go` | `Extractor` interface + `llmExtractor`: both extraction passes, their schemas, and the pronoun guard |
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers; `fileNotes` + `recording`, the one filing call the pipeline and the class picker share. Filing is atomic: `CreateNotes` writes every note or none, and a refused note comes back as `createNotesError` naming it by index and student id |
 | `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output). Requests embed `ReportInputs`; reads no notes itself |
-| `report_inputs.go` | `ReportInputResolver`, the one path from student → class → Level → Report Instructions gate → notes in range. `ForGenerate` (names, range, ad-hoc instructions from the request) and `ForReport` (from the report row, names from the DB). Level read scoped by the caller's Group; `""` (eval CLI only) uses the class's Group. Blank Report Instructions return `ErrLevelInstructionsMissing` (handlers answer `400`); other failures are plain wrapped errors (`500`) |
+| `report_inputs.go` | `ReportInputResolver`, the one path from student → class → Level → Report Instructions gate → notes in range. `ForGenerate` (names, range, ad-hoc instructions from the request) and `ForReport` (from the report row, names from the DB). `ClassRoster` (student's class with aliases) serves the eval CLI's redacted dump. Level read scoped by the caller's Group; `""` (eval CLI only) uses the class's Group. Blank Report Instructions return `ErrLevelInstructionsMissing` (handlers answer `400`); other failures are plain wrapped errors (`500`) |
 | `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections (notes sorted oldest first, so the newest sit next to the task): the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers. Both generation endpoints pre-flight-resolve every selected student's inputs through `ReportInputResolver` and refuse the whole request with `400` (naming the offending Levels) if any Level's `report_instructions` is trimmed-empty — no report row created, no LLM call made. |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
@@ -583,6 +583,8 @@ Report cases carry real names and notes, so only `fixtures.manifest.json` (case 
 
 `make eval-add-report STUDENT_ID=N [REPORT_ID=M]` runs `eval-cli add-report-case`: it lists the student's reports and prints a draft manifest entry for the chosen report (default: newest one not already in the manifest that `gen-report-cases` would accept), validated through the same case loader. Terminal output only.
 
+`make eval-dump-report STUDENT_ID=N REPORT_ID=M` runs `eval-cli dump-report`: it loads the report through `ReportInputResolver.ForReport` and prints its ad-hoc instructions, notes (date, summary) and reference HTML with the class roster redacted. `ReportInputResolver.ClassRoster` supplies the roster with aliases; each name and alias, matched whole-word on folded text (case, accents composed or combining, stroke letters, ligatures such as ß and œ, compatibility forms; space and dash runs count as one separator, so `Elodie` matches `Élodie` and `Jean Luc` matches `Jean-Luc`), becomes `STUDENT` for the report's student or `CLASSMATE_n` (roster order) for a classmate. Level and class names stay. Agents read report content for case selection only through this dump. Terminal output only: non-name sensitive content remains.
+
 ### Running evals
 
 ```bash
@@ -628,6 +630,7 @@ make bin/eval-cli
 | `build-report-prompt` | `student_name`, `class`, `notes`, `report_instructions`, `instructions` | `BuildReportPrompt` → messages array (user only) |
 | `gen-report-cases` subcommand (not a task) | `-db`, `-manifest`, `-cases-dir`, `-tests` flags | Report case files + promptfoo test list from the DB |
 | `add-report-case` subcommand (not a task) | `-db`, `-manifest`, `-student`, `-report` flags | Student's report table + draft manifest entry, on stdout |
+| `dump-report` subcommand (not a task) | `-db`, `-student`, `-report` flags | Report's notes and reference HTML, roster names redacted, on stdout |
 
 Model selection and the actual LLM call belong to promptfoo, not eval-cli.
 
