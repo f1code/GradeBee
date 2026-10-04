@@ -6,10 +6,10 @@
  * and prints a per-case, per-provider diff table.
  *
  * Canonical providers (gradebee-extract, gradebee-report) are starred ★ and
- * sorted first within each test group — they are the ones tracked in baseline.json.
+ * sorted first within each test group.
  *
  * Usage:
- *   node evals/scripts/diff-baseline.js evals/baseline.json evals/results/20260520-120000.json
+ *   node evals/scripts/diff-baseline.js evals/baseline-extract.json evals/results/20260520-120000-extract.json
  *
  * Exit code is always 0 — human-in-the-loop interpretation.
  */
@@ -25,8 +25,8 @@ if (!baselinePath || !currentPath) {
   process.exit(0);
 }
 
-// Canonical providers whose results are stored in baseline.json and used for
-// regression tracking. All other providers are treated as comparison/experimental.
+// Canonical providers tracked for regressions. All other providers are
+// comparison/experimental.
 const CANONICAL_PROVIDERS = new Set(['gradebee-extract', 'gradebee-report']);
 
 function loadResults(filePath) {
@@ -37,6 +37,12 @@ function loadResults(filePath) {
     console.error(`Could not read ${filePath}: ${e.message}`);
     return null;
   }
+}
+
+// A fresh clone has no report baseline: it lives under data/, outside git.
+if (!fs.existsSync(path.resolve(baselinePath))) {
+  console.log(`No baseline at ${baselinePath} — skipping diff. Run 'make eval-baseline' to pin one.`);
+  process.exit(0);
 }
 
 const baseline = loadResults(path.resolve(baselinePath));

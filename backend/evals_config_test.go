@@ -27,7 +27,7 @@ type promptfooConfig struct {
 //
 // Without this the two drift silently: the extraction config spent its life
 // pinned to mistral-small-2603 while production ran mistral-medium-2508, so
-// every score in evals/baseline.json described a model we do not ship.
+// every pinned eval baseline score described a model we do not ship.
 //
 // Scope, deliberately narrower than LoadProvider: this checks the Mistral
 // defaults only. It does not follow LLM_PROVIDER=openai or the LLM_MODEL_*
@@ -69,7 +69,7 @@ func TestEvalConfigsTrackProductionModels(t *testing.T) {
 
 			assert.Equal(t, "mistral:"+models[tc.task], got,
 				"%s grades a different model than defaultModels(\"mistral\"): fix the "+
-					"provider id, or update defaultModels() and regenerate evals/baseline.json",
+					"provider id, or update defaultModels() and run make eval-baseline",
 				tc.file)
 		})
 	}

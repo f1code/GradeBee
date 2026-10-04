@@ -18,7 +18,7 @@ frontend/dist/
 backend/bin/
 backend/dist/
 
-# LLM eval run results (per-run JSONs; baseline.json is committed, results are not)
+# LLM eval run results (per-run JSONs; baseline-extract.json is committed, results are not)
 backend/evals/results/
 
 

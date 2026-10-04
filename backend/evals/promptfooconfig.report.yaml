@@ -6,8 +6,8 @@ prompts:
     raw: exec:../bin/eval-cli
 
 # Providers — native Mistral/OpenAI providers for report generation.
-# gradebee-report is the canonical (production) provider — used for baseline
-# diffing and the sole provider stored in baseline.json.
+# gradebee-report is the canonical (production) provider — tracked for
+# regressions against the local report baseline (data/eval-baseline-report.json).
 providers:
   - id: mistral:mistral-medium-3-5
     label: gradebee-report

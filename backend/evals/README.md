@@ -24,8 +24,7 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
    ```
 3. eval-cli outputs a JSON messages array (no LLM call): `[{"role":"system","content":"..."},{"role":"user","content":"..."}]`
 4. promptfoo sends the messages to the native provider (with structured output schema for extraction), folds the extraction response into notes with `scoring/assemble.js`, and scores the result against the assertions.
-5. Results from both configs are merged into a single combined JSON.
-6. `make eval` prints a diff vs the pinned baseline.
+5. `make eval` prints one diff per domain against that domain's baseline (see [Baseline lifecycle](#baseline-lifecycle)).
 
 ## Running
 
@@ -33,16 +32,16 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
 # Prerequisites: LLM_PROVIDER + the active provider's API key in env
 # (OPENAI_API_KEY when LLM_PROVIDER=openai; MISTRAL_API_KEY when LLM_PROVIDER=mistral)
 
-# Run both domains, print diff vs baseline
+# Run both domains, print one diff per domain vs its baseline
 cd backend && make eval
 
 # Run a single domain
 cd backend && make eval-extract   # extraction only
 cd backend && make eval-report    # report only
 
-# Update baseline after a deliberate prompt/model change
+# Update both baselines after a deliberate prompt/model change
 cd backend && make eval-baseline
-# Then commit evals/baseline.json alongside the change
+# Then commit evals/baseline-extract.json alongside the change
 ```
 
 ## Environment variables
@@ -157,10 +156,10 @@ make bin/eval-cli
 evals/
   promptfooconfig.extract.yaml    extraction test suite
   promptfooconfig.report.yaml     report test suite
-  baseline.json                   pinned baseline scores (committed, merged extract+report)
+  baseline-extract.json           pinned extraction scores (committed)
   scoring/extraction.js           custom JS scorer (precision/recall + voice preservation + attribution)
   scripts/diff-baseline.js        baseline diff reporter (Node, always exits 0)
-  scripts/merge-results.js        merges multiple result JSONs into one
+  scripts/pin-baseline.js         copies a result JSON to a baseline, scores only
   results/                        per-run result JSONs (git-ignored)
   fixtures/
     extraction/<case>/
@@ -244,7 +243,7 @@ assembly rules as production — it is the JavaScript twin of `guardPassages`
 grading what ships.
 
 Scores are `gradebee-extract` (`mistral-medium-3-5`), the run pinned in
-`baseline.json` on 2026-09-17 by #164, with pass 1 cutting the header before
+`baseline-extract.json` on 2026-09-17 by #164, with pass 1 cutting the header before
 pass 2 (#155). `mistral-medium-2508` scored the same on every row.
 
 | Fixture | Score | State |
@@ -339,7 +338,16 @@ then prints nothing at all — no table, no summary, exit 0. Run
 
 ## Baseline lifecycle
 
-`baseline.json` is a single committed file overwritten by `make eval-baseline`. The PR diff is the audit trail for deliberate score changes.
+One baseline per domain, both overwritten by `make eval-baseline`:
+
+- **Extraction** — `evals/baseline-extract.json`, committed. The PR diff is the audit trail for deliberate score changes.
+- **Report** — `data/eval-baseline-report.json` at the repo root, local only. Report outputs hold real student names, so the file sits under the gitignored `data/` next to `gradebee.db`; copy both when setting up a worktree. On a fresh clone `make eval` skips the report diff with a message until `make eval-baseline` pins one. Losing it means re-pinning from a fresh run.
+
+Both files keep only what `diff-baseline.js` reads; `scripts/pin-baseline.js` drops the per-run eval id, share URL and config that would churn the PR diff.
+
+`make eval-baseline` pins the run its own `make eval` just made, and writes neither file unless both results are clean. It stops if a promptfoo run wrote no output, or if any row errored (`failureReason` 2: API outage, transform failure), on any provider, canonical or comparison: an errored row scores 0 and would read as a regression on every later run. Re-run once the errors clear.
+
+Both started out as one combined `baseline.json`. #172 split it by provider label, by hand, instead of regenerating: extraction rows unchanged and committed. The report rows were dropped, not moved under `data/`: they grade the old `fixtures/reports/` cases, which #173 replaces with cases generated from the DB, so they would never match a future run.
 
 **One exception on record.** #127 removed the `multi_class` row rather than changing a
 score, and it was cut out of `baseline.json` by hand instead of regenerating. A full

@@ -554,10 +554,11 @@ Regression testing for extraction and report-generation quality. On-demand only 
 ```
 backend/evals/
   promptfooconfig.yaml          promptfoo test suite
-  baseline.json                 pinned baseline scores (committed to repo)
+  baseline-extract.json         pinned extraction scores (committed to repo)
   scoring/extraction.js         custom JS precision/recall + voice-preservation scorer
   scoring/assemble.js           folds pass-2 passages into per-child notes before scoring
   scripts/diff-baseline.js      baseline diff reporter (Node, always exits 0)
+  scripts/pin-baseline.js       copies a result JSON to a baseline, scores only
   results/                      per-run result JSONs (git-ignored)
   fixtures/
     extraction/<case>/
@@ -574,12 +575,12 @@ backend/evals/
 ### Running evals
 
 ```bash
-# One-time eval — prints diff vs baseline
+# One-time eval — prints one diff per domain vs its baseline
 cd backend && make eval
 
-# Update baseline after deliberate prompt/model change
-cd backend && make eval-baseline   # runs eval then copies latest result to baseline.json
-# Commit evals/baseline.json alongside the prompt change
+# Update both baselines after deliberate prompt/model change
+cd backend && make eval-baseline
+# Commit evals/baseline-extract.json alongside the prompt change
 ```
 
 ### How to add a fixture
@@ -590,7 +591,10 @@ cd backend && make eval-baseline   # runs eval then copies latest result to base
 
 ### Baseline lifecycle
 
-`backend/evals/baseline.json` is a single committed file overwritten by `make eval-baseline`. The PR diff is the audit trail — deliberately accepting new scores.
+One baseline per domain, both overwritten by `make eval-baseline`:
+
+- **Extraction** — `backend/evals/baseline-extract.json`, committed. The PR diff is the audit trail — deliberately accepting new scores.
+- **Report** — `data/eval-baseline-report.json`, local only. Report outputs hold real student names, so the file sits under the gitignored `data/` next to `gradebee.db` and gets copied with it into worktrees. A fresh clone has none: `make eval` skips the report diff with a message until `make eval-baseline` pins one. Losing it means re-pinning from a fresh run.
 
 ### How it works
 
