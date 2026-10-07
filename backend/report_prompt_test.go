@@ -51,3 +51,12 @@ func TestBuildReportPrompt_NotesOldestFirst(t *testing.T) {
 	assert.Less(t, strings.Index(prompt, "early"), strings.Index(prompt, "late"))
 	assert.Equal(t, "late", notes[0].Summary, "caller's slice untouched")
 }
+
+// Two spellings of one child read as two children (task 186), so the filing
+// statement sits between the student line and the notes.
+func TestBuildReportPrompt_NotesFiledToStudent(t *testing.T) {
+	notes := []Note{{Date: "2026-09-11", Summary: "Alise repeated after me."}}
+	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, "spec text", "", "")
+	assert.Contains(t, prompt, "Student: Alice, Class: Grade 3A\n\n"+reportNotesFiling+"- 2026-09-11")
+	assert.Contains(t, reportNotesFiling, "however spelled, is this student")
+}

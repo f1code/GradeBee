@@ -10,6 +10,10 @@
  *
  * Usage:
  *   node evals/scripts/diff-baseline.js evals/baseline-extract.json evals/results/20260520-120000-extract.json
+ *   node evals/scripts/diff-baseline.js --band=0.15 --axes <baseline.json> <current.json>
+ *
+ * --band: score move counted as a regression or improvement (default 0.05).
+ * --axes: add a column of per-axis (namedScores) deltas.
  *
  * Exit code is always 0 — human-in-the-loop interpretation.
  */
@@ -18,10 +22,18 @@
 const fs = require('fs');
 const path = require('path');
 
-const [, , baselinePath, currentPath] = process.argv;
+const flags = process.argv.slice(2).filter(a => a.startsWith('--'));
+const [baselinePath, currentPath] = process.argv.slice(2).filter(a => !a.startsWith('--'));
+const bandFlag = flags.find(f => f.startsWith('--band='));
+const BAND = bandFlag ? Number(bandFlag.slice('--band='.length)) : 0.05;
+const SHOW_AXES = flags.includes('--axes');
+if (!Number.isFinite(BAND) || BAND < 0) {
+  console.error(`Bad ${bandFlag}: want a non-negative number`);
+  process.exit(0);
+}
 
 if (!baselinePath || !currentPath) {
-  console.error('Usage: node diff-baseline.js <baseline.json> <current.json>');
+  console.error('Usage: node diff-baseline.js [--band=N] [--axes] <baseline.json> <current.json>');
   process.exit(0);
 }
 
@@ -109,6 +121,7 @@ console.log(`Canonical: ${[...CANONICAL_PROVIDERS].join(', ')} (★)`);
 console.log('');
 
 const header = ['Case', 'Provider', 'Baseline', 'Current', 'Delta', 'Pass B', 'Pass C'];
+if (SHOW_AXES) header.push('Axes moved');
 const rows   = [header];
 
 let regressions  = 0;
@@ -154,14 +167,18 @@ for (const desc of sortedDescs) {
     const hardDelta = (bHard !== null && cHard !== null) ? (cHard - bHard) : null;
 
     const isCanonical = CANONICAL_PROVIDERS.has(provider);
-    if (isCanonical && hardDelta !== null && hardDelta < -0.05) regressions++;
-    if (isCanonical && hardDelta !== null && hardDelta >  0.05) improvements++;
+    // Epsilon: float means land a hair either side of a band edge. A pass
+    // flip counts on its own, since a floor breach can move the mean less
+    // than the band.
+    const flipped = bPass !== null && cPass !== null && bPass !== cPass;
+    if (isCanonical && ((hardDelta !== null && hardDelta < -BAND - 1e-9) || (flipped && !cPass))) regressions++;
+    else if (isCanonical && ((hardDelta !== null && hardDelta > BAND + 1e-9) || (flipped && cPass))) improvements++;
 
     const providerLabel = isCanonical
       ? `${CYAN}${BOLD}★ ${provider}${RESET}`
       : `  ${DIM}${provider}${RESET}`;
 
-    rows.push([
+    const row = [
       firstRow ? shortDesc : '',           // only show desc on first row of group
       providerLabel,
       bScore !== null ? bScore.toFixed(3) : `${DIM}—${RESET}`,
@@ -169,9 +186,25 @@ for (const desc of sortedDescs) {
       deltaStr,
       bPass !== null ? (bPass ? `${GREEN}PASS${RESET}` : `${RED}FAIL${RESET}`) : `${DIM}—${RESET}`,
       cPass !== null ? (cPass ? `${GREEN}PASS${RESET}` : `${RED}FAIL${RESET}`) : `${DIM}—${RESET}`,
-    ]);
+    ];
+    if (SHOW_AXES) row.push(axisDeltas(b, c));
+    rows.push(row);
     firstRow = false;
   }
+}
+
+// Axes present in both runs whose score moved, e.g. "grounding -0.25".
+function axisDeltas(b, c) {
+  if (!b || !c) return '';
+  const bn = b.namedScores || {};
+  const cn = c.namedScores || {};
+  return Object.keys(cn)
+    .filter(a => typeof bn[a] === 'number' && typeof cn[a] === 'number' && Math.abs(cn[a] - bn[a]) > 1e-9)
+    .map(a => {
+      const d = cn[a] - bn[a];
+      return `${colourDelta(d)}${a} ${d > 0 ? '+' : ''}${d.toFixed(2)}${RESET}`;
+    })
+    .join(' ');
 }
 
 // Print table.
@@ -186,8 +219,8 @@ for (let i = 0; i < rows.length; i++) {
 }
 console.log(separator);
 console.log('');
-console.log(`Canonical regressions  (delta < -0.05): ${regressions}`);
-console.log(`Canonical improvements (delta > +0.05): ${improvements}`);
+console.log(`Canonical regressions  (delta < -${BAND} or PASS→FAIL): ${regressions}`);
+console.log(`Canonical improvements (delta > +${BAND} or FAIL→PASS): ${improvements}`);
 console.log('');
 console.log('To update the baseline:  make eval-baseline');
 console.log('');

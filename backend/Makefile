@@ -8,7 +8,7 @@ lint:
 
 test:
 	go test -v -count=1 ./...
-	node --test evals/scoring/extraction.test.js
+	node --test evals/scoring/extraction.test.js evals/scoring/report-wordcounts.test.js
 
 # Live-LLM tests (llm_live_test.go) run as part of `test` when LLM_PROVIDER
 # and the matching API key (OPENAI_API_KEY or MISTRAL_API_KEY) are set, and
@@ -31,6 +31,9 @@ check-types:
 # so it lives under data/ (gitignored) next to the DB.
 EXTRACT_BASELINE := evals/baseline-extract.json
 REPORT_BASELINE  := ../data/eval-baseline-report.json
+# The gold-reference row moved up to 0.10 across uncached runs of an unchanged
+# input (task 186), so a smaller report move is judge noise.
+REPORT_DIFF_FLAGS := --band=0.15 --axes
 
 # Fixed once per make invocation, so eval-baseline pins the files its own eval
 # prerequisite wrote, never an older run's.
@@ -91,7 +94,7 @@ eval: bin/eval-cli $(EVAL_REPORT_TESTS)
 	@echo; echo '=== Extraction diff ==='
 	@node evals/scripts/diff-baseline.js $(EXTRACT_BASELINE) $(EXTRACT_RESULT)
 	@echo; echo '=== Report diff ==='
-	@node evals/scripts/diff-baseline.js $(REPORT_BASELINE) $(REPORT_RESULT)
+	@node evals/scripts/diff-baseline.js $(REPORT_DIFF_FLAGS) $(REPORT_BASELINE) $(REPORT_RESULT)
 	@test -f $(EXTRACT_RESULT) && test -f $(REPORT_RESULT) || { echo "A promptfoo run wrote no output: it failed, see above."; exit 1; }
 
 # Run extraction eval only.

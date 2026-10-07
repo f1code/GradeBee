@@ -8,7 +8,7 @@ Promptfoo owns the OpenAI call, not eval-cli. This unlocks promptfoo's native re
 
 The harness is split into two domain-specific configs:
 - **`promptfooconfig.extract.yaml`** — extraction tests with structured output (json_schema)
-- **`promptfooconfig.report.yaml`** — report generation tests with llm-rubric scoring
+- **`promptfooconfig.report.yaml`** — report generation tests with per-axis llm-rubric scoring (see "Report scoring")
 
 Adding a new report model only requires editing the providers list in `promptfooconfig.report.yaml`; no per-test changes needed.
 
@@ -159,12 +159,13 @@ make bin/eval-cli
 ```
 evals/
   promptfooconfig.extract.yaml    extraction test suite
-  promptfooconfig.report.yaml     report suite: shared settings + rubric; tests from tests.report.generated.yaml
+  promptfooconfig.report.yaml     report suite: judge, five axis rubrics, gold-reference row; tests from tests.report.generated.yaml
   fixtures.manifest.json          curated report cases by DB id (committed, PII-free)
   tests.report.generated.yaml     report test list (generated, git-ignored)
   baseline-extract.json           pinned extraction scores (committed)
   scoring/extraction.js           custom JS scorer (precision/recall + voice preservation + attribution)
   scoring/assemble.js             folds pass-2 passages into per-child notes before scoring
+  scoring/report-wordcounts.js    appends per-section word counts to the report judge's copy of the output
   scripts/diff-baseline.js        baseline diff reporter (Node, always exits 0)
   scripts/pin-baseline.js         copies a result JSON to a baseline, scores only
   results/                        per-run result JSONs (git-ignored)
@@ -177,7 +178,7 @@ evals/
       notes.json                  the student's notes in the report's date range
       report_instructions.txt     the Level's Report Instructions
       instructions.txt            the report's ad-hoc instructions (may be empty)
-      reference.html              the report itself, as the judge's quality benchmark
+      reference.html              the report itself: an accepted example for the judge, and the gold-reference row's output
 ```
 
 ## Report cases
@@ -226,6 +227,56 @@ its task and rubric from the report config's `defaultTest`.
    say what the case tests, without names.
 4. `make eval` to see the score.
 5. `make eval-baseline` once the score looks right.
+
+## Report scoring
+
+The judge is `openai:chat:gpt-6.1-sol` with `omitDefaults: true`: promptfoo 0.121
+treats only `gpt-5*` as reasoning models and sends `max_tokens` to anything else,
+which gpt-6 rejects. No `temperature`: promptfoo never sent it to `gpt-5*` either.
+
+Five `llm-rubric` assertions, one per axis, each a promptfoo `metric`, so the
+results JSON carries them in `namedScores`: structure, grounding, completeness,
+tone, compliance. Each axis gives a 1-5 anchor table; the judge returns the
+anchor as 0-1 (1 = 0, 2 = 0.25, 3 = 0.5, 4 = 0.75, 5 = 1). The custom
+`rubricPrompt` asks for `{reason, score}` only, so the per-assertion
+`threshold` decides pass, not the judge: grounding needs 0.75, the others 0.5. A
+row passes when every axis clears its floor. The row score is the axis mean, for
+trends only; one axis step moves it 0.05.
+
+The axes do not grade each other: compliance leaves out grounding, fact
+coverage, falling short of a length, sections and tone. Falling short of a
+length is completeness; going over a cap is compliance. Compliance reads the
+Level rules together: no required example where the notes give none, a required
+example is a minimum, and "each fact once" covers note facts, not general
+statements.
+
+The judge cannot count words (it said 63 for a section of 83), so code
+measures: `scoring/report-wordcounts.js`, an assertion `transform`, appends
+per-section word counts to the judge's copy of the output. The rubric says to
+use them and read the length rule from the instructions; no length rule lives in
+code. A transform, not a `nunjucksFilters` filter: promptfoo renders
+`rubricPrompt` with bare nunjucks, so config filters never reach it.
+
+The grading prompt carries the same note-filing statement as the report prompt:
+the teacher filed every note to this student, and the name a note opens with,
+however spelled, is this student.
+
+### Gold-reference row
+
+The `gold-reference` provider (`echo`, prompt `{{reference}}`) grades each
+case's reference report. Its output never changes, so its movement is judge
+noise. Non-canonical: it never counts as a regression.
+
+Three `--no-cache` runs on 2026-10-07 (#186): gold means 0.939, 0.928 and
+0.911; every gold row passed in two runs, one row failed compliance in the
+third. The largest row spread was 0.10 (one axis moving two steps), so `make
+eval` counts a report move as a regression or improvement only beyond ±0.15
+(`REPORT_DIFF_FLAGS`); extraction keeps ±0.05. The report diff also lists the
+axes that moved.
+
+These runs predate two edits to the `short_set_no_adhoc` reference (#188), which
+took its no-reference grounding from 0.5 to 1.0. The baseline re-pinned after
+them scores gold at 0.906 mean.
 
 ## Extraction scoring axes
 
@@ -401,7 +452,7 @@ Both files keep only what `diff-baseline.js` reads; `scripts/pin-baseline.js` dr
 
 `make eval-baseline` pins the run its own `make eval` just made, and writes neither file unless both results are clean. It stops if a promptfoo run wrote no output, or if any row errored (`failureReason` 2: API outage, transform failure), on any provider, canonical or comparison: an errored row scores 0 and would read as a regression on every later run. Re-run once the errors clear.
 
-The report baseline was pinned on 2026-10-04 by #177: 9 cases, references generated by the production model under the Level instructions as revised after a teacher's review (see "What grounding means" below), then edited by Claude Opus to that standard and checked by a second reviewer. Canonical rows score 0.4–3 of 5.
+The report cases came from #177 (2026-10-04): 9 cases, references generated by the production model under the Level instructions as revised after a teacher's review (see "What grounding means" below), then edited by Claude Opus to that standard and checked by a second reviewer. #186 re-pinned the baseline on 2026-10-07 from a `--no-cache` run under per-axis scoring (see "Report scoring"); scores before it used a different judge and scale and do not compare.
 
 Both started out as one combined `baseline.json`. #172 split it by provider label, by hand, instead of regenerating: extraction rows unchanged and committed. The report rows were dropped, not moved under `data/`: they grade the old `fixtures/reports/` cases, which #173 replaces with cases generated from the DB, so they would never match a future run.
 
@@ -444,7 +495,7 @@ the instructions") were wanted. Since then:
 The Level instructions, the report prompt and the rubric all follow these rules.
 
 `promptfooconfig.report.yaml` passes `report_instructions` and `instructions` as
-separate vars per test case and grades both with one shared rubric in
+separate vars per test case and grades both with the shared axis rubrics in
 `defaultTest` rather than a bespoke rubric per case — the
 rubric never hardcodes a structure or length rule that belongs in
 `report_instructions` itself; it says "as instructed" and lets the var carry the

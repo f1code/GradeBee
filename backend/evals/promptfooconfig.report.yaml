@@ -1,9 +1,12 @@
 description: GradeBee LLM evaluation harness — Report domain
 
-# Single prompt function — dispatches to build-report-prompt via vars.task.
+# gradebee-prompt dispatches to build-report-prompt via vars.task.
+# gold-reference echoes the reference report; see the gold-reference provider.
 prompts:
   - label: gradebee-prompt
     raw: exec:../bin/eval-cli
+  - label: gold-reference
+    raw: '{{reference}}'
 
 # Providers — native Mistral/OpenAI providers for report generation.
 # gradebee-report is the canonical (production) provider — tracked for
@@ -11,51 +14,157 @@ prompts:
 providers:
   - id: mistral:mistral-medium-3-5
     label: gradebee-report
+    prompts: [gradebee-prompt]
 
   # Comparison / experimental providers:
   - id: openai:chat:gpt-5.6-luna
     label: gradebee-report-openai
+    prompts: [gradebee-prompt]
+
+  # Grades the reference itself. Its output never changes, so its score
+  # moving between runs is judge noise.
+  - id: echo
+    label: gold-reference
+    prompts: [gold-reference]
 
 # Every case shares the task, judge and rubric; generated tests carry only
 # vars. The rubric grades adherence to the Level's report_instructions only.
 # Report Examples are removed (#54); ad-hoc instructions (teacher overrides)
 # still rank above the Level's report_instructions.
+#
+# One llm-rubric per axis, each its own metric (namedScores). The judge picks
+# a 1-5 anchor and returns it as 0-1; threshold is the axis floor. A row
+# passes when every axis clears its floor; the row score (axis mean) is for
+# trends only. rubricPrompt asks for {reason, score} with no pass, so the
+# floors decide pass, not the judge.
 defaultTest:
   vars:
     task: build-report-prompt
   options:
     provider:
-      id: openai:chat:gpt-5.6-terra
+      # promptfoo 0.121 treats only gpt-5* as reasoning models and would send
+      # max_tokens, which gpt-6 rejects; omitDefaults drops it. No
+      # temperature: reasoning models reject it.
+      id: openai:chat:gpt-6.1-sol
       config:
-        temperature: 0
+        omitDefaults: true
+    rubricPrompt: |
+      You grade one axis of a school report card that a model wrote from a teacher's notes.
+
+      Student: {{student_name}}, Class: {{class_name}}
+
+      <report_specification>
+      The Level's authored instructions: the report's required structure, sections, content and length.
+      {{report_instructions}}
+      </report_specification>
+
+      <notes>
+      Ground truth: every specific fact in the report must come from these. The teacher filed every
+      note to this student. Notes are transcribed speech: the name a note opens with, however spelled,
+      is this student; sentences naming other children are about them. Never count a note's spelling
+      of the name against the student's name.
+      {{notes}}
+      </notes>
+
+      <adhoc_instructions>
+      The teacher's instructions for this report; they override the Report Specification where they
+      conflict. Empty means none.
+      {{instructions}}
+      </adhoc_instructions>
+
+      <reference_report>
+      A report the school accepted for the same notes: an example of the general statements and the
+      length the school accepts. Student name and exact structure may differ.
+      {{reference}}
+      </reference_report>
+
+      <output>
+      {{output}}
+      </output>
+
+      Code measured the <word_counts> block at the end of the output; it is not part of the report.
+      Use those counts for any length judgement, and read the length rule from the Report
+      Specification and ad-hoc instructions.
+
+      <axis>
+      {{rubric}}
+      </axis>
+
+      Grade this axis only. Pick the anchor (1-5) that fits and convert it:
+      1 = 0, 2 = 0.25, 3 = 0.5, 4 = 0.75, 5 = 1.
+      Respond with JSON only: {"reason": "<one or two sentences>", "score": <0, 0.25, 0.5, 0.75 or 1>}
   assert:
     - type: llm-rubric
+      metric: structure
+      threshold: 0.5
+      transform: &wordcounts file://scoring/report-wordcounts.js
       value: |
-        Report Specification (the Level's authored instructions — this defines the
-        required structure, sections, and content; the report must follow it):
-        {{report_instructions}}
-
-        Source notes (ground truth — every specific fact in the report must come from these):
-        {{notes}}
-
-        Ad-hoc instructions for this run (override the Report Specification where they conflict, if present):
-        {{instructions}}
-
-        Reference report (a known-good output for the same notes — use as a quality benchmark, student
-        name and exact structure may differ from the Report Specification above):
-        {{reference}}
-
-        Score 1-5 on:
-        - structure: follows the sections and layout defined in the Report Specification
-        - grounding: no statement contradicts the notes; no invented specific fact (activity, incident,
-          example, quote, mark, rating, absence count, date) and no invented weakness or problem. General
-          statements about attitude, progress and time in class that fit the notes are acceptable, and
-          expected where the notes are thin
-        - completeness: every relevant fact in the notes is used, and sections reach the length the Report
-          Specification asks for; a condensed report that drops facts or falls short is a defect
-        - tone: matches whatever tone the Report Specification and ad-hoc instructions call for
-        - compliance: any concrete rule stated in the Report Specification or ad-hoc instructions (e.g. a
-          length limit, a required field, a required behaviour) is followed as instructed
+        structure: the report follows the sections and layout the Report Specification defines.
+        5: every required section, in order and layout, nothing extra
+        4: every section present; one minor slip (heading wording, two sections swapped)
+        3: one section missing, merged or added
+        2: several sections missing, or the layout ignores the specification
+        1: no recognisable specification structure
+    - type: llm-rubric
+      metric: grounding
+      threshold: 0.75
+      transform: *wordcounts
+      value: |
+        grounding: no statement contradicts the notes; no invented specific fact (activity, incident,
+        example, quote, mark, rating, absence count, date) and no invented weakness or problem.
+        General statements about attitude, progress and time in class that fit the notes are
+        acceptable, and expected where the notes are thin: e.g. "has settled well into the class
+        routines", "follows the teacher's instructions", "is making progress week by week",
+        "contributes to a positive atmosphere". Restating a note in other words is grounded.
+        5: no defect
+        4: one general statement stretches past the notes, with no invented specific fact
+        3: one invented specific fact or weakness, or one contradicted minor detail
+        2: several invented facts, or a contradicted central note
+        1: largely unsupported by the notes, or about another child
+    - type: llm-rubric
+      metric: completeness
+      threshold: 0.5
+      transform: *wordcounts
+      value: |
+        completeness: every relevant fact in the notes is used, and sections reach the length the
+        Report Specification asks for; a condensed report that drops facts or falls short is a
+        defect. Where ad-hoc instructions set a shorter length, a fact dropped to meet it is no defect.
+        Going over a length cap is compliance, not completeness.
+        5: every relevant note fact used; every section reaches the asked length
+        4: one minor fact dropped, or one section slightly short
+        3: several facts dropped, or sections clearly short
+        2: most facts dropped, or well under the asked length
+        1: ignores the notes' content
+    - type: llm-rubric
+      metric: tone
+      threshold: 0.5
+      transform: *wordcounts
+      value: |
+        tone: the report matches whatever tone the Report Specification and ad-hoc instructions call for.
+        5: the asked tone throughout
+        4: one slip
+        3: several slips, or an uneven register
+        2: mostly the wrong tone
+        1: the opposite of the asked tone
+    - type: llm-rubric
+      metric: compliance
+      threshold: 0.5
+      transform: *wordcounts
+      value: |
+        compliance: every concrete rule stated in the Report Specification or ad-hoc instructions
+        (e.g. a length limit, a required field, a required behaviour) is followed as instructed.
+        Other axes grade grounding (contradictions, invented facts), fact coverage, falling short of
+        a length, sections and their order, and tone: never score those here. Going over a length
+        cap is compliance.
+        Read the rules together: where the notes give no example for a section, the rule against
+        inventing one wins over a required example; a required example is a minimum when the
+        Specification also asks for every relevant fact; "each fact once" covers facts from the
+        notes, not general statements about attitude or progress, which may recur.
+        5: every rule followed
+        4: one rule bent slightly (e.g. a few words over a limit)
+        3: one rule broken
+        2: several rules broken
+        1: the rules ignored
 
 # Written by `make eval-fixtures` from fixtures.manifest.json and the local DB.
 # Gitignored: it and fixtures/reports/ hold real names, notes and report text.

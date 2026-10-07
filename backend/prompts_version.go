@@ -212,12 +212,12 @@ Rules:
   named. Do NOT open a new passage for a pronoun the teacher is still using for the same
   child.
 - When the teacher makes the same observation about several named children at once
-  ("Joakim and Adele did very well", "they both worked well"), return that passage once
+  ("Zachariah and Anaya did very well", "they both worked well"), return that passage once
   PER CHILD: the same summary repeated, each copy with its own "student". Never fold two
   named children into one passage. This holds when the shared remark opens its own sentence
   after the names: each copy's "spoken_labels" holds the name the teacher spoke for that
   child, never "they" or "both". The shared passage runs from the names to where the teacher
-  moves on, pronoun sentences included: after "Nora and Noor did well", a "They did well with
+  moves on, pronoun sentences included: after "Maya and Noor did well", a "They did well with
   the colours" belongs to both, so every copy carries the whole of it. The copies differ only
   in "student" and "spoken_labels"; a copy shorter than another is wrong. If the
   observations differ between the children, they are separate passages with different
@@ -266,6 +266,13 @@ const reportInstructionsHeader = "## Teacher's Instructions for This Report — 
 const reportNotesHeader = "## Student Notes (source of truth — every specific fact " +
 	"must come from these)\n"
 
+// reportNotesFiling follows the student line. Notes are transcribed speech, so
+// a note can open with a misspelled name the teacher still filed here; without
+// this the model reads two spellings as two children.
+const reportNotesFiling = "The teacher filed every note below to this student. " +
+	"Notes are transcribed speech: the name a note opens with, however spelled, " +
+	"is this student; sentences naming other children are about them.\n\n"
+
 // reportFeedbackHeader prefixes the feedback-on-previous-draft block.
 const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
 
@@ -303,7 +310,7 @@ func init() {
 	reportTemplate := reportPromptBase +
 		reportSpecHeader + "<<<reportInstructions>>>" +
 		reportInstructionsHeader + "<<<instructions>>>" +
-		reportNotesHeader + "<<<notes>>>" +
+		reportNotesHeader + "<<<student>>>" + reportNotesFiling + "<<<notes>>>" +
 		reportFeedbackHeader + "<<<feedback>>>" +
 		reportTaskFooter
 	ReportPromptHash = hashPrompt(reportTemplate)

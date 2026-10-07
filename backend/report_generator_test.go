@@ -227,9 +227,9 @@ func TestLLMReportGenerator_Generate_NoNotesInRange(t *testing.T) {
 
 	prompt := f.singlePrompt(t)
 	// The notes section is present but holds no bullet lines: the student
-	// header is followed directly by the blank line the loop would have
+	// header and filing statement are followed directly by the blank line the loop would have
 	// separated bullets from, then the task footer.
-	assert.Contains(t, prompt, "Student: Fenwick, Class: Geology · Mon\n\n\n"+reportTaskFooter)
+	assert.Contains(t, prompt, "Student: Fenwick, Class: Geology · Mon\n\n"+reportNotesFiling+"\n"+reportTaskFooter)
 	assert.NotContains(t, prompt, "- 2026-")
 	assert.NotContains(t, prompt, noteInRangeJan)
 	assert.NotContains(t, prompt, noteInRangeFeb)

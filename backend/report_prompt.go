@@ -29,6 +29,7 @@ func BuildReportPrompt(student, className string, notes []Note, reportInstructio
 	// Student notes
 	sb.WriteString(reportNotesHeader)
 	sb.WriteString(fmt.Sprintf("Student: %s, Class: %s\n\n", student, className))
+	sb.WriteString(reportNotesFiling)
 
 	// Oldest first, so the newest notes sit next to the task, where the model
 	// weighs them most. Sorted here, not only in SQL: eval fixtures bypass the repo.

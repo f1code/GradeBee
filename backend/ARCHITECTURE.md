@@ -368,7 +368,7 @@ The `clerkAuthMiddleware` enforces that every `/api/` request carries an active 
 | `notes.go` | `NoteCreator` interface + `dbNoteCreator`, note CRUD handlers; `fileNotes` + `recording`, the one filing call the pipeline and the class picker share. Filing is atomic: `CreateNotes` writes every note or none, and a refused note comes back as `createNotesError` naming it by index and student id |
 | `report_generator.go` | `ReportGenerator` interface + `llmReportGenerator` (HTML output). Requests embed `ReportInputs`; reads no notes itself. `NewReportGenerator(db)` builds it outside the server (`LoadProvider` + `ReportRepo`) for the eval CLI |
 | `report_inputs.go` | `ReportInputResolver`, the one path from student → class → Level → Report Instructions gate → notes in range. `ForGenerate` (range, ad-hoc instructions from the request; names too, DB names when blank) and `ForReport` (from the report row, names from the DB). `ClassRoster` (student's class with aliases) serves the eval CLI's redacted dump. Level read scoped by the caller's Group; `""` (eval CLI only) uses the class's Group. Blank Report Instructions return `ErrLevelInstructionsMissing` (handlers answer `400`); other failures are plain wrapped errors (`500`) |
-| `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections (notes sorted oldest first, so the newest sit next to the task): the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts), then feedback. Requests HTML output. |
+| `report_prompt.go` | GPT prompt construction for report generation. `BuildReportPrompt` emits ranked sections (notes sorted oldest first, so the newest sit next to the task): the Level's Report Specification (mandatory), then ad-hoc instructions (override the Specification where they conflict), then Student Notes (sole source of facts; a statement after the student line says the teacher filed every note to this student and the name a note opens with, however spelled, is this student, since notes are transcribed speech), then feedback. Requests HTML output. |
 | `reports_handler.go` | POST /reports, POST /reports/{id}/regenerate, report CRUD handlers. Both generation endpoints pre-flight-resolve every selected student's inputs through `ReportInputResolver` and refuse the whole request with `400` (naming the offending Levels) if any Level's `report_instructions` is trimmed-empty — no report row created, no LLM call made. |
 | `audio_format.go` | Magic-byte detection, 3GP patching, filename extension fixing |
 | `logger.go` | Dual stdout+Sentry structured logging via `log/slog`; `InitLogger()` wires `slog.NewMultiHandler` when `SENTRY_DSN` is set; request-scoped logger via context |
@@ -556,12 +556,13 @@ Regression testing for extraction and report-generation quality. On-demand only 
 ```
 backend/evals/
   promptfooconfig.extract.yaml  extraction suite (inline tests)
-  promptfooconfig.report.yaml   report suite: shared settings + rubric; tests from tests.report.generated.yaml
+  promptfooconfig.report.yaml   report suite: judge, five axis rubrics, gold-reference row; tests from tests.report.generated.yaml
   fixtures.manifest.json        curated report cases by DB id (committed, PII-free)
   tests.report.generated.yaml   generated report test list (git-ignored)
   baseline-extract.json         pinned extraction scores (committed to repo)
   scoring/extraction.js         custom JS precision/recall + voice-preservation scorer
   scoring/assemble.js           folds pass-2 passages into per-child notes before scoring
+  scoring/report-wordcounts.js  appends per-section word counts to the report judge's copy of the output
   scripts/diff-baseline.js      baseline diff reporter (Node, always exits 0)
   scripts/pin-baseline.js       copies a result JSON to a baseline, scores only
   results/                      per-run result JSONs (git-ignored)
@@ -574,7 +575,7 @@ backend/evals/
       notes.json                notes in the report's date range
       report_instructions.txt   Level's Report Instructions
       instructions.txt          report's ad-hoc instructions (may be empty)
-      reference.html            the report, as the judge's benchmark
+      reference.html            the report: an accepted example for the judge, and the gold-reference row's output
 ```
 
 ### Report cases
