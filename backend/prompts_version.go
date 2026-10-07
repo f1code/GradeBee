@@ -248,8 +248,9 @@ The children in this class:
 // reportPromptBase is the static opening of every report prompt.
 const reportPromptBase = "You are a report card writer for a school teacher.\n" +
 	"The student notes are the sole source of facts for the report.\n" +
-	"Every observation, data field, and mark must come from the notes — " +
-	"not from any examples.\n\n"
+	"Every specific observation, data field, and mark must come from the notes — " +
+	"not from any examples. The Report Specification says when general " +
+	"statements that fit the notes may complete a section.\n\n"
 
 // reportSpecHeader is prefixed before the Level's mandatory Report
 // Specification — the required structure, sections, and content for the
@@ -262,8 +263,8 @@ const reportInstructionsHeader = "## Teacher's Instructions for This Report — 
 	"override the Report Specification where they conflict\n\n"
 
 // reportNotesHeader prefixes the student notes section.
-const reportNotesHeader = "## Student Notes (source of truth — all report content " +
-	"must derive from these)\n"
+const reportNotesHeader = "## Student Notes (source of truth — every specific fact " +
+	"must come from these)\n"
 
 // reportFeedbackHeader prefixes the feedback-on-previous-draft block.
 const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
@@ -275,8 +276,8 @@ const reportTaskFooter = "## Task\n" +
 	"Do not include <html>, <head>, or <body> wrapper tags — just the content HTML.\n" +
 	"Only include structured Data fields (Absences, Marks, Frequency of use, etc.) if those\n" +
 	"values are explicitly present in the notes.\n" +
-	"Every statement in the report must be traceable to the notes. " +
-	"Do not invent observations.\n"
+	"Never contradict the notes or invent a specific observation, weakness or date. " +
+	"Follow the Report Specification on length; do not condense.\n"
 
 // --- Computed hashes (populated at init) ---
 

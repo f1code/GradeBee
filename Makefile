@@ -1,7 +1,7 @@
 -include .env
 export
 
-.PHONY: dev build build-frontend build-backend lint test clean eval eval-baseline eval-add-report eval-dump-report \
+.PHONY: dev build build-frontend build-backend lint test clean eval eval-baseline eval-gen-report eval-add-report eval-dump-report \
         infra-up infra-server infra-app infra-provision infra
 
 # --- Local development ---
@@ -101,6 +101,9 @@ eval:
 
 eval-baseline:
 	$(MAKE) -C backend eval-baseline
+
+eval-gen-report:
+	@$(MAKE) -C backend eval-gen-report
 
 eval-add-report:
 	@$(MAKE) -C backend eval-add-report

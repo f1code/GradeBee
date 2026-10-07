@@ -1,7 +1,7 @@
 -include ../.env
 export
 
-.PHONY: lint test dev generate check-types eval eval-fixtures eval-add-report eval-dump-report eval-extract eval-report eval-baseline eval-view bin/eval-cli
+.PHONY: lint test dev generate check-types eval eval-fixtures eval-gen-report eval-add-report eval-dump-report eval-extract eval-report eval-baseline eval-view bin/eval-cli
 
 lint:
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@latest run
@@ -57,6 +57,13 @@ $(EVAL_REPORT_TESTS): $(EVAL_MANIFEST) $(wildcard $(EVAL_DB) $(EVAL_DB)-wal) | b
 # Regenerate report cases unconditionally.
 eval-fixtures: bin/eval-cli
 	$(GEN_REPORT_CASES)
+
+# Generate a fresh report through production Generate and print its id only.
+# Usage: make eval-gen-report STUDENT_ID=N START=YYYY-MM-DD END=YYYY-MM-DD [INSTRUCTIONS='...']
+eval-gen-report: bin/eval-cli
+	$(if $(and $(STUDENT_ID),$(START),$(END)),,$(error usage: make eval-gen-report STUDENT_ID=N START=YYYY-MM-DD END=YYYY-MM-DD [INSTRUCTIONS='...']))
+	@./bin/eval-cli gen-report -db $(EVAL_DB) -student $(STUDENT_ID) -start $(START) -end $(END) \
+		$(if $(INSTRUCTIONS),-instructions "$$INSTRUCTIONS")
 
 # List a student's reports and print a draft manifest entry (terminal only).
 # Usage: make eval-add-report STUDENT_ID=N [REPORT_ID=M]

@@ -35,7 +35,7 @@ defaultTest:
         required structure, sections, and content; the report must follow it):
         {{report_instructions}}
 
-        Source notes (ground truth — every statement in the report must be traceable to these):
+        Source notes (ground truth — every specific fact in the report must come from these):
         {{notes}}
 
         Ad-hoc instructions for this run (override the Report Specification where they conflict, if present):
@@ -47,8 +47,12 @@ defaultTest:
 
         Score 1-5 on:
         - structure: follows the sections and layout defined in the Report Specification
-        - grounding: every statement traceable to notes (no invented observations, no fabricated marks,
-          absences counts, or other metadata not present in the notes)
+        - grounding: no statement contradicts the notes; no invented specific fact (activity, incident,
+          example, quote, mark, rating, absence count, date) and no invented weakness or problem. General
+          statements about attitude, progress and time in class that fit the notes are acceptable, and
+          expected where the notes are thin
+        - completeness: every relevant fact in the notes is used, and sections reach the length the Report
+          Specification asks for; a condensed report that drops facts or falls short is a defect
         - tone: matches whatever tone the Report Specification and ad-hoc instructions call for
         - compliance: any concrete rule stated in the Report Specification or ad-hoc instructions (e.g. a
           length limit, a required field, a required behaviour) is followed as instructed

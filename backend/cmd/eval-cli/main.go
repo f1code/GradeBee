@@ -16,6 +16,10 @@
 //
 //	eval-cli add-report-case -db PATH -manifest PATH -student N [-report M]
 //
+// # Usage (reference report generation — invoked by make eval-gen-report)
+//
+//	eval-cli gen-report -db PATH -student N -start YYYY-MM-DD -end YYYY-MM-DD [-instructions TEXT]
+//
 // # Usage (redacted report dump — invoked by make eval-dump-report)
 //
 //	eval-cli dump-report -db PATH -student N -report M
@@ -39,7 +43,7 @@ func main() {
 
 func run(args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("usage: eval-cli <json> | eval-cli gen-report-cases|add-report-case|dump-report ...")
+		return fmt.Errorf("usage: eval-cli <json> | eval-cli gen-report-cases|gen-report|add-report-case|dump-report ...")
 	}
 
 	// Exec-prompt mode: promptfoo passes a single JSON argument.
@@ -49,13 +53,15 @@ func run(args []string) error {
 	switch args[1] {
 	case "gen-report-cases":
 		return runGenReportCases(args[2:])
+	case "gen-report":
+		return runGenReport(args[2:])
 	case "add-report-case":
 		return runAddReportCase(args[2:])
 	case "dump-report":
 		return runDumpReport(args[2:])
 	}
 
-	return fmt.Errorf("usage: eval-cli <json> | eval-cli gen-report-cases|add-report-case|dump-report ...; got %q", args[1])
+	return fmt.Errorf("usage: eval-cli <json> | eval-cli gen-report-cases|gen-report|add-report-case|dump-report ...; got %q", args[1])
 }
 
 // promptRequest is the shape promptfoo passes to exec-prompt functions.

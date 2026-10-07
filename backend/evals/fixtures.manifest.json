@@ -1,10 +1,58 @@
 {
   "reports": [
     {
-      "id": "tracer_three_notes",
-      "description": "Level Report Instructions, three notes, no ad-hoc instructions (tracer)",
-      "student_id": 147,
-      "report_id": 218
+      "id": "short_set_no_adhoc",
+      "description": "Kids story Level, two notes a week apart, no ad-hoc instructions",
+      "student_id": 792,
+      "report_id": 231
+    },
+    {
+      "id": "sam_mixed_lengths",
+      "description": "Sam text, four notes incl. two likely absences and one long note",
+      "student_id": 656,
+      "report_id": 232
+    },
+    {
+      "id": "sam_second_student",
+      "description": "Sam text, same class as sam_mixed_lengths, three notes of 44 to 844 characters",
+      "student_id": 653,
+      "report_id": 233
+    },
+    {
+      "id": "tweens_pair_a",
+      "description": "Tweens and Teens text, two notes on one day: sparse data, placeholders over padding",
+      "student_id": 562,
+      "report_id": 234
+    },
+    {
+      "id": "tweens_pair_b",
+      "description": "Tweens and Teens text, same class as tweens_pair_a, one note",
+      "student_id": 518,
+      "report_id": 235
+    },
+    {
+      "id": "mousy_adhoc",
+      "description": "Toddler Level, three weekly notes, ad-hoc 50-word limit and home-practice activity",
+      "student_id": 495,
+      "report_id": 240
+    },
+    {
+      "id": "linda_typical",
+      "description": "Babies Level, four weekly notes of 300 to 460 characters: typical term",
+      "student_id": 506,
+      "report_id": 237
+    },
+    {
+      "id": "very_short_last_note",
+      "description": "Kids story Level, four weekly notes, the last only 17 characters",
+      "student_id": 608,
+      "report_id": 238
+    },
+    {
+      "id": "single_note",
+      "description": "Kids story Level, one 240-character note: whole report from one observation",
+      "student_id": 272,
+      "report_id": 239
     }
   ]
 }

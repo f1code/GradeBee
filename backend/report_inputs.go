@@ -68,15 +68,20 @@ func NewReportInputResolver(db *sql.DB) *ReportInputResolver {
 	}
 }
 
-// ForGenerate resolves a first generation. Names, range and ad-hoc
-// instructions come from the request.
+// ForGenerate resolves a first generation. Range and ad-hoc instructions come
+// from the request, names too unless blank: cmd/eval-cli passes none and gets
+// the DB names ForReport feeds the eval.
 func (r *ReportInputResolver) ForGenerate(ctx context.Context, groupID string, in ReportStudentInput, startDate, endDate, instructions string) (ReportInputs, error) {
 	out, err := r.resolve(ctx, groupID, in.StudentID, startDate, endDate)
 	if err != nil {
 		return ReportInputs{}, err
 	}
-	out.StudentName = in.Name
-	out.ClassName = in.ClassName
+	if in.Name != "" {
+		out.StudentName = in.Name
+	}
+	if in.ClassName != "" {
+		out.ClassName = in.ClassName
+	}
 	out.Instructions = instructions
 	return out, nil
 }

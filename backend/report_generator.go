@@ -4,6 +4,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 )
 
@@ -39,6 +40,16 @@ type llmReportGenerator struct {
 	provider   LLMProvider
 	model      string
 	reportRepo *ReportRepo
+}
+
+// NewReportGenerator builds the production generator outside the server, for
+// cmd/eval-cli. It reads LLM_PROVIDER and the API key like the server.
+func NewReportGenerator(db *sql.DB) (ReportGenerator, error) {
+	provider, err := LoadProvider(db)
+	if err != nil {
+		return nil, err
+	}
+	return newDBReportGenerator(provider, &ReportRepo{db: db})
 }
 
 func newDBReportGenerator(provider LLMProvider, rr *ReportRepo) (*llmReportGenerator, error) {

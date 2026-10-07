@@ -94,6 +94,15 @@ func TestReportInputResolver_ForGenerate(t *testing.T) {
 	assert.Equal(t, "early", in.Notes[0].Summary)
 }
 
+func TestReportInputResolver_ForGenerate_BlankNamesFromDB(t *testing.T) {
+	f := newReportInputsFixture(t)
+
+	in, err := f.resolver.ForGenerate(context.Background(), "", ReportStudentInput{StudentID: f.studentID}, "2026-02-01", "2026-03-05", "")
+	require.NoError(t, err)
+	assert.Equal(t, "Alice", in.StudentName)
+	assert.Equal(t, "Marcia · Mon · 17:25", in.ClassName)
+}
+
 func TestReportInputResolver_Errors(t *testing.T) {
 	ctx := context.Background()
 
