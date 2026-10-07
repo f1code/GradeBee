@@ -559,7 +559,6 @@ backend/evals/
   promptfooconfig.report.yaml   report suite: judge, five axis rubrics, gold-reference row; tests from tests.report.generated.yaml
   fixtures.manifest.json        curated report cases by DB id (committed, PII-free)
   tests.report.generated.yaml   generated report test list (git-ignored)
-  baseline-extract.json         pinned extraction scores (committed to repo)
   scoring/extraction.js         custom JS precision/recall + voice-preservation scorer
   scoring/assemble.js           folds pass-2 passages into per-child notes before scoring
   scoring/report-wordcounts.js  appends per-section word counts to the report judge's copy of the output
@@ -596,7 +595,6 @@ cd backend && make eval
 
 # Update both baselines after deliberate prompt/model change
 cd backend && make eval-baseline
-# Commit evals/baseline-extract.json alongside the prompt change
 ```
 
 ### How to add a fixture
@@ -609,7 +607,7 @@ cd backend && make eval-baseline
 
 One baseline per domain, both overwritten by `make eval-baseline`:
 
-- **Extraction** — `backend/evals/baseline-extract.json`, committed. The PR diff is the audit trail — deliberately accepting new scores.
+- **Extraction** — `data/eval-baseline-extract.json`, local only. Outputs quote real teacher notes, so it stays out of the public repo.
 - **Report** — `data/eval-baseline-report.json`, local only. Report outputs hold real student names, so the file sits under the gitignored `data/` next to `gradebee.db` and gets copied with it into worktrees. A fresh clone has none: `make eval` skips the report diff with a message until `make eval-baseline` pins one. Losing it means re-pinning from a fresh run.
 
 ### How it works

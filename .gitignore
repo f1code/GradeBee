@@ -18,7 +18,7 @@ frontend/dist/
 backend/bin/
 backend/dist/
 
-# LLM eval run results (per-run JSONs; baseline-extract.json is committed, results are not)
+# LLM eval run results (per-run JSONs; baselines live under data/)
 backend/evals/results/
 
 # Report eval cases generated from the local DB (real names, notes, report text)

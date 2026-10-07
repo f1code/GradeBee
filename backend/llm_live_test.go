@@ -153,24 +153,24 @@ func TestLLM_ChildOffEveryRosterReachesNobody(t *testing.T) {
 	assert.Empty(t, notedChildren(result), "no child of the teacher's own classes was named")
 }
 
-// A transcription dropping a leading substring of a name ("Adah" for
-// "Ada"). Resolving it is what the roster is in pass 2's prompt for.
+// A transcription dropping a leading substring of a name ("Belle" for
+// "Isabelle"). Resolving it is what the roster is in pass 2's prompt for.
 func TestLLM_TruncatedNameMatch(t *testing.T) {
 	ext := newTestLLMExtractor(t)
 	classes := []ClassGroup{
-		{Name: "English 101", Students: []ClassStudent{{Name: "Ada Rodriguez"}, {Name: "Katherine Bennet"}}},
+		{Name: "English 101", Students: []ClassStudent{{Name: "Isabelle Rodriguez"}, {Name: "Elizabeth Bennet"}}},
 		{Name: "History 201", Students: []ClassStudent{{Name: "Theodore Roosevelt"}}},
 	}
 
 	result, err := ext.Extract(t.Context(), ExtractRequest{
-		Transcript: "English 101. Adah gave a fantastic presentation on the water cycle today. She answered every follow-up question with confidence.",
+		Transcript: "English 101. Belle gave a fantastic presentation on the water cycle today. She answered every follow-up question with confidence.",
 		Classes:    classes,
 	})
 	require.NoError(t, err)
 
 	require.NotNil(t, result.Class)
 	assert.Equal(t, "English 101", result.Class.Name)
-	assert.Contains(t, noteOf(t, result, "Ada Rodriguez"), "presentation")
+	assert.Contains(t, noteOf(t, result, "Isabelle Rodriguez"), "presentation")
 }
 
 // TestExtractPreservesTeacherVoice verifies that a summary keeps the teacher's

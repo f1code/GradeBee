@@ -212,7 +212,7 @@ loggerFromContext / loggerFromRequest.
 //////////
 // source: match.go
 /*
-match.go resolves a spoken label ("Remy", "Joakim", "As a Million") to a
+match.go resolves a spoken label ("Remy", "Joakim", "Max a Million") to a
 student in one class.
 
 The pipeline does not use it. Today's extractor is shown the roster and

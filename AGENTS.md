@@ -89,6 +89,7 @@ To prepare a worktree for running the application, copy the following files from
  - frontend/.env
  - data/gradebee.db
  - data/eval-baseline-report.json (local report eval baseline; absent until first `make eval-baseline`)
+ - data/eval-baseline-extract.json (local extraction eval baseline; same)
 
 ## Agent skills
 

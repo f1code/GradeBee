@@ -11,8 +11,8 @@ Report eval cases are **ids, not data**. The repo commits `backend/evals/fixture
 per case a slug, a name-free description, `student_id` and `report_id`. `make eval-fixtures`
 materializes each case from the local `data/gradebee.db` into gitignored files, through the same
 `ReportInputResolver` production regenerate uses: names, class, notes in range, the Level's Report
-Instructions, ad-hoc instructions, reference HTML. The report baseline lives under `data/` too,
-since its outputs carry names. Extraction fixtures stay committed: they are synthetic or anonymized
+Instructions, ad-hoc instructions, reference HTML. Both eval baselines live under `data/` too,
+since their outputs carry names and note text. Extraction fixtures stay committed: they are synthetic or anonymized
 by hand, and their transcripts are not in the DB.
 
 **Agents read student content only through the redacted dump** (`make eval-dump-report`):

@@ -27,9 +27,9 @@ check-types:
 # baseline. Requires: LLM_PROVIDER + the active provider's API key
 # (OPENAI_API_KEY or MISTRAL_API_KEY).
 #
-# Extraction baseline is committed. Report baseline holds real student names,
-# so it lives under data/ (gitignored) next to the DB.
-EXTRACT_BASELINE := evals/baseline-extract.json
+# Baselines hold real note text and names, so they live under data/
+# (gitignored) next to the DB.
+EXTRACT_BASELINE := ../data/eval-baseline-extract.json
 REPORT_BASELINE  := ../data/eval-baseline-report.json
 # The gold-reference row moved up to 0.10 across uncached runs of an unchanged
 # input (task 186), so a smaller report move is judge noise.
@@ -113,11 +113,9 @@ eval-report: bin/eval-cli $(EVAL_REPORT_TESTS)
 eval-view:
 	cd evals && pnpm exec promptfoo view --yes
 
-# Pin both baselines to this invocation's eval run. Commit the extraction
-# baseline with the prompt or model change; the report baseline stays local.
+# Pin both baselines to this invocation's eval run.
 eval-baseline: eval
 	@node evals/scripts/pin-baseline.js \
 	  $(EXTRACT_RESULT) $(EXTRACT_BASELINE) \
 	  $(REPORT_RESULT) $(REPORT_BASELINE)
-	@echo "Commit $(EXTRACT_BASELINE) with your prompt/model change."
 

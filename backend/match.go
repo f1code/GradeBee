@@ -1,4 +1,4 @@
-// match.go resolves a spoken label ("Remy", "Joakim", "As a Million") to a
+// match.go resolves a spoken label ("Remy", "Joakim", "Max a Million") to a
 // student in one class.
 //
 // The pipeline does not use it. Today's extractor is shown the roster and
@@ -52,10 +52,10 @@ import (
 
 const (
 	// matchThreshold admits Jill → Joël (0.50) and rejects Tilly →
-	// Domitille (0.30), Her (0.25), Val → Perceval (0.40).
+	// Domitille (0.44), Val → Perceval (0.38).
 	matchThreshold = 0.50
-	// matchMargin rejects Ida (ties Ada / Ina at 0.50) and Ella
-	// (Elka 0.80 over Elsa 0.75).
+	// matchMargin rejects Ida (ties Ada / Ina at 0.67) and Sorine
+	// (Simone 0.50 over Madeline 0.38).
 	matchMargin = 0.15
 )
 
@@ -194,7 +194,7 @@ func (k studentKeys) bestScore(key, labelNum string) float64 {
 }
 
 // FoldName lowercases, strips accents and drops everything that is not a
-// letter or digit, so `Rémi` → `remi` and `As a Million` → `maxamillion`.
+// letter or digit, so `Rémi` → `remi` and `Max a Million` → `maxamillion`.
 func FoldName(s string) string {
 	var b strings.Builder
 	for _, r := range norm.NFD.String(strings.ToLower(s)) {

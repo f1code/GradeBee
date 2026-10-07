@@ -9,7 +9,7 @@
  * sorted first within each test group.
  *
  * Usage:
- *   node evals/scripts/diff-baseline.js evals/baseline-extract.json evals/results/20260520-120000-extract.json
+ *   node evals/scripts/diff-baseline.js ../data/eval-baseline-extract.json evals/results/20260520-120000-extract.json
  *   node evals/scripts/diff-baseline.js --band=0.15 --axes <baseline.json> <current.json>
  *
  * --band: score move counted as a regression or improvement (default 0.05).

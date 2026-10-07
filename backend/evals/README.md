@@ -45,7 +45,6 @@ cd backend && make eval-fixtures
 
 # Update both baselines after a deliberate prompt/model change
 cd backend && make eval-baseline
-# Then commit evals/baseline-extract.json alongside the change
 ```
 
 ## Environment variables
@@ -162,7 +161,6 @@ evals/
   promptfooconfig.report.yaml     report suite: judge, five axis rubrics, gold-reference row; tests from tests.report.generated.yaml
   fixtures.manifest.json          curated report cases by DB id (committed, PII-free)
   tests.report.generated.yaml     report test list (generated, git-ignored)
-  baseline-extract.json           pinned extraction scores (committed)
   scoring/extraction.js           custom JS scorer (precision/recall + voice preservation + attribution)
   scoring/assemble.js             folds pass-2 passages into per-child notes before scoring
   scoring/report-wordcounts.js    appends per-section word counts to the report judge's copy of the output
@@ -348,8 +346,8 @@ assembly rules as production — it is the JavaScript twin of `guardPassages`
 (`backend/voice_note_passages.go`). Change one, change both, or the eval stops
 grading what ships.
 
-Scores are `gradebee-extract` (`mistral-medium-3-5`), the run pinned in
-`baseline-extract.json` on 2026-09-17 by #164, with pass 1 cutting the header before
+Scores are `gradebee-extract` (`mistral-medium-3-5`), the extraction baseline
+pinned on 2026-09-17 by #164, with pass 1 cutting the header before
 pass 2 (#155). `mistral-medium-2508` scored the same on every row.
 
 | Fixture | Score | State |
@@ -446,10 +444,10 @@ then prints nothing at all — no table, no summary, exit 0. Run
 
 One baseline per domain, both overwritten by `make eval-baseline`:
 
-- **Extraction** — `evals/baseline-extract.json`, committed. The PR diff is the audit trail for deliberate score changes.
+- **Extraction** — `data/eval-baseline-extract.json` at the repo root, local only. Outputs quote real teacher notes, so it stays out of the public repo.
 - **Report** — `data/eval-baseline-report.json` at the repo root, local only. Report outputs hold real student names, so the file sits under the gitignored `data/` next to `gradebee.db`; copy both when setting up a worktree. On a fresh clone `make eval` skips the report diff with a message until `make eval-baseline` pins one. Losing it means re-pinning from a fresh run.
 
-Both files keep only what `diff-baseline.js` reads; `scripts/pin-baseline.js` drops the per-run eval id, share URL and config that would churn the PR diff.
+Both files keep only what `diff-baseline.js` reads; `scripts/pin-baseline.js` drops the per-run eval id, share URL and config, which change every run.
 
 `make eval-baseline` pins the run its own `make eval` just made, and writes neither file unless both results are clean. It stops if a promptfoo run wrote no output, or if any row errored (`failureReason` 2: API outage, transform failure), on any provider, canonical or comparison: an errored row scores 0 and would read as a regression on every later run. Re-run once the errors clear.
 

@@ -27,13 +27,13 @@ func aliased(name string, aliases ...string) ClassStudent {
 func TestFoldName(t *testing.T) {
 	cases := map[string]string{
 		"Rémi":                 "remi",
-		"Héloïse":             "heloise",
+		"Héloïse":              "heloise",
 		"Thaïs":                "thais",
-		"As a Million":            "maxamillion",
+		"Max a Million":        "maxamillion",
 		"O'Brien":              "obrien",
 		"  Loïc  ":             "loic",
 		"Jean-Luc":             "jeanluc",
-		"CÉLESTINE":             "celestine",
+		"CÉLESTINE":            "celestine",
 		"1745":                 "1745",
 		"":                     "",
 		" - ":                  "",
@@ -54,7 +54,7 @@ func TestSimilarity(t *testing.T) {
 	}{
 		{"remi", "remi", 1.0},
 		{"remy", "remi", 0.75},
-		{"joakim", "joachim", 1 - 3.0/9},
+		{"joakim", "joachim", 1 - 2.0/7},
 		{"jill", "joel", 0.5},
 		{"", "joel", 0.0},
 		{"", "", 0.0},
@@ -65,22 +65,23 @@ func TestSimilarity(t *testing.T) {
 	}
 }
 
-// Rosters as of the research rounds, first names only. Two classes share
-// a level name and a weekday, which is why the matcher takes one class's
-// students rather than the roster. "Oliver · Thu" is reconstructed from the
-// research scores (Raoul → Raul 0.80, Erwin → Erwan 0.80).
+// Rosters shaped like the research rounds' classes, first names only (names
+// are made up). Two classes share a level name and a weekday, which is why
+// the matcher takes one class's students rather than the roster. "Oliver ·
+// Thu" is reconstructed from the research scores (Raoul → Raul 0.80, Erwin →
+// Erwan 0.80).
 var (
-	rosterLindaSat0855 = students("Rosalind", "Katharine", "Tobias")
-	rosterLindaSat1005 = students("Ondine", "Joël", "Gaston", "Tristan")
-	rosterLindaWed1315 = students("Theodore", "Bruno")
-	rosterLindaWed1745 = students("Héloïse", "Domitille", "Rémi")
+	rosterLindaSat0855 = students("Katharine", "Rosalind", "Tobias")
+	rosterLindaSat1005 = students("Gaston", "Joël", "Ondine", "Tristan")
+	rosterLindaWed1315 = students("Bruno", "Theodore")
+	rosterLindaWed1745 = students("Domitille", "Héloïse", "Rémi")
 	rosterMousySat1115 = students("Ghislaine")
 	rosterMousySat1225 = students("Ivy")
 	rosterMousyThu1715 = students("Seraphina")
-	rosterOliverThu    = students("Anouk", "Lucien", "Edgar", "Raul", "Erwan")
-	rosterPPFri1740    = students("Elka", "Elsa", "Thaïs", "Madeline", "Marthe", "Judith", "Nora", "Simone")
-	rosterPPWed1410    = students("Ada", "Lise", "Héloïse", "Adela", "Tristan", "Elvire", "Bettina", "Joachim")
-	rosterPPWed1520    = students("Aurélie", "Edmée", "Gauvain", "Silas", "Tristan", "Elio", "Ewen", "Oona")
+	rosterOliverThu    = students("Anouk", "Edgar", "Erwan", "Lucien", "Raul")
+	rosterPPFri1740    = students("Elka", "Elsa", "Judith", "Madeline", "Marthe", "Nora", "Simone", "Thaïs")
+	rosterPPWed1410    = students("Ada", "Adela", "Bettina", "Héloïse", "Elvire", "Joachim", "Lise", "Tristan")
+	rosterPPWed1520    = students("Aurélie", "Edmée", "Elio", "Ewen", "Gauvain", "Oona", "Silas", "Tristan")
 	rosterPPWed1630    = []ClassStudent{
 		{Name: "Maximilien"}, aliased("Ina", "Ida"), {Name: "Ada"},
 		{Name: "Célestine"}, {Name: "Malo"}, {Name: "Raoul"}, {Name: "Loïc"},
@@ -106,7 +107,7 @@ func TestMatchStudent_Corpus(t *testing.T) {
 		{"Tobias", rosterLindaSat0855, "Tobias"},
 
 		{"Ondine", rosterLindaSat1005, "Ondine"},
-		{"Jill", rosterLindaSat1005, "Joël"}, // 0.50, exactly at threshold; runner-up 0.20
+		{"Jill", rosterLindaSat1005, "Joël"}, // 0.50, exactly at threshold; runner-up 0.17
 		{"Gaston", rosterLindaSat1005, "Gaston"},
 		{"Tristan", rosterLindaSat1005, "Tristan"},
 
@@ -114,62 +115,62 @@ func TestMatchStudent_Corpus(t *testing.T) {
 		{"Bruno", rosterLindaWed1315, "Bruno"},
 
 		{"Remy", rosterLindaWed1745, "Rémi"}, // 0.75
-		{"Tilly", rosterLindaWed1745, ""},    // Domitille 0.30, below threshold
+		{"Tilly", rosterLindaWed1745, ""},    // Domitille 0.44, below threshold
 		{"She", rosterLindaWed1745, ""},      // stop-list
 
 		{"Ghislaine", rosterMousySat1115, "Ghislaine"},
 		{"Ivy", rosterMousySat1225, "Ivy"},
 		{"She", rosterMousySat1225, ""},
-		{"Serafina", rosterMousyThu1715, "Seraphina"}, // 0.62, sole student
+		{"Serafina", rosterMousyThu1715, "Seraphina"}, // 0.78, sole student
 
 		{"Anouk", rosterOliverThu, "Anouk"},
 		{"Lucien", rosterOliverThu, "Lucien"},
 		{"Edgar", rosterOliverThu, "Edgar"},
-		{"Raoul", rosterOliverThu, "Raul"}, // 0.80
+		{"Raoul", rosterOliverThu, "Raul"},  // 0.80
 		{"Erwin", rosterOliverThu, "Erwan"}, // 0.80
 
-		{"Ella", rosterPPFri1740, ""}, // Elka 0.80 over Elsa 0.75: margin 0.05
+		{"Ella", rosterPPFri1740, ""}, // Elka 0.75 ties Elsa 0.75: margin 0
 		{"Elka", rosterPPFri1740, "Elka"},
 		{"Thais", rosterPPFri1740, "Thaïs"}, // exact after fold
 		{"Madeleine", rosterPPFri1740, "Madeline"},
 		{"Marthe", rosterPPFri1740, "Marthe"},
 		{"Nora", rosterPPFri1740, "Nora"},
 		{"Judy", rosterPPFri1740, "Judith"},
-		{"Sorine", rosterPPFri1740, ""}, // Simone 0.50 over Nora 0.40: margin 0.10
+		{"Sorine", rosterPPFri1740, ""}, // Simone 0.50 over Madeline 0.38: margin 0.12
 
 		{"Adah", rosterPPWed1410, "Ada"},
-		{"Adele", rosterPPWed1410, "Adela"},      // 0.80, Ada 0.50
-		{"Eloise", rosterPPWed1410, "Héloïse"}, // 0.75
+		{"Adele", rosterPPWed1410, "Adela"},    // 0.80, Ada 0.40
+		{"Eloise", rosterPPWed1410, "Héloïse"}, // 0.86
 		{"Lise", rosterPPWed1410, "Lise"},
 		{"Tristan", rosterPPWed1410, "Tristan"},
 		{"Elvire", rosterPPWed1410, "Elvire"},
 		{"Bettina", rosterPPWed1410, "Bettina"},
-		{"Joakim", rosterPPWed1410, "Joachim"}, // 0.67, Ada 0.44
+		{"Joakim", rosterPPWed1410, "Joachim"}, // 0.71, Ada 0.17
 
 		{"Aurelia", rosterPPWed1520, "Aurélie"},
 		{"Aurélie", rosterPPWed1520, "Aurélie"},
-		{"Edmée", rosterPPWed1520, "Edmée"},
+		{"Edmee", rosterPPWed1520, "Edmée"},
 		{"Gauvin", rosterPPWed1520, "Gauvain"},
 		{"Silas", rosterPPWed1520, "Silas"},
 		{"Tristan", rosterPPWed1520, "Tristan"},
-		{"Owen", rosterPPWed1520, "Ewen"}, // 0.75, Elio 0.25
+		{"Owen", rosterPPWed1520, "Ewen"}, // 0.75, Oona 0.25
 		{"Elio", rosterPPWed1520, "Elio"},
 		{"Ona", rosterPPWed1520, "Oona"},
 
 		{"Maximilien", rosterPPWed1630, "Maximilien"},
 		{"Ida", rosterPPWed1630, "Ina"}, // alias, exact
 		{"Celestine", rosterPPWed1630, "Célestine"},
-		{"Celeste", rosterPPWed1630, "Célestine"}, // 0.75
+		{"Celeste", rosterPPWed1630, "Célestine"}, // 0.78
 		{"Malo", rosterPPWed1630, "Malo"},
 		{"Raoul", rosterPPWed1630, "Raoul"},
-		{"Adah", rosterPPWed1630, "Ada"}, // 0.83, Ina 0.50
-		{"Lois", rosterPPWed1630, "Loïc"},    // 0.75
+		{"Adah", rosterPPWed1630, "Ada"},  // 0.75, Ina 0.50
+		{"Lois", rosterPPWed1630, "Loïc"}, // 0.75
 
 		{"Celestine", rosterSamFri1630, "Célestine"},
-		{"Her", rosterSamFri1630, ""},         // stop-list; Hermine 0.25 anyway
-		{"Giselle", rosterSamFri1630, "Gisèle"}, // 0.67
-		{"Nino", rosterSamFri1630, "Ninon"},   // 0.60, Célestine 0.38
-		{"Val", rosterSamFri1630, "Perceval"},    // alias, exact; fuzzy would be 0.40
+		{"Her", rosterSamFri1630, ""},           // stop-list; Hermine 0.43 anyway
+		{"Giselle", rosterSamFri1630, "Gisèle"}, // 0.86
+		{"Nino", rosterSamFri1630, "Ninon"},     // 0.80, Hermine 0.29
+		{"Val", rosterSamFri1630, "Perceval"},   // alias, exact; fuzzy would be 0.38
 	}
 	assert.Len(t, cases, 59)
 	runMatchCases(t, cases)
@@ -185,15 +186,15 @@ func runMatchCases(t *testing.T, cases []matchCase) {
 }
 
 // TestMatchStudent_VerbatimLabelBeatsTidiedLabel: the model once returned
-// `Max` for the spoken "As a Million". Verbatim, it reaches Maximilien; tidied,
-// it lands on Ina at 0.50 with a 0.17 margin — the accepted false
+// `Max` for the spoken "Max a Million". Verbatim, it reaches Maximilien;
+// tidied, it lands on Malo at 0.50 with a 0.20 margin — the accepted false
 // positive of threshold 0.50 (plan decision 1), guarded by the prompt's
 // verbatim-label rule rather than by the matcher. Pinned so a threshold
 // change surfaces it deliberately.
 func TestMatchStudent_VerbatimLabelBeatsTidiedLabel(t *testing.T) {
 	runMatchCases(t, []matchCase{
-		{"As a Million", rosterPPWed1630, "Maximilien"},
-		{"Max", rosterPPWed1630, "Ina"},
+		{"Max a Million", rosterPPWed1630, "Maximilien"},
+		{"Max", rosterPPWed1630, "Malo"},
 	})
 }
 
@@ -201,12 +202,12 @@ func TestMatchStudent_VerbatimLabelBeatsTidiedLabel(t *testing.T) {
 // stop-list, and the exact short-circuit that bypasses all three.
 func TestMatchStudent_Gates(t *testing.T) {
 	runMatchCases(t, []matchCase{
-		// Ida ties Ada and Ina at 0.50 with no alias to break it.
+		// Ida ties Ada and Ina at 0.67 with no alias to break it.
 		{"Ida", students("Maximilien", "Ina", "Ada"), ""},
 		// The same label resolves outright once the teacher adds the alias,
-		// even though Ada at 0.50 would fail the margin on the fuzzy path.
+		// even though Ada at 0.67 would fail the margin on the fuzzy path.
 		{"Ida", []ClassStudent{{Name: "Maximilien"}, aliased("Ina", "Ida"), {Name: "Ada"}}, "Ina"},
-		// Alias, exact: fuzzy alone rejects Val → Perceval at 0.40.
+		// Alias, exact: fuzzy alone rejects Val → Perceval at 0.38.
 		{"Val", students("Perceval", "Célestine"), ""},
 		{"Val", []ClassStudent{aliased("Perceval", "Val"), {Name: "Célestine"}}, "Perceval"},
 		// Near-misses of an alias go through the fuzzy path over the alias.
@@ -261,10 +262,10 @@ func TestMatchStudent_SharedStringIsATie(t *testing.T) {
 // unchanged: two children sharing a first name in one class resolve to
 // nobody.
 func TestMatchStudent_FullNameRoster(t *testing.T) {
-	classA := students("Emma Torres", "Erwin Mitchell", "Lila Patel")
+	classA := students("Emma Torres", "Ryan Mitchell", "Lila Patel")
 	runMatchCases(t, []matchCase{
 		{"Emma", classA, "Emma Torres"},
-		{"Erwin", classA, "Erwin Mitchell"},
+		{"Ryan", classA, "Ryan Mitchell"},
 		{"Noah", students("Noah Jensen", "Mia Clark"), "Noah Jensen"},
 		{"Olivia", students("Olivia Chen", "Marcus Davis", "Zoe Taylor"), "Olivia Chen"},
 		// The whole name and a surname alone still reach the child.
@@ -272,7 +273,7 @@ func TestMatchStudent_FullNameRoster(t *testing.T) {
 		{"Torres", classA, "Emma Torres"},
 		// A middle part counts too.
 		{"Rose", students("Anna Rose Lee", "Tom"), "Anna Rose Lee"},
-		// Fuzzy path over a part: Emme → emma 0.75, Erwin Mitchell's best 0.17.
+		// Fuzzy path over a part: Emme → emma 0.75, Ryan Mitchell's best 0.17.
 		{"Emme", classA, "Emma Torres"},
 		// A part is exact, so it wins outright: fuzzy alone would give
 		// Isabelle Brown 1.0 over Isabella 0.875, under the margin.
@@ -280,9 +281,9 @@ func TestMatchStudent_FullNameRoster(t *testing.T) {
 		// Ties: two full names sharing a first name, on both paths.
 		{"Emma", students("Emma Torres", "Emma Wilson"), ""},
 		{"Emme", students("Emma Torres", "Emma Wilson"), ""},
-		{"Emma", students("Emma Torres", "Emma Wilson", "Erwin Mitchell"), ""},
+		{"Emma", students("Emma Torres", "Emma Wilson", "Ryan Mitchell"), ""},
 		// A shared surname is a tie the same way.
-		{"Torres", students("Emma Torres", "Raul Torres"), ""},
+		{"Torres", students("Emma Torres", "Luis Torres"), ""},
 		// Typed strings come first: a whole name or an alias equal to the
 		// label beats a part derived from another child's name, so the
 		// teacher can break a first-name tie with an alias.
@@ -364,12 +365,12 @@ func looksFused(label string) bool {
 // since only a live model run exercises it.
 func TestLooksFused(t *testing.T) {
 	cases := map[string]bool{
-		"Joakim and Adele":      true,
+		"Joakim and Adele":         true,
 		"Tristan, Eloise and Lise": true,
-		"Emma & Erwin":              true,
-		"Emma/Erwin":                true,
+		"Emma & Ryan":              true,
+		"Emma/Ryan":                true,
 		"Owen; Elio":               true,
-		"Bruno AND Theodore":        true, // case-insensitive
+		"Bruno AND Theodore":       true, // case-insensitive
 		"Anne-and-Marie":           false,
 		"Andrea":                   false,
 		"Anna Rose Lee":            false,
@@ -387,7 +388,7 @@ func TestLooksFused(t *testing.T) {
 // 2026-09-03), so the whole name is exact; a bare first name is a tie.
 func TestMatchStudent_MiddleNamesAndInitials(t *testing.T) {
 	initials := students("Emma T", "Emma R", "Lucie")
-	middles := students("Emma Rose", "Emma Marthe", "Lucie")
+	middles := students("Emma Rose", "Emma Louise", "Lucie")
 	runMatchCases(t, []matchCase{
 		{"Emma T", initials, "Emma T"},
 		{"Emma T.", initials, "Emma T"},
@@ -396,10 +397,10 @@ func TestMatchStudent_MiddleNamesAndInitials(t *testing.T) {
 		{"Emma", initials, ""},
 		{"Emma T", students("Emma T.", "Emma R."), "Emma T."},
 		{"Emma Rose", middles, "Emma Rose"},
-		{"Emma Roze", middles, "Emma Rose"}, // 0.88 over Emma Marthe 0.60
+		{"Emma Roze", middles, "Emma Rose"}, // 0.88 over Emma Louise 0.60
 		// `Emma Rows` sits exactly on the margin (0.75 over 0.60) and is
 		// left out on purpose: it would pin float noise, not a rule.
-		{"Emma Louisa", middles, "Emma Marthe"},
+		{"Emma Louisa", middles, "Emma Louise"},
 		{"Rose", middles, "Emma Rose"},
 		{"Emma", middles, ""},
 		// A plain `Emma` typed beside `Emma Rose` takes the bare label.
