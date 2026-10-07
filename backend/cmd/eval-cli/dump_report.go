@@ -76,7 +76,12 @@ func dumpReport(ctx context.Context, db *sql.DB, w, replacements io.Writer, stud
 	for i, t := range texts {
 		texts[i] = r.redact(t)
 	}
+	openers := r.noteOpeners(texts[2:])
+	for i := 2; i < len(texts); i++ {
+		texts[i] = replaceWords(texts[i], openers)
+	}
 	texts, fuzzed := r.fuzzyRedact(texts)
+	maps.Copy(fuzzed, openers)
 	if replacements != nil {
 		words := slices.Sorted(maps.Keys(fuzzed))
 		fmt.Fprintf(replacements, "# report %d, student %d\n", reportID, studentID)
@@ -237,6 +242,42 @@ func isWordRune(r rune) bool {
 	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
+// noteOpeners maps each note's first word to STUDENT: a filed note opens with
+// this student's name, however misheard. One closer to a classmate is left to
+// fuzzyRedact. Notes only; reports spell the roster name.
+func (r *redactor) noteOpeners(notes []string) map[string]string {
+	seed := map[string]string{}
+	for _, n := range notes {
+		w := wordRe.FindString(n)
+		first, _ := utf8.DecodeRuneInString(w)
+		if !unicode.IsUpper(first) || ownTokens[w] || openerStopWords[strings.ToLower(w)] {
+			continue
+		}
+		if tok := r.closest(w); tok == "" || tok == "STUDENT" {
+			seed[w] = "STUDENT"
+		}
+	}
+	return seed
+}
+
+func replaceWords(s string, tokens map[string]string) string {
+	return wordRe.ReplaceAllStringFunc(s, func(w string) string {
+		if tok := tokens[w]; tok != "" {
+			return tok
+		}
+		return w
+	})
+}
+
+// openerStopWords open a note without naming anyone. A fixed list, not
+// fuzzyRedact's lowercase check, which leaks names that are also words.
+var openerStopWords = map[string]bool{
+	"she": true, "he": true, "they": true, "the": true, "today": true, "this": true,
+	"it": true, "i": true, "we": true, "a": true, "an": true, "recently": true, "then": true,
+	"her": true, "his": true, "in": true, "during": true, "when": true, "very": true,
+	"great": true, "after": true, "also": true,
+}
+
 // fuzzyRedact catches roster names the exact pass misses: misspellings and
 // mistranscriptions. A capitalized word within editLimit of a roster term
 // takes that person's token at every occurrence, or CLASSMATE_? when two
@@ -266,12 +307,7 @@ func (r *redactor) fuzzyRedact(texts []string) (out []string, tokens map[string]
 	}
 	out = make([]string, len(texts))
 	for i, t := range texts {
-		out[i] = wordRe.ReplaceAllStringFunc(t, func(w string) string {
-			if tok := tokens[w]; tok != "" {
-				return tok
-			}
-			return w
-		})
+		out[i] = replaceWords(t, tokens)
 	}
 	return out, tokens
 }

@@ -277,6 +277,8 @@ const reportNotesFiling = "The teacher filed every note below to this student. "
 const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
 
 // reportTaskFooter is the static closing instructions in every report prompt.
+// The last two rules (#188) hold for any Level; Level texts say which section
+// a fact belongs in.
 const reportTaskFooter = "## Task\n" +
 	"Write a report card narrative for this student based on the notes above.\n" +
 	"Output the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\n" +
@@ -284,7 +286,10 @@ const reportTaskFooter = "## Task\n" +
 	"Only include structured Data fields (Absences, Marks, Frequency of use, etc.) if those\n" +
 	"values are explicitly present in the notes.\n" +
 	"Never contradict the notes or invent a specific observation, weakness or date. " +
-	"Follow the Report Specification on length; do not condense.\n"
+	"Follow the Report Specification on length; do not condense.\n" +
+	"Use each fact from the notes in one section only.\n" +
+	"Describe a change over time only when notes on different dates show it or a note states it; " +
+	"what the latest note says is how the student is now.\n"
 
 // --- Computed hashes (populated at init) ---
 

@@ -84,7 +84,8 @@ defaultTest:
 
       Code measured the <word_counts> block at the end of the output; it is not part of the report.
       Use those counts for any length judgement, and read the length rule from the Report
-      Specification and ad-hoc instructions.
+      Specification and ad-hoc instructions. A section tagged "[MISSING] marker" may be shorter when
+      the notes give it no fact of its own.
 
       <axis>
       {{rubric}}
@@ -114,8 +115,21 @@ defaultTest:
         example, quote, mark, rating, absence count, date) and no invented weakness or problem.
         General statements about attitude, progress and time in class that fit the notes are
         acceptable, and expected where the notes are thin: e.g. "has settled well into the class
-        routines", "follows the teacher's instructions", "is making progress week by week",
-        "contributes to a positive atmosphere". Restating a note in other words is grounded.
+        routines", "follows the teacher's instructions", "contributes to a positive atmosphere".
+        Restating a note in other words is grounded. A [MISSING] marker is a note for the teacher,
+        not a claim: never penalise it.
+        Check every time-ordered claim ("at the start of term", "at first", "recently", "since then",
+        "now", "improving", "week by week", "more and more") against the note dates. A change is
+        supported when an earlier note and a later note differ on the same skill, or when a note
+        itself states it ("participates more"), and only as far as that note states it; a difficulty
+        the latest note still shows is current, never "at the start of term". An unsupported change or
+        trend is an invented fact.
+        Example, invented: notes on two dates both show one-word answers, the later one "a little
+        better"; the report says "early in the term STUDENT used single words, but recently formed
+        complete responses".
+        Example, grounded: the earlier note says "had to repeat after me", the later "was able to tell
+        me the days of the week"; the report says "at first STUDENT repeated after the teacher;
+        recently she named the days of the week herself".
         5: no defect
         4: one general statement stretches past the notes, with no invented specific fact
         3: one invented specific fact or weakness, or one contradicted minor detail
@@ -129,7 +143,8 @@ defaultTest:
         completeness: every relevant fact in the notes is used, and sections reach the length the
         Report Specification asks for; a condensed report that drops facts or falls short is a
         defect. Where ad-hoc instructions set a shorter length, a fact dropped to meet it is no defect.
-        Going over a length cap is compliance, not completeness.
+        Going over a length cap is compliance, not completeness. A section with no fact of its own
+        that carries a [MISSING] marker is not short.
         5: every relevant note fact used; every section reaches the asked length
         4: one minor fact dropped, or one section slightly short
         3: several facts dropped, or sections clearly short
@@ -156,10 +171,16 @@ defaultTest:
         Other axes grade grounding (contradictions, invented facts), fact coverage, falling short of
         a length, sections and their order, and tone: never score those here. Going over a length
         cap is compliance.
-        Read the rules together: where the notes give no example for a section, the rule against
-        inventing one wins over a required example; a required example is a minimum when the
-        Specification also asks for every relevant fact; "each fact once" covers facts from the
-        notes, not general statements about attitude or progress, which may recur.
+        Each fact from the notes sits in one section only, the section the Specification defines for
+        it: a note fact repeated in a second section, or placed in a section that does not cover it,
+        breaks a rule. Example: "repeated the days of the week after the teacher" in both Motivation &
+        Participation and Learning breaks a rule once.
+        Read the rules together: a section the notes give no fact of its own follows the rules with
+        one or two general statements and the [MISSING] marker the Specification gives, even below the
+        word minimum and with no example; filling it with another section's facts breaks a rule. A
+        required example is a minimum when the Specification also asks for every relevant fact;
+        "each fact once" covers facts from the notes, not general statements about attitude or
+        progress, which may recur.
         5: every rule followed
         4: one rule bent slightly (e.g. a few words over a limit)
         3: one rule broken

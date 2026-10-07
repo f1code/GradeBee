@@ -37,3 +37,12 @@ test('transform keeps the output and appends a delimited block with a total', ()
   assert.ok(r.startsWith(out));
   assert.match(r, /<word_counts>\n.*not part of the report\.\n- A: 2 words\n- B: 1 words\n- Total: 3 words\n<\/word_counts>$/);
 });
+
+test('a section holding a [MISSING] marker is tagged', () => {
+  const html = '<h3>A</h3><p>Fine. [MISSING: example of behaviour]</p><h3>B</h3><p>one</p>';
+  assert.deepStrictEqual(sectionWordCounts(html), [
+    { heading: 'A', words: 5, marker: true },
+    { heading: 'B', words: 1 },
+  ]);
+  assert.match(transform(html), /- A: 5 words \(\[MISSING\] marker\)\n- B: 1 words\n/);
+});

@@ -60,3 +60,11 @@ func TestBuildReportPrompt_NotesFiledToStudent(t *testing.T) {
 	assert.Contains(t, prompt, "Student: Alice, Class: Grade 3A\n\n"+reportNotesFiling+"- 2026-09-11")
 	assert.Contains(t, reportNotesFiling, "however spelled, is this student")
 }
+
+// #188: reports reused facts across sections and invented before/after stories.
+func TestBuildReportPrompt_FactOnceAndDatedChange(t *testing.T) {
+	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", "")
+	assert.Contains(t, prompt, "Use each fact from the notes in one section only.")
+	assert.Contains(t, prompt, "Describe a change over time only when notes on different dates show it or a note states it; "+
+		"what the latest note says is how the student is now.")
+}

@@ -109,6 +109,31 @@ func TestDumpReport_RedactsMisspelledRoster(t *testing.T) {
 	assert.Equal(t, "# report 10, student 1\nBobb\tCLASSMATE_2\nElodi\tSTUDENT\n", repl.String())
 }
 
+func TestDumpReport_RedactsNoteOpener(t *testing.T) {
+	db := seedDumpDB(t)
+	_, err := db.Exec(`INSERT INTO notes (student_id, date, summary) VALUES
+		(1, '2026-03-12', 'Julia had to repeat. Then Julia sang.'),
+		(1, '2026-03-13', 'Aaliyah did better.
+Ann and Bobb sang.'),
+		(1, '2026-03-14', 'She did well, then.'),
+		(1, '2026-03-15', 'Bobb and Ann sat.'),
+		(1, '2026-03-16', 'Good work.')`)
+	require.NoError(t, err)
+	_, err = db.Exec(`UPDATE reports SET instructions = 'Good pace', html = '<p>Good, Élodie.</p>' WHERE id = 10`)
+	require.NoError(t, err)
+	var out bytes.Buffer
+	require.NoError(t, dumpReport(context.Background(), db, &out, nil, 1, 10))
+	got := out.String()
+
+	assert.Contains(t, got, "2026-03-12: STUDENT had to repeat. Then STUDENT sang.")
+	assert.Contains(t, got, "2026-03-13: STUDENT did better.\nCLASSMATE_1 and CLASSMATE_2 sang.")
+	assert.Contains(t, got, "2026-03-14: She did well, then.")
+	assert.Contains(t, got, "2026-03-15: CLASSMATE_2 and CLASSMATE_1 sat.", "opener near a classmate keeps their token")
+	assert.Contains(t, got, "2026-03-16: STUDENT work.")
+	assert.Contains(t, got, "\nGood pace\n", "openers stay out of the instructions")
+	assert.Contains(t, got, "<p>Good, STUDENT.</p>", "and out of the report")
+}
+
 func TestFuzzyRedact(t *testing.T) {
 	r := newRedactor([]handler.Student{
 		{ID: 1, Name: "John"},

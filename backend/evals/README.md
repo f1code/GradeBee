@@ -244,16 +244,21 @@ trends only; one axis step moves it 0.05.
 
 The axes do not grade each other: compliance leaves out grounding, fact
 coverage, falling short of a length, sections and tone. Falling short of a
-length is completeness; going over a cap is compliance. Compliance reads the
-Level rules together: no required example where the notes give none, a required
-example is a minimum, and "each fact once" covers note facts, not general
-statements.
+length is completeness; going over a cap is compliance. Compliance flags a note
+fact in two sections or in a section that does not cover it (#188), and reads
+the Level rules together: a section with no fact of its own passes with general
+statements and its `[MISSING]` marker, a required example is a minimum, and
+"each fact once" covers note facts, not general statements. Grounding checks
+every time-ordered claim against the note dates: a change needs an earlier and
+a later note that differ on the same skill, or a note stating it, so a trend or before/after story the
+notes do not show is an invented fact.
 
 The judge cannot count words (it said 63 for a section of 83), so code
 measures: `scoring/report-wordcounts.js`, an assertion `transform`, appends
 per-section word counts to the judge's copy of the output. The rubric says to
 use them and read the length rule from the instructions; no length rule lives in
-code. A transform, not a `nunjucksFilters` filter: promptfoo renders
+code. A section holding a `[MISSING` marker is tagged in the block, since a
+section with no facts of its own may fall under the Level's minimum. A transform, not a `nunjucksFilters` filter: promptfoo renders
 `rubricPrompt` with bare nunjucks, so config filters never reach it.
 
 The grading prompt carries the same note-filing statement as the report prompt:
@@ -273,9 +278,12 @@ eval` counts a report move as a regression or improvement only beyond ±0.15
 (`REPORT_DIFF_FLAGS`); extraction keeps ±0.05. The report diff also lists the
 axes that moved.
 
-These runs predate two edits to the `short_set_no_adhoc` reference (#188), which
-took its no-reference grounding from 0.5 to 1.0. The baseline re-pinned after
-them scores gold at 0.906 mean.
+#188 rewrote all nine references to its rules (no unsupported trajectory, each
+fact in one section, `[MISSING]` marker for a section with no fact of its own).
+Three `--no-cache` gold runs: means 0.917, 0.928 and 0.922; `tweens_pair_a`
+failed grounding in all three on a change its one note states, which led to
+the "or a note states it" clause; `very_short_last_note` failed compliance once.
+The baseline re-pinned after that clause passes every gold row.
 
 ## Extraction scoring axes
 
@@ -490,6 +498,9 @@ the instructions") were wanted. Since then:
   length is a defect.
 - Reports name "the teacher", never "we" or "us"; carry no dates; and add no
   marker questioning a note, because the teacher vets notes when writing them.
+- Since #188: a section the notes give no fact of its own gets one or two
+  general statements and a `[MISSING: example of …]` marker, never another
+  section's facts; a change over time needs notes on different dates showing it.
 
 The Level instructions, the report prompt and the rubric all follow these rules.
 

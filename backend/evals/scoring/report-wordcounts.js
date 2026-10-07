@@ -33,8 +33,13 @@ function sectionWordCounts(html) {
   let heading = null;
   let start = 0;
   const push = (end) => {
-    const words = countWords(text(html.slice(start, end)));
-    if (heading !== null || words > 0) sections.push({ heading: heading ?? '(before first heading)', words });
+    const body = text(html.slice(start, end));
+    const words = countWords(body);
+    // A marked section may fall under the Level's minimum (#188).
+    const marker = body.includes('[MISSING');
+    if (heading !== null || words > 0) {
+      sections.push({ heading: heading ?? '(before first heading)', words, ...(marker && { marker }) });
+    }
   };
   for (let m; (m = re.exec(html)); ) {
     push(m.index);
@@ -48,7 +53,7 @@ function sectionWordCounts(html) {
 function wordCountBlock(html) {
   const sections = sectionWordCounts(html);
   const total = sections.reduce((n, s) => n + s.words, 0);
-  const lines = sections.map((s) => `- ${s.heading}: ${s.words} words`);
+  const lines = sections.map((s) => `- ${s.heading}: ${s.words} words${s.marker ? ' ([MISSING] marker)' : ''}`);
   return [
     '<word_counts>',
     'Measured by code from the report above; not part of the report.',
