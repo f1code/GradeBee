@@ -186,6 +186,7 @@ evals/
 Report cases hold real names, notes and report text, so the repo keeps only
 `fixtures.manifest.json`: per case an `id` (directory name), a `description`
 (test description, no names), a `student_id` and a `report_id`.
+Why, and what agents may read: `docs/adr/0005-report-eval-data-stays-local.md`.
 
 `make eval-fixtures` runs `eval-cli gen-report-cases`, which reads each case
 from the local DB (`../data/gradebee.db`; override with `EVAL_DB=`) through the
