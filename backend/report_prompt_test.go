@@ -68,3 +68,10 @@ func TestBuildReportPrompt_FactOnceAndDatedChange(t *testing.T) {
 	assert.Contains(t, prompt, "Describe a change over time only when notes on different dates show it or a note states it; "+
 		"what the latest note says is how the student is now.")
 }
+
+// #196: gpt-6-luna cited its source ("the notes also record…").
+func TestBuildReportPrompt_NoSourceMention(t *testing.T) {
+	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", "")
+	assert.Contains(t, prompt, "Write each fact as something observed in class; never mention the notes or records, "+
+		"or that something was noted or recorded.")
+}

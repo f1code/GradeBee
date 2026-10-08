@@ -158,7 +158,7 @@ make bin/eval-cli
 ```
 evals/
   promptfooconfig.extract.yaml    extraction test suite
-  promptfooconfig.report.yaml     report suite: judge, five axis rubrics, gold-reference row; tests from tests.report.generated.yaml
+  promptfooconfig.report.yaml     report suite: judge, five axis rubrics, source-mention regex, gold-reference row; tests from tests.report.generated.yaml
   fixtures.manifest.json          curated report cases by DB id (committed, PII-free)
   tests.report.generated.yaml     report test list (generated, git-ignored)
   scoring/extraction.js           custom JS scorer (precision/recall + voice preservation + attribution)
@@ -262,8 +262,14 @@ tone, compliance. Each axis gives a 1-5 anchor table; the judge returns the
 anchor as 0-1 (1 = 0, 2 = 0.25, 3 = 0.5, 4 = 0.75, 5 = 1). The custom
 `rubricPrompt` asks for `{reason, score}` only, so the per-assertion
 `threshold` decides pass, not the judge: grounding needs 0.75, the others 0.5. A
-row passes when every axis clears its floor. The row score is the axis mean, for
-trends only; one axis step moves it 0.05.
+row passes when every axis clears its floor. The row score is the mean over the
+axes and the regex below, for trends only; one axis step moves it about 0.04.
+
+A sixth assertion, `not-regex` with metric `source-mention`, needs no judge: it
+fails a report that names its source ("the notes", "as recorded") instead of
+telling what happened in class (#196). The canonical provider sets
+`showThinking: false`: promptfoo otherwise prepends gpt-6-luna's reasoning to the
+output, and the judge and the regex would grade it as report text.
 
 The axes do not grade each other: compliance leaves out grounding, fact
 coverage, falling short of a length, sections and tone. Falling short of a

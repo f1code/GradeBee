@@ -13,6 +13,8 @@ prompts:
 # regressions against the local report baseline (data/eval-baseline-report.json).
 # Production routes reports to OpenRouter's EU host (ADR 0006); apiBaseUrl
 # pins the eval there too. omitDefaults: see the judge provider below.
+# showThinking: false keeps luna's reasoning out of the output; promptfoo
+# prepends it by default, and the judge and the regex below graded it.
 providers:
   - id: openrouter:openai/gpt-6-luna
     label: gradebee-report
@@ -20,6 +22,7 @@ providers:
     config:
       apiBaseUrl: https://eu.openrouter.ai/api/v1
       omitDefaults: true
+      showThinking: false
 
   # Comparison / experimental providers:
   # Medium 3.5, production report model until task 193.
@@ -135,6 +138,12 @@ defaultTest:
       1 = 0, 2 = 0.25, 3 = 0.5, 4 = 0.75, 5 = 1.
       Respond with JSON only: {"reason": "<one or two sentences>", "score": <0, 0.25, 0.5, 0.75 or 1>}
   assert:
+    # Judge-free (#196): a parent reads what happened in class, not a summary
+    # of our notes. Raw output, no word-count transform. Known false positive:
+    # music wording ("played the notes", "recorded a song"); no case has it yet.
+    - type: not-regex
+      metric: source-mention
+      value: '(?i:\b(the|our|her|his|these) notes?\b|notes? (record|show|describe)|\brecorded\b)'
     - type: llm-rubric
       metric: structure
       threshold: 0.5
