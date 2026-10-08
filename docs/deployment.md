@@ -215,8 +215,9 @@ attempt. An E2E timeout does not block a review app, but a backend/frontend setu
 | `DEPLOY_HOST` | VPS IP address |
 | `DEPLOY_SSH_KEY` | Private key matching the `deploy_ssh_pubkey` in the playbook |
 | `CLERK_SECRET_KEY` | Clerk backend secret key (injected into review apps via `dokku config:set`) |
-| `OPENAI_API_KEY` | OpenAI API key (used when `LLM_PROVIDER=openai`) |
-| `MISTRAL_API_KEY` | Mistral API key (used when `LLM_PROVIDER=mistral`; required for default config) |
+| `OPENAI_API_KEY` | OpenAI API key (used when a task uses `openai`) |
+| `MISTRAL_API_KEY` | Mistral API key (used when a task uses `mistral`; required for default config) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (used when a task uses `openrouter`, e.g. `LLM_PROVIDER_REPORT=openrouter`). Not yet passed by the deploy workflows: add it with the production switch (ADR 0006) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (passed as Docker build-arg) |
 | `VITE_SENTRY_DSN` | Sentry DSN (optional; passed as Docker build-arg) |
 | `VITE_FEATURE_REPORTS_ADMIN_ONLY` | Feature flag (repo variable, not secret; optional; passed as Docker build-arg) |
@@ -247,9 +248,11 @@ There are two distinct sets of variables:
 | Variable | Secret? | Description |
 |---|---|---|
 | `CLERK_SECRET_KEY` | Yes (`secrets.yml`) | Clerk backend API key |
-| `LLM_PROVIDER` | No (`vars.yml`) | `"openai"` or `"mistral"` (default `"mistral"`) |
-| `OPENAI_API_KEY` | Yes (`secrets.yml`) | OpenAI API key (used when `LLM_PROVIDER=openai`) |
-| `MISTRAL_API_KEY` | Yes (`secrets.yml`) | Mistral API key (used when `LLM_PROVIDER=mistral`) |
+| `LLM_PROVIDER` | No (`vars.yml`) | `"openai"`, `"mistral"` or `"openrouter"` (default `"mistral"`) |
+| `LLM_PROVIDER_REPORT` | No (`vars.yml`) | Report provider; `"openrouter"` in production (ADR 0006). `_EXTRACTION` / `_TRANSCRIPTION` likewise |
+| `OPENAI_API_KEY` | Yes (`secrets.yml`) | OpenAI API key (used when a task uses `openai`) |
+| `MISTRAL_API_KEY` | Yes (`secrets.yml`) | Mistral API key (used when a task uses `mistral`) |
+| `OPENROUTER_API_KEY` | Yes (`secrets.yml`) | OpenRouter API key (used when a task uses `openrouter`) |
 | `DB_PATH` | No (`vars.yml`) | SQLite path (default `/data/gradebee.db`) |
 | `UPLOADS_DIR` | No (`vars.yml`) | Audio upload directory (default `/data/uploads`) |
 | `UPLOAD_RETENTION_HOURS` | No (`vars.yml`) | Hours to keep a voice note's row, its transcript, and any audio still on disk, counted from processing or dismissal, or from upload if neither happened (default 168 = 7 days) |

@@ -1,6 +1,7 @@
 // llm_provider.go defines the LLMProvider abstraction that backs all LLM call
 // sites (extraction, report generation, transcription). Two production
-// implementations exist: openaiProvider and mistralProvider.
+// implementations exist: openaiProvider (also serving OpenRouter) and
+// mistralProvider. Each task picks its provider by env.
 package handler
 
 import (
@@ -206,6 +207,12 @@ func recordLLMCall(ctx context.Context, p LLMProvider, task LLMTask, start time.
 // combination when the corresponding env var is not set.
 func defaultModels(provider string) map[LLMTask]string {
 	switch provider {
+	case "openrouter":
+		// No transcription: OpenRouter has no /audio/transcriptions.
+		return map[LLMTask]string{
+			LLMTaskExtraction: "mistralai/mistral-medium-3-5",
+			LLMTaskReport:     "openai/gpt-6-luna",
+		}
 	case "openai":
 		return map[LLMTask]string{
 			LLMTaskExtraction:    "gpt-5.4-mini",
@@ -236,43 +243,131 @@ func resolveModels(provider string) map[LLMTask]string {
 	return m
 }
 
-// LoadProvider reads LLM_PROVIDER from the environment, validates the active
-// provider's API key, and returns the configured LLMProvider. It is called
-// from NewProdDeps so the binary fails to start on misconfiguration. db
-// receives the llm_calls rows.
+// openRouterBaseURL defaults to the EU host: an empty base URL would send
+// go-openai to api.openai.com, outside the EU.
+func openRouterBaseURL() string {
+	if v := os.Getenv("OPENROUTER_BASE_URL"); v != "" {
+		return v
+	}
+	return "https://eu.openrouter.ai/api/v1"
+}
+
+// LoadProvider reads LLM_PROVIDER and the per-task overrides
+// LLM_PROVIDER_EXTRACTION / _REPORT / _TRANSCRIPTION, validates each chosen
+// provider's API key, and returns an LLMProvider that sends each task to its
+// provider. It is called from NewProdDeps so the binary fails to start on
+// misconfiguration. db receives the llm_calls rows.
 func LoadProvider(db *sql.DB) (LLMProvider, error) {
-	providerName := os.Getenv("LLM_PROVIDER")
-	if providerName == "" {
-		providerName = "mistral"
+	defaultName := os.Getenv("LLM_PROVIDER")
+	if defaultName == "" {
+		defaultName = "mistral"
+	}
+	envs := map[LLMTask]string{
+		LLMTaskExtraction:    "LLM_PROVIDER_EXTRACTION",
+		LLMTaskReport:        "LLM_PROVIDER_REPORT",
+		LLMTaskTranscription: "LLM_PROVIDER_TRANSCRIPTION",
+	}
+	names := map[LLMTask]string{}
+	for task, env := range envs {
+		name, from := os.Getenv(env), env
+		if name == "" {
+			name, from = defaultName, "LLM_PROVIDER"
+		}
+		switch name {
+		case "openai", "mistral", "openrouter":
+		default:
+			return nil, fmt.Errorf("unknown %s %q: must be \"openai\", \"mistral\" or \"openrouter\"", from, name)
+		}
+		names[task] = name
+	}
+	if names[LLMTaskTranscription] == "openrouter" {
+		return nil, fmt.Errorf("transcription cannot use openrouter: it has no transcription API")
 	}
 
-	models := resolveModels(providerName)
+	// One instrumented client per distinct provider, so llm_calls rows and
+	// metrics name the provider that served each call.
+	clients := map[string]LLMProvider{}
+	for _, name := range names {
+		if _, ok := clients[name]; ok {
+			continue
+		}
+		p, err := newProvider(name)
+		if err != nil {
+			return nil, err
+		}
+		clients[name] = instrumentProvider(p, db)
+	}
 
-	var p LLMProvider
-	switch providerName {
+	r := &taskRouter{
+		extraction:    clients[names[LLMTaskExtraction]],
+		report:        clients[names[LLMTaskReport]],
+		transcription: clients[names[LLMTaskTranscription]],
+	}
+	slog.Info("LLM provider loaded",
+		"extraction", names[LLMTaskExtraction]+":"+r.Model(LLMTaskExtraction),
+		"report", names[LLMTaskReport]+":"+r.Model(LLMTaskReport),
+		"transcription", names[LLMTaskTranscription]+":"+r.Model(LLMTaskTranscription),
+	)
+	if len(clients) == 1 {
+		return r.extraction, nil
+	}
+	return r, nil
+}
+
+func newProvider(name string) (LLMProvider, error) {
+	models := resolveModels(name)
+	switch name {
 	case "openai":
 		key := os.Getenv("OPENAI_API_KEY")
 		if key == "" {
-			return nil, fmt.Errorf("LLM_PROVIDER=openai but OPENAI_API_KEY is not set")
+			return nil, fmt.Errorf("provider openai selected but OPENAI_API_KEY is not set")
 		}
-		baseURL := os.Getenv("OPENAI_BASE_URL")
-		p = newOpenAIProvider(key, baseURL, models)
-	case "mistral":
+		return newOpenAIProvider(key, os.Getenv("OPENAI_BASE_URL"), models), nil
+	case "openrouter":
+		key := os.Getenv("OPENROUTER_API_KEY")
+		if key == "" {
+			return nil, fmt.Errorf("provider openrouter selected but OPENROUTER_API_KEY is not set")
+		}
+		p := newOpenAIProvider(key, openRouterBaseURL(), models)
+		p.name = "openrouter"
+		return p, nil
+	default: // "mistral"; LoadProvider validated the name
 		key := os.Getenv("MISTRAL_API_KEY")
 		if key == "" {
-			return nil, fmt.Errorf("LLM_PROVIDER=mistral but MISTRAL_API_KEY is not set")
+			return nil, fmt.Errorf("provider mistral selected but MISTRAL_API_KEY is not set")
 		}
-		baseURL := os.Getenv("MISTRAL_BASE_URL")
-		p = newMistralProvider(key, baseURL, models)
-	default:
-		return nil, fmt.Errorf("unknown LLM_PROVIDER %q: must be \"openai\" or \"mistral\"", providerName)
+		return newMistralProvider(key, os.Getenv("MISTRAL_BASE_URL"), models), nil
 	}
+}
 
-	slog.Info("LLM provider loaded",
-		"provider", p.Name(),
-		"extraction", p.Model(LLMTaskExtraction),
-		"report", p.Model(LLMTaskReport),
-		"transcription", p.Model(LLMTaskTranscription),
-	)
-	return instrumentProvider(p, db), nil
+// taskRouter sends each call to the provider configured for its task.
+type taskRouter struct {
+	extraction, report, transcription LLMProvider
+}
+
+func (r *taskRouter) Name() string {
+	return r.extraction.Name() + "+" + r.report.Name() + "+" + r.transcription.Name()
+}
+
+func (r *taskRouter) Model(task LLMTask) string {
+	switch task {
+	case LLMTaskExtraction:
+		return r.extraction.Model(task)
+	case LLMTaskReport:
+		return r.report.Model(task)
+	default:
+		return r.transcription.Model(task)
+	}
+}
+
+func (r *taskRouter) ChatJSON(ctx context.Context, req ChatJSONRequest, out any) (LLMResponse, error) {
+	return r.extraction.ChatJSON(ctx, req, out)
+}
+
+func (r *taskRouter) ChatText(ctx context.Context, req ChatTextRequest) (LLMResponse, error) {
+	return r.report.ChatText(ctx, req)
+}
+
+func (r *taskRouter) Transcribe(ctx context.Context, req TranscribeRequest) (LLMResponse, error) {
+	return r.transcription.Transcribe(ctx, req)
 }

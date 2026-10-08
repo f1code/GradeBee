@@ -17,6 +17,9 @@ prices (model, per_1m_input, per_1m_output, per_minute) AS (
     ('voxtral-mini-latest', NULL, NULL, 0.003),
     -- https://developers.openai.com/api/docs/pricing, 2026-09-17
     ('gpt-5.4-mini', 0.75, 4.50, NULL),
+    -- https://eu.openrouter.ai/api/v1/models, 2026-10-07 (Azure EU endpoint).
+    -- Reasoning tokens bill as output. OpenRouter's platform fee comes on top.
+    ('openai/gpt-6-luna', 0.11, 0.55, NULL),
     ('whisper-1', NULL, NULL, 0.006)
 ),
 -- Yesterday, UTC. For another day: SELECT '2026-09-16'.

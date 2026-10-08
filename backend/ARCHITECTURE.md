@@ -255,10 +255,10 @@ Tests override `serviceDeps` with stubs. All handler functions call through this
 ### LLM Provider (`llm_provider*.go`)
 
 A `LLMProvider` interface abstracts all LLM call sites. Two production implementations exist:
-- `openaiProvider` — wraps `go-openai` client against `https://api.openai.com/v1` (chat) and OpenAI Whisper (transcription).
+- `openaiProvider` — wraps `go-openai` client against `https://api.openai.com/v1` (chat) and OpenAI Whisper (transcription). Also serves `openrouter` (`Name()` returns it) against `OPENROUTER_BASE_URL`, default `https://eu.openrouter.ai/api/v1`; default report model `openai/gpt-6-luna`. No transcription.
 - `mistralProvider` — wraps `go-openai` client against `https://api.mistral.ai/v1` (chat via OpenAI-compat endpoint); Voxtral transcription posts multipart to `{MISTRAL_BASE_URL}/audio/transcriptions` over `net/http` and returns `usage.prompt_audio_seconds`.
 
-`LoadProvider(db)` reads `LLM_PROVIDER` (default `"mistral"`), validates the active provider's API key, logs the selected models, and returns the provider wrapped by `instrumentProvider`. Called from `NewProdDeps`, which passes its DB handle, so the binary fails fast on misconfiguration.
+`LoadProvider(db)` picks a provider per task: `LLM_PROVIDER_EXTRACTION` / `_REPORT` / `_TRANSCRIPTION`, each defaulting to `LLM_PROVIDER` (default `"mistral"`). It refuses unknown names and `openrouter` for transcription, builds one client per distinct provider wrapped by `instrumentProvider`, and checks each one's API key. One provider: it returns that client. Several: a `taskRouter` sending `ChatJSON` to extraction, `ChatText` to report, `Transcribe` to transcription. Callers stay unaware. Production: `LLM_PROVIDER=mistral`, `LLM_PROVIDER_REPORT=openrouter` (ADR 0006). Called from `NewProdDeps`, which passes its DB handle, so the binary fails fast on misconfiguration.
 
 Each method returns `LLMResponse{Text, Usage}`. `Usage` is nil when no response arrived; set, even alongside an error, once one did.
 
@@ -421,8 +421,9 @@ Repo-level errors:
 
 ### LLM Provider Metrics
 
-`instrumentProvider()` (`llm_provider.go`) wraps the `LLMProvider` returned by `LoadProvider()`
-so `openaiProvider` and `mistralProvider` are both covered without either implementation
+`instrumentProvider()` (`llm_provider.go`) wraps each concrete provider `LoadProvider()` builds,
+so metrics and `llm_calls` rows name the provider that served the call, and
+`openaiProvider` and `mistralProvider` are both covered without either implementation
 knowing about metrics. It uses `sentry.NewMeter(ctx)` — opt-out (`ClientOptions.DisableMetrics`,
 never set by `InitSentry()`), so no config change was needed. `NewMeter` returns a noop meter
 whenever no client is bound to the hub, which is why these metrics no-op cleanly when
@@ -528,9 +529,12 @@ confirm the suite fails; a fix without that evidence is not a fix.
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `CLERK_SECRET_KEY` | Yes | Clerk Backend API key |
-| `LLM_PROVIDER` | No | `"openai"` or `"mistral"` (default: `"mistral"`) — selects the LLM backend |
-| `OPENAI_API_KEY` | When `LLM_PROVIDER=openai` | OpenAI API key (chat, Whisper) |
-| `MISTRAL_API_KEY` | When `LLM_PROVIDER=mistral` | Mistral API key (chat, Voxtral) |
+| `LLM_PROVIDER` | No | `"openai"`, `"mistral"` or `"openrouter"` (default: `"mistral"`) — LLM backend for every task |
+| `LLM_PROVIDER_EXTRACTION` / `_REPORT` / `_TRANSCRIPTION` | No | Per-task override of `LLM_PROVIDER`; `openrouter` refused for transcription |
+| `OPENAI_API_KEY` | When a task uses `openai` | OpenAI API key (chat, Whisper) |
+| `MISTRAL_API_KEY` | When a task uses `mistral` | Mistral API key (chat, Voxtral) |
+| `OPENROUTER_API_KEY` | When a task uses `openrouter` | OpenRouter API key (chat) |
+| `OPENROUTER_BASE_URL` | No | Default `https://eu.openrouter.ai/api/v1` |
 | `LLM_MODEL_EXTRACTION` | No | Extraction model ID (default: `mistral-medium-3-5` / `gpt-5.4-mini`) |
 | `LLM_MODEL_REPORT` | No | Report generation model ID |
 | `LLM_MODEL_TRANSCRIPTION` | No | Transcription model ID (default: `voxtral-mini-latest` / `whisper-1`) |

@@ -29,8 +29,8 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
 ## Running
 
 ```bash
-# Prerequisites: LLM_PROVIDER + the active provider's API key in env
-# (OPENAI_API_KEY when LLM_PROVIDER=openai; MISTRAL_API_KEY when LLM_PROVIDER=mistral)
+# Prerequisites: OPENAI_API_KEY (judge), MISTRAL_API_KEY (extraction, Medium
+# comparison row), OPENROUTER_API_KEY (canonical report row)
 # and the local DB at ../data/gradebee.db for report cases (see "Report cases")
 
 # Run both domains, print one diff per domain vs its baseline
@@ -52,9 +52,9 @@ cd backend && make eval-baseline
 | Variable | Required | Notes |
 |---|---|---|
 | `OPENAI_API_KEY` | Yes (for OpenAI) | Used by promptfoo's native provider and the judge model |
-| `MISTRAL_API_KEY` | Yes (for Mistral) | Required when `LLM_PROVIDER=mistral` |
-| `OPENROUTER_API_KEY` | No | Only for the commented-out DeepSeek row |
-| `LLM_PROVIDER` | No | `"openai"` (default for evals) or `"mistral"`; selects which API key is required |
+| `MISTRAL_API_KEY` | Yes | Extraction rows and the Medium report row |
+| `OPENROUTER_API_KEY` | Yes (for reports) | Canonical report row (`openrouter:openai/gpt-6-luna` on the EU host) |
+| `LLM_PROVIDER` | No | `eval-cli gen-report` picks providers like the server (`LLM_PROVIDER`, `LLM_PROVIDER_REPORT`); graded providers come from the config |
 
 > Model selection lives in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml` (`providers[].id`). To test a different model, add a provider there — but see "Which model the evals grade" below before touching a canonical one.
 
@@ -65,11 +65,11 @@ Each config runs a **canonical** provider plus any number of **comparison** prov
 | Config | Canonical label | Model | Tracked by `diff-baseline.js` |
 |---|---|---|---|
 | `promptfooconfig.extract.yaml` | `gradebee-extract` | `mistral-medium-3-5` | yes (★) |
-| `promptfooconfig.report.yaml` | `gradebee-report` | `mistral-medium-3-5` | yes (★) |
+| `promptfooconfig.report.yaml` | `gradebee-report` | `openrouter:openai/gpt-6-luna` (EU host) | yes (★) |
 
-The canonical provider must grade the model **production actually runs** — `defaultModels()` in `backend/llm_provider.go`, which resolves to `mistral-medium-3-5` for both extraction and report generation. `diff-baseline.js` counts regressions on canonical rows alone, so a canonical provider pinned to anything else means the regression signal describes a model we do not ship. That is exactly what happened before: the extraction config graded `mistral-small-2603` for its whole life while production ran `mistral-medium-2508`.
+The canonical provider must grade the model **production actually runs** — `defaultModels()` in `backend/llm_provider.go` for the task's deployed provider: `mistral-medium-3-5` for extraction, `openai/gpt-6-luna` on OpenRouter for reports (ADR 0006). Medium stays a comparison row in the report config. `diff-baseline.js` counts regressions on canonical rows alone, so a canonical provider pinned to anything else means the regression signal describes a model we do not ship. That is exactly what happened before: the extraction config graded `mistral-small-2603` for its whole life while production ran `mistral-medium-2508`.
 
-`TestEvalConfigsTrackProductionModels` in `backend/evals_config_test.go` parses both configs and fails if a canonical provider's `id` drifts from `defaultModels()`. It needs no API key and runs under `make test`. It checks the Mistral defaults only — the configs hardcode `mistral:`-prefixed provider ids, so a deployment overriding `LLM_PROVIDER` or `LLM_MODEL_*` is outside what this guard can see. **If you deliberately change a production model, update `defaultModels()` and the config together, then regenerate the baseline.**
+`TestEvalConfigsTrackProductionModels` in `backend/evals_config_test.go` parses both configs and fails if a canonical provider's `id` drifts from `defaultModels()`. It needs no API key and runs under `make test`. The deployed provider per task (extraction `mistral`, report `openrouter`) is written in the test, since it lives in env the test cannot read; `LLM_MODEL_*` overrides are outside what this guard can see. **If you deliberately change a production model, update `defaultModels()` and the config together, then regenerate the baseline.**
 
 Comparison providers are unconstrained — they exist to measure other models and the test ignores them. Note that extraction providers pin no `temperature`, so comparison scores move a little between runs; treat small deltas on non-canonical rows as noise.
 

@@ -117,7 +117,8 @@ export interface ListLevelsResponse {
 /*
 llm_provider.go defines the LLMProvider abstraction that backs all LLM call
 sites (extraction, report generation, transcription). Two production
-implementations exist: openaiProvider and mistralProvider.
+implementations exist: openaiProvider (also serving OpenRouter) and
+mistralProvider. Each task picks its provider by env.
 */
 
 /**

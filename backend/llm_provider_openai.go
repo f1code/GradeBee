@@ -11,8 +11,10 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
-// openaiProvider wraps the sashabaranov go-openai client.
+// openaiProvider wraps the sashabaranov go-openai client. It also serves
+// OpenRouter, whose API is OpenAI-compatible; name tells them apart.
 type openaiProvider struct {
+	name   string
 	client *openai.Client
 	models map[LLMTask]string
 }
@@ -23,12 +25,13 @@ func newOpenAIProvider(apiKey, baseURL string, models map[LLMTask]string) *opena
 		cfg.BaseURL = baseURL
 	}
 	return &openaiProvider{
+		name:   "openai",
 		client: openai.NewClientWithConfig(cfg),
 		models: models,
 	}
 }
 
-func (p *openaiProvider) Name() string { return "openai" }
+func (p *openaiProvider) Name() string { return p.name }
 
 func (p *openaiProvider) Model(task LLMTask) string { return p.models[task] }
 
@@ -52,11 +55,11 @@ func (p *openaiProvider) ChatJSON(ctx context.Context, req ChatJSONRequest, out 
 		},
 	})
 	if err != nil {
-		return LLMResponse{}, fmt.Errorf("openai chat json failed: %w", err)
+		return LLMResponse{}, fmt.Errorf("%s chat json failed: %w", p.name, err)
 	}
 	res := LLMResponse{Usage: chatUsage(resp)}
 	if len(resp.Choices) == 0 {
-		return res, fmt.Errorf("openai returned no choices")
+		return res, fmt.Errorf("%s returned no choices", p.name)
 	}
 	res.Text = resp.Choices[0].Message.Content
 	if parseErr := json.Unmarshal([]byte(res.Text), out); parseErr != nil {
@@ -75,11 +78,11 @@ func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (LLM
 		},
 	})
 	if err != nil {
-		return LLMResponse{}, fmt.Errorf("openai chat text failed: %w", err)
+		return LLMResponse{}, fmt.Errorf("%s chat text failed: %w", p.name, err)
 	}
 	res := LLMResponse{Usage: chatUsage(resp)}
 	if len(resp.Choices) == 0 {
-		return res, fmt.Errorf("openai returned no choices")
+		return res, fmt.Errorf("%s returned no choices", p.name)
 	}
 	res.Text = resp.Choices[0].Message.Content
 	return res, nil

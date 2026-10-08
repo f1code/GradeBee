@@ -23,30 +23,29 @@ type promptfooConfig struct {
 
 // TestEvalConfigsTrackProductionModels asserts that each eval config's canonical
 // provider — the one evals/scripts/diff-baseline.js scores for regressions —
-// names the same model as defaultModels("mistral"), the deployed configuration.
+// names the same provider and model as the deployed configuration:
+// extraction on Mistral, reports on OpenRouter (ADR 0006).
 //
 // Without this the two drift silently: the extraction config spent its life
 // pinned to mistral-small-2603 while production ran mistral-medium-2508, so
 // every pinned eval baseline score described a model we do not ship.
 //
-// Scope, deliberately narrower than LoadProvider: this checks the Mistral
-// defaults only. It does not follow LLM_PROVIDER=openai or the LLM_MODEL_*
-// overrides resolveModels() applies, because the configs hardcode a
-// "mistral:"-prefixed provider id and cannot express either. A deployment that
-// overrides those env vars is outside what this guard can see.
+// Scope, deliberately narrower than LoadProvider: the deployed provider per
+// task lives in env (LLM_PROVIDER, LLM_PROVIDER_REPORT), which this test cannot
+// read, so it is written down in the cases below. It does not follow the
+// LLM_MODEL_* overrides resolveModels() applies either.
 //
 // Non-canonical providers are deliberately unchecked. They exist to compare
 // other models and are free to name anything.
 func TestEvalConfigsTrackProductionModels(t *testing.T) {
-	models := defaultModels("mistral")
-
 	cases := []struct {
-		file  string
-		label string
-		task  LLMTask
+		file     string
+		label    string
+		provider string
+		task     LLMTask
 	}{
-		{"promptfooconfig.extract.yaml", "gradebee-extract", LLMTaskExtraction},
-		{"promptfooconfig.report.yaml", "gradebee-report", LLMTaskReport},
+		{"promptfooconfig.extract.yaml", "gradebee-extract", "mistral", LLMTaskExtraction},
+		{"promptfooconfig.report.yaml", "gradebee-report", "openrouter", LLMTaskReport},
 	}
 
 	for _, tc := range cases {
@@ -67,10 +66,10 @@ func TestEvalConfigsTrackProductionModels(t *testing.T) {
 			}
 			require.NotEmpty(t, got, "no provider labelled %q in %s", tc.label, tc.file)
 
-			assert.Equal(t, "mistral:"+models[tc.task], got,
-				"%s grades a different model than defaultModels(\"mistral\"): fix the "+
+			assert.Equal(t, tc.provider+":"+defaultModels(tc.provider)[tc.task], got,
+				"%s grades a different model than defaultModels(%q): fix the "+
 					"provider id, or update defaultModels() and run make eval-baseline",
-				tc.file)
+				tc.file, tc.provider)
 		})
 	}
 }

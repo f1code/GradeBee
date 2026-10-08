@@ -133,8 +133,9 @@ GradeBee collects two categories of feedback on LLM-generated content:
 | Var | Used By | Purpose |
 |-----|---------|---------|
 | `OPENAI_API_KEY` | eval-cli, production | Required when `LLM_PROVIDER=openai` |
-| `MISTRAL_API_KEY` | production | Required when `LLM_PROVIDER=mistral` |
-| `LLM_PROVIDER` | production, eval-cli | `"openai"` or `"mistral"` (default `"mistral"`) |
+| `MISTRAL_API_KEY` | production | Required when a task uses `mistral` |
+| `OPENROUTER_API_KEY` | production, report eval | Required when a task uses `openrouter`; the canonical report row runs on OpenRouter EU |
+| `LLM_PROVIDER` | production, eval-cli | `"openai"`, `"mistral"` or `"openrouter"` (default `"mistral"`); `LLM_PROVIDER_<TASK>` overrides per task |
 | `EVAL_MODEL` | eval-cli only | Override model for evaluation (default: active provider's extraction model) |
 
 ## Verification

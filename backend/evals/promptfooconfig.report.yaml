@@ -8,15 +8,25 @@ prompts:
   - label: gold-reference
     raw: '{{reference}}'
 
-# Providers — native Mistral/OpenAI providers for report generation.
+# Providers for report generation.
 # gradebee-report is the canonical (production) provider — tracked for
 # regressions against the local report baseline (data/eval-baseline-report.json).
+# Production routes reports to OpenRouter's EU host (ADR 0006); apiBaseUrl
+# pins the eval there too. omitDefaults: see the judge provider below.
 providers:
-  - id: mistral:mistral-medium-3-5
+  - id: openrouter:openai/gpt-6-luna
     label: gradebee-report
     prompts: [gradebee-prompt]
+    config:
+      apiBaseUrl: https://eu.openrouter.ai/api/v1
+      omitDefaults: true
 
   # Comparison / experimental providers:
+  # Medium 3.5, production report model until task 193.
+  - id: mistral:mistral-medium-3-5
+    label: gradebee-report-medium
+    prompts: [gradebee-prompt]
+
   # mistral-large-4, task 190, prompt bbcc024bf1b6, 3 uncached runs: row 0.624
   # vs Medium 0.613, grounding 0.29 vs 0.35, all inside the ±0.15 gold band;
   # 2x latency. Not adopted. It reasons by default, against its docs, and
@@ -30,15 +40,9 @@ providers:
   #     reasoning_effort: none
   #     max_tokens: 4096
 
-  # gpt-6-luna, task 190, prompt bbcc024bf1b6, 3 uncached runs: row 0.817 vs
-  # Medium 0.618, grounding 0.94 vs 0.38, 16/27 pass vs 0/27; 26 s a report.
-  # The judge is OpenAI too, so self-preference may inflate it.
-  # omitDefaults: see the judge provider below.
-  - id: openai:chat:gpt-6-luna
-    label: gradebee-report-openai
-    prompts: [gradebee-prompt]
-    config:
-      omitDefaults: true
+  # gpt-6-luna on OpenAI direct, task 190, prompt bbcc024bf1b6, 3 uncached
+  # runs: row 0.817 vs Medium 0.618, grounding 0.94 vs 0.38, 16/27 pass vs
+  # 0/27; 26 s a report. Now canonical via OpenRouter EU (task 193).
 
   # gpt-6.1-sol, task 190 probe, 2 cases: every axis 1.0, 33 s, but it is also
   # the judge.

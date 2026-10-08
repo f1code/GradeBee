@@ -11,8 +11,7 @@ test:
 	node --test evals/scoring/extraction.test.js evals/scoring/report-wordcounts.test.js
 
 # Live-LLM tests (llm_live_test.go) run as part of `test` when LLM_PROVIDER
-# and the matching API key (OPENAI_API_KEY or MISTRAL_API_KEY) are set, and
-# skip themselves otherwise.
+# and the matching API key are set, and skip themselves otherwise.
 dev:
 	cd cmd/server && go run .
 
@@ -24,8 +23,8 @@ check-types:
 	git diff --exit-code ../frontend/src/api-types.gen.ts || (echo "Generated types are out of date. Run 'make generate' in backend/" && exit 1)
 
 # Run both extraction and report eval configs, then diff each against its own
-# baseline. Requires: LLM_PROVIDER + the active provider's API key
-# (OPENAI_API_KEY or MISTRAL_API_KEY).
+# baseline. Requires: OPENAI_API_KEY (judge), MISTRAL_API_KEY,
+# OPENROUTER_API_KEY (canonical report row).
 #
 # Baselines hold real note text and names, so they live under data/
 # (gitignored) next to the DB.

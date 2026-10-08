@@ -34,7 +34,7 @@ Each class has a **level** (required) and an optional **time slot**.
 | Authentication | Clerk (Google OAuth)                                   |
 | Backend        | Go 1.24, plain `net/http`                              |
 | Storage        | SQLite database, local disk (audio)                    |
-| AI             | Mistral (extraction, reports), Voxtral (transcription) |
+| AI             | Mistral (extraction), Voxtral (transcription), gpt-6-luna via OpenRouter EU (reports) |
 | Infrastructure | VPS + Dokku (single container)                         |
 | IaC            | Terraform                                              |
 

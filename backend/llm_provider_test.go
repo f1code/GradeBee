@@ -195,3 +195,154 @@ func TestOpenAITranscribe_RoundsDuration(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, LLMResponse{Text: "hi", Usage: &LLMUsage{AudioSeconds: 42}}, resp)
 }
+
+// clearLLMEnv unsets every variable LoadProvider reads, so a developer's
+// local env does not leak into the test.
+func clearLLMEnv(t *testing.T) {
+	t.Helper()
+	for _, k := range []string{
+		"LLM_PROVIDER", "LLM_PROVIDER_EXTRACTION", "LLM_PROVIDER_REPORT", "LLM_PROVIDER_TRANSCRIPTION",
+		"LLM_MODEL_EXTRACTION", "LLM_MODEL_REPORT", "LLM_MODEL_TRANSCRIPTION",
+		"OPENAI_API_KEY", "MISTRAL_API_KEY", "OPENROUTER_API_KEY",
+		"OPENAI_BASE_URL", "MISTRAL_BASE_URL", "OPENROUTER_BASE_URL",
+	} {
+		t.Setenv(k, "")
+	}
+}
+
+func TestLoadProvider_PerTask(t *testing.T) {
+	tests := []struct {
+		name    string
+		env     map[string]string
+		wantErr string
+		check   func(t *testing.T, p LLMProvider)
+	}{
+		{
+			name: "all tasks on one provider skip the router",
+			env:  map[string]string{"LLM_PROVIDER": "mistral", "MISTRAL_API_KEY": "k"},
+			check: func(t *testing.T, p LLMProvider) {
+				_, ok := p.(*instrumentedProvider)
+				assert.True(t, ok, "got %T", p)
+				assert.Equal(t, "mistral", p.Name())
+			},
+		},
+		{
+			name: "report on openrouter",
+			env:  map[string]string{"LLM_PROVIDER": "mistral", "LLM_PROVIDER_REPORT": "openrouter", "MISTRAL_API_KEY": "k", "OPENROUTER_API_KEY": "k"},
+			check: func(t *testing.T, p LLMProvider) {
+				r, ok := p.(*taskRouter)
+				require.True(t, ok, "got %T", p)
+				assert.Equal(t, "openrouter", r.report.Name())
+				assert.Equal(t, "mistral", r.extraction.Name())
+				assert.Equal(t, "mistral", r.transcription.Name())
+				assert.Equal(t, "openai/gpt-6-luna", p.Model(LLMTaskReport))
+				assert.Equal(t, "mistral-medium-3-5", p.Model(LLMTaskExtraction))
+				assert.Equal(t, "voxtral-mini-latest", p.Model(LLMTaskTranscription))
+			},
+		},
+		{
+			name:    "unknown task provider names its variable",
+			env:     map[string]string{"LLM_PROVIDER": "mistral", "LLM_PROVIDER_REPORT": "anthropic", "MISTRAL_API_KEY": "k"},
+			wantErr: `unknown LLM_PROVIDER_REPORT "anthropic"`,
+		},
+		{
+			name:    "unknown default provider",
+			env:     map[string]string{"LLM_PROVIDER": "gemini"},
+			wantErr: `unknown LLM_PROVIDER "gemini"`,
+		},
+		{
+			name:    "missing key for the report provider",
+			env:     map[string]string{"LLM_PROVIDER": "mistral", "LLM_PROVIDER_REPORT": "openrouter", "MISTRAL_API_KEY": "k"},
+			wantErr: "OPENROUTER_API_KEY is not set",
+		},
+		{
+			name:    "missing key for the default provider",
+			env:     map[string]string{"LLM_PROVIDER": "mistral", "LLM_PROVIDER_REPORT": "openrouter", "OPENROUTER_API_KEY": "k"},
+			wantErr: "MISTRAL_API_KEY is not set",
+		},
+		{
+			name:    "openrouter refused for transcription",
+			env:     map[string]string{"LLM_PROVIDER": "openrouter", "OPENROUTER_API_KEY": "k"},
+			wantErr: "transcription cannot use openrouter",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clearLLMEnv(t)
+			for k, v := range tc.env {
+				t.Setenv(k, v)
+			}
+			p, err := LoadProvider(nil)
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			tc.check(t, p)
+		})
+	}
+}
+
+func TestOpenRouterBaseURL_DefaultsToEU(t *testing.T) {
+	t.Setenv("OPENROUTER_BASE_URL", "")
+	assert.Equal(t, "https://eu.openrouter.ai/api/v1", openRouterBaseURL())
+}
+
+// chatServer answers chat completions and Voxtral transcriptions, and records
+// that it was called.
+func chatServer(t *testing.T, content string, called *bool) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*called = true
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/v1/audio/transcriptions" {
+			_, _ = io.WriteString(w, `{"text":"t","usage":{"prompt_audio_seconds":3}}`) //nolint:errcheck // test server
+			return
+		}
+		assert.Equal(t, "/v1/chat/completions", r.URL.Path)
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":`+content+`}}],"usage":{"prompt_tokens":5,"completion_tokens":2}}`) //nolint:errcheck // test server
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestLoadProvider_RoutesTasksAndRecordsRealProvider(t *testing.T) {
+	var mistralHit, openrouterHit bool
+	mistralSrv := chatServer(t, `"{}"`, &mistralHit)
+	openrouterSrv := chatServer(t, `"report"`, &openrouterHit)
+
+	clearLLMEnv(t)
+	t.Setenv("LLM_PROVIDER", "mistral")
+	t.Setenv("LLM_PROVIDER_REPORT", "openrouter")
+	t.Setenv("MISTRAL_API_KEY", "k")
+	t.Setenv("OPENROUTER_API_KEY", "k")
+	t.Setenv("MISTRAL_BASE_URL", mistralSrv.URL+"/v1")
+	t.Setenv("OPENROUTER_BASE_URL", openrouterSrv.URL+"/v1")
+
+	db := setupTestDB(t)
+	p, err := LoadProvider(db)
+	require.NoError(t, err)
+	ctx := withLLMCaller(context.Background(), "user_1", "")
+
+	resp, err := p.ChatText(ctx, ChatTextRequest{UserPrompt: "x"})
+	require.NoError(t, err)
+	assert.Equal(t, "report", resp.Text)
+	assert.True(t, openrouterHit)
+	assert.False(t, mistralHit)
+
+	_, err = p.ChatJSON(ctx, ChatJSONRequest{}, &struct{}{})
+	require.NoError(t, err)
+	assert.True(t, mistralHit)
+
+	openrouterHit = false
+	_, err = p.Transcribe(ctx, TranscribeRequest{Filename: "a.mp3", Audio: strings.NewReader("x")})
+	require.NoError(t, err)
+	assert.False(t, openrouterHit)
+
+	rows := llmCallRows(t, db)
+	require.Len(t, rows, 3)
+	assert.Equal(t, []string{"mistral", "voxtral-mini-latest", "transcription"}, []string{rows[2].Provider, rows[2].Model, rows[2].Task})
+	assert.Equal(t, []string{"openrouter", "openai/gpt-6-luna", "report"}, []string{rows[0].Provider, rows[0].Model, rows[0].Task})
+	assert.Equal(t, []string{"mistral", "mistral-medium-3-5", "extraction"}, []string{rows[1].Provider, rows[1].Model, rows[1].Task})
+}
