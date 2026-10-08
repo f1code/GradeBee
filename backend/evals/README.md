@@ -4,7 +4,7 @@ Regression tests for extraction and report-generation quality, powered by [promp
 
 ## Why promptfoo drives the LLM
 
-Promptfoo owns the OpenAI call, not eval-cli. This unlocks promptfoo's native response caching (re-runs don't re-hit the model), cost/latency tracking per test, and multi-model comparison by changing the `id:` in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml`. Prompt construction stays in Go — eval-cli is a pure prompt builder that outputs a messages array; it has no OpenAI client.
+Promptfoo owns the model call, not eval-cli. This unlocks promptfoo's native response caching (re-runs don't re-hit the model), cost/latency tracking per test, and multi-model comparison by changing the `id:` in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml`. Prompt construction stays in Go — eval-cli is a pure prompt builder that outputs a messages array; it has no LLM client.
 
 The harness is split into two domain-specific configs:
 - **`promptfooconfig.extract.yaml`** — extraction tests with structured output (json_schema)
@@ -51,7 +51,7 @@ cd backend && make eval-baseline
 
 | Variable | Required | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | No | OpenAI comparison rows only |
+| `OPENAI_API_KEY` | No | Neither config needs it; only for an OpenAI comparison row you uncomment |
 | `MISTRAL_API_KEY` | Yes | Extraction rows and the Medium report row |
 | `OPENROUTER_API_KEY` | Yes (for reports) | Canonical report row (`openrouter:openai/gpt-6-luna` on the EU host) and the report judge |
 | `LLM_PROVIDER` | No | `eval-cli gen-report` picks providers like the server (`LLM_PROVIDER`, `LLM_PROVIDER_REPORT`); graded providers come from the config |

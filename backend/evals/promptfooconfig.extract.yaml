@@ -83,16 +83,9 @@ providers:
 # assemblePassages (backend/voice_note_passages.go). It runs before the
 # assertions, so every row below is scored on what a teacher would read, not on
 # the model's raw output. See the header of scoring/assemble.js.
-#
-# The judge model is for the report config's llm-rubric assertions; extraction
-# is scored by the custom scorer.
 defaultTest:
   options:
     transform: file://scoring/assemble.js
-    provider:
-      id: openai:chat:gpt-5.6-terra
-      config:
-        temperature: 0
 
 tests:
   - description: "extraction: preserves teacher voice (no paraphrasing)"
