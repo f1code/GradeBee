@@ -24,6 +24,12 @@ LLM call the teacher never chose.
 Names still flow where they are the product, as in ADR-0003: the eval's report-generation and
 judge calls see the same inputs production does.
 
+**The report judge runs outside the EU** (#195): `google/gemini-3.8-flash` on Google Vertex
+through OpenRouter, whose EU host does not serve it. Production report data stays EU-only
+(ADR-0006); the eval judge is the exception. The OpenRouter account's data policy holds: zero
+retention, no host that trains on prompts. The judge before it, gpt-6.1-sol on OpenAI direct,
+also ran outside the EU.
+
 References are fresh reports, generated under the Level's current instructions from
 current-term notes, then reviewed against the Kids&Us sources, not reports a teacher once kept.
 

@@ -23,15 +23,15 @@ check-types:
 	git diff --exit-code ../frontend/src/api-types.gen.ts || (echo "Generated types are out of date. Run 'make generate' in backend/" && exit 1)
 
 # Run both extraction and report eval configs, then diff each against its own
-# baseline. Requires: OPENAI_API_KEY (judge), MISTRAL_API_KEY,
-# OPENROUTER_API_KEY (canonical report row).
+# baseline. Requires: MISTRAL_API_KEY, OPENROUTER_API_KEY (canonical report
+# row, report judge).
 #
 # Baselines hold real note text and names, so they live under data/
 # (gitignored) next to the DB.
 EXTRACT_BASELINE := ../data/eval-baseline-extract.json
 REPORT_BASELINE  := ../data/eval-baseline-report.json
-# The gold-reference row moved up to 0.10 across uncached runs of an unchanged
-# input (task 186), so a smaller report move is judge noise.
+# Fixed report outputs moved up to 0.10 across uncached judge runs (task 195),
+# so a smaller report move is judge noise.
 REPORT_DIFF_FLAGS := --band=0.15 --axes
 
 # Fixed once per make invocation, so eval-baseline pins the files its own eval

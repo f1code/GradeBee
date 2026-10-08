@@ -29,8 +29,8 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
 ## Running
 
 ```bash
-# Prerequisites: OPENAI_API_KEY (judge), MISTRAL_API_KEY (extraction, Medium
-# comparison row), OPENROUTER_API_KEY (canonical report row)
+# Prerequisites: MISTRAL_API_KEY (extraction, Medium comparison row),
+# OPENROUTER_API_KEY (canonical report row, report judge)
 # and the local DB at ../data/gradebee.db for report cases (see "Report cases")
 
 # Run both domains, print one diff per domain vs its baseline
@@ -51,9 +51,9 @@ cd backend && make eval-baseline
 
 | Variable | Required | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | Yes (for OpenAI) | Used by promptfoo's native provider and the judge model |
+| `OPENAI_API_KEY` | No | OpenAI comparison rows only |
 | `MISTRAL_API_KEY` | Yes | Extraction rows and the Medium report row |
-| `OPENROUTER_API_KEY` | Yes (for reports) | Canonical report row (`openrouter:openai/gpt-6-luna` on the EU host) |
+| `OPENROUTER_API_KEY` | Yes (for reports) | Canonical report row (`openrouter:openai/gpt-6-luna` on the EU host) and the report judge |
 | `LLM_PROVIDER` | No | `eval-cli gen-report` picks providers like the server (`LLM_PROVIDER`, `LLM_PROVIDER_REPORT`); graded providers come from the config |
 
 > Model selection lives in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml` (`providers[].id`). To test a different model, add a provider there — but see "Which model the evals grade" below before touching a canonical one.
@@ -229,9 +229,32 @@ its task and rubric from the report config's `defaultTest`.
 
 ## Report scoring
 
-The judge is `openai:chat:gpt-6.1-sol` with `omitDefaults: true`: promptfoo 0.121
-treats only `gpt-5*` as reasoning models and sends `max_tokens` to anything else,
-which gpt-6 rejects. No `temperature`: promptfoo never sent it to `gpt-5*` either.
+The judge is `openrouter:google/gemini-3.8-flash`, pinned to Google Vertex with
+fallbacks off (#195). It needs `OPENROUTER_API_KEY`. No vendor under test may
+judge: not OpenAI (luna, the canonical report model), Anthropic (edited the
+references) or Mistral (the Medium row). OpenRouter's EU host does not serve it;
+ADR-0005 records the exception. `omitDefaults` drops promptfoo's `max_tokens`
+1024, which reasoning would exhaust, and `max_tokens: 32768` bounds a runaway.
+No `temperature`. `showThinking: false` keeps the reasoning, which drafts its
+own JSON, out of the graded answer.
+
+#195 measured the candidates on the same cached luna and Medium outputs, plus
+three `--no-cache` runs each of the gold rows and of nine fixed luna outputs
+(an `echo` row like gold, since gold sat at the top of the scale):
+
+| Judge | Judge cost a full run | Luna fixed-output row swing | Luna − Medium row |
+| --- | --- | --- | --- |
+| gpt-6.1-sol (before) | $1.09 | not measured | 0.817 − 0.618 (#190) |
+| deepseek-v4.1-flash (Together) | $0.48 | 0.25 | 0.811 − 0.628 |
+| deepseek-v4-pro-0813 (StreamLake) | $1.03, 4x flash's time | 0.25 | 0.817 − 0.661 |
+| gemini-3.8-flash (Vertex), with the anchor below | $0.69 | 0.10 | 0.811 − 0.672 |
+
+At `temperature: 0` DeepSeek flash looped to the token cap in 5 of 135 calls and
+scored "No output" as 0. DeepSeek's own host is off: the account's data policy
+blocks a host that trains on prompts. Gemini first passed invented behaviours
+("waits her turn") as general statements, grounding Medium at 0.75; the
+grounding anchor below brought it to 0.53. The non-OpenAI judges score luna as
+sol did (0.81–0.82), so sol showed no sign of self-preference.
 
 Five `llm-rubric` assertions, one per axis, each a promptfoo `metric`, so the
 results JSON carries them in `namedScores`: structure, grounding, completeness,
@@ -251,7 +274,10 @@ statements and its `[MISSING]` marker, a required example is a minimum, and
 "each fact once" covers note facts, not general statements. Grounding checks
 every time-ordered claim against the note dates: a change needs an earlier and
 a later note that differ on the same skill, or a note stating it, so a trend or before/after story the
-notes do not show is an invented fact.
+notes do not show is an invented fact. A behaviour, routine or interaction no
+note shows ("waits her turn", "gets on well with the other children") is an
+invented fact too, not a general statement (#195): a parent who knows the class
+can tell it never happened.
 
 The judge cannot count words (it said 63 for a section of 83), so code
 measures: `scoring/report-wordcounts.js`, an assertion `transform`, appends
@@ -284,6 +310,13 @@ Three `--no-cache` gold runs: means 0.917, 0.928 and 0.922; `tweens_pair_a`
 failed grounding in all three on a change its one note states, which led to
 the "or a note states it" clause; `very_short_last_note` failed compliance once.
 The baseline re-pinned after that clause passes every gold row.
+
+#195 swapped the judge and added the behaviour clause, which failed
+`very_short_last_note` and `single_note` on "gets on well with the other
+children"; both references dropped the phrase, in `data/gradebee.db`. Three
+`--no-cache` gold runs then: every row passed, means 0.989 each, spread 0.00.
+Nine fixed luna outputs, three runs: largest row spread 0.10, so the ±0.15 band
+stands.
 
 ## Extraction scoring axes
 

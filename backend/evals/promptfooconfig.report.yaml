@@ -44,8 +44,8 @@ providers:
   # runs: row 0.817 vs Medium 0.618, grounding 0.94 vs 0.38, 16/27 pass vs
   # 0/27; 26 s a report. Now canonical via OpenRouter EU (task 193).
 
-  # gpt-6.1-sol, task 190 probe, 2 cases: every axis 1.0, 33 s, but it is also
-  # the judge.
+  # gpt-6.1-sol, task 190 probe, 2 cases: every axis 1.0, 33 s. Judge until
+  # task 195.
   # - id: openai:chat:gpt-6.1-sol
   #   label: gradebee-report-sol
   #   prompts: [gradebee-prompt]
@@ -73,12 +73,21 @@ defaultTest:
     task: build-report-prompt
   options:
     provider:
-      # promptfoo 0.121 treats only gpt-5* as reasoning models and would send
-      # max_tokens, which gpt-6 rejects; omitDefaults drops it. No
-      # temperature: reasoning models reject it.
-      id: openai:chat:gpt-6.1-sol
+      # Not OpenAI (luna's vendor), Anthropic (wrote the references) or
+      # Mistral (Medium row); see evals/README.md "Report scoring" and
+      # ADR-0005 for the non-EU host. omitDefaults drops promptfoo's
+      # max_tokens 1024, which reasoning would exhaust; 32768 bounds a
+      # runaway. No temperature: at 0 DeepSeek, a candidate, looped to the cap.
+      # showThinking off, or the reasoning, which drafts its own JSON, lands
+      # in front of the answer.
+      id: openrouter:google/gemini-3.8-flash
       config:
         omitDefaults: true
+        showThinking: false
+        max_tokens: 32768
+        provider:
+          order: [google-vertex]
+          allow_fallbacks: false
     rubricPrompt: |
       You grade one axis of a school report card that a model wrote from a teacher's notes.
 
@@ -147,6 +156,9 @@ defaultTest:
         General statements about attitude, progress and time in class that fit the notes are
         acceptable, and expected where the notes are thin: e.g. "has settled well into the class
         routines", "follows the teacher's instructions", "contributes to a positive atmosphere".
+        A behaviour, routine or interaction no note shows is an invented specific fact, not a general
+        statement: "waits her turn", "shares materials", "starts tasks promptly", "gets on well with
+        the other children". A parent who knows the class can tell it never happened.
         Restating a note in other words is grounded. A [MISSING] marker is a note for the teacher,
         not a claim: never penalise it.
         Check every time-ordered claim ("at the start of term", "at first", "recently", "since then",
