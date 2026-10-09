@@ -304,9 +304,11 @@ func TestUseRosterName(t *testing.T) {
 		{"She read with her.", []string{"She", "her"}, "She read with her."},
 		{"Leah read.", nil, "Leah read."},
 		{"Leah read.", []string{" "}, "Leah read."},
+		{"Ellie Nor read.", []string{"Ellie", "Ellie Nor"}, "Lise read."},
 	} {
 		assert.Equal(t, tc.want, useRosterName(tc.summary, tc.labels, "Lise"), tc.summary)
 	}
+	assert.Equal(t, "Ali Khan read.", useRosterName("Ali read.", []string{"Ali", "Bo", "Ali"}, "Ali Khan"), "a repeated label swaps once")
 	assert.Equal(t, "$1 read.", useRosterName("Leah read.", []string{"Leah"}, "$1"), "name is literal, not a template")
 }
 

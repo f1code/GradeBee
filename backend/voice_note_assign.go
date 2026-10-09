@@ -14,12 +14,14 @@
 package handler
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -362,6 +364,8 @@ func handleAssignPassages(w http.ResponseWriter, r *http.Request) {
 //
 // The length cap is the whole of the text check. A substring rule would fail
 // the first time the model rewrote a sentence, which is what a summary is.
+// The one repair: own passages leave with the roster name swapped in
+// (useRosterName).
 func splitAssignPassages(passages []AssignPassage, transcript, name string) (own, group []string, kindCounts map[PassageKind]int, err error) {
 	kindCounts = map[PassageKind]int{}
 	for _, p := range passages {
@@ -394,7 +398,11 @@ func splitAssignPassages(passages []AssignPassage, transcript, name string) (own
 // the text the first call wrote. The summary is a rewrite: a label it does
 // not hold verbatim (respelt, accent changed) leaves the text as spoken.
 func useRosterName(summary string, labels []string, name string) string {
-	for _, l := range labels {
+	// Longest first, once each: "Ellie" must not cut into "Ellie Nor", and a
+	// repeat would swap the name it just wrote.
+	labels = slices.Clone(labels)
+	slices.SortFunc(labels, func(a, b string) int { return cmp.Or(len(b)-len(a), strings.Compare(a, b)) })
+	for _, l := range slices.Compact(labels) {
 		l = strings.TrimSpace(l)
 		if key := FoldName(l); key == "" || labelStopList[key] {
 			continue
