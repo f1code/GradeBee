@@ -119,6 +119,25 @@ describe('PassageReview filing', () => {
     expect(mockListStudents).not.toHaveBeenCalled()
   })
 
+  // The server swaps the spoken name for the roster one (#199), so a labelled
+  // row carries its labels back.
+  it('sends a row\'s spoken labels', async () => {
+    const user = userEvent.setup()
+    const onAssign = vi.fn().mockResolvedValue(filed)
+    const misheard: JobPassage[] = [{ kind: 'child', spokenLabels: ['Ellie Nor'], summary: 'Ellie Nor read alone.' }]
+    render(<PassageReview passages={misheard} classId={3} onAssign={onAssign} />)
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Eleonore' })).toBeInTheDocument()
+    })
+    await user.click(screen.getAllByTestId('passage-review-check')[0])
+    await user.click(screen.getByRole('button', { name: 'Eleonore' }))
+
+    expect(onAssign).toHaveBeenCalledWith(expect.objectContaining({
+      passages: [{ kind: 'child', spokenLabels: ['Ellie Nor'], summary: 'Ellie Nor read alone.' }],
+    }))
+  })
+
   // The pick is the confirm: choosing a child sends the ticked rows at once.
   it('lists the pinned class, and assigns the ticked rows plus the group passage on the pick', async () => {
     const user = userEvent.setup()

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -48,11 +49,12 @@ type AssignPassagesRequest struct {
 }
 
 // AssignPassage is one passage as the card sends it back: what kind it was,
-// and the words. Nothing else — spoken labels and the student are the
-// server's business, and the server does not read them here.
+// the words, and the names the teacher spoke for it. The labels only steer
+// the swap to the roster name; the student stays the request's (#199).
 type AssignPassage struct {
-	Kind    PassageKind `json:"kind"`
-	Summary string      `json:"summary"`
+	Kind         PassageKind `json:"kind"`
+	Summary      string      `json:"summary"`
+	SpokenLabels []string    `json:"spokenLabels,omitempty"`
 }
 
 // AssignPassagesResponse is the note link the call made, in the shape the card
@@ -190,7 +192,7 @@ func handleAssignPassages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	own, group, kindCounts, err := splitAssignPassages(req.Passages, transcript)
+	own, group, kindCounts, err := splitAssignPassages(req.Passages, transcript, student.Name)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
@@ -360,7 +362,7 @@ func handleAssignPassages(w http.ResponseWriter, r *http.Request) {
 //
 // The length cap is the whole of the text check. A substring rule would fail
 // the first time the model rewrote a sentence, which is what a summary is.
-func splitAssignPassages(passages []AssignPassage, transcript string) (own, group []string, kindCounts map[PassageKind]int, err error) {
+func splitAssignPassages(passages []AssignPassage, transcript, name string) (own, group []string, kindCounts map[PassageKind]int, err error) {
 	kindCounts = map[PassageKind]int{}
 	for _, p := range passages {
 		switch p.Kind {
@@ -378,13 +380,30 @@ func splitAssignPassages(passages []AssignPassage, transcript string) (own, grou
 		if p.Kind == PassageGroup {
 			group = append(group, p.Summary)
 		} else {
-			own = append(own, p.Summary)
+			own = append(own, useRosterName(p.Summary, p.SpokenLabels, name))
 		}
 	}
 	if len(own) == 0 {
 		return nil, nil, nil, errors.New("at least one child, absent or unknown passage is required")
 	}
 	return own, group, kindCounts, nil
+}
+
+// useRosterName swaps each label the teacher spoke for the child's roster
+// name, whole word, any case. Before the replay guard, so a retry looks for
+// the text the first call wrote. The summary is a rewrite: a label it does
+// not hold verbatim (respelt, accent changed) leaves the text as spoken.
+func useRosterName(summary string, labels []string, name string) string {
+	for _, l := range labels {
+		l = strings.TrimSpace(l)
+		if key := FoldName(l); key == "" || labelStopList[key] {
+			continue
+		}
+		// Go's \b is ASCII-only and would split "Lévy" at the é.
+		re := regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}])` + regexp.QuoteMeta(l) + `([^\p{L}\p{N}]|$)`)
+		summary = re.ReplaceAllString(summary, "${1}"+strings.ReplaceAll(name, "$", "$$")+"${2}")
+	}
+	return summary
 }
 
 // logPassageRecovered writes the recovery record: create, append, or replay

@@ -276,6 +276,40 @@ func TestAssignPassages_TwoRowsMakeOneNote(t *testing.T) {
 	assert.Equal(t, "helped the little ones\n\ndid not say much", notes[0].Summary)
 }
 
+// A name the roster did not answer to (#199): the note holds the child's roster
+// name, not the misheard one, and a replay finds the note it wrote.
+func TestAssignPassages_SwapsTheSpokenNameForTheRosterName(t *testing.T) {
+	w := newAssembleWorld(t)
+	misheard := AssignPassage{Kind: PassageChild, Summary: "Alys helped. alys's turn.", SpokenLabels: []string{"Alys"}}
+
+	for range 2 {
+		rec, _ := w.assign(t, "u1", w.uploadID, w.toAlice(misheard))
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	}
+
+	notes := w.notesFor(t, w.alice)
+	require.Len(t, notes, 1)
+	assert.Equal(t, "Alice helped. Alice's turn.", notes[0].Summary)
+}
+
+func TestUseRosterName(t *testing.T) {
+	for _, tc := range []struct {
+		summary string
+		labels  []string
+		want    string
+	}{
+		{"Léa est là. LÉA lit.", []string{"Léa"}, "Lise est là. Lise lit."},
+		{"Lévy and Lévyne", []string{"Lévy"}, "Lise and Lévyne"},
+		{"Lea read.", []string{"Léa"}, "Lea read."},
+		{"She read with her.", []string{"She", "her"}, "She read with her."},
+		{"Leah read.", nil, "Leah read."},
+		{"Leah read.", []string{" "}, "Leah read."},
+	} {
+		assert.Equal(t, tc.want, useRosterName(tc.summary, tc.labels, "Lise"), tc.summary)
+	}
+	assert.Equal(t, "$1 read.", useRosterName("Leah read.", []string{"Leah"}, "$1"), "name is literal, not a template")
+}
+
 // Group passages go last whatever order the card sent them in; the server
 // owns that rule, as it does for the pipeline's notes.
 func TestAssignPassages_GroupTextGoesLast(t *testing.T) {
