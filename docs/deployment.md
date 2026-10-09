@@ -217,7 +217,7 @@ attempt. An E2E timeout does not block a review app, but a backend/frontend setu
 | `CLERK_SECRET_KEY` | Clerk backend secret key (injected into review apps via `dokku config:set`) |
 | `OPENAI_API_KEY` | OpenAI API key (used when a task uses `openai`) |
 | `MISTRAL_API_KEY` | Mistral API key (used when a task uses `mistral`; required for default config) |
-| `OPENROUTER_API_KEY` | OpenRouter API key (used when a task uses `openrouter`, e.g. `LLM_PROVIDER_REPORT=openrouter`). Not yet passed by the deploy workflows: add it with the production switch (ADR 0006) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (used when a task uses `openrouter`, e.g. `LLM_PROVIDER_REPORT=openrouter`) |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Clerk publishable key (passed as Docker build-arg) |
 | `VITE_SENTRY_DSN` | Sentry DSN (optional; passed as Docker build-arg) |
 | `VITE_FEATURE_REPORTS_ADMIN_ONLY` | Feature flag (repo variable, not secret; optional; passed as Docker build-arg) |
@@ -243,16 +243,16 @@ dokku git:from-image gradebee ghcr.io/<owner>/gradebee:<tag>
 
 There are two distinct sets of variables:
 
-### Backend runtime (set by Ansible via `dokku config:set`, sourced from `secrets.yml` / `vars.yml`)
+### Backend runtime (set via `dokku config:set` by Ansible from `vars.yml`, or by the deploy workflows from GitHub secrets)
 
 | Variable | Secret? | Description |
 |---|---|---|
-| `CLERK_SECRET_KEY` | Yes (`secrets.yml`) | Clerk backend API key |
-| `LLM_PROVIDER` | No (`vars.yml`) | `"openai"`, `"mistral"` or `"openrouter"` (default `"mistral"`) |
-| `LLM_PROVIDER_REPORT` | No (`vars.yml`) | Report provider; `"openrouter"` in production (ADR 0006). `_EXTRACTION` / `_TRANSCRIPTION` likewise |
-| `OPENAI_API_KEY` | Yes (`secrets.yml`) | OpenAI API key (used when a task uses `openai`) |
-| `MISTRAL_API_KEY` | Yes (`secrets.yml`) | Mistral API key (used when a task uses `mistral`) |
-| `OPENROUTER_API_KEY` | Yes (`secrets.yml`) | OpenRouter API key (used when a task uses `openrouter`) |
+| `CLERK_SECRET_KEY` | Yes (GitHub secret) | Clerk backend API key |
+| `LLM_PROVIDER` | No (unset) | `"openai"`, `"mistral"` or `"openrouter"` (default `"mistral"`) |
+| `LLM_PROVIDER_REPORT` | No (deploy workflows) | Report provider; `"openrouter"` in production and review apps (ADR 0006). `_EXTRACTION` / `_TRANSCRIPTION` likewise, unset |
+| `OPENAI_API_KEY` | Yes (GitHub secret) | OpenAI API key (used when a task uses `openai`) |
+| `MISTRAL_API_KEY` | Yes (GitHub secret) | Mistral API key (used when a task uses `mistral`) |
+| `OPENROUTER_API_KEY` | Yes (GitHub secret) | OpenRouter API key (used when a task uses `openrouter`) |
 | `DB_PATH` | No (`vars.yml`) | SQLite path (default `/data/gradebee.db`) |
 | `UPLOADS_DIR` | No (`vars.yml`) | Audio upload directory (default `/data/uploads`) |
 | `UPLOAD_RETENTION_HOURS` | No (`vars.yml`) | Hours to keep a voice note's row, its transcript, and any audio still on disk, counted from processing or dismissal, or from upload if neither happened (default 168 = 7 days) |
@@ -263,8 +263,9 @@ There are two distinct sets of variables:
 | `SENTRY_RELEASE` | No | Release tag; baked in via `VITE_APP_VERSION` build-arg (git SHA in CI) |
 | `SENTRY_ENVIRONMENT` | No | Environment tag in Sentry; baked in via the `VITE_SENTRY_ENVIRONMENT` build-arg (`production` / `review`). Defaults to `development` when unset. Override at runtime with `dokku config:set` if needed |
 
-To change a value after initial provisioning, update `secrets.yml` or `vars.yml` and re-run
-`make infra-app`, or set it directly: `dokku config:set gradebee KEY=VALUE`.
+To change a value after initial provisioning, update `vars.yml` and re-run `make infra-app`, or, for
+values the deploy workflows set, the GitHub secret or `deploy-production.yml`. `dokku config:set gradebee KEY=VALUE`
+works for a one-off, but the next deploy overwrites any variable the workflow sets.
 
 ### Frontend build-time (passed as `--build-arg` to `docker build`)
 
