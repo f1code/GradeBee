@@ -176,6 +176,12 @@ misspellings and punctuation included. Return "" if the transcript does not open
 // above; without it 30/30, and the other five rows 10/10. Adding "even when it
 // matches nobody listed" to the spoken_labels bullet as well was measured and
 // not shipped: shared_clause 8/10 (Bruno's copy doubled), date_drill 9/10.
+//
+// #198 added the two sentences closing the "none" bullet. Without them a name
+// off the roster went to "none" and its note vanished, and a pasted "STUDENT"
+// placeholder was filed under the roster's one boy by elimination.
+// mistral-medium-3-5, 3 runs: off_roster_name and placeholder_name 0/3 without,
+// 3/3 with; the other rows held.
 const passagePromptPrefix = `You are extracting a teacher's spoken notes about the children in one class.
 
 The notes arrive as a transcript, in the order the teacher spoke them. The children in this
@@ -198,7 +204,9 @@ Each passage has:
     joined to the rest of the sentence.
   - "none" — not an observation about children: the class header, a greeting,
     vocabulary the children are being taught, thinking aloud that describes no child and
-    no class.
+    no class. A statement about a child is never "none", even when the name matches
+    nobody listed: that is "child" with "student" "". A placeholder standing in for a name
+    ("STUDENT", "NAME") is not a name: that passage is "unknown".
 - "spoken_labels": for a "child" or "absent" passage, the name the teacher speaks for it,
   verbatim as spoken, uncorrected. Empty list for "unknown", "group" and "none".
 - "student": for a "child" or "absent" passage, the listed child's name exactly as listed

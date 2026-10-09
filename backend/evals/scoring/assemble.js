@@ -141,5 +141,8 @@ module.exports = (output, context) => {
       ...n,
       class_name: className,
     })),
+    // Every summary production keeps: a note or the unattributed list. Only
+    // "none" is dropped, so this is what must_keep_substrings reads.
+    kept: passages.filter((p) => p.kind !== 'none').map((p) => p.summary).join('\n\n'),
   };
 };

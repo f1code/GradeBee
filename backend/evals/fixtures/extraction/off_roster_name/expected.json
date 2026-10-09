@@ -1,0 +1,17 @@
+{
+  "_comment": "The same note about a child whose spoken name fits nobody on the roster. Before the 'never none' rule the model filed every passage as 'none' 5/5, so the whole recording vanished: no note and nothing unattributed. Nobody on the roster is named, so nobody gets a note, and every observation must stay on the unattributed list.",
+  "expected_students": [],
+  "no_note_students": [
+    "Nadia",
+    "Bruno",
+    "Lina"
+  ],
+  "must_keep_substrings": [
+    "count one to five",
+    "red, blue, green",
+    "balloon magnets",
+    "quickly and slowly",
+    "sitting in place",
+    "/yes,? please/"
+  ]
+}

@@ -29,3 +29,12 @@ test('the field moves no score', async () => {
   assert.strictEqual(withField.score, without.score);
   assert.deepStrictEqual(withField.namedScores, without.namedScores);
 });
+
+test('kept text missing from every passage fails the row', async () => {
+  const kept = 'Nadia worked well';
+  const ok = await score(JSON.stringify({ students: [], kept }), { config: { expected: { must_keep_substrings: ['worked well'] } } });
+  const lost = await score(JSON.stringify({ students: [], kept: '' }), { config: { expected: { must_keep_substrings: ['worked well'] } } });
+  assert.strictEqual(ok.pass, true);
+  assert.strictEqual(lost.pass, false);
+  assert.match(lost.reason, /"worked well" is in no kept passage/);
+});
