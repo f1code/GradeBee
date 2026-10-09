@@ -1,0 +1,17 @@
+{
+  "_comment": "A note pasted with the child's name swapped for the placeholder STUDENT (review app, 2026-10-09). Before the placeholder rule the model read STUDENT as a spoken name and filed the 'sitting in place' passage under the one boy left on the roster by elimination, and dropped the opening sentences as 'none'. No child is named, so nobody gets a note, and every observation must stay on the unattributed list.",
+  "expected_students": [],
+  "no_note_students": [
+    "Nadia",
+    "Bruno",
+    "Lina"
+  ],
+  "must_keep_substrings": [
+    "count one to five",
+    "red, blue, green",
+    "balloon magnets",
+    "quickly and slowly",
+    "sitting in place",
+    "/yes,? please/"
+  ]
+}
