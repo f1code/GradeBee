@@ -329,3 +329,34 @@ tests:
         config:
           expected: file://fixtures/extraction/roster_phantom/expected.json
           metric: attribution
+
+  # Both rows are the same note about one child the roster does not name: as a
+  # pasted placeholder, then as a real name. Nobody gets a note, and nothing is
+  # dropped as "none": every observation stays on the unattributed list.
+  - description: "extraction: a placeholder for a name is not filed under a child by elimination"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/placeholder_name/transcript.txt"
+      classes: "file://fixtures/extraction/placeholder_name/classes.json"
+      class_name: "Robin · Thu"
+      header: "Robin Thursday."
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/placeholder_name/expected.json
+          metric: attribution
+
+  - description: "extraction: a child off the roster is kept, never dropped as none"
+    vars:
+      task: build-extract-prompt
+      transcript: "file://fixtures/extraction/off_roster_name/transcript.txt"
+      classes: "file://fixtures/extraction/off_roster_name/classes.json"
+      class_name: "Robin · Thu"
+      header: "Robin Thursday."
+    assert:
+      - type: javascript
+        value: file://scoring/extraction.js
+        config:
+          expected: file://fixtures/extraction/off_roster_name/expected.json
+          metric: precision_recall

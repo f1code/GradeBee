@@ -36,6 +36,11 @@
  * entry fails the row and never moves the score. Precision alone cannot guard
  * them once three children are expected (a phantom scores 3/4 and passes).
  *
+ * must_keep_substrings names text that must survive in some note or on the
+ * unattributed list, never a "none" passage: pass only, like no_note_students.
+ * It catches a child the roster does not name being dropped as not an
+ * observation.
+ *
  * Expected fixture shape (expected.json):
  * {
  *   "expected_students": [
@@ -48,6 +53,7 @@
  *     }
  *   ],
  *   "no_note_students": ["Théa"],
+ *   "must_keep_substrings": ["counted to five"],
  *   "must_not_extract": ["The principal stopped by"]
  * }
  *
@@ -146,6 +152,10 @@ module.exports = async (output, context) => {
   );
   for (const name of phantoms) reasons.push(`FAIL: ${name} must get no note`);
 
+  // --- Kept: text that must reach a note or the unattributed list (pass only) ---
+  const dropped = (expected.must_keep_substrings || []).filter((s) => !quoteMatches(s, parsed.kept));
+  for (const s of dropped) reasons.push(`FAIL: "${s}" is in no kept passage`);
+
   // --- Voice preservation ---
   let voiceScore = 1;
   for (const exp of expectedStudents) {
@@ -233,7 +243,7 @@ module.exports = async (output, context) => {
   }
 
   const avgScore = numMetrics > 0 ? Math.max(0, totalScore / numMetrics) : 0;
-  const pass = precision >= 0.7 && recall >= 0.7 && voiceScore === 1 && attributionScore === 1 && !forbiddenLeaked && phantoms.length === 0;
+  const pass = precision >= 0.7 && recall >= 0.7 && voiceScore === 1 && attributionScore === 1 && !forbiddenLeaked && phantoms.length === 0 && dropped.length === 0;
 
   // `hard` is the score with the soft axis taken out, and it is what
   // scripts/diff-baseline.js counts as a regression or an improvement. Without

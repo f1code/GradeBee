@@ -336,6 +336,7 @@ passes only if the hard five do and nothing forbidden leaked.
 | attribution | `must_not_quote_substrings` | cross-student bleed — another student's observation landed in this entry |
 | (global) | `must_not_extract` | forbidden content leaked into any entry |
 | (global) | `no_note_students` | a roster child who must get nothing got a note, whatever it says |
+| (global) | `must_keep_substrings` | an observation was dropped as `none` instead of reaching a note or the unattributed list |
 | preference (soft) | `should_quote_substrings` | text that makes a note better and whose absence is not a defect |
 
 `should_quote_substrings` scores as the fraction matched and is deliberately kept
@@ -412,6 +413,8 @@ pass 2 (#155). `mistral-medium-2508` scored the same on every row.
 | `absent_phrasing` | 1.000 | green — new. Absence in wording the prompt does not spell out. |
 | `absent_group` | 1.000 | green — new. A group remark skips the absent child, reaches everyone else. |
 | `wrong_class_group` | 1.000 | green — a wrong pick on a declined card. Names off the roster suppress the group remark; no note. Pass 1 declines this transcript; the row is pass 2 after the pick. |
+| `placeholder_name` | 1.000 | green — new. A pasted `STUDENT` placeholder reaches nobody; nothing dropped. Old prompt: 3/3 red, one phantom note. |
+| `off_roster_name` | 1.000 | green — new. A name off the roster reaches nobody; nothing dropped. Old prompt: 3/3 red, the whole note dropped as `none`. |
 | `fuzzy_name_matching` | 0.800 | green — was 0.600 under #155's cut; every hard axis passes. See below. |
 
 `multi_class` is no longer a row here. #127 gave pass 1 a `""` to return, so the
