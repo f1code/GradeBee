@@ -888,9 +888,8 @@ export interface AssignPassagesRequest {
   appendToNoteId?: number /* int64 */;
 }
 /**
- * AssignPassage is one passage as the card sends it back: what kind it was,
- * the words, and the names the teacher spoke for it. The labels only steer
- * the swap to the roster name; the student stays the request's (#199).
+ * AssignPassage is one passage as the card sends it back. SpokenLabels steer
+ * the roster-name swap only; the student comes from the request.
  */
 export interface AssignPassage {
   kind: PassageKind;
@@ -1033,12 +1032,7 @@ export interface JobPassage {
   kind: PassageKind;
   /**
    * SpokenLabels is each name this passage is about, as the extraction model
-   * wrote it. The assign call hands them back so the note takes the roster
-   * name in their place (#199). The class picker's assemble call carries
-   * {className} and re-runs pass 2 itself (#127), and the pronoun guard reads
-   * the labels pass 2 returns in that run, not these. Since #128 the prompt
-   * asks for a name matching nobody as a labelled child with no student;
-   * nothing enforces it, so such a row may still come back unknown, unlabelled.
+   * wrote it. The assign call hands them back for the roster-name swap.
    * They go to the teacher who spoke them, never to telemetry (docs/adr/0003).
    */
   spokenLabels?: string[];
