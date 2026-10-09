@@ -19,7 +19,7 @@ When an authoritative doc exists for a topic, **read it first** rather than re-d
 ## Go Backend
 
 Refer to `backend/ARCHITECTURE.md` for backend architecture, patterns, and implementation guidelines.
-Update this document when the backend is updated.
+Update this document when the backend is updated. Record what and where; reasoning goes in code comments or an ADR.
 
 ## Frontend Design
 

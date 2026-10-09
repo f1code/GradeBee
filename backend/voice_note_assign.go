@@ -48,9 +48,8 @@ type AssignPassagesRequest struct {
 	AppendToNoteID int64 `json:"appendToNoteId,omitempty"`
 }
 
-// AssignPassage is one passage as the card sends it back: what kind it was,
-// the words, and the names the teacher spoke for it. The labels only steer
-// the swap to the roster name; the student stays the request's (#199).
+// AssignPassage is one passage as the card sends it back. SpokenLabels steer
+// the roster-name swap only; the student comes from the request.
 type AssignPassage struct {
 	Kind         PassageKind `json:"kind"`
 	Summary      string      `json:"summary"`
@@ -362,8 +361,7 @@ func handleAssignPassages(w http.ResponseWriter, r *http.Request) {
 //
 // The length cap is the whole of the text check. A substring rule would fail
 // the first time the model rewrote a sentence, which is what a summary is.
-// The one repair: own passages leave with the roster name swapped in
-// (useRosterName).
+// Own passages leave with the roster name swapped in.
 func splitAssignPassages(passages []AssignPassage, transcript, name string) (own, group []string, kindCounts map[PassageKind]int, err error) {
 	kindCounts = map[PassageKind]int{}
 	for _, p := range passages {
@@ -391,16 +389,13 @@ func splitAssignPassages(passages []AssignPassage, transcript, name string) (own
 	return own, group, kindCounts, nil
 }
 
-// namePlaceholder is a pasted note's stand-in for a child's name. The prompt
-// reads it as no name, so the row carries no label to swap (#198). Upper case
-// only: "the student" is a word, not a placeholder.
+// namePlaceholder: a pasted stand-in for a name. The prompt gives it no label,
+// so match it here. Upper case only: "the student" is a word.
 var namePlaceholder = regexp.MustCompile(`(^|[^\p{L}\p{N}])(?:STUDENT|NAME)([^\p{L}\p{N}]|$)`)
 
-// useRosterName swaps each label the teacher spoke, and each name placeholder,
-// for the child's roster name, whole word. Before the replay guard, so a retry
-// looks for the text the first call wrote. The summary is a rewrite: a label
-// it does not hold verbatim (respelt, accent changed) leaves the text as
-// spoken.
+// useRosterName swaps spoken labels and name placeholders for the roster name,
+// whole word. Runs before the replay guard so a retry matches the first call's
+// text. A label the summary respelt stays as spoken.
 func useRosterName(summary string, labels []string, name string) string {
 	repl := "${1}" + strings.ReplaceAll(name, "$", "$$") + "${2}"
 	summary = namePlaceholder.ReplaceAllString(summary, repl)
