@@ -137,7 +137,7 @@ export default function PassageReview({ passages, classId, noteLinks, onAssign, 
       classId,
       studentId,
       passages: [
-        ...going.map(r => ({ kind: r.p.kind, summary: r.p.summary })),
+        ...going.map(r => ({ kind: r.p.kind, summary: r.p.summary, spokenLabels: r.p.spokenLabels })),
         ...passages.filter(p => p.kind === PassageGroup).map(p => ({ kind: p.kind, summary: p.summary })),
       ],
     }
