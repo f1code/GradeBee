@@ -304,6 +304,7 @@ func TestUseRosterName(t *testing.T) {
 		{"She read with her.", []string{"She", "her"}, "She read with her."},
 		{"Leah read.", nil, "Leah read."},
 		{"Leah read.", []string{" "}, "Leah read."},
+		{"STUDENT read. NAME's turn. The student read.", nil, "Lise read. Lise's turn. The student read."},
 	} {
 		assert.Equal(t, tc.want, useRosterName(tc.summary, tc.labels, "Lise"), tc.summary)
 	}
