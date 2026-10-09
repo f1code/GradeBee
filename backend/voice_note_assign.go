@@ -391,11 +391,19 @@ func splitAssignPassages(passages []AssignPassage, transcript, name string) (own
 	return own, group, kindCounts, nil
 }
 
-// useRosterName swaps each label the teacher spoke for the child's roster
-// name, whole word, any case. Before the replay guard, so a retry looks for
-// the text the first call wrote. The summary is a rewrite: a label it does
-// not hold verbatim (respelt, accent changed) leaves the text as spoken.
+// namePlaceholder is a pasted note's stand-in for a child's name. The prompt
+// reads it as no name, so the row carries no label to swap (#198). Upper case
+// only: "the student" is a word, not a placeholder.
+var namePlaceholder = regexp.MustCompile(`(^|[^\p{L}\p{N}])(?:STUDENT|NAME)([^\p{L}\p{N}]|$)`)
+
+// useRosterName swaps each label the teacher spoke, and each name placeholder,
+// for the child's roster name, whole word. Before the replay guard, so a retry
+// looks for the text the first call wrote. The summary is a rewrite: a label
+// it does not hold verbatim (respelt, accent changed) leaves the text as
+// spoken.
 func useRosterName(summary string, labels []string, name string) string {
+	repl := "${1}" + strings.ReplaceAll(name, "$", "$$") + "${2}"
+	summary = namePlaceholder.ReplaceAllString(summary, repl)
 	for _, l := range labels {
 		l = strings.TrimSpace(l)
 		if key := FoldName(l); key == "" || labelStopList[key] {
@@ -403,7 +411,7 @@ func useRosterName(summary string, labels []string, name string) string {
 		}
 		// Go's \b is ASCII-only and would split "Lévy" at the é.
 		re := regexp.MustCompile(`(?i)(^|[^\p{L}\p{N}])` + regexp.QuoteMeta(l) + `([^\p{L}\p{N}]|$)`)
-		summary = re.ReplaceAllString(summary, "${1}"+strings.ReplaceAll(name, "$", "$$")+"${2}")
+		summary = re.ReplaceAllString(summary, repl)
 	}
 	return summary
 }
