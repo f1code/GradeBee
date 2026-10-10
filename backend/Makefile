@@ -8,6 +8,9 @@ lint:
 
 test:
 	go test -v -count=1 ./...
+	# Race detector only where goroutines share state: the whole suite under
+	# -race takes minutes.
+	go test -race -count=1 -run 'GenericQueue|ReportBatch|ProcessReportBatch|GenerateReports' .
 	node --test evals/scoring/extraction.test.js evals/scoring/report-wordcounts.test.js
 
 # Live-LLM tests (llm_live_test.go) run as part of `test` when LLM_PROVIDER

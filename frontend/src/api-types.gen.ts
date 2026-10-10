@@ -626,6 +626,59 @@ export interface VoiceNote {
 }
 
 //////////
+// source: report_batch.go
+/*
+report_batch.go defines the report batch shapes sent to the page: rows,
+statuses and the batch snapshot.
+*/
+
+/**
+ * Report batch row statuses.
+ */
+export const ReportStudentQueued = "queued";
+/**
+ * Report batch row statuses.
+ */
+export const ReportStudentGenerating = "generating";
+/**
+ * Report batch row statuses.
+ */
+export const ReportStudentDone = "done";
+/**
+ * Report batch row statuses.
+ */
+export const ReportStudentFailed = "failed";
+/**
+ * Report batch statuses, derived from the rows.
+ */
+export const ReportBatchRunning = "running";
+/**
+ * Report batch statuses, derived from the rows.
+ */
+export const ReportBatchFinished = "finished";
+/**
+ * ReportBatchStudent is one student's outcome in a report batch.
+ */
+export interface ReportBatchStudent {
+  studentId: number /* int64 */;
+  name: string;
+  status: string;
+  reportId?: number /* int64 */;
+  error?: string;
+}
+/**
+ * ReportBatch is the wire view of a ReportJob.
+ */
+export interface ReportBatch {
+  id: string;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  status: string;
+  students: ReportBatchStudent[];
+}
+
+//////////
 // source: reports_handler.go
 /*
 reports_handler.go handles report generation, regeneration, listing,
@@ -669,28 +722,11 @@ export interface ReportResult {
   createdAt: string;
 }
 /**
- * Report batch row statuses.
+ * ListReportBatchesResponse is the JSON response for GET /reports/batches,
+ * newest first.
  */
-export const ReportStudentDone = "done";
-/**
- * Report batch row statuses.
- */
-export const ReportStudentFailed = "failed";
-/**
- * ReportBatchStudent is one student's outcome in a report batch.
- */
-export interface ReportBatchStudent {
-  studentId: number /* int64 */;
-  name: string;
-  status: string;
-  reportId?: number /* int64 */;
-  error?: string;
-}
-/**
- * GenerateReportsHTTPResponse is the JSON response for POST /reports.
- */
-export interface GenerateReportsHTTPResponse {
-  students: ReportBatchStudent[];
+export interface ListReportBatchesResponse {
+  batches: ReportBatch[];
 }
 /**
  * RegenerateReportHTTPRequest is the JSON body for POST /reports/:id/regenerate.

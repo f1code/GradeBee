@@ -15,6 +15,7 @@ packages:
       # Server-side report inputs and generator requests; none goes on the wire.
       - "report_inputs.go"
       - "report_generator.go"
+      - "report_batch_job.go"
     include_types:
       # Core entities
       - Note
@@ -32,7 +33,8 @@ packages:
       # Request/response types
       - ReportResult
       - GenerateReportsHTTPRequest
-      - GenerateReportsHTTPResponse
+      - ReportBatch
+      - ListReportBatchesResponse
       - ReportBatchStudent
       - ReportStudentInput
       - RegenerateReportHTTPRequest

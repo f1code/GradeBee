@@ -5,9 +5,10 @@ import type {
   Student as StudentItem,
   Note,
   ReportResult,
+  ReportBatch,
+  ListReportBatchesResponse,
   ReportBatchStudent,
   ReportSummary,
-  GenerateReportsHTTPResponse as GenerateReportsResponse,
   VoiceNoteJob,
   JobListResponse,
   JobPassage,
@@ -26,9 +27,9 @@ export type {
   StudentItem,
   Note,
   ReportResult,
+  ReportBatch,
   ReportBatchStudent,
   ReportSummary,
-  GenerateReportsResponse,
   VoiceNoteJob,
   JobListResponse,
   JobPassage,
@@ -71,6 +72,16 @@ export class MoveConflictError extends Error {
     super(message)
     this.name = 'MoveConflictError'
     this.conflictStudentName = conflictStudentName
+  }
+}
+
+/** A failed request whose HTTP status the caller acts on. */
+export class ApiError extends Error {
+  status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
   }
 }
 
@@ -447,7 +458,7 @@ export async function generateReports(
     instructions?: string
   },
   getToken: () => Promise<string | null>
-): Promise<GenerateReportsResponse> {
+): Promise<ReportBatch> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/reports`, {
     method: 'POST',
@@ -458,7 +469,19 @@ export async function generateReports(
     body: JSON.stringify(req),
   })
   const body = await readBody(resp)
-  if (!resp.ok) throw new Error(body.error || 'Report generation failed')
+  if (!resp.ok) throw new ApiError(body.error || 'Report generation failed', resp.status)
+  return body
+}
+
+export async function listReportBatches(
+  getToken: () => Promise<string | null>
+): Promise<ListReportBatchesResponse> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/reports/batches`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await readBody(resp)
+  if (!resp.ok) throw new Error(body.error || 'Failed to load report batches')
   return body
 }
 
@@ -503,7 +526,7 @@ export async function getReport(
     headers: { Authorization: `Bearer ${token}` },
   })
   const body = await readBody(resp)
-  if (!resp.ok) throw new Error(body.error || 'Failed to get report')
+  if (!resp.ok) throw new ApiError(body.error || 'Failed to get report', resp.status)
   return body
 }
 

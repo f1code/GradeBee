@@ -16,21 +16,28 @@ import (
 
 // stubReportGenerator implements ReportGenerator for tests.
 type stubReportGenerator struct {
-	generateResp   *GenerateReportResponse
-	generateErr    error
+	generateResp *GenerateReportResponse
+	generateErr  error
 	// generateErrs, when set, fails the listed students and answers the rest
 	// with ReportID = 1000 + StudentID, so tests can check row-to-report mapping.
-	generateErrs   map[int64]error
-	genCalls       []int64
+	generateErrs map[int64]error
+	genCalls     []int64
+	// genCallers is the llm_calls user each Generate ctx carried.
+	genCallers     []string
 	regenerateResp *GenerateReportResponse
 	regenerateErr  error
 	lastGenReq     GenerateReportRequest
 	lastRegenReq   RegenerateReportRequest
 }
 
-func (s *stubReportGenerator) Generate(_ context.Context, req GenerateReportRequest) (*GenerateReportResponse, error) {
+func (s *stubReportGenerator) Generate(ctx context.Context, req GenerateReportRequest) (*GenerateReportResponse, error) {
 	s.lastGenReq = req
 	s.genCalls = append(s.genCalls, req.StudentID)
+	var caller string
+	if c, ok := ctx.Value(llmCallerKey).(llmCaller); ok {
+		caller = c.userID
+	}
+	s.genCallers = append(s.genCallers, caller)
 	if s.generateErrs != nil {
 		if err := s.generateErrs[req.StudentID]; err != nil {
 			return nil, err
@@ -133,7 +140,7 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 
 	levelRepo := &LevelRepo{db: db}
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
-	withDeps(t, &mockDepsAll{
+	d := &mockDepsAll{
 		db:          db,
 		classRepo:   classRepo,
 		studentRepo: studentRepo,
@@ -141,12 +148,14 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 		reportRepo:  reportRepo,
 		reportGen:   gen,
 		levelRepo:   levelRepo,
-	})
+	}
+	withDeps(t, d)
 
 	reqBody, err := json.Marshal(map[string]any{
-		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "className": "Art"}},
-		"startDate": "2026-01-01",
-		"endDate":   "2026-03-31",
+		"students":     []map[string]any{{"studentId": stu.ID, "name": "Alice", "className": "Art"}},
+		"startDate":    "2026-01-01",
+		"endDate":      "2026-03-31",
+		"instructions": "secret instructions",
 	})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(reqBody))
@@ -156,10 +165,16 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handleGenerateReports(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
+	require.Equal(t, http.StatusAccepted, rec.Code, "body = %s", rec.Body.String())
+	assert.NotContains(t, rec.Body.String(), "secret instructions", "instructions stay server-side")
+	assert.NotContains(t, rec.Body.String(), "in range", "notes stay server-side")
 
-	var resp struct {
-		Students []struct {
+	var batch struct {
+		ID        string `json:"id"`
+		StartDate string `json:"startDate"`
+		EndDate   string `json:"endDate"`
+		Status    string `json:"status"`
+		Students  []struct {
 			StudentID int64   `json:"studentId"`
 			Name      string  `json:"name"`
 			Status    string  `json:"status"`
@@ -167,18 +182,34 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 			Error     *string `json:"error"`
 		} `json:"students"`
 	}
-	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
-	require.Len(t, resp.Students, 1)
-	require.Len(t, gen.lastGenReq.Notes, 1)
-	assert.Equal(t, "in range", gen.lastGenReq.Notes[0].Summary)
-	r := resp.Students[0]
-	assert.Equal(t, stu.ID, r.StudentID)
-	assert.Equal(t, "Alice", r.Name)
-	assert.Equal(t, "done", r.Status)
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&batch))
+	require.NotEmpty(t, batch.ID)
+	assert.Equal(t, "2026-01-01", batch.StartDate)
+	assert.Equal(t, "2026-03-31", batch.EndDate)
+	assert.Equal(t, "running", batch.Status)
+	require.Len(t, batch.Students, 1)
+	assert.Equal(t, stu.ID, batch.Students[0].StudentID)
+	assert.Equal(t, "Alice", batch.Students[0].Name)
+	assert.Equal(t, "queued", batch.Students[0].Status)
+	assert.Empty(t, gen.genCalls, "nothing generated inside the request")
+
+	key := "user_abc/" + batch.ID
+	queue, err := d.GetReportBatchQueue()
+	require.NoError(t, err)
+	require.NoError(t, processReportBatch(ctx, d, queue, key))
+	job, err := queue.GetJob(ctx, key)
+	require.NoError(t, err)
+	assert.Equal(t, ReportBatchFinished, job.snapshot().Status)
+	r := job.Students[0]
+	assert.Equal(t, ReportStudentDone, r.Status)
 	require.NotNil(t, r.ReportID)
 	assert.Equal(t, int64(42), *r.ReportID)
 	assert.Nil(t, r.Error)
+	require.Len(t, gen.lastGenReq.Notes, 1)
+	assert.Equal(t, "in range", gen.lastGenReq.Notes[0].Summary)
 	assert.Equal(t, "Write three sections.", gen.lastGenReq.ReportInstructions)
+	assert.Equal(t, "secret instructions", gen.lastGenReq.Instructions)
+	assert.Equal(t, []string{"user_abc"}, gen.genCallers, "llm_calls keep their user")
 }
 
 func TestHandleRegenerateReport_ReportNotFound(t *testing.T) {

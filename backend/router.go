@@ -59,6 +59,8 @@ var apiRoutes = []apiRoute{
 
 	// Reports
 	{"POST", "/api/reports", handleGenerateReports},
+	// ServeMux prefers the literal, so "batches" is never captured as an {id}.
+	{"GET", "/api/reports/batches", handleListReportBatches},
 	{"POST", "/api/reports/{id}/regenerate", handleRegenerateReport},
 	{"GET", "/api/students/{id}/reports", handleListReports},
 	{"GET", "/api/reports/{id}", handleGetReport},

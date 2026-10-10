@@ -25,6 +25,8 @@ type deps interface {
 	GetReportInputResolver() *ReportInputResolver
 	// GetVoiceNoteQueue returns the JobQueue for async voice note processing.
 	GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error)
+	// GetReportBatchQueue returns the JobQueue for report batches.
+	GetReportBatchQueue() (JobQueue[ReportJob], error)
 	// GetDriveClient returns a Drive-read-only client for the given user.
 	GetDriveClient(ctx context.Context, userID string) (DriveClient, error)
 	// GetDB returns the SQLite database handle.
@@ -84,6 +86,13 @@ func (p *prodDeps) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
 	return voiceNoteQueueInstance, nil
 }
 
+func (p *prodDeps) GetReportBatchQueue() (JobQueue[ReportJob], error) {
+	if reportBatchQueueInstance == nil {
+		return nil, fmt.Errorf("report batch queue not initialized — call InitReportBatchQueue first")
+	}
+	return reportBatchQueueInstance, nil
+}
+
 func (p *prodDeps) GetDriveClient(ctx context.Context, userID string) (DriveClient, error) {
 	svc, err := newDriveReadClient(ctx, userID)
 	if err != nil {
@@ -113,6 +122,19 @@ func InitVoiceNoteQueue(d deps, workers int) *MemQueue[VoiceNoteJob] {
 		return processVoiceNote(ctx, d, queue, key)
 	}, workers)
 	voiceNoteQueueInstance = q
+	return q
+}
+
+// Report batch queue singleton, initialised at startup via InitReportBatchQueue.
+var reportBatchQueueInstance JobQueue[ReportJob]
+
+// InitReportBatchQueue creates the in-memory report batch queue with one
+// worker, so batches run one at a time across all Teachers.
+func InitReportBatchQueue(d deps) *MemQueue[ReportJob] {
+	q := NewMemQueue[ReportJob](func(ctx context.Context, queue JobQueue[ReportJob], key string) error {
+		return processReportBatch(ctx, d, queue, key)
+	}, 1)
+	reportBatchQueueInstance = q
 	return q
 }
 

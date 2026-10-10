@@ -8,3 +8,12 @@ export function formatNoteDate(dateStr: string): string {
   const d = new Date(year, month - 1, day)
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 }
+
+// Formats a report's `YYYY-MM-DD` range, e.g. "Oct 1, 2026 – Oct 10, 2026".
+export function formatDateRange(startDate: string, endDate: string): string {
+  const fmt = (d: string) => {
+    const date = new Date(d + 'T00:00:00')
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+  return `${fmt(startDate)} – ${fmt(endDate)}`
+}

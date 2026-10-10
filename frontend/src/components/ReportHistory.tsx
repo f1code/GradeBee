@@ -8,6 +8,7 @@ import {
   type ReportResult,
 } from '../api'
 import ReportViewer from './ReportViewer'
+import { formatDateRange } from '../lib/date'
 
 interface ReportHistoryProps {
   studentId: number
@@ -30,14 +31,6 @@ function relativeTime(dateStr: string): string {
   if (Math.abs(diffHour) >= 1) return rtf.format(diffHour, 'hour')
   if (Math.abs(diffMin) >= 1) return rtf.format(diffMin, 'minute')
   return rtf.format(diffSec, 'second')
-}
-
-function formatDateRange(startDate: string, endDate: string): string {
-  const fmt = (d: string) => {
-    const date = new Date(d + 'T00:00:00')
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-  }
-  return `${fmt(startDate)} – ${fmt(endDate)}`
 }
 
 export default function ReportHistory({ studentId, studentName }: ReportHistoryProps) {
