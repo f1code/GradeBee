@@ -583,7 +583,7 @@ func TestOwnershipSweep_OwnerSucceeds(t *testing.T) {
 					"endDate":   "2026-03-31",
 				}
 			},
-			wantStatus: http.StatusOK, wantIn: `"student":"` + sweepStudentName + `"`,
+			wantStatus: http.StatusOK, wantIn: `"name":"` + sweepStudentName + `","status":"done"`,
 		},
 		{
 			name: "group gate", gate: "LevelRepo group_id scoping", method: http.MethodPut,

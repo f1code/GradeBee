@@ -18,6 +18,10 @@ import (
 type stubReportGenerator struct {
 	generateResp   *GenerateReportResponse
 	generateErr    error
+	// generateErrs, when set, fails the listed students and answers the rest
+	// with ReportID = 1000 + StudentID, so tests can check row-to-report mapping.
+	generateErrs   map[int64]error
+	genCalls       []int64
 	regenerateResp *GenerateReportResponse
 	regenerateErr  error
 	lastGenReq     GenerateReportRequest
@@ -26,6 +30,13 @@ type stubReportGenerator struct {
 
 func (s *stubReportGenerator) Generate(_ context.Context, req GenerateReportRequest) (*GenerateReportResponse, error) {
 	s.lastGenReq = req
+	s.genCalls = append(s.genCalls, req.StudentID)
+	if s.generateErrs != nil {
+		if err := s.generateErrs[req.StudentID]; err != nil {
+			return nil, err
+		}
+		return &GenerateReportResponse{ReportID: 1000 + req.StudentID}, nil
+	}
 	return s.generateResp, s.generateErr
 }
 
@@ -148,30 +159,25 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
 
 	var resp struct {
-		Reports []struct {
-			ID        int64  `json:"id"`
-			StudentID int64  `json:"studentId"`
-			Student   string `json:"student"`
-			ClassName string `json:"className"`
-			HTML      string `json:"html"`
-			StartDate string `json:"startDate"`
-			EndDate   string `json:"endDate"`
-			CreatedAt string `json:"createdAt"`
-		} `json:"reports"`
+		Students []struct {
+			StudentID int64   `json:"studentId"`
+			Name      string  `json:"name"`
+			Status    string  `json:"status"`
+			ReportID  *int64  `json:"reportId"`
+			Error     *string `json:"error"`
+		} `json:"students"`
 	}
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
-	require.Len(t, resp.Reports, 1)
+	require.Len(t, resp.Students, 1)
 	require.Len(t, gen.lastGenReq.Notes, 1)
 	assert.Equal(t, "in range", gen.lastGenReq.Notes[0].Summary)
-	r := resp.Reports[0]
-	assert.Equal(t, int64(42), r.ID)
+	r := resp.Students[0]
 	assert.Equal(t, stu.ID, r.StudentID)
-	assert.Equal(t, "Alice", r.Student)
-	assert.Equal(t, "Art", r.ClassName)
-	assert.Equal(t, "<p>hi</p>", r.HTML)
-	assert.Equal(t, "2026-01-01", r.StartDate)
-	assert.Equal(t, "2026-03-31", r.EndDate)
-	assert.Equal(t, "2026-04-02T00:00:00Z", r.CreatedAt)
+	assert.Equal(t, "Alice", r.Name)
+	assert.Equal(t, "done", r.Status)
+	require.NotNil(t, r.ReportID)
+	assert.Equal(t, int64(42), *r.ReportID)
+	assert.Nil(t, r.Error)
 	assert.Equal(t, "Write three sections.", gen.lastGenReq.ReportInstructions)
 }
 
