@@ -669,11 +669,28 @@ export interface ReportResult {
   createdAt: string;
 }
 /**
+ * Report batch row statuses.
+ */
+export const ReportStudentDone = "done";
+/**
+ * Report batch row statuses.
+ */
+export const ReportStudentFailed = "failed";
+/**
+ * ReportBatchStudent is one student's outcome in a report batch.
+ */
+export interface ReportBatchStudent {
+  studentId: number /* int64 */;
+  name: string;
+  status: string;
+  reportId?: number /* int64 */;
+  error?: string;
+}
+/**
  * GenerateReportsHTTPResponse is the JSON response for POST /reports.
  */
 export interface GenerateReportsHTTPResponse {
-  reports: ReportResult[];
-  error?: string;
+  students: ReportBatchStudent[];
 }
 /**
  * RegenerateReportHTTPRequest is the JSON body for POST /reports/:id/regenerate.

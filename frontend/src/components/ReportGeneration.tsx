@@ -1,17 +1,20 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   listClasses,
   listStudents,
   generateReports,
+  getReport,
   listLevels,
   type LevelItem,
   type ClassItem,
   type StudentItem,
   type ReportResult,
+  type ReportBatchStudent,
   type GenerateReportsResponse,
 } from '../api'
+import { ReportStudentDone } from '../api-types.gen'
 import ReportViewer from './ReportViewer'
 
 interface ClassWithStudents extends ClassItem {
@@ -34,9 +37,13 @@ export default function ReportGeneration() {
   )
   const [instructions, setInstructions] = useState('')
   const [generating, setGenerating] = useState(false)
-  const [results, setResults] = useState<ReportResult[]>([])
+  const [results, setResults] = useState<ReportBatchStudent[]>([])
   const [error, setError] = useState<string | null>(null)
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null)
+  const [expandedReport, setExpandedReport] = useState<ReportResult | null>(null)
+  const [deletedReportIds, setDeletedReportIds] = useState<Set<number>>(new Set())
+  // Last report the Teacher asked to expand; a slower earlier fetch must not land on it.
+  const requestedReportId = useRef<number | null>(null)
 
   const [levels, setLevels] = useState<LevelItem[]>([])
   const [levelsError, setLevelsError] = useState<string | null>(null)
@@ -129,6 +136,8 @@ export default function ReportGeneration() {
     setError(null)
     setResults([])
     setExpandedReportId(null)
+    setExpandedReport(null)
+    setDeletedReportIds(new Set())
     try {
       // Build students array with name+class for the backend
       const students = classes.flatMap(c =>
@@ -140,8 +149,7 @@ export default function ReportGeneration() {
         { students, startDate, endDate, instructions: instructions || undefined },
         () => getToken()
       )
-      setResults(resp.reports || [])
-      if (resp.error) setError(resp.error)
+      setResults(resp.students || [])
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed')
     } finally {
@@ -149,13 +157,42 @@ export default function ReportGeneration() {
     }
   }
 
-  function handleReportRegenerate(reportId: number, updatedHtml: string) {
-    setResults(prev => prev.map(r => r.id === reportId ? { ...r, html: updatedHtml } : r))
+  const classNameByStudent = useMemo(() => {
+    const byId = new Map<number, string>()
+    for (const c of classes) for (const s of c.students) byId.set(s.id, c.name)
+    return byId
+  }, [classes])
+
+  async function handleExpand(reportId: number) {
+    if (expandedReportId === reportId) {
+      requestedReportId.current = null
+      setExpandedReportId(null)
+      setExpandedReport(null)
+      return
+    }
+    requestedReportId.current = reportId
+    setExpandedReportId(reportId)
+    setError(null)
+    try {
+      const report = await getReport(reportId, getToken)
+      if (requestedReportId.current === reportId) setExpandedReport(report)
+    } catch (e: unknown) {
+      if (requestedReportId.current !== reportId) return
+      setError(e instanceof Error ? e.message : 'Failed to load report')
+      setExpandedReportId(null)
+    }
+  }
+
+  function handleReportRegenerate(updatedHtml: string) {
+    setExpandedReport(prev => prev ? { ...prev, html: updatedHtml } : prev)
   }
 
   function handleReportDelete(reportId: number) {
-    setResults(prev => prev.filter(r => r.id !== reportId))
-    if (expandedReportId === reportId) setExpandedReportId(null)
+    setDeletedReportIds(prev => new Set(prev).add(reportId))
+    if (expandedReportId === reportId) {
+      setExpandedReportId(null)
+      setExpandedReport(null)
+    }
   }
 
   return (
@@ -294,33 +331,48 @@ export default function ReportGeneration() {
             <h3>Generated Reports</h3>
             <div className="report-results-list">
               {results.map((r, i) => {
-                const isExpanded = expandedReportId === r.id
+                const className = classNameByStudent.get(r.studentId)
+                const name = (
+                  <>
+                    {r.name}{className && <span className="report-result-class"> ({className})</span>}
+                  </>
+                )
+                const reportId = r.status === ReportStudentDone ? r.reportId : undefined
+                const deleted = reportId !== undefined && deletedReportIds.has(reportId)
+                const isExpanded = reportId !== undefined && expandedReportId === reportId
                 return (
                   <motion.div
-                    key={r.id}
+                    key={r.studentId}
                     className="report-result-card"
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
                     layout
                   >
-                    <div
-                      className={`report-result-item${isExpanded ? ' report-result-item-expanded' : ''}`}
-                      onClick={() => setExpandedReportId(isExpanded ? null : r.id)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedReportId(isExpanded ? null : r.id) } }}
-                    >
-                      <span className="report-result-name" data-testid="report-result-name">
-                        {r.student} <span className="report-result-class">({r.className})</span>
-                      </span>
-                      <svg
-                        width="16" height="16" viewBox="0 0 16 16" fill="none"
-                        style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}
+                    {reportId === undefined || deleted ? (
+                      <div className="report-result-item report-result-item-static" data-testid={deleted ? 'report-result-deleted' : 'report-result-failed'}>
+                        <span className="report-result-name">{name}</span>
+                        <span className={deleted ? 'report-result-status' : 'report-result-error'}>
+                          {deleted ? 'deleted' : r.error || 'No report'}
+                        </span>
+                      </div>
+                    ) : (
+                      <div
+                        className={`report-result-item${isExpanded ? ' report-result-item-expanded' : ''}`}
+                        onClick={() => handleExpand(reportId)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(reportId) } }}
                       >
-                        <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </div>
+                        <span className="report-result-name" data-testid="report-result-name">{name}</span>
+                        <svg
+                          width="16" height="16" viewBox="0 0 16 16" fill="none"
+                          style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}
+                        >
+                          <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                    )}
                     <AnimatePresence>
                       {isExpanded && (
                         <motion.div
@@ -330,13 +382,21 @@ export default function ReportGeneration() {
                           transition={{ duration: 0.25 }}
                           style={{ overflow: 'hidden' }}
                         >
-                          <ReportViewer
-                            reportId={r.id}
-                            html={r.html}
-                            studentName={r.student}
-                            onRegenerate={(updatedHtml) => handleReportRegenerate(r.id, updatedHtml)}
-                            onDelete={() => handleReportDelete(r.id)}
-                          />
+                          {expandedReport?.id === reportId ? (
+                            <ReportViewer
+                              reportId={reportId}
+                              html={expandedReport.html}
+                              studentName={r.name}
+                              onRegenerate={handleReportRegenerate}
+                              onDelete={() => handleReportDelete(reportId)}
+                            />
+                          ) : (
+                            <div className="report-loading-inline">
+                              <div className="honeycomb-spinner">
+                                <div className="hex" /><div className="hex" /><div className="hex" />
+                              </div>
+                            </div>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>

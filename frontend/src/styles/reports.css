@@ -430,6 +430,14 @@
 }
 
 
+/* --- Report loading (shared by generation and history) --- */
+.report-loading-inline {
+  display: flex;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+
 /* --- Report result cards --- */
 /* ============================================
    Report Result Cards (Generation)
@@ -447,12 +455,28 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
+}
+
+.report-result-item:not(.report-result-item-static) {
   cursor: pointer;
   transition: background 0.12s;
 }
 
-.report-result-item:hover {
+.report-result-item:not(.report-result-item-static):hover {
   background: var(--honey-light);
+}
+
+.report-result-error,
+.report-result-status {
+  font-size: 0.9rem;
+}
+
+.report-result-error {
+  color: var(--error-red);
+}
+
+.report-result-status {
+  color: var(--ink-muted);
 }
 
 .report-result-item-expanded {
@@ -496,12 +520,6 @@
   display: flex;
   justify-content: center;
   padding: 1.5rem;
-}
-
-.report-history-loading-inline {
-  display: flex;
-  justify-content: center;
-  padding: 1.25rem;
 }
 
 .report-history-empty {
@@ -609,6 +627,16 @@
   }
 
   .report-history-created {
+    width: 100%;
+  }
+
+  .report-result-item-static {
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+  }
+
+  .report-result-item-static .report-result-error,
+  .report-result-item-static .report-result-status {
     width: 100%;
   }
 }

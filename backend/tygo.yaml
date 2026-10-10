@@ -33,6 +33,7 @@ packages:
       - ReportResult
       - GenerateReportsHTTPRequest
       - GenerateReportsHTTPResponse
+      - ReportBatchStudent
       - ReportStudentInput
       - RegenerateReportHTTPRequest
       - UploadResponse

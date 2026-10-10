@@ -42,10 +42,35 @@ type ReportResult struct {
 	CreatedAt string `json:"createdAt"`
 }
 
+// Report batch row statuses.
+const (
+	ReportStudentDone   = "done"
+	ReportStudentFailed = "failed"
+)
+
+// maxConsecutiveReportFailures stops a batch whose failures look systemic
+// (provider down, quota) instead of burning one LLM call per student.
+const maxConsecutiveReportFailures = 3
+
+// Row error texts. Fixed strings: provider errors can echo prompt content,
+// and rows must not carry student names (ADR 0003).
+const (
+	reportStudentErrGenerate = "report generation failed"
+	reportStudentErrSkipped  = "skipped after repeated errors"
+)
+
+// ReportBatchStudent is one student's outcome in a report batch.
+type ReportBatchStudent struct {
+	StudentID int64   `json:"studentId"`
+	Name      string  `json:"name"`
+	Status    string  `json:"status"`
+	ReportID  *int64  `json:"reportId,omitempty"`
+	Error     *string `json:"error,omitempty"`
+}
+
 // GenerateReportsHTTPResponse is the JSON response for POST /reports.
 type GenerateReportsHTTPResponse struct {
-	Reports []ReportResult `json:"reports"`
-	Error   *string        `json:"error"`
+	Students []ReportBatchStudent `json:"students"`
 }
 
 func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
@@ -119,36 +144,30 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	reports := []ReportResult{}
-
+	students := make([]ReportBatchStudent, 0, len(inputs))
+	consecutiveFailures := 0
+	generated := 0
 	for _, in := range inputs {
-		resp, err := generator.Generate(ctx, GenerateReportRequest{ReportInputs: in, UserID: userID})
-		if err != nil {
-			errMsg := fmt.Sprintf("failed to generate report for %s", in.StudentName)
+		row := ReportBatchStudent{StudentID: in.StudentID, Name: in.StudentName}
+		if consecutiveFailures >= maxConsecutiveReportFailures {
+			row.Status = ReportStudentFailed
+			row.Error = new(reportStudentErrSkipped)
+		} else if resp, err := generator.Generate(ctx, GenerateReportRequest{ReportInputs: in, UserID: userID}); err != nil {
 			log.Error("generate reports: student failed", "student_id", in.StudentID, "error", err)
-			writeJSON(w, http.StatusOK, GenerateReportsHTTPResponse{
-				Reports: reports,
-				Error:   &errMsg,
-			})
-			return
+			consecutiveFailures++
+			row.Status = ReportStudentFailed
+			row.Error = new(reportStudentErrGenerate)
+		} else {
+			consecutiveFailures = 0
+			generated++
+			row.Status = ReportStudentDone
+			row.ReportID = &resp.ReportID
 		}
-		reports = append(reports, ReportResult{
-			ID:        resp.ReportID,
-			StudentID: in.StudentID,
-			Student:   in.StudentName,
-			ClassName: in.ClassName,
-			HTML:      resp.HTML,
-			StartDate: in.StartDate,
-			EndDate:   in.EndDate,
-			CreatedAt: resp.CreatedAt,
-		})
+		students = append(students, row)
 	}
 
-	log.Info("generate reports completed", "user_id", userID, "report_count", len(reports))
-	writeJSON(w, http.StatusOK, GenerateReportsHTTPResponse{
-		Reports: reports,
-		Error:   nil,
-	})
+	log.Info("generate reports completed", "user_id", userID, "report_count", generated, "student_count", len(students))
+	writeJSON(w, http.StatusOK, GenerateReportsHTTPResponse{Students: students})
 }
 
 // RegenerateReportHTTPRequest is the JSON body for POST /reports/:id/regenerate.

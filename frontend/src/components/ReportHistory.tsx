@@ -173,7 +173,7 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
                         style={{ overflow: 'hidden' }}
                       >
                         {loadingReport ? (
-                          <div className="report-history-loading-inline">
+                          <div className="report-loading-inline">
                             <div className="honeycomb-spinner">
                               <div className="hex" /><div className="hex" /><div className="hex" />
                             </div>

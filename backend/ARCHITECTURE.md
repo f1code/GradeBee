@@ -36,7 +36,7 @@ Go HTTP backend for GradeBee: student rosters, voice/text notes (upload → tran
 | GET | `/api/notes/{id}` | Yes | `handleGetNote` | Get single note |
 | PUT | `/api/notes/{id}` | Yes | `handleUpdateNote` | Edit note summary |
 | DELETE | `/api/notes/{id}` | Yes | `handleDeleteNote` | Delete a note |
-| POST | `/api/reports` | Yes | `handleGenerateReports` | Generate report cards (HTML) |
+| POST | `/api/reports` | Yes | `handleGenerateReports` | Generate report cards (one outcome per student) |
 | POST | `/api/reports/{id}/regenerate` | Yes | `handleRegenerateReport` | Regenerate with feedback |
 | GET | `/api/students/{id}/reports` | Yes | `handleListReports` | List reports for a student |
 | GET | `/api/reports/{id}` | Yes | `handleGetReport` | Get single report HTML |

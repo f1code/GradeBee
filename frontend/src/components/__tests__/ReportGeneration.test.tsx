@@ -3,12 +3,16 @@ import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockGenerateReports = vi.fn()
+const mockGetReport = vi.fn()
+const mockDeleteReport = vi.fn()
 const mockListClasses = vi.fn()
 const mockListStudents = vi.fn()
 const mockListLevels = vi.fn()
 
 vi.mock('../../api', () => ({
   generateReports: (...args: unknown[]) => mockGenerateReports(...args),
+  getReport: (...args: unknown[]) => mockGetReport(...args),
+  deleteReport: (...args: unknown[]) => mockDeleteReport(...args),
   listClasses: (...args: unknown[]) => mockListClasses(...args),
   listStudents: (...args: unknown[]) => mockListStudents(...args),
   listLevels: (...args: unknown[]) => mockListLevels(...args),
@@ -64,11 +68,10 @@ describe('ReportGeneration', () => {
 
   it('generates reports on submit', async () => {
     mockGenerateReports.mockResolvedValue({
-      reports: [
-        { id: 1, student: 'Alice', className: 'Math 101', studentId: 10, html: '<p>Alice report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
-        { id: 2, student: 'Bob', className: 'Math 101', studentId: 11, html: '<p>Bob report</p>', startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z' },
+      students: [
+        { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
+        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
       ],
-      error: null,
     })
     const user = await renderWithStudents()
     await user.click(screen.getByText('Math 101'))
@@ -81,6 +84,113 @@ describe('ReportGeneration', () => {
     // Results show student names in result cards
     expect(screen.getAllByText('Alice')).toHaveLength(2) // selector + result
     expect(screen.getAllByText('Bob')).toHaveLength(2)
+  })
+
+  it('shows each failed student with its error', async () => {
+    mockGenerateReports.mockResolvedValue({
+      students: [
+        { studentId: 10, name: 'Alice', status: 'failed', error: 'report generation failed' },
+        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
+      ],
+    })
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Math 101'))
+    await user.click(screen.getByText(/Generate 2 Report/))
+
+    const failed = await screen.findByTestId('report-result-failed')
+    expect(failed).toHaveTextContent('Alice')
+    expect(failed).toHaveTextContent('report generation failed')
+    expect(screen.getByTestId('report-result-name')).toHaveTextContent('Bob')
+  })
+
+  it('expanding a done student fetches its report', async () => {
+    mockGenerateReports.mockResolvedValue({
+      students: [{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }],
+    })
+    mockGetReport.mockResolvedValue({
+      id: 7, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report</p>',
+      startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z',
+    })
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Alice'))
+    await user.click(screen.getByText(/Generate 1 Report/))
+
+    await user.click(await screen.findByTestId('report-result-name'))
+    expect(await screen.findByText('Alice report')).toBeInTheDocument()
+    expect(mockGetReport).toHaveBeenCalledWith(7, stableGetToken)
+  })
+
+  it('a slower earlier fetch does not land on the row expanded after it', async () => {
+    mockGenerateReports.mockResolvedValue({
+      students: [
+        { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
+        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
+      ],
+    })
+    let resolveAlice: (r: unknown) => void = () => {}
+    mockGetReport.mockImplementation((id: number) => id === 1
+      ? new Promise(r => { resolveAlice = r })
+      : Promise.resolve({ id: 2, studentId: 11, student: 'Bob', className: 'Math 101', html: '<p>Bob report</p>', startDate: '', endDate: '', createdAt: '' }))
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Math 101'))
+    await user.click(screen.getByText(/Generate 2 Report/))
+
+    const [aliceRow, bobRow] = await screen.findAllByTestId('report-result-name')
+    await user.click(aliceRow)
+    await user.click(bobRow)
+    expect(await screen.findByText('Bob report')).toBeInTheDocument()
+    resolveAlice({ id: 1, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report</p>', startDate: '', endDate: '', createdAt: '' })
+    await waitFor(() => expect(screen.getByText('Bob report')).toBeInTheDocument())
+    expect(screen.queryByText('Alice report')).not.toBeInTheDocument()
+  })
+
+  it('a failed fetch collapses its row and shows the error, unless another row was expanded since', async () => {
+    mockGenerateReports.mockResolvedValue({
+      students: [
+        { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
+        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
+      ],
+    })
+    let rejectAlice: (e: Error) => void = () => {}
+    mockGetReport.mockImplementation((id: number) => id === 1
+      ? new Promise((_, reject) => { rejectAlice = reject })
+      : Promise.reject(new Error('Bob fetch failed')))
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Math 101'))
+    await user.click(screen.getByText(/Generate 2 Report/))
+
+    const [aliceRow, bobRow] = await screen.findAllByTestId('report-result-name')
+    await user.click(aliceRow)
+    await user.click(bobRow)
+    expect(await screen.findByText(/Bob fetch failed/)).toBeInTheDocument()
+
+    rejectAlice(new Error('Alice fetch failed'))
+    await waitFor(() => expect(screen.getByText(/Bob fetch failed/)).toBeInTheDocument())
+    expect(screen.queryByText(/Alice fetch failed/)).not.toBeInTheDocument()
+    expect(document.querySelector('.report-loading-inline')).not.toBeInTheDocument()
+  })
+
+  it('deleting a report from the viewer marks its row deleted', async () => {
+    mockGenerateReports.mockResolvedValue({
+      students: [{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }],
+    })
+    mockGetReport.mockResolvedValue({
+      id: 7, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report</p>',
+      startDate: '', endDate: '', createdAt: '',
+    })
+    mockDeleteReport.mockResolvedValue(undefined)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Alice'))
+    await user.click(screen.getByText(/Generate 1 Report/))
+    await user.click(await screen.findByTestId('report-result-name'))
+    await screen.findByText('Alice report')
+
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    const row = await screen.findByTestId('report-result-deleted')
+    expect(row).toHaveTextContent('Alice')
+    expect(row).toHaveTextContent('deleted')
+    expect(screen.queryByTestId('report-result-name')).not.toBeInTheDocument()
   })
 
   it('shows error on failed generation', async () => {
