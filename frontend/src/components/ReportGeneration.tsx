@@ -1,24 +1,76 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   listClasses,
   listStudents,
   generateReports,
+  listReportBatches,
   getReport,
   listLevels,
+  ApiError,
   type LevelItem,
   type ClassItem,
   type StudentItem,
   type ReportResult,
+  type ReportBatch,
   type ReportBatchStudent,
-  type GenerateReportsResponse,
 } from '../api'
-import { ReportStudentDone } from '../api-types.gen'
+import {
+  ReportBatchRunning,
+  ReportStudentDone,
+  ReportStudentFailed,
+  ReportStudentGenerating,
+} from '../api-types.gen'
 import ReportViewer from './ReportViewer'
+import { formatDateRange } from '../lib/date'
 
 interface ClassWithStudents extends ClassItem {
   students: StudentItem[]
+}
+
+const POLL_MS = 3000
+
+function batchSummary(batch: ReportBatch, deletedReportIds: Set<number>): string {
+  const rows = batch.students
+  const doneRows = rows.filter(s => s.status === ReportStudentDone)
+  const deleted = doneRows.filter(s => s.reportId !== undefined && deletedReportIds.has(s.reportId)).length
+  const done = doneRows.length - deleted
+  const failed = rows.filter(s => s.status === ReportStudentFailed).length
+  const pending = rows.length - doneRows.length - failed
+  const n = rows.length
+  const parts = [`${n} student${n !== 1 ? 's' : ''}`]
+  if (done) parts.push(`${done} done`)
+  if (deleted) parts.push(`${deleted} deleted`)
+  if (failed) parts.push(`${failed} failed`)
+  if (pending) parts.push(`${pending} in progress`)
+  return parts.join(' · ')
+}
+
+// What a row that can't expand shows: deleted, failed, or still pending.
+function staticStatus(r: ReportBatchStudent, deleted: boolean) {
+  if (deleted) {
+    return { testId: 'report-result-deleted', className: 'report-result-status', text: 'deleted' }
+  }
+  if (r.status === ReportStudentFailed) {
+    return { testId: 'report-result-failed', className: 'report-result-error', text: r.error || 'No report' }
+  }
+  const text = r.status === ReportStudentGenerating ? 'generating…' : 'queued'
+  return { testId: 'report-result-pending', className: 'report-result-status', text }
+}
+
+function StaticRow({ name, testId, className, text }: {
+  name: ReactNode
+  testId: string
+  className: string
+  text: string
+}) {
+  return (
+    <div className="report-result-item report-result-item-static" data-testid={testId}>
+      <span className="report-result-name">{name}</span>
+      <span className={className}>{text}</span>
+    </div>
+  )
 }
 
 export default function ReportGeneration() {
@@ -36,8 +88,12 @@ export default function ReportGeneration() {
     () => new Date().toISOString().slice(0, 10)
   )
   const [instructions, setInstructions] = useState('')
-  const [generating, setGenerating] = useState(false)
-  const [results, setResults] = useState<ReportBatchStudent[]>([])
+  const [posting, setPosting] = useState(false)
+  const [batch, setBatch] = useState<ReportBatch | null>(null)
+  // A running batch the server no longer knows: it restarted mid-batch.
+  const [interrupted, setInterrupted] = useState(false)
+  // Bumped when a poll fails, so the next one is still scheduled.
+  const [pollRetry, setPollRetry] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null)
   const [expandedReport, setExpandedReport] = useState<ReportResult | null>(null)
@@ -78,6 +134,38 @@ export default function ReportGeneration() {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { loadStudents() }, [loadStudents])
+
+  useEffect(() => {
+    listReportBatches(getToken)
+      .then(({ batches }) => setBatch(prev => prev ?? batches[0] ?? null))
+      .catch(() => { /* no batch to show */ })
+  }, [getToken])
+
+  const running = batch?.status === ReportBatchRunning
+  useEffect(() => {
+    if (!batch || !running) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const { batches } = await listReportBatches(getToken)
+        if (cancelled) return
+        // Gone with a newer batch present: another tab replaced it.
+        const latest = batches.find(b => b.id === batch.id) ?? batches[0]
+        if (latest) {
+          setBatch(latest)
+        } else {
+          setBatch(null)
+          setInterrupted(true)
+        }
+      } catch {
+        if (!cancelled) setPollRetry(n => n + 1)
+      }
+    }, POLL_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [batch, running, pollRetry, getToken])
 
   function toggleStudent(studentId: number) {
     setSelected(prev => {
@@ -132,12 +220,9 @@ export default function ReportGeneration() {
 
   async function handleGenerate() {
     if (selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel) return
-    setGenerating(true)
+    setPosting(true)
     setError(null)
-    setResults([])
-    setExpandedReportId(null)
-    setExpandedReport(null)
-    setDeletedReportIds(new Set())
+    setInterrupted(false)
     try {
       // Build students array with name+class for the backend
       const students = classes.flatMap(c =>
@@ -145,15 +230,32 @@ export default function ReportGeneration() {
           .filter(s => selected.has(s.id))
           .map(s => ({ studentId: s.id, name: s.name, className: c.name }))
       )
-      const resp: GenerateReportsResponse = await generateReports(
+      const posted = await generateReports(
         { students, startDate, endDate, instructions: instructions || undefined },
         () => getToken()
       )
-      setResults(resp.students || [])
+      requestedReportId.current = null
+      setExpandedReportId(null)
+      setExpandedReport(null)
+      setDeletedReportIds(new Set())
+      setBatch(posted)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Generation failed')
+      // Another tab started a batch: show it, it explains the disabled button.
+      // No running batch yet (the other POST still holds the lock): say why.
+      if (e instanceof ApiError && e.status === 409) {
+        const message = e.message
+        listReportBatches(getToken)
+          .then(({ batches }) => {
+            const running = batches.find(b => b.status === ReportBatchRunning)
+            if (running) setBatch(running)
+            else setError(message)
+          })
+          .catch(() => setError(message))
+      } else {
+        setError(e instanceof Error ? e.message : 'Generation failed')
+      }
     } finally {
-      setGenerating(false)
+      setPosting(false)
     }
   }
 
@@ -178,6 +280,10 @@ export default function ReportGeneration() {
       if (requestedReportId.current === reportId) setExpandedReport(report)
     } catch (e: unknown) {
       if (requestedReportId.current !== reportId) return
+      if (e instanceof ApiError && e.status === 404) {
+        handleReportDelete(reportId)
+        return
+      }
       setError(e instanceof Error ? e.message : 'Failed to load report')
       setExpandedReportId(null)
     }
@@ -187,12 +293,12 @@ export default function ReportGeneration() {
     setExpandedReport(prev => prev ? { ...prev, html: updatedHtml } : prev)
   }
 
+  // Functional updates: the 404 path in handleExpand runs before its own
+  // setExpandedReportId lands.
   function handleReportDelete(reportId: number) {
     setDeletedReportIds(prev => new Set(prev).add(reportId))
-    if (expandedReportId === reportId) {
-      setExpandedReportId(null)
-      setExpandedReport(null)
-    }
+    setExpandedReportId(prev => (prev === reportId ? null : prev))
+    setExpandedReport(prev => (prev?.id === reportId ? null : prev))
   }
 
   return (
@@ -304,9 +410,9 @@ export default function ReportGeneration() {
       <button
         className="report-generate-btn"
         onClick={handleGenerate}
-        disabled={generating || selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel}
+        disabled={posting || running || selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel}
       >
-        {generating ? (
+        {posting || running ? (
           <span className="btn-loading"><span className="honeycomb-spinner honeycomb-spinner-inline"><span className="hex" /><span className="hex" /><span className="hex" /></span> Generating...</span>
         ) : (
           `Generate ${selectedCount} Report${selectedCount !== 1 ? 's' : ''}`
@@ -320,17 +426,24 @@ export default function ReportGeneration() {
         </motion.div>
       )}
 
+      {interrupted && (
+        <div className="report-error" data-testid="report-batch-interrupted">
+          <p>⚠️ The batch was interrupted. Check History.</p>
+        </div>
+      )}
+
       {/* Results */}
       <AnimatePresence>
-        {results.length > 0 && (
+        {batch && batch.students.length > 0 && (
           <motion.div
             className="report-results"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <h3>Generated Reports</h3>
+            <h3>Reports for {formatDateRange(batch.startDate, batch.endDate)}</h3>
+            <p className="report-results-summary" data-testid="report-batch-summary">{batchSummary(batch, deletedReportIds)}</p>
             <div className="report-results-list">
-              {results.map((r, i) => {
+              {batch.students.map((r, i) => {
                 const className = classNameByStudent.get(r.studentId)
                 const name = (
                   <>
@@ -350,12 +463,7 @@ export default function ReportGeneration() {
                     layout
                   >
                     {reportId === undefined || deleted ? (
-                      <div className="report-result-item report-result-item-static" data-testid={deleted ? 'report-result-deleted' : 'report-result-failed'}>
-                        <span className="report-result-name">{name}</span>
-                        <span className={deleted ? 'report-result-status' : 'report-result-error'}>
-                          {deleted ? 'deleted' : r.error || 'No report'}
-                        </span>
-                      </div>
+                      <StaticRow name={name} {...staticStatus(r, deleted)} />
                     ) : (
                       <div
                         className={`report-result-item${isExpanded ? ' report-result-item-expanded' : ''}`}

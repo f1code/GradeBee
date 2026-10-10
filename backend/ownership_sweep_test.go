@@ -463,7 +463,9 @@ var sweepDenied = []deniedCase{
 		// B names B's own child, so only the row's user_id can refuse. Nothing
 		// of A's is deleted: A's notes are in the snapshot.
 		name: "undo an assignment on another user's recording", route: "DELETE /api/voice-notes/{uploadId}/assign/{studentId}", method: http.MethodDelete,
-		path:       func(f *sweepFixture) string { return fmt.Sprintf("/api/voice-notes/%d/assign/%d", f.uploadA.ID, f.studentB.ID) },
+		path: func(f *sweepFixture) string {
+			return fmt.Sprintf("/api/voice-notes/%d/assign/%d", f.uploadA.ID, f.studentB.ID)
+		},
 		wantStatus: http.StatusNotFound, wantBody: jsonBody("recording not found"),
 	},
 }
@@ -481,6 +483,7 @@ var notEntityScoped = map[string]string{
 	"GET /api/google-token":              "returns the caller's own Clerk OAuth token",
 	"GET /api/voice-notes/jobs":          "lists only jobs whose key is prefixed by the caller's user id",
 	"POST /api/voice-notes/jobs/retry":   "takes no ids; republishes only the caller's own failed jobs",
+	"GET /api/reports/batches":           "lists only batches whose key is prefixed by the caller's user id",
 }
 
 // sweepRequest builds the request for a case, with a log-capturing context so
@@ -583,7 +586,7 @@ func TestOwnershipSweep_OwnerSucceeds(t *testing.T) {
 					"endDate":   "2026-03-31",
 				}
 			},
-			wantStatus: http.StatusOK, wantIn: `"name":"` + sweepStudentName + `","status":"done"`,
+			wantStatus: http.StatusAccepted, wantIn: `"name":"` + sweepStudentName + `","status":"queued"`,
 		},
 		{
 			name: "group gate", gate: "LevelRepo group_id scoping", method: http.MethodPut,

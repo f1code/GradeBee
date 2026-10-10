@@ -73,9 +73,11 @@ func main() {
 	// Initialize dependencies with DB handle and uploads dir.
 	d := handler.NewProdDeps(db, uploadsDir)
 
-	// Start in-memory upload queue with 4 workers. Closed explicitly during
-	// shutdown (below) so it drains after the HTTP server stops accepting.
+	// Start in-memory upload queue (4 workers) and report batch queue (1).
+	// Closed explicitly during shutdown (below) so they drain after the HTTP
+	// server stops accepting.
 	queue := handler.InitVoiceNoteQueue(d, 4)
+	reportQueue := handler.InitReportBatchQueue(d)
 
 	// Context for background goroutines (cleanup loop). Cancelled last in
 	// the shutdown sequence.
@@ -133,7 +135,7 @@ func main() {
 	// Shutdown sequence, in order:
 	//   1. Stop accepting connections and wait (up to 30s) for in-flight
 	//      requests to finish.
-	//   2. Drain the job queue: Close blocks until running workers return.
+	//   2. Drain the job queues: Close blocks until running workers return.
 	//   3. Cancel the background ctx (cleanup loop).
 	// Deferred db.Close and sentry.Flush then run as main returns.
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -142,6 +144,7 @@ func main() {
 		slog.Error("shutdown error", "error", err)
 	}
 	queue.Close()
+	reportQueue.Close()
 	cancel()
 	slog.Info("shutdown complete")
 }

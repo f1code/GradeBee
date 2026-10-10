@@ -64,6 +64,11 @@ func TestHandleGenerateReports_RefusesUnsetLevelInstructions(t *testing.T) {
 	reports, err := reportRepo.List(ctx, stu.ID)
 	require.NoError(t, err)
 	assert.Empty(t, reports, "no report row must be created on gate refusal")
+	queue, err := serviceDeps.GetReportBatchQueue()
+	require.NoError(t, err)
+	jobs, err := queue.ListJobs(ctx, "user_abc")
+	require.NoError(t, err)
+	assert.Empty(t, jobs, "nothing enqueued on gate refusal")
 }
 
 // TestHandleGenerateReports_MixedLevelBatchRefusesWhole covers a batch
@@ -123,6 +128,11 @@ func TestHandleGenerateReports_MixedLevelBatchRefusesWhole(t *testing.T) {
 	reports2, err := reportRepo.List(ctx, stu2.ID)
 	require.NoError(t, err)
 	assert.Empty(t, reports2)
+	queue, err := serviceDeps.GetReportBatchQueue()
+	require.NoError(t, err)
+	jobs, err := queue.ListJobs(ctx, "user_abc")
+	require.NoError(t, err)
+	assert.Empty(t, jobs, "nothing enqueued on gate refusal")
 }
 
 // TestHandleRegenerateReport_RefusesUnsetLevelInstructions covers the

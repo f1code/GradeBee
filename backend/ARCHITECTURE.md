@@ -36,7 +36,8 @@ Go HTTP backend for GradeBee: student rosters, voice/text notes (upload → tran
 | GET | `/api/notes/{id}` | Yes | `handleGetNote` | Get single note |
 | PUT | `/api/notes/{id}` | Yes | `handleUpdateNote` | Edit note summary |
 | DELETE | `/api/notes/{id}` | Yes | `handleDeleteNote` | Delete a note |
-| POST | `/api/reports` | Yes | `handleGenerateReports` | Generate report cards (one outcome per student) |
+| POST | `/api/reports` | Yes | `handleGenerateReports` | Queue a report batch; `202` + snapshot, `409` while one runs (+ `batchId`) or lock held, `503` queue full |
+| GET | `/api/reports/batches` | Yes | `handleListReportBatches` | `{batches}` newest first (0–1 today) |
 | POST | `/api/reports/{id}/regenerate` | Yes | `handleRegenerateReport` | Regenerate with feedback |
 | GET | `/api/students/{id}/reports` | Yes | `handleListReports` | List reports for a student |
 | GET | `/api/reports/{id}` | Yes | `handleGetReport` | Get single report HTML |
@@ -94,6 +95,15 @@ The done card (`PassageReview.tsx`) lists unattributed passages. Assign files th
 
 Audio is deleted right after transcription. The row and its transcript go after `UPLOAD_RETENTION_HOURS` (default 168), counted from `processed_at`, or `created_at` if never processed.
 
+## Report batches (`report_batch_job.go`)
+
+`POST /api/reports` checks ownership and Level instructions in the request (`400`, nothing queued), then publishes one `ReportJob` on `MemQueue[ReportJob]` (1 worker: batches run one at a time across all Teachers). Key `userID/<batchID>`. The job holds inputs resolved at POST time and one row per student: `queued` → `generating` → `done` + `reportId` | `failed` + fixed error text. Running while any row is `queued` or `generating`.
+
+- Lock: `takeUploadLock("report-batch/"+userID)` guards check, publish and prune; the worker never holds it.
+- One batch per Teacher: a new POST deletes the previous finished batch after its own publish succeeds; a failed publish answers `503` and keeps the previous one.
+- Worker (`processReportBatch`): `withLLMCaller(ctx, userID, "")`; clones `Students` before each write (`GetJob` copies share the slice). A failure does not stop the batch; 3 in a row mark the rest failed without calling the LLM.
+- Lost on restart. The page polls `GET /api/reports/batches` every 3s and shows "interrupted" when its running batch vanishes.
+
 ## Dependency Injection
 
 `deps.go`: `deps` interface, `prodDeps`, package-level `serviceDeps`. Handlers call through it; tests swap it for stubs.
@@ -105,7 +115,7 @@ Audio is deleted right after transcription. The row and its transcript go after 
 | `Extractor` | `extract.go` | `llmExtractor` | Transcript → passages (two passes); `ExtractPassages` runs pass 2 alone |
 | `NoteCreator` | `notes.go` | `dbNoteCreator` | `CreateNotes` files a batch in one transaction |
 | `ReportGenerator` | `report_generator.go` | `llmReportGenerator` | Report cards (HTML) |
-| `JobQueue[T]` | `job_queue.go` | `MemQueue[T]` | In-memory job queue |
+| `JobQueue[T]` | `job_queue.go` | `MemQueue[T]` | In-memory job queue (`VoiceNoteJob`, `ReportJob`) |
 
 ## External Services
 

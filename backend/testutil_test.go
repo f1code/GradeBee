@@ -69,6 +69,7 @@ type mockDepsAll struct {
 	reportGenErr      error
 	voiceNoteQueue    JobQueue[VoiceNoteJob]
 	voiceNoteQueueErr error
+	reportBatchQueue  JobQueue[ReportJob]
 	driveClient       DriveClient
 	driveClientErr    error
 	db                *sql.DB
@@ -119,6 +120,13 @@ func (m *mockDepsAll) GetVoiceNoteQueue() (JobQueue[VoiceNoteJob], error) {
 		return nil, m.voiceNoteQueueErr
 	}
 	return m.voiceNoteQueue, nil
+}
+
+func (m *mockDepsAll) GetReportBatchQueue() (JobQueue[ReportJob], error) {
+	if m.reportBatchQueue == nil {
+		m.reportBatchQueue = NewMemQueue[ReportJob](nil, 0)
+	}
+	return m.reportBatchQueue, nil
 }
 
 func (m *mockDepsAll) GetDriveClient(_ context.Context, _ string) (DriveClient, error) {

@@ -47,26 +47,49 @@ async function mockClassesAndStudents(page: Page) {
   })
 }
 
+type Row = { studentId: number; name: string; status: string; reportId?: number; error?: string }
+
+function batch(students: Row[], status: string) {
+  return { id: 'b1', startDate: '2026-01-01', endDate: '2026-03-31', createdAt: '2026-04-03T12:00:00Z', status, students }
+}
+
+// POST answers 202 with every row queued; the page's next poll of
+// /reports/batches finds the batch finished with the given rows.
+async function mockBatchRun(page: Page, finished: Row[]) {
+  let posted = false
+  await page.route('**/reports/batches', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ batches: posted ? [batch(finished, 'finished')] : [] }),
+    })
+  })
+  await page.route('**/reports', async (route) => {
+    if (route.request().method() === 'POST') {
+      posted = true
+      const queued = finished.map(r => ({ studentId: r.studentId, name: r.name, status: 'queued' }))
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify(batch(queued, 'running')),
+      })
+    } else {
+      await route.continue()
+    }
+  })
+}
+
 test.beforeEach(async ({ page }) => {
   await setupClerkTestingToken({ page })
   await mockClassesAndStudents(page)
+  await page.route('**/reports/batches', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ batches: [] }) })
+  })
 })
 
 test.describe('Report generation', () => {
-  test('generate report shows result with correct fields', async ({ page }) => {
-    await page.route('**/reports', async (route) => {
-      if (route.request().method() === 'POST') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            students: [{ studentId: 10, name: 'Alice', status: 'done', reportId: 42 }],
-          }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+  test('generate report queues the batch, then shows the result', async ({ page }) => {
+    await mockBatchRun(page, [{ studentId: 10, name: 'Alice', status: 'done', reportId: 42 }])
 
     await page.goto('/')
 
@@ -82,8 +105,12 @@ test.describe('Report generation', () => {
     // Click generate
     await page.getByRole('button', { name: /Generate.*Report/ }).click()
 
-    // Report result appears
-    await expect(page.getByText('Generated Reports')).toBeVisible({ timeout: 10000 })
+    // Queued at once, Generate disabled while it runs
+    await expect(page.getByTestId('report-result-pending')).toContainText('queued', { timeout: 10000 })
+    await expect(page.getByRole('button', { name: /Generating/ })).toBeDisabled()
+
+    // The next poll finds it finished
+    await expect(page.getByTestId('report-batch-summary')).toContainText('1 done', { timeout: 10000 })
     await expect(page.getByTestId('report-result-name')).toBeVisible({ timeout: 5000 })
     await expect(page.getByTestId('report-result-name')).toContainText('Alice')
   })
@@ -101,22 +128,10 @@ test.describe('Report generation', () => {
         }),
       })
     })
-    await page.route('**/reports', async (route) => {
-      if (route.request().method() === 'POST') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            students: [
-              { studentId: 10, name: 'Alice', status: 'done', reportId: 42 },
-              { studentId: 11, name: 'Bob', status: 'failed', error: 'report generation failed' },
-            ],
-          }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+    await mockBatchRun(page, [
+      { studentId: 10, name: 'Alice', status: 'done', reportId: 42 },
+      { studentId: 11, name: 'Bob', status: 'failed', error: 'report generation failed' },
+    ])
 
     await page.goto('/')
     await page.getByText('Reports').click()
@@ -177,20 +192,7 @@ test.describe('Report generation', () => {
   })
 
   test('thumbs-down on generated report captures feedback', async ({ page }) => {
-    // Mock report generation
-    await page.route('**/reports', async (route) => {
-      if (route.request().method() === 'POST') {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            students: [{ studentId: 10, name: 'Alice', status: 'done', reportId: 42 }],
-          }),
-        })
-      } else {
-        await route.continue()
-      }
-    })
+    await mockBatchRun(page, [{ studentId: 10, name: 'Alice', status: 'done', reportId: 42 }])
 
     await page.route('**/reports/42', async (route) => {
       await route.fulfill({
@@ -258,5 +260,20 @@ test.describe('Report generation', () => {
     expect(payload.rating).toBe('down')
     expect(payload.comment).toBe('Too short, lacks detail')
   })
-})
 
+  test('a batch finished while away shows on return', async ({ page }) => {
+    await page.route('**/reports/batches', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ batches: [batch([{ studentId: 10, name: 'Alice', status: 'done', reportId: 42 }], 'finished')] }),
+      })
+    })
+
+    await page.goto('/')
+    await page.getByText('Reports').click()
+
+    await expect(page.getByTestId('report-batch-summary')).toContainText('1 student · 1 done', { timeout: 10000 })
+    await expect(page.getByTestId('report-result-name')).toContainText('Alice')
+  })
+})

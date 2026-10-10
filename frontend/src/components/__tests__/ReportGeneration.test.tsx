@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { ReportBatchStudent } from '../../api'
 
 const mockGenerateReports = vi.fn()
 const mockGetReport = vi.fn()
@@ -8,9 +9,12 @@ const mockDeleteReport = vi.fn()
 const mockListClasses = vi.fn()
 const mockListStudents = vi.fn()
 const mockListLevels = vi.fn()
+const mockListReportBatches = vi.fn()
 
-vi.mock('../../api', () => ({
+vi.mock('../../api', async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import('../../api')>()).ApiError,
   generateReports: (...args: unknown[]) => mockGenerateReports(...args),
+  listReportBatches: (...args: unknown[]) => mockListReportBatches(...args),
   getReport: (...args: unknown[]) => mockGetReport(...args),
   deleteReport: (...args: unknown[]) => mockDeleteReport(...args),
   listClasses: (...args: unknown[]) => mockListClasses(...args),
@@ -27,9 +31,18 @@ function level(id: number, name: string, reportInstructions: string) {
   return { id, groupId: 'g1', name, reportInstructions, createdAt: '' }
 }
 
+function batch(students: ReportBatchStudent[], status = 'finished', id = 'b1') {
+  return { id, startDate: '2026-01-01', endDate: '2026-03-31', createdAt: '', status, students }
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   mockListLevels.mockResolvedValue({ levels: [] })
+  mockListReportBatches.mockResolvedValue({ batches: [] })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })
 
 async function renderWithStudents() {
@@ -67,19 +80,17 @@ describe('ReportGeneration', () => {
   })
 
   it('generates reports on submit', async () => {
-    mockGenerateReports.mockResolvedValue({
-      students: [
-        { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
-        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
-      ],
-    })
+    mockGenerateReports.mockResolvedValue(batch([
+      { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
+      { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
+    ]))
     const user = await renderWithStudents()
     await user.click(screen.getByText('Math 101'))
     expect(screen.getByText(/Generate 2 Report/)).toBeInTheDocument()
 
     await user.click(screen.getByText(/Generate 2 Report/))
     await waitFor(() => {
-      expect(screen.getByText('Generated Reports')).toBeInTheDocument()
+      expect(screen.getByText('Reports for Jan 1, 2026 – Mar 31, 2026')).toBeInTheDocument()
     })
     // Results show student names in result cards
     expect(screen.getAllByText('Alice')).toHaveLength(2) // selector + result
@@ -87,12 +98,10 @@ describe('ReportGeneration', () => {
   })
 
   it('shows each failed student with its error', async () => {
-    mockGenerateReports.mockResolvedValue({
-      students: [
-        { studentId: 10, name: 'Alice', status: 'failed', error: 'report generation failed' },
-        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
-      ],
-    })
+    mockGenerateReports.mockResolvedValue(batch([
+      { studentId: 10, name: 'Alice', status: 'failed', error: 'report generation failed' },
+      { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
+    ]))
     const user = await renderWithStudents()
     await user.click(screen.getByText('Math 101'))
     await user.click(screen.getByText(/Generate 2 Report/))
@@ -104,9 +113,7 @@ describe('ReportGeneration', () => {
   })
 
   it('expanding a done student fetches its report', async () => {
-    mockGenerateReports.mockResolvedValue({
-      students: [{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }],
-    })
+    mockGenerateReports.mockResolvedValue(batch([{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }]))
     mockGetReport.mockResolvedValue({
       id: 7, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report</p>',
       startDate: '2026-01-01', endDate: '2026-03-27', createdAt: '2026-03-27T12:00:00Z',
@@ -121,12 +128,10 @@ describe('ReportGeneration', () => {
   })
 
   it('a slower earlier fetch does not land on the row expanded after it', async () => {
-    mockGenerateReports.mockResolvedValue({
-      students: [
-        { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
-        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
-      ],
-    })
+    mockGenerateReports.mockResolvedValue(batch([
+      { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
+      { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
+    ]))
     let resolveAlice: (r: unknown) => void = () => {}
     mockGetReport.mockImplementation((id: number) => id === 1
       ? new Promise(r => { resolveAlice = r })
@@ -145,12 +150,10 @@ describe('ReportGeneration', () => {
   })
 
   it('a failed fetch collapses its row and shows the error, unless another row was expanded since', async () => {
-    mockGenerateReports.mockResolvedValue({
-      students: [
-        { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
-        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
-      ],
-    })
+    mockGenerateReports.mockResolvedValue(batch([
+      { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
+      { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
+    ]))
     let rejectAlice: (e: Error) => void = () => {}
     mockGetReport.mockImplementation((id: number) => id === 1
       ? new Promise((_, reject) => { rejectAlice = reject })
@@ -171,9 +174,7 @@ describe('ReportGeneration', () => {
   })
 
   it('deleting a report from the viewer marks its row deleted', async () => {
-    mockGenerateReports.mockResolvedValue({
-      students: [{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }],
-    })
+    mockGenerateReports.mockResolvedValue(batch([{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }]))
     mockGetReport.mockResolvedValue({
       id: 7, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report</p>',
       startDate: '', endDate: '', createdAt: '',
@@ -202,6 +203,106 @@ describe('ReportGeneration', () => {
     await waitFor(() => {
       expect(screen.getByText(/Generation failed/)).toBeInTheDocument()
     })
+  })
+})
+
+describe('ReportGeneration — background batch', () => {
+  it('shows the latest batch on mount', async () => {
+    mockListReportBatches.mockResolvedValue({ batches: [batch([
+      { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
+      { studentId: 11, name: 'Bob', status: 'failed', error: 'report generation failed' },
+    ])] })
+    await renderWithStudents()
+    expect(await screen.findByTestId('report-batch-summary')).toHaveTextContent('2 students · 1 done · 1 failed')
+    expect(screen.getByTestId('report-result-failed')).toHaveTextContent('Bob')
+  })
+
+  it('polls a running batch until it finishes, with Generate disabled meanwhile', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListReportBatches
+      .mockResolvedValueOnce({ batches: [batch([
+        { studentId: 10, name: 'Alice', status: 'generating' },
+        { studentId: 11, name: 'Bob', status: 'queued' },
+      ], 'running')] })
+      .mockResolvedValueOnce({ batches: [batch([
+        { studentId: 10, name: 'Alice', status: 'done', reportId: 1 },
+        { studentId: 11, name: 'Bob', status: 'done', reportId: 2 },
+      ])] })
+    await renderWithStudents()
+    expect(await screen.findByTestId('report-batch-summary')).toHaveTextContent('2 in progress')
+    const pending = screen.getAllByTestId('report-result-pending')
+    expect(pending[0]).toHaveTextContent('generating')
+    expect(pending[1]).toHaveTextContent('queued')
+    expect(screen.getByRole('button', { name: /Generating/ })).toBeDisabled()
+
+    await act(() => vi.advanceTimersByTimeAsync(3000))
+    expect(await screen.findByTestId('report-batch-summary')).toHaveTextContent('2 done')
+    expect(screen.getByRole('button', { name: /Generate 0 Reports/ })).toBeInTheDocument()
+
+    await act(() => vi.advanceTimersByTimeAsync(6000))
+    expect(mockListReportBatches).toHaveBeenCalledTimes(2)
+  })
+
+  it('a running batch the server lost shows as interrupted', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListReportBatches
+      .mockResolvedValueOnce({ batches: [batch([{ studentId: 10, name: 'Alice', status: 'queued' }], 'running')] })
+      .mockResolvedValueOnce({ batches: [] })
+    await renderWithStudents()
+    await screen.findByTestId('report-batch-summary')
+
+    await act(() => vi.advanceTimersByTimeAsync(3000))
+    expect(await screen.findByTestId('report-batch-interrupted')).toHaveTextContent('The batch was interrupted. Check History.')
+    expect(screen.queryByTestId('report-batch-summary')).not.toBeInTheDocument()
+  })
+
+  it('a conflict shows the batch already running instead of an error', async () => {
+    const { ApiError } = await vi.importActual<typeof import('../../api')>('../../api')
+    mockGenerateReports.mockRejectedValue(new ApiError('a report batch is already running', 409))
+    const user = await renderWithStudents()
+    mockListReportBatches.mockResolvedValue({ batches: [batch([{ studentId: 11, name: 'Bob', status: 'queued' }], 'running', 'other')] })
+    await user.click(screen.getByText('Math 101'))
+    await user.click(screen.getByText(/Generate 2 Report/))
+
+    expect(await screen.findByTestId('report-result-pending')).toHaveTextContent('Bob')
+    expect(screen.getByRole('button', { name: /Generating/ })).toBeDisabled()
+    expect(screen.queryByText(/already running/)).not.toBeInTheDocument()
+  })
+
+  it('a conflict with no running batch yet shows the error', async () => {
+    const { ApiError } = await vi.importActual<typeof import('../../api')>('../../api')
+    mockGenerateReports.mockRejectedValue(new ApiError('a report batch is already running', 409))
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Math 101'))
+    await user.click(screen.getByText(/Generate 2 Report/))
+
+    expect(await screen.findByText(/a report batch is already running/)).toBeInTheDocument()
+  })
+
+  it('a 404 on expand marks the row deleted', async () => {
+    const { ApiError } = await vi.importActual<typeof import('../../api')>('../../api')
+    mockListReportBatches.mockResolvedValue({ batches: [batch([{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }])] })
+    mockGetReport.mockRejectedValue(new ApiError('report not found', 404))
+    const user = await renderWithStudents()
+    await user.click(await screen.findByTestId('report-result-name'))
+
+    expect(await screen.findByTestId('report-result-deleted')).toHaveTextContent('Alice')
+    expect(screen.queryByText(/report not found/)).not.toBeInTheDocument()
+    expect(document.querySelector('.report-loading-inline')).not.toBeInTheDocument()
+    expect(screen.getByTestId('report-batch-summary')).toHaveTextContent('1 student · 1 deleted')
+  })
+
+  it('a running batch replaced from another tab shows the newer batch', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListReportBatches
+      .mockResolvedValueOnce({ batches: [batch([{ studentId: 10, name: 'Alice', status: 'queued' }], 'running', 'old')] })
+      .mockResolvedValueOnce({ batches: [batch([{ studentId: 11, name: 'Bob', status: 'queued' }], 'running', 'new')] })
+    await renderWithStudents()
+    await screen.findByTestId('report-result-pending')
+
+    await act(() => vi.advanceTimersByTimeAsync(3000))
+    await waitFor(() => expect(screen.getByTestId('report-result-pending')).toHaveTextContent('Bob'))
+    expect(screen.queryByTestId('report-batch-interrupted')).not.toBeInTheDocument()
   })
 })
 

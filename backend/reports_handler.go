@@ -7,7 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
+	"time"
+
+	"github.com/google/uuid"
 )
 
 // ListReportsResponse is the JSON envelope for handleListReports.
@@ -42,36 +46,13 @@ type ReportResult struct {
 	CreatedAt string `json:"createdAt"`
 }
 
-// Report batch row statuses.
-const (
-	ReportStudentDone   = "done"
-	ReportStudentFailed = "failed"
-)
-
-// maxConsecutiveReportFailures stops a batch whose failures look systemic
-// (provider down, quota) instead of burning one LLM call per student.
-const maxConsecutiveReportFailures = 3
-
-// Row error texts. Fixed strings: provider errors can echo prompt content,
-// and rows must not carry student names (ADR 0003).
-const (
-	reportStudentErrGenerate = "report generation failed"
-	reportStudentErrSkipped  = "skipped after repeated errors"
-)
-
-// ReportBatchStudent is one student's outcome in a report batch.
-type ReportBatchStudent struct {
-	StudentID int64   `json:"studentId"`
-	Name      string  `json:"name"`
-	Status    string  `json:"status"`
-	ReportID  *int64  `json:"reportId,omitempty"`
-	Error     *string `json:"error,omitempty"`
+// ListReportBatchesResponse is the JSON response for GET /reports/batches,
+// newest first.
+type ListReportBatchesResponse struct {
+	Batches []ReportBatch `json:"batches"`
 }
 
-// GenerateReportsHTTPResponse is the JSON response for POST /reports.
-type GenerateReportsHTTPResponse struct {
-	Students []ReportBatchStudent `json:"students"`
-}
+const errReportBatchRunning = "a report batch is already running"
 
 func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
@@ -93,13 +74,6 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	generator, err := serviceDeps.GetReportGenerator()
-	if err != nil {
-		log.Error("generate reports: init failed", "error", err)
-		writeInternalError(w, r, err)
-		return
-	}
-
 	groupID, err := groupIDFromRequest(r)
 	if err != nil {
 		writeError(w, r, err)
@@ -144,30 +118,90 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	students := make([]ReportBatchStudent, 0, len(inputs))
-	consecutiveFailures := 0
-	generated := 0
-	for _, in := range inputs {
-		row := ReportBatchStudent{StudentID: in.StudentID, Name: in.StudentName}
-		if consecutiveFailures >= maxConsecutiveReportFailures {
-			row.Status = ReportStudentFailed
-			row.Error = new(reportStudentErrSkipped)
-		} else if resp, err := generator.Generate(ctx, GenerateReportRequest{ReportInputs: in, UserID: userID}); err != nil {
-			log.Error("generate reports: student failed", "student_id", in.StudentID, "error", err)
-			consecutiveFailures++
-			row.Status = ReportStudentFailed
-			row.Error = new(reportStudentErrGenerate)
-		} else {
-			consecutiveFailures = 0
-			generated++
-			row.Status = ReportStudentDone
-			row.ReportID = &resp.ReportID
-		}
-		students = append(students, row)
+	queue, err := serviceDeps.GetReportBatchQueue()
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
 	}
 
-	log.Info("generate reports completed", "user_id", userID, "report_count", generated, "student_count", len(students))
-	writeJSON(w, http.StatusOK, GenerateReportsHTTPResponse{Students: students})
+	// The lock covers check, publish and prune only; the worker runs unlocked.
+	lockKey := "report-batch/" + userID
+	if !takeUploadLock(lockKey) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": errReportBatchRunning})
+		return
+	}
+	defer releaseUploadLock(lockKey)
+
+	previous, err := queue.ListJobs(ctx, userID)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	for _, j := range previous {
+		if j.running() {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": errReportBatchRunning, "batchId": j.BatchID})
+			return
+		}
+	}
+
+	students := make([]ReportBatchStudent, len(inputs))
+	for i, in := range inputs {
+		students[i] = ReportBatchStudent{StudentID: in.StudentID, Name: in.StudentName, Status: ReportStudentQueued}
+	}
+	job := ReportJob{
+		UserID:    userID,
+		BatchID:   uuid.NewString(),
+		StartDate: req.StartDate,
+		EndDate:   req.EndDate,
+		CreatedAt: time.Now().UTC(),
+		Inputs:    inputs,
+		Students:  students,
+	}
+	// Snapshot before publishing: once queued, the worker owns the job.
+	snapshot := job.snapshot()
+	// Publish stores the job before its channel send; a full channel leaves
+	// a batch no worker will run, which would block every later POST.
+	deleteJob := func(key string) {
+		if err := queue.DeleteJob(ctx, key); err != nil {
+			log.Warn("generate reports: delete batch failed", "error", err)
+		}
+	}
+	if err := publishOrCleanup(ctx, queue, job, func() { deleteJob(job.JobKey()) }); err != nil {
+		log.Error("generate reports: enqueue failed", "error", err)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "report generation is busy, try again shortly"})
+		return
+	}
+	// Prune after publishing, so a 503 keeps the previous results.
+	for _, j := range previous {
+		deleteJob(j.JobKey())
+	}
+
+	log.Info("generate reports queued", "user_id", userID, "batch_id", job.BatchID, "student_count", len(students))
+	writeJSON(w, http.StatusAccepted, snapshot)
+}
+
+func handleListReportBatches(w http.ResponseWriter, r *http.Request) {
+	userID, err := userIDFromRequest(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	queue, err := serviceDeps.GetReportBatchQueue()
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	jobs, err := queue.ListJobs(r.Context(), userID)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	slices.SortFunc(jobs, func(a, b ReportJob) int { return b.CreatedAt.Compare(a.CreatedAt) })
+	batches := make([]ReportBatch, len(jobs))
+	for i, j := range jobs {
+		batches[i] = j.snapshot()
+	}
+	writeJSON(w, http.StatusOK, ListReportBatchesResponse{Batches: batches})
 }
 
 // RegenerateReportHTTPRequest is the JSON body for POST /reports/:id/regenerate.
