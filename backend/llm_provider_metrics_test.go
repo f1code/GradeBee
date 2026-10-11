@@ -192,14 +192,9 @@ func TestInstrumentedProvider_ErrorKindOther(t *testing.T) {
 // other test in this file constructs the wrapper directly and would stay
 // green even if production wiring were deleted.
 func TestLoadProvider_WrapsWithInstrumentation(t *testing.T) {
+	clearLLMEnv(t)
 	t.Setenv("LLM_PROVIDER", "mistral")
 	t.Setenv("MISTRAL_API_KEY", "test-key")
-	t.Setenv("OPENAI_API_KEY", "")
-	// resolveModels reads these regardless of provider; clear them so the
-	// assertion below reflects defaultModels(), not a developer's local env.
-	t.Setenv("LLM_MODEL_EXTRACTION", "")
-	t.Setenv("LLM_MODEL_REPORT", "")
-	t.Setenv("LLM_MODEL_TRANSCRIPTION", "")
 
 	p, err := LoadProvider(nil)
 	require.NoError(t, err)

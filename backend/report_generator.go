@@ -6,6 +6,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
+	"strings"
 )
 
 // GenerateReportRequest is the input for generating a single student report.
@@ -131,5 +133,16 @@ func (g *llmReportGenerator) callLLM(ctx context.Context, prompt string) (string
 	if err != nil {
 		return "", fmt.Errorf("report: LLM call failed: %w", err)
 	}
-	return resp.Text, nil
+	return stripCodeFence(resp.Text), nil
+}
+
+// Some models wrap the HTML in a ```html fence; the prompt does not forbid it.
+var codeFence = regexp.MustCompile("(?s)^(```|~~~)[a-zA-Z]*\\s*(.*?)\\s*(```|~~~)?$")
+
+func stripCodeFence(s string) string {
+	s = strings.TrimSpace(s)
+	if m := codeFence.FindStringSubmatch(s); m != nil {
+		return m[2]
+	}
+	return s
 }
