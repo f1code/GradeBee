@@ -354,3 +354,17 @@ func TestLLMReportGenerator_Regenerate_LLMErrorLeavesOldRowIntact(t *testing.T) 
 	require.Len(t, reports, 1)
 	assert.Equal(t, old.ID, reports[0].ID)
 }
+
+func TestStripCodeFence(t *testing.T) {
+	for in, want := range map[string]string{
+		"<p>hi</p>":                       "<p>hi</p>",
+		"```html\n<p>hi</p>\n```":         "<p>hi</p>",
+		"\n```\n<p>hi</p>\n```\n":         "<p>hi</p>",
+		"```html\n<p>hi</p>":              "<p>hi</p>",
+		"```<p>hi</p>```":                 "<p>hi</p>",
+		"```html\r\n<p>hi</p>\r\n```\r\n": "<p>hi</p>",
+		"<p>`code`</p>":                   "<p>`code`</p>",
+	} {
+		assert.Equal(t, want, stripCodeFence(in), in)
+	}
+}
