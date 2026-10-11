@@ -485,6 +485,20 @@ export async function listReportBatches(
   return body
 }
 
+export async function retryReportBatch(
+  batchId: string,
+  getToken: () => Promise<string | null>
+): Promise<ReportBatch> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/reports/batches/${encodeURIComponent(batchId)}/retry`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const body = await readBody(resp)
+  if (!resp.ok) throw new ApiError(body.error || 'Retry failed', resp.status)
+  return body
+}
+
 export async function regenerateReport(
   reportId: number,
   feedback: string,

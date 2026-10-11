@@ -251,6 +251,10 @@
   margin: 0 0 0.75rem;
 }
 
+.report-batch-retry {
+  margin-bottom: 0.75rem;
+}
+
 .report-results-list {
   display: flex;
   flex-direction: column;

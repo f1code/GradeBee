@@ -6,6 +6,7 @@ import {
   listStudents,
   generateReports,
   listReportBatches,
+  retryReportBatch,
   getReport,
   listLevels,
   ApiError,
@@ -17,6 +18,7 @@ import {
   type ReportBatchStudent,
 } from '../api'
 import {
+  ReportBatchFinished,
   ReportBatchRunning,
   ReportStudentDone,
   ReportStudentFailed,
@@ -45,6 +47,10 @@ function batchSummary(batch: ReportBatch, deletedReportIds: Set<number>): string
   if (failed) parts.push(`${failed} failed`)
   if (pending) parts.push(`${pending} in progress`)
   return parts.join(' · ')
+}
+
+function hasRetryableFailures(b: ReportBatch): boolean {
+  return b.status === ReportBatchFinished && b.students.some(s => s.status === ReportStudentFailed)
 }
 
 // What a row that can't expand shows: deleted, failed, or still pending.
@@ -89,6 +95,7 @@ export default function ReportGeneration() {
   )
   const [instructions, setInstructions] = useState('')
   const [posting, setPosting] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [batch, setBatch] = useState<ReportBatch | null>(null)
   // A running batch the server no longer knows: it restarted mid-batch.
   const [interrupted, setInterrupted] = useState(false)
@@ -142,6 +149,7 @@ export default function ReportGeneration() {
   }, [getToken])
 
   const running = batch?.status === ReportBatchRunning
+  const canRetry = !!batch && hasRetryableFailures(batch)
   useEffect(() => {
     if (!batch || !running) return
     let cancelled = false
@@ -256,6 +264,33 @@ export default function ReportGeneration() {
       }
     } finally {
       setPosting(false)
+    }
+  }
+
+  async function handleRetry() {
+    if (!batch) return
+    setRetrying(true)
+    setError(null)
+    try {
+      setBatch(await retryReportBatch(batch.id, getToken))
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Retry failed'
+      if (!(e instanceof ApiError && e.status === 409)) {
+        setError(message)
+        return
+      }
+      // Another tab retried or started a batch: show where it stands.
+      try {
+        const { batches } = await listReportBatches(getToken)
+        const latest = batches.find(b => b.id === batch.id) ?? batches[0]
+        if (latest) setBatch(latest)
+        // Still finished with failures: the other request holds the lock, so say why nothing moved.
+        if (!latest || hasRetryableFailures(latest)) setError(message)
+      } catch {
+        setError(message)
+      }
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -410,9 +445,9 @@ export default function ReportGeneration() {
       <button
         className="report-generate-btn"
         onClick={handleGenerate}
-        disabled={posting || running || selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel}
+        disabled={posting || retrying || running || selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel}
       >
-        {posting || running ? (
+        {posting || retrying || running ? (
           <span className="btn-loading"><span className="honeycomb-spinner honeycomb-spinner-inline"><span className="hex" /><span className="hex" /><span className="hex" /></span> Generating...</span>
         ) : (
           `Generate ${selectedCount} Report${selectedCount !== 1 ? 's' : ''}`
@@ -442,6 +477,16 @@ export default function ReportGeneration() {
           >
             <h3>Reports for {formatDateRange(batch.startDate, batch.endDate)}</h3>
             <p className="report-results-summary" data-testid="report-batch-summary">{batchSummary(batch, deletedReportIds)}</p>
+            {canRetry && (
+              <button
+                className="btn-sm btn-secondary report-batch-retry"
+                onClick={handleRetry}
+                disabled={retrying || posting}
+                data-testid="report-batch-retry"
+              >
+                {retrying ? 'Retrying…' : 'Retry failed'}
+              </button>
+            )}
             <div className="report-results-list">
               {batch.students.map((r, i) => {
                 const className = classNameByStudent.get(r.studentId)

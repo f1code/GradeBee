@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -312,4 +313,139 @@ func TestProcessReportBatch_GeneratorInitFailsEveryRow(t *testing.T) {
 	for _, row := range job.Students {
 		assertFailed(t, row, reportStudentErrGenerate)
 	}
+}
+
+func retryBatch(userID, batchID string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/reports/batches/"+batchID+"/retry", http.NoBody)
+	req.SetPathValue("id", batchID)
+	rec := httptest.NewRecorder()
+	handleRetryReportBatch(rec, clerkReq(req, userID))
+	return rec
+}
+
+func (f *reportBatchFixture) finishedBatch(t *testing.T) (id, key string) {
+	t.Helper()
+	batch := f.postAccepted(t)
+	key = reportBatchKey("user_abc", batch.ID)
+	require.NoError(t, processReportBatch(context.Background(), f.deps, f.queue, key))
+	return batch.ID, key
+}
+
+func TestHandleRetryReportBatch_RequeuesOnlyFailedRows(t *testing.T) {
+	// Row 0 done; rows 1–3 fail in a row, so row 4 is skipped.
+	f := newReportBatchFixture(t, 5, 1, 2, 3)
+	id, key := f.finishedBatch(t)
+
+	rec := retryBatch("user_abc", id)
+	require.Equal(t, http.StatusAccepted, rec.Code, "body = %s", rec.Body.String())
+	var snap ReportBatch
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&snap))
+	assert.Equal(t, id, snap.ID)
+	assert.Equal(t, ReportBatchRunning, snap.Status)
+	assertDone(t, snap.Students[0])
+	for _, row := range snap.Students[1:] {
+		assert.Equal(t, ReportStudentQueued, row.Status)
+		assert.Nil(t, row.Error)
+	}
+
+	f.gen.generateErrs = map[int64]error{}
+	f.gen.genCalls = nil
+	require.NoError(t, processReportBatch(context.Background(), f.deps, f.queue, key))
+
+	assert.Equal(t, f.ids[1:], f.gen.genCalls, "done rows are not generated again")
+	job, err := f.queue.GetJob(context.Background(), key)
+	require.NoError(t, err)
+	for _, row := range job.Students {
+		assertDone(t, row)
+	}
+}
+
+func TestHandleRetryReportBatch_ConflictWhileRunning(t *testing.T) {
+	f := newReportBatchFixture(t, 1)
+	batch := f.postAccepted(t)
+
+	rec := retryBatch("user_abc", batch.ID)
+	require.Equal(t, http.StatusConflict, rec.Code, "body = %s", rec.Body.String())
+	var resp map[string]string
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
+	assert.Equal(t, batch.ID, resp["batchId"])
+}
+
+func TestHandleRetryReportBatch_ConflictWhileLocked(t *testing.T) {
+	f := newReportBatchFixture(t, 1, 0)
+	id, key := f.finishedBatch(t)
+	require.True(t, takeUploadLock("report-batch/user_abc"))
+	t.Cleanup(func() { releaseUploadLock("report-batch/user_abc") })
+
+	rec := retryBatch("user_abc", id)
+	require.Equal(t, http.StatusConflict, rec.Code, "body = %s", rec.Body.String())
+	job, err := f.queue.GetJob(context.Background(), key)
+	require.NoError(t, err)
+	assertFailed(t, job.Students[0], reportStudentErrGenerate)
+}
+
+func TestHandleRetryReportBatch_NoFailedRows(t *testing.T) {
+	f := newReportBatchFixture(t, 1)
+	id, _ := f.finishedBatch(t)
+
+	rec := retryBatch("user_abc", id)
+	assert.Equal(t, http.StatusConflict, rec.Code, "body = %s", rec.Body.String())
+}
+
+func TestHandleRetryReportBatch_NotFound(t *testing.T) {
+	f := newReportBatchFixture(t, 1, 0)
+	id, key := f.finishedBatch(t)
+
+	for _, c := range []struct{ name, user, id string }{
+		{"unknown id", "user_abc", "nope"},
+		{"another Teacher's batch", "user_other", id},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			rec := retryBatch(c.user, c.id)
+			require.Equal(t, http.StatusNotFound, rec.Code, "body = %s", rec.Body.String())
+			assert.JSONEq(t, `{"error":"report batch not found"}`, rec.Body.String())
+		})
+	}
+	job, err := f.queue.GetJob(context.Background(), key)
+	require.NoError(t, err)
+	assertFailed(t, job.Students[0], reportStudentErrGenerate)
+}
+
+func TestHandleRetryReportBatch_QueueFullRestoresFailedRows(t *testing.T) {
+	f := newReportBatchFixture(t, 5, 1, 2, 3)
+	id, _ := f.finishedBatch(t)
+
+	f.deps.reportBatchQueue = failingPublishQueue{f.queue}
+	rec := retryBatch("user_abc", id)
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code, "body = %s", rec.Body.String())
+
+	batches := listBatches(t)
+	require.Len(t, batches, 1)
+	assert.Equal(t, ReportBatchFinished, batches[0].Status, "a running batch would block every later POST")
+	assertDone(t, batches[0].Students[0])
+	assertFailed(t, batches[0].Students[1], reportStudentErrGenerate)
+	assertFailed(t, batches[0].Students[2], reportStudentErrGenerate)
+	assertFailed(t, batches[0].Students[3], reportStudentErrGenerate)
+	assertFailed(t, batches[0].Students[4], reportStudentErrSkipped)
+}
+
+// Two clicks race each other and a poll: one wins, one publish.
+func TestHandleRetryReportBatch_DoubleClick(t *testing.T) {
+	f := newReportBatchFixture(t, 2, 0)
+	id, _ := f.finishedBatch(t)
+	published := len(f.queue.work)
+
+	codes := make([]int, 2)
+	var wg sync.WaitGroup
+	for i := range codes {
+		wg.Go(func() { codes[i] = retryBatch("user_abc", id).Code })
+	}
+	wg.Go(func() {
+		req := clerkReq(httptest.NewRequest(http.MethodGet, "/reports/batches", http.NoBody), "user_abc")
+		handleListReportBatches(httptest.NewRecorder(), req)
+	})
+	wg.Wait()
+
+	assert.ElementsMatch(t, []int{http.StatusAccepted, http.StatusConflict}, codes)
+	assert.Equal(t, published+1, len(f.queue.work), "one retry published")
 }

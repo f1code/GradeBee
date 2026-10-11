@@ -1,5 +1,5 @@
-// reports_handler.go handles report generation, regeneration, listing,
-// fetching, and deletion endpoints.
+// reports_handler.go handles report generation, batch listing and retry,
+// regeneration, listing, fetching, and deletion endpoints.
 package handler
 
 import (
@@ -52,7 +52,25 @@ type ListReportBatchesResponse struct {
 	Batches []ReportBatch `json:"batches"`
 }
 
-const errReportBatchRunning = "a report batch is already running"
+const (
+	errReportBatchRunning = "a report batch is already running"
+	errReportBatchBusy    = "report generation is busy, try again shortly"
+)
+
+// takeReportBatchLock claims the Teacher's batch lock, or answers 409. The lock
+// covers check, publish and prune only; the worker runs unlocked.
+func takeReportBatchLock(w http.ResponseWriter, userID string) (release func(), ok bool) {
+	key := "report-batch/" + userID
+	if !takeUploadLock(key) {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": errReportBatchRunning})
+		return nil, false
+	}
+	return func() { releaseUploadLock(key) }, true
+}
+
+func writeReportBatchRunning(w http.ResponseWriter, batchID string) {
+	writeJSON(w, http.StatusConflict, map[string]string{"error": errReportBatchRunning, "batchId": batchID})
+}
 
 func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	log := loggerFromRequest(r)
@@ -124,13 +142,11 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The lock covers check, publish and prune only; the worker runs unlocked.
-	lockKey := "report-batch/" + userID
-	if !takeUploadLock(lockKey) {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": errReportBatchRunning})
+	release, ok := takeReportBatchLock(w, userID)
+	if !ok {
 		return
 	}
-	defer releaseUploadLock(lockKey)
+	defer release()
 
 	previous, err := queue.ListJobs(ctx, userID)
 	if err != nil {
@@ -139,7 +155,7 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, j := range previous {
 		if j.running() {
-			writeJSON(w, http.StatusConflict, map[string]string{"error": errReportBatchRunning, "batchId": j.BatchID})
+			writeReportBatchRunning(w, j.BatchID)
 			return
 		}
 	}
@@ -168,7 +184,7 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := publishOrCleanup(ctx, queue, job, func() { deleteJob(job.JobKey()) }); err != nil {
 		log.Error("generate reports: enqueue failed", "error", err)
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "report generation is busy, try again shortly"})
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": errReportBatchBusy})
 		return
 	}
 	// Prune after publishing, so a 503 keeps the previous results.
@@ -202,6 +218,62 @@ func handleListReportBatches(w http.ResponseWriter, r *http.Request) {
 		batches[i] = j.snapshot()
 	}
 	writeJSON(w, http.StatusOK, ListReportBatchesResponse{Batches: batches})
+}
+
+// Done rows stay done, so a retry gives no student a second report.
+func handleRetryReportBatch(w http.ResponseWriter, r *http.Request) {
+	log := loggerFromRequest(r)
+	userID, err := userIDFromRequest(r)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	queue, err := serviceDeps.GetReportBatchQueue()
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	ctx := r.Context()
+
+	release, ok := takeReportBatchLock(w, userID)
+	if !ok {
+		return
+	}
+	defer release()
+
+	// The caller's own key prefix: another Teacher's batch id is not found.
+	job, err := queue.GetJob(ctx, reportBatchKey(userID, r.PathValue("id")))
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "report batch not found"})
+		return
+	}
+	if job.running() {
+		writeReportBatchRunning(w, job.BatchID)
+		return
+	}
+
+	retried, requeued := job.requeueFailed()
+	if requeued == 0 {
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "no failed students to retry"})
+		return
+	}
+
+	snapshot := retried.snapshot()
+	// Publish stores the queued rows before its channel send; put the failed
+	// rows back, or the batch shows running forever.
+	restore := func() {
+		if err := queue.UpdateJob(ctx, *job); err != nil {
+			log.Warn("retry report batch: restore failed", "error", err)
+		}
+	}
+	if err := publishOrCleanup(ctx, queue, retried, restore); err != nil {
+		log.Error("retry report batch: enqueue failed", "error", err)
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": errReportBatchBusy})
+		return
+	}
+
+	log.Info("report batch retry queued", "user_id", userID, "batch_id", job.BatchID, "student_count", requeued)
+	writeJSON(w, http.StatusAccepted, snapshot)
 }
 
 // RegenerateReportHTTPRequest is the JSON body for POST /reports/:id/regenerate.

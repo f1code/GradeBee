@@ -681,8 +681,8 @@ export interface ReportBatch {
 //////////
 // source: reports_handler.go
 /*
-reports_handler.go handles report generation, regeneration, listing,
-fetching, and deletion endpoints.
+reports_handler.go handles report generation, batch listing and retry,
+regeneration, listing, fetching, and deletion endpoints.
 */
 
 /**
