@@ -276,4 +276,38 @@ test.describe('Report generation', () => {
     await expect(page.getByTestId('report-batch-summary')).toContainText('1 student · 1 done', { timeout: 10000 })
     await expect(page.getByTestId('report-result-name')).toContainText('Alice')
   })
+
+  test('retry failed requeues the failed student, then shows its report', async ({ page }) => {
+    const done = { studentId: 10, name: 'Alice', status: 'done', reportId: 42 }
+    let retried = false
+    await page.route('**/reports/batches', async (route) => {
+      const bob = retried
+        ? { studentId: 11, name: 'Bob', status: 'done', reportId: 43 }
+        : { studentId: 11, name: 'Bob', status: 'failed', error: 'report generation failed' }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ batches: [batch([done, bob], 'finished')] }),
+      })
+    })
+    await page.route('**/reports/batches/b1/retry', async (route) => {
+      retried = true
+      await route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify(batch([done, { studentId: 11, name: 'Bob', status: 'queued' }], 'running')),
+      })
+    })
+
+    await page.goto('/')
+    await page.getByText('Reports').click()
+    await expect(page.getByTestId('report-result-failed')).toContainText('Bob', { timeout: 10000 })
+
+    await page.getByTestId('report-batch-retry').click()
+    await expect(page.getByTestId('report-result-pending')).toContainText('Bob')
+    await expect(page.getByTestId('report-batch-retry')).not.toBeAttached()
+
+    await expect(page.getByTestId('report-batch-summary')).toContainText('2 done', { timeout: 10000 })
+    await expect(page.getByTestId('report-result-failed')).not.toBeAttached()
+  })
 })

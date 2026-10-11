@@ -67,6 +67,7 @@ type sweepFixture struct {
 	feedback    *ArtifactFeedbackRepo
 	voiceNotes  *VoiceNoteRepo
 	queue       *stubVoiceNoteQueue
+	reportQueue *MemQueue[ReportJob]
 
 	// A's rows.
 	levelA   Level
@@ -76,6 +77,7 @@ type sweepFixture struct {
 	noteA    Note
 	reportA  Report
 	uploadA  VoiceNote
+	batchA   ReportJob
 
 	// B's rows.
 	levelB   Level
@@ -120,6 +122,16 @@ func newSweepFixture(t *testing.T) *sweepFixture {
 		UserID: sweepUserA, UploadID: f.uploadA.ID, FileName: "monday.m4a", Status: JobStatusFailed, Error: "boom",
 	}))
 
+	f.reportQueue = NewMemQueue[ReportJob](nil, 0)
+	f.batchA = ReportJob{
+		UserID: sweepUserA, BatchID: "batch-alpha", StartDate: "2026-01-01", EndDate: "2026-03-31",
+		Inputs: []ReportInputs{{StudentID: f.studentA.ID, StudentName: sweepStudentName}},
+		Students: []ReportBatchStudent{{
+			StudentID: f.studentA.ID, Name: sweepStudentName, Status: ReportStudentFailed, Error: new(reportStudentErrGenerate),
+		}},
+	}
+	require.NoError(t, f.reportQueue.UpdateJob(ctx, f.batchA))
+
 	// Tenant B.
 	f.levelB = newTestLevel(t, f.db, sweepGroupB, "Brevity")
 	require.NoError(t, f.levelRepo.UpdateReportInstructions(ctx, sweepGroupB, f.levelB.ID, "Be brief."))
@@ -129,15 +141,16 @@ func newSweepFixture(t *testing.T) *sweepFixture {
 	require.NoError(t, err)
 
 	withDeps(t, &mockDepsAll{
-		db:             f.db,
-		classRepo:      f.classRepo,
-		studentRepo:    f.studentRepo,
-		noteRepo:       f.noteRepo,
-		reportRepo:     f.reportRepo,
-		levelRepo:      f.levelRepo,
-		feedbackRepo:   f.feedback,
-		voiceNoteRepo:  f.voiceNotes,
-		voiceNoteQueue: f.queue,
+		db:               f.db,
+		classRepo:        f.classRepo,
+		studentRepo:      f.studentRepo,
+		noteRepo:         f.noteRepo,
+		reportRepo:       f.reportRepo,
+		levelRepo:        f.levelRepo,
+		feedbackRepo:     f.feedback,
+		voiceNoteRepo:    f.voiceNotes,
+		voiceNoteQueue:   f.queue,
+		reportBatchQueue: f.reportQueue,
 		reportGen: &stubReportGenerator{
 			generateResp:   &GenerateReportResponse{ReportID: 4242, HTML: "<p>generated</p>"},
 			regenerateResp: &GenerateReportResponse{ReportID: 4343, HTML: "<p>regenerated</p>"},
@@ -163,6 +176,7 @@ type sweepSnapshot struct {
 	ReportsForA                    []Report
 	FeedbackRows                   int
 	JobAStatus                     string // "" when the job is gone
+	BatchARows                     []ReportBatchStudent
 	UploadAProcessed               bool
 }
 
@@ -213,6 +227,9 @@ func (f *sweepFixture) snapshot(t *testing.T) sweepSnapshot {
 
 	if job, err := f.queue.GetJob(ctx, voiceNoteKey(sweepUserA, f.uploadA.ID)); err == nil {
 		s.JobAStatus = job.Status
+	}
+	if job, err := f.reportQueue.GetJob(ctx, f.batchA.JobKey()); err == nil {
+		s.BatchARows = job.Students
 	}
 	up, err := f.voiceNotes.GetByID(ctx, f.uploadA.ID)
 	require.NoError(t, err)
@@ -460,6 +477,12 @@ var sweepDenied = []deniedCase{
 		wantStatus: http.StatusNotFound, wantBody: jsonBody("recording not found"),
 	},
 	{
+		// The batch key is userID/batchID, so B's key for A's batch id does not exist.
+		name: "retry another user's report batch", route: "POST /api/reports/batches/{id}/retry", method: http.MethodPost,
+		path:       func(f *sweepFixture) string { return "/api/reports/batches/" + f.batchA.BatchID + "/retry" },
+		wantStatus: http.StatusNotFound, wantBody: jsonBody("report batch not found"),
+	},
+	{
 		// B names B's own child, so only the row's user_id can refuse. Nothing
 		// of A's is deleted: A's notes are in the snapshot.
 		name: "undo an assignment on another user's recording", route: "DELETE /api/voice-notes/{uploadId}/assign/{studentId}", method: http.MethodDelete,
@@ -601,6 +624,11 @@ func TestOwnershipSweep_OwnerSucceeds(t *testing.T) {
 				return map[string]any{"levelId": f.levelA.ID, "day": "Wednesday", "timeSlot": ""}
 			},
 			wantStatus: http.StatusCreated, wantIn: sweepLevelName,
+		},
+		{
+			name: "batch key gate", gate: "report batch key", method: http.MethodPost,
+			path:       func(f *sweepFixture) string { return "/api/reports/batches/" + f.batchA.BatchID + "/retry" },
+			wantStatus: http.StatusAccepted, wantIn: `"name":"` + sweepStudentName + `","status":"queued"`,
 		},
 		{
 			name: "job key gate", gate: "voiceNoteKey", method: http.MethodPost,

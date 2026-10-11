@@ -10,11 +10,13 @@ const mockListClasses = vi.fn()
 const mockListStudents = vi.fn()
 const mockListLevels = vi.fn()
 const mockListReportBatches = vi.fn()
+const mockRetryReportBatch = vi.fn()
 
 vi.mock('../../api', async (importOriginal) => ({
   ApiError: (await importOriginal<typeof import('../../api')>()).ApiError,
   generateReports: (...args: unknown[]) => mockGenerateReports(...args),
   listReportBatches: (...args: unknown[]) => mockListReportBatches(...args),
+  retryReportBatch: (...args: unknown[]) => mockRetryReportBatch(...args),
   getReport: (...args: unknown[]) => mockGetReport(...args),
   deleteReport: (...args: unknown[]) => mockDeleteReport(...args),
   listClasses: (...args: unknown[]) => mockListClasses(...args),
@@ -303,6 +305,73 @@ describe('ReportGeneration — background batch', () => {
     await act(() => vi.advanceTimersByTimeAsync(3000))
     await waitFor(() => expect(screen.getByTestId('report-result-pending')).toHaveTextContent('Bob'))
     expect(screen.queryByTestId('report-batch-interrupted')).not.toBeInTheDocument()
+  })
+})
+
+describe('ReportGeneration — retry failed', () => {
+  const doneAlice = { studentId: 10, name: 'Alice', status: 'done', reportId: 1 }
+  const failedBob = { studentId: 11, name: 'Bob', status: 'failed', error: 'report generation failed' }
+
+  it.each([
+    ['a running batch', batch([{ ...failedBob }, { studentId: 10, name: 'Alice', status: 'queued' }], 'running')],
+    ['a finished batch with no failures', batch([doneAlice])],
+  ])('hides Retry failed on %s', async (_, shown) => {
+    mockListReportBatches.mockResolvedValue({ batches: [shown] })
+    await renderWithStudents()
+    await screen.findByTestId('report-batch-summary')
+    expect(screen.queryByTestId('report-batch-retry')).not.toBeInTheDocument()
+  })
+
+  it('requeues the failed rows and polls until they finish', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    mockListReportBatches
+      .mockResolvedValueOnce({ batches: [batch([doneAlice, failedBob])] })
+      .mockResolvedValueOnce({ batches: [batch([doneAlice, { studentId: 11, name: 'Bob', status: 'done', reportId: 2 }])] })
+    mockRetryReportBatch.mockResolvedValue(batch([doneAlice, { studentId: 11, name: 'Bob', status: 'queued' }], 'running'))
+    const user = await renderWithStudents()
+
+    await user.click(await screen.findByTestId('report-batch-retry'))
+    expect(mockRetryReportBatch).toHaveBeenCalledWith('b1', stableGetToken)
+    expect(await screen.findByTestId('report-result-pending')).toHaveTextContent('Bob')
+    expect(screen.queryByTestId('report-batch-retry')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Generating/ })).toBeDisabled()
+
+    await act(() => vi.advanceTimersByTimeAsync(3000))
+    expect(await screen.findByTestId('report-batch-summary')).toHaveTextContent('2 done')
+    expect(mockListReportBatches).toHaveBeenCalledTimes(2)
+  })
+
+  it('a conflict shows the batch where another tab left it', async () => {
+    const { ApiError } = await vi.importActual<typeof import('../../api')>('../../api')
+    mockListReportBatches
+      .mockResolvedValueOnce({ batches: [batch([doneAlice, failedBob])] })
+      .mockResolvedValue({ batches: [batch([doneAlice, { studentId: 11, name: 'Bob', status: 'generating' }], 'running')] })
+    mockRetryReportBatch.mockRejectedValue(new ApiError('a report batch is already running', 409))
+    const user = await renderWithStudents()
+
+    await user.click(await screen.findByTestId('report-batch-retry'))
+    expect(await screen.findByTestId('report-result-pending')).toHaveTextContent('generating')
+    expect(screen.queryByText(/already running/)).not.toBeInTheDocument()
+  })
+
+  it('a conflict that leaves the batch unchanged shows the error', async () => {
+    const { ApiError } = await vi.importActual<typeof import('../../api')>('../../api')
+    mockListReportBatches.mockResolvedValue({ batches: [batch([doneAlice, failedBob])] })
+    mockRetryReportBatch.mockRejectedValue(new ApiError('a report batch is already running', 409))
+    const user = await renderWithStudents()
+
+    await user.click(await screen.findByTestId('report-batch-retry'))
+    expect(await screen.findByText(/already running/)).toBeInTheDocument()
+  })
+
+  it('shows the error when retry fails', async () => {
+    mockListReportBatches.mockResolvedValue({ batches: [batch([doneAlice, failedBob])] })
+    mockRetryReportBatch.mockRejectedValue(new Error('report generation is busy, try again shortly'))
+    const user = await renderWithStudents()
+
+    await user.click(await screen.findByTestId('report-batch-retry'))
+    expect(await screen.findByText(/report generation is busy/)).toBeInTheDocument()
+    expect(screen.getByTestId('report-batch-retry')).toBeEnabled()
   })
 })
 

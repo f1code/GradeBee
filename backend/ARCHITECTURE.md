@@ -38,6 +38,7 @@ Go HTTP backend for GradeBee: student rosters, voice/text notes (upload → tran
 | DELETE | `/api/notes/{id}` | Yes | `handleDeleteNote` | Delete a note |
 | POST | `/api/reports` | Yes | `handleGenerateReports` | Queue a report batch; `202` + snapshot, `409` while one runs (+ `batchId`) or lock held, `503` queue full |
 | GET | `/api/reports/batches` | Yes | `handleListReportBatches` | `{batches}` newest first (0–1 today) |
+| POST | `/api/reports/batches/{id}/retry` | Yes | `handleRetryReportBatch` | Requeue a finished batch's failed rows; `202` + snapshot, `404` not the caller's, `409` running, lock held or nothing failed, `503` queue full |
 | POST | `/api/reports/{id}/regenerate` | Yes | `handleRegenerateReport` | Regenerate with feedback |
 | GET | `/api/students/{id}/reports` | Yes | `handleListReports` | List reports for a student |
 | GET | `/api/reports/{id}` | Yes | `handleGetReport` | Get single report HTML |
@@ -100,6 +101,7 @@ Audio is deleted right after transcription. The row and its transcript go after 
 `POST /api/reports` checks ownership and Level instructions in the request (`400`, nothing queued), then publishes one `ReportJob` on `MemQueue[ReportJob]` (1 worker: batches run one at a time across all Teachers). Key `userID/<batchID>`. The job holds inputs resolved at POST time and one row per student: `queued` → `generating` → `done` + `reportId` | `failed` + fixed error text. Running while any row is `queued` or `generating`.
 
 - Lock: `takeUploadLock("report-batch/"+userID)` guards check, publish and prune; the worker never holds it.
+- Retry: same lock. Flips `failed` rows back to `queued` and republishes the same job with its POST-time inputs; `done` rows keep their report. A failed publish restores the rows and answers `503`.
 - One batch per Teacher: a new POST deletes the previous finished batch after its own publish succeeds; a failed publish answers `503` and keeps the previous one.
 - Worker (`processReportBatch`): `withLLMCaller(ctx, userID, "")`; clones `Students` before each write (`GetJob` copies share the slice). A failure does not stop the batch; 3 in a row mark the rest failed without calling the LLM.
 - Lost on restart. The page polls `GET /api/reports/batches` every 3s and shows "interrupted" when its running batch vanishes.

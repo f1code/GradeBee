@@ -24,8 +24,10 @@ type ReportJob struct {
 	Students []ReportBatchStudent
 }
 
+func reportBatchKey(userID, batchID string) string { return userID + "/" + batchID }
+
 // JobKey implements Keyed.
-func (j ReportJob) JobKey() string { return j.UserID + "/" + j.BatchID }
+func (j ReportJob) JobKey() string { return reportBatchKey(j.UserID, j.BatchID) }
 
 // OwnerID implements Keyed.
 func (j ReportJob) OwnerID() string { return j.UserID }
@@ -49,6 +51,20 @@ func (j ReportJob) snapshot() ReportBatch {
 		Status:    status,
 		Students:  j.Students,
 	}
+}
+
+// requeueFailed returns the job with its failed rows queued again, and how
+// many. It edits a clone: the receiver's rows are shared (see updateReportRows).
+func (j ReportJob) requeueFailed() (requeued ReportJob, n int) {
+	j.Students = slices.Clone(j.Students)
+	for i := range j.Students {
+		if j.Students[i].Status == ReportStudentFailed {
+			j.Students[i].Status = ReportStudentQueued
+			j.Students[i].Error = nil
+			n++
+		}
+	}
+	return j, n
 }
 
 // updateReportRows re-reads the job and writes edit's changes on a clone of
