@@ -3,6 +3,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -343,6 +344,9 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Detached: a Teacher closing the tab still gets the report in History.
+	// llmChatTimeout bounds the call.
+	ctx = context.WithoutCancel(ctx)
 	resp, err := generator.Regenerate(ctx, RegenerateReportRequest{
 		ReportInputs: in,
 		ReportID:     rpt.ID,

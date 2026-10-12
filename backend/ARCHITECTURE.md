@@ -106,6 +106,10 @@ Audio is deleted right after transcription. The row and its transcript go after 
 - Worker (`processReportBatch`): `withLLMCaller(ctx, userID, "")`; clones `Students` before each write (`GetJob` copies share the slice). A failure does not stop the batch; 3 in a row mark the rest failed without calling the LLM.
 - Lost on restart. The page polls `GET /api/reports/batches` every 3s and shows "interrupted" when its running batch vanishes.
 
+## Report regenerate (`handleRegenerateReport`)
+
+Ownership and input checks run on the request context. LLM call, save and implicit thumbs-down run on `context.WithoutCancel`: closing the tab does not stop them. `llmChatTimeout` bounds the call; a restart kills it.
+
 ## Dependency Injection
 
 `deps.go`: `deps` interface, `prodDeps`, package-level `serviceDeps`. Handlers call through it; tests swap it for stubs.

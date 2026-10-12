@@ -363,3 +363,61 @@ func TestHandleRegenerateReport_LevelOutsideGroup(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, rec.Code, "body = %s", rec.Body.String())
 	assert.Empty(t, gen.lastRegenReq.StudentName, "generator must not be called")
 }
+
+// cancelingProvider cancels the request mid-call, as a Teacher closing the tab
+// would, and fails like a real HTTP client when its context is cancelled.
+type cancelingProvider struct {
+	fakeLLMProvider
+	cancel context.CancelFunc
+}
+
+func (p *cancelingProvider) ChatText(ctx context.Context, req ChatTextRequest) (LLMResponse, error) {
+	p.cancel()
+	if err := ctx.Err(); err != nil {
+		return LLMResponse{}, err
+	}
+	return p.fakeLLMProvider.ChatText(ctx, req)
+}
+
+func TestHandleRegenerateReport_SurvivesClientCancel(t *testing.T) {
+	db := setupTestDB(t)
+	classRepo := &ClassRepo{db: db}
+	studentRepo := &StudentRepo{db: db}
+	reportRepo := &ReportRepo{db: db}
+	feedbackRepo := &ArtifactFeedbackRepo{db: db}
+	ctx := context.Background()
+
+	cls := newTestClass(t, classRepo, "test-group", "user_abc", "Science", "")
+	stu, err := studentRepo.Create(ctx, cls.ID, "Bob")
+	require.NoError(t, err)
+	rpt := &Report{StudentID: stu.ID, StartDate: "2026-02-01", EndDate: "2026-02-28", HTML: "<p>old</p>"}
+	require.NoError(t, reportRepo.Create(ctx, rpt))
+	levelRepo := &LevelRepo{db: db}
+	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
+
+	reqCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	gen, err := newDBReportGenerator(&cancelingProvider{fakeLLMProvider: fakeLLMProvider{text: "<p>new</p>"}, cancel: cancel}, reportRepo)
+	require.NoError(t, err)
+	withDeps(t, &mockDepsAll{
+		db: db, classRepo: classRepo, studentRepo: studentRepo, reportRepo: reportRepo,
+		reportGen: gen, levelRepo: levelRepo, feedbackRepo: feedbackRepo,
+	})
+
+	req := httptest.NewRequest(http.MethodPost,
+		fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader([]byte(`{"feedback":"shorter"}`)))
+	req.SetPathValue("id", itoa(rpt.ID))
+	req = clerkReq(req.WithContext(reqCtx), "user_abc")
+	rec := httptest.NewRecorder()
+	handleRegenerateReport(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
+	reports, err := reportRepo.List(ctx, stu.ID)
+	require.NoError(t, err)
+	assert.Len(t, reports, 2, "new report saved next to the old one")
+	fb, err := feedbackRepo.ListByArtifact(ctx, "report", rpt.ID)
+	require.NoError(t, err)
+	require.Len(t, fb, 1)
+	assert.Equal(t, "down", fb[0].Rating)
+	assert.Equal(t, "regenerated", fb[0].Signal)
+}
