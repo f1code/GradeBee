@@ -324,8 +324,17 @@ export default function ReportGeneration() {
     }
   }
 
-  function handleReportRegenerate(updatedHtml: string) {
-    setExpandedReport(prev => prev ? { ...prev, html: updatedHtml } : prev)
+  // Regenerate saves a new report; the row follows it so feedback and delete hit the new one.
+  function handleReportRegenerate(oldId: number, report: ReportResult) {
+    setBatch(prev => prev && {
+      ...prev,
+      students: prev.students.map(s => (s.reportId === oldId ? { ...s, reportId: report.id } : s)),
+    })
+    // The Teacher may have collapsed or switched rows while regenerate ran.
+    if (requestedReportId.current !== oldId) return
+    requestedReportId.current = report.id
+    setExpandedReportId(report.id)
+    setExpandedReport(report)
   }
 
   // Functional updates: the 404 path in handleExpand runs before its own
@@ -537,10 +546,11 @@ export default function ReportGeneration() {
                         >
                           {expandedReport?.id === reportId ? (
                             <ReportViewer
+                              key={reportId}
                               reportId={reportId}
                               html={expandedReport.html}
                               studentName={r.name}
-                              onRegenerate={handleReportRegenerate}
+                              onRegenerate={report => handleReportRegenerate(reportId, report)}
                               onDelete={() => handleReportDelete(reportId)}
                             />
                           ) : (

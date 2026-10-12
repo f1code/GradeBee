@@ -80,10 +80,13 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
     }
   }
 
-  function handleRegenerate(updatedHtml: string) {
-    if (expandedReport) {
-      setExpandedReport({ ...expandedReport, html: updatedHtml })
-    }
+  // Regenerate saves a new row; the old one stays in history. Expansion follows
+  // only if the old row is still open: the Teacher may have moved on meanwhile.
+  function handleRegenerate(oldId: number, report: ReportResult) {
+    const { id, startDate, endDate, createdAt } = report
+    setReports(prev => [{ id, startDate, endDate, createdAt }, ...prev])
+    setExpandedId(prev => (prev === oldId ? id : prev))
+    setExpandedReport(prev => (prev?.id === oldId ? report : prev))
   }
 
   function handleDelete(reportId: number) {
@@ -173,10 +176,11 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
                           </div>
                         ) : expandedReport ? (
                           <ReportViewer
+                            key={expandedReport.id}
                             reportId={expandedReport.id}
                             html={expandedReport.html}
                             studentName={studentName}
-                            onRegenerate={handleRegenerate}
+                            onRegenerate={report => handleRegenerate(expandedReport.id, report)}
                             onDelete={() => handleDelete(expandedReport.id)}
                           />
                         ) : null}

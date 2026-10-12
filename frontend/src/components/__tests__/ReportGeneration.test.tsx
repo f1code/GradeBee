@@ -6,6 +6,8 @@ import type { ReportBatchStudent } from '../../api'
 const mockGenerateReports = vi.fn()
 const mockGetReport = vi.fn()
 const mockDeleteReport = vi.fn()
+const mockRegenerateReport = vi.fn()
+const mockSubmitFeedback = vi.fn()
 const mockListClasses = vi.fn()
 const mockListStudents = vi.fn()
 const mockListLevels = vi.fn()
@@ -19,6 +21,8 @@ vi.mock('../../api', async (importOriginal) => ({
   retryReportBatch: (...args: unknown[]) => mockRetryReportBatch(...args),
   getReport: (...args: unknown[]) => mockGetReport(...args),
   deleteReport: (...args: unknown[]) => mockDeleteReport(...args),
+  regenerateReport: (...args: unknown[]) => mockRegenerateReport(...args),
+  submitFeedback: (...args: unknown[]) => mockSubmitFeedback(...args),
   listClasses: (...args: unknown[]) => mockListClasses(...args),
   listStudents: (...args: unknown[]) => mockListStudents(...args),
   listLevels: (...args: unknown[]) => mockListLevels(...args),
@@ -194,6 +198,79 @@ describe('ReportGeneration', () => {
     expect(row).toHaveTextContent('Alice')
     expect(row).toHaveTextContent('deleted')
     expect(screen.queryByTestId('report-result-name')).not.toBeInTheDocument()
+  })
+
+  it('after regenerate the row targets the new report', async () => {
+    mockGenerateReports.mockResolvedValue(batch([{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }]))
+    mockGetReport.mockResolvedValue({
+      id: 7, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report</p>',
+      startDate: '', endDate: '', createdAt: '',
+    })
+    mockRegenerateReport.mockResolvedValue({
+      id: 8, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report v2</p>',
+      startDate: '', endDate: '', createdAt: '',
+    })
+    mockDeleteReport.mockResolvedValue(undefined)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Alice'))
+    await user.click(screen.getByText(/Generate 1 Report/))
+    await user.click(await screen.findByTestId('report-result-name'))
+    await screen.findByText('Alice report')
+    await user.click(screen.getByTestId('thumb-up'))
+    await screen.findByText(/thanks for your feedback/i)
+
+    await user.click(screen.getByRole('button', { name: 'Regenerate' }))
+    await user.type(screen.getByPlaceholderText(/what should be different/i), 'Shorter')
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    await screen.findByText('Alice report v2')
+
+    // Thumbs reset for the new report and rate it, not the old one.
+    await user.click(screen.getByTestId('thumb-up'))
+    await waitFor(() => expect(mockSubmitFeedback).toHaveBeenLastCalledWith(
+      { artifact_type: 'report', artifact_id: 8, rating: 'up' },
+      stableGetToken,
+    ))
+
+    await user.click(screen.getByRole('button', { name: /delete/i }))
+    expect(mockDeleteReport).toHaveBeenCalledWith(8, stableGetToken)
+    expect(await screen.findByTestId('report-result-deleted')).toHaveTextContent('Alice')
+    expect(screen.getByTestId('report-batch-summary')).toHaveTextContent(/deleted/i)
+  })
+
+  it('a regenerate finishing after the row collapsed leaves it collapsed', async () => {
+    mockGenerateReports.mockResolvedValue(batch([{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }]))
+    mockGetReport.mockResolvedValue({
+      id: 7, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report</p>',
+      startDate: '', endDate: '', createdAt: '',
+    })
+    let resolveRegen: (r: unknown) => void = () => {}
+    mockRegenerateReport.mockReturnValue(new Promise(r => { resolveRegen = r }))
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Alice'))
+    await user.click(screen.getByText(/Generate 1 Report/))
+    await user.click(await screen.findByTestId('report-result-name'))
+    await screen.findByText('Alice report')
+
+    await user.click(screen.getByRole('button', { name: 'Regenerate' }))
+    await user.type(screen.getByPlaceholderText(/what should be different/i), 'Shorter')
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    await user.click(screen.getByTestId('report-result-name'))
+    await waitFor(() => expect(screen.queryByText('Alice report')).not.toBeInTheDocument())
+
+    await act(async () => resolveRegen({
+      id: 8, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report v2</p>',
+      startDate: '', endDate: '', createdAt: '',
+    }))
+    expect(screen.queryByText('Alice report v2')).not.toBeInTheDocument()
+
+    mockGetReport.mockResolvedValue({
+      id: 8, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Alice report v2</p>',
+      startDate: '', endDate: '', createdAt: '',
+    })
+    await user.click(screen.getByTestId('report-result-name'))
+    expect(await screen.findByText('Alice report v2')).toBeInTheDocument()
+    expect(mockGetReport).toHaveBeenLastCalledWith(8, stableGetToken)
   })
 
   it('shows error on failed generation', async () => {

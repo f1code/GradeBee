@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import DOMPurify from 'dompurify'
-import { regenerateReport, deleteReport, submitFeedback } from '../api'
+import { regenerateReport, deleteReport, submitFeedback, type ReportResult } from '../api'
 import { ThumbUpIcon, ThumbDownIcon } from './Icons'
 import AIBadge from './AIBadge'
 
@@ -10,7 +10,7 @@ interface ReportViewerProps {
   reportId: number
   html: string
   studentName: string
-  onRegenerate?: (updatedHtml: string) => void
+  onRegenerate?: (report: ReportResult) => void
   onDelete?: () => void
 }
 
@@ -124,7 +124,7 @@ export default function ReportViewer({
       const result = await regenerateReport(reportId, feedback.trim(), getToken)
       setShowRegenerateForm(false)
       setFeedback('')
-      onRegenerate?.(result.html)
+      onRegenerate?.(result)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Regeneration failed')
     } finally {

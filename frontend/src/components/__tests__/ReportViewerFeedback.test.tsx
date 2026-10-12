@@ -137,4 +137,42 @@ describe('ReportViewer thumbs feedback', () => {
     })
     expect(screen.getByText(/thanks for your feedback/i)).toBeInTheDocument()
   })
+
+  // Parents key the viewer by report id, so thumbs reset and target the new report.
+  it('thumbs after regenerate post to the new report', async () => {
+    const { useState } = await import('react')
+    const { default: ReportViewer } = await import('../ReportViewer')
+    mockRegenerateReport.mockResolvedValue({ id: 43, html: '<p>New report</p>' })
+    function Parent() {
+      const [report, setReport] = useState({ id: 42, html: '<p>Old report</p>' })
+      return (
+        <ReportViewer
+          key={report.id}
+          reportId={report.id}
+          html={report.html}
+          studentName="Alice"
+          onRegenerate={r => setReport(r)}
+        />
+      )
+    }
+    const user = userEvent.setup()
+    render(<Parent />)
+
+    await user.click(screen.getByTestId('thumb-up'))
+    await screen.findByText(/thanks for your feedback/i)
+
+    await user.click(screen.getByRole('button', { name: 'Regenerate' }))
+    fireEvent.change(screen.getByPlaceholderText(/what should be different/i), { target: { value: 'Shorter' } })
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    await screen.findByText('New report')
+    expect(mockRegenerateReport).toHaveBeenCalledWith(42, 'Shorter', expect.any(Function))
+
+    await user.click(screen.getByTestId('thumb-up'))
+    await waitFor(() => {
+      expect(mockSubmitFeedback).toHaveBeenLastCalledWith(
+        { artifact_type: 'report', artifact_id: 43, rating: 'up' },
+        expect.any(Function)
+      )
+    })
+  })
 })
