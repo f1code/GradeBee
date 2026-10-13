@@ -13,11 +13,17 @@ import (
 )
 
 // promptfooConfig is the minimal slice of a promptfoo config file needed to
-// check which model a provider grades.
+// check which model a provider grades. A provider wrapping another, like the
+// report config's regen-chain, grades its config.inner.id.
 type promptfooConfig struct {
 	Providers []struct {
-		ID    string `yaml:"id"`
-		Label string `yaml:"label"`
+		ID     string `yaml:"id"`
+		Label  string `yaml:"label"`
+		Config struct {
+			Inner struct {
+				ID string `yaml:"id"`
+			} `yaml:"inner"`
+		} `yaml:"config"`
 	} `yaml:"providers"`
 }
 
@@ -63,6 +69,9 @@ func TestEvalConfigsTrackProductionModels(t *testing.T) {
 				}
 				require.Empty(t, got, "more than one provider is labelled %q", tc.label)
 				got = p.ID
+				if p.Config.Inner.ID != "" {
+					got = p.Config.Inner.ID
+				}
 			}
 			require.NotEmpty(t, got, "no provider labelled %q in %s", tc.label, tc.file)
 

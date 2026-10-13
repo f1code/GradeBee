@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,6 +24,7 @@ func TestReadReportManifest_Rejects(t *testing.T) {
 		"no description":  {`{"reports":[{"id":"a","student_id":1,"report_id":1}]}`, "description is required"},
 		"missing report":  {`{"reports":[{"id":"a","description":"d","student_id":1}]}`, "report_id are required"},
 		"missing student": {`{"reports":[{"id":"a","description":"d","report_id":1}]}`, "report_id are required"},
+		"expect, no feedback": {`{"reports":[{"id":"a","description":"d","student_id":1,"report_id":1,"expect":["x"]}]}`, "expect needs feedback"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -79,6 +81,83 @@ func TestWriteReportCases(t *testing.T) {
 		got, err := os.ReadFile(filepath.Join(evals, ref[len("file://"):]))
 		require.NoError(t, err)
 		assert.Equal(t, want, string(got))
+	}
+	assert.Empty(t, tests[0].Prompts, "a fresh case runs on every row, gold-reference included")
+	assert.Empty(t, tests[0].Assert)
+}
+
+func TestWriteReportCases_Regenerate(t *testing.T) {
+	evals := t.TempDir()
+	casesDir := filepath.Join(evals, "fixtures", "reports")
+	testsPath := filepath.Join(evals, "tests.report.generated.yaml")
+	m := reportManifest{Reports: []reportManifestEntry{
+		{ID: "regen", Description: "desc", StudentID: 1, ReportID: 2, Feedback: []int64{81, 82}, Expect: []string{"no cushions"}},
+		{ID: "regen_plain", Description: "plain", StudentID: 1, ReportID: 3, Feedback: []int64{83}},
+	}}
+	notes := []handler.Note{{Date: "2026-03-10", Summary: "read well"}}
+	c := reportCase{
+		ReportInputs:  handler.ReportInputs{StudentName: "Alice", Notes: notes},
+		ReferenceHTML: "<p>draft</p>",
+		Feedback:      []string{"take out the cushions", "warmer"},
+		ChangedNotes:  []handler.Note{{Date: "2026-03-12", Summary: "now says hello"}},
+	}
+	plain := reportCase{ReportInputs: handler.ReportInputs{Notes: notes}, ReferenceHTML: "<p/>", Feedback: []string{"shorter"}}
+	require.NoError(t, writeReportCases(m, []reportCase{c, plain}, casesDir, testsPath))
+
+	raw, err := os.ReadFile(testsPath)
+	require.NoError(t, err)
+	var tests []reportTest
+	require.NoError(t, yaml.Unmarshal(raw, &tests))
+	require.Len(t, tests, 2)
+	tc := tests[0]
+	assert.Equal(t, []string{"gradebee-prompt"}, tc.Prompts, "the gold-reference row would echo the unrevised draft")
+	assert.Equal(t, tc.Vars.Reference, tc.Vars.Draft, "the judge's reference is the draft the model revises")
+	fb, err := os.ReadFile(filepath.Join(evals, tc.Vars.Feedback[len("file://"):]))
+	require.NoError(t, err)
+	assert.JSONEq(t, `["take out the cushions","warmer"]`, string(fb), "rounds oldest first")
+
+	metricsOf := func(tc reportTest) []string {
+		var out []string
+		for _, a := range tc.Assert {
+			out = append(out, a.Metric)
+		}
+		return out
+	}
+	assert.Equal(t, []string{"feedback", "feedback", "kept", "new-notes", "expect"}, metricsOf(tc))
+	assert.Contains(t, tc.Assert[0].Value, `Round 1 asked: "take out the cushions"`)
+	assert.Contains(t, tc.Assert[1].Value, `Round 2 asked: "warmer"`)
+	assert.Contains(t, tc.Assert[3].Value, "- 2026-03-12: now says hello")
+	assert.Contains(t, tc.Assert[4].Value, "no cushions")
+	assert.Equal(t, []string{"feedback", "kept"}, metricsOf(tests[1]), "no notes changed since the draft, no new-notes line")
+}
+
+func TestLoadFeedbackComment(t *testing.T) {
+	db := seedAddReportDB(t)
+	for _, stmt := range []string{
+		`INSERT INTO students (id, class_id, name) VALUES (2, 1, 'Bob')`,
+		`INSERT INTO reports (id, student_id, start_date, end_date, html, created_at) VALUES (20, 2, '2026-03-01', '2026-03-31', '<p/>', '2026-04-03T00:00:00Z')`,
+		`INSERT INTO artifact_feedback (id, artifact_type, artifact_id, rating, signal, comment, user_id) VALUES
+			(1, 'report', 10, 'down', 'regenerated', 'warmer', 'u'),
+			(2, 'report', 20, 'down', 'regenerated', 'shorter', 'u'),
+			(3, 'report', 10, 'down', 'explicit', NULL, 'u'),
+			(4, 'note', 10, 'down', 'edited', 'x', 'u')`,
+	} {
+		_, err := db.Exec(stmt)
+		require.NoError(t, err)
+	}
+	ctx := context.Background()
+	got, err := loadFeedbackComment(ctx, db, 1, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "warmer", got)
+
+	for id, want := range map[int64]string{
+		2: "on a report of student 2, not student 1",
+		3: "has no comment",
+		4: "no feedback on a report",
+		9: "no feedback on a report",
+	} {
+		_, err := loadFeedbackComment(ctx, db, 1, id)
+		assert.ErrorContains(t, err, want, "feedback %d", id)
 	}
 }
 

@@ -175,3 +175,59 @@ func TestRunBuildReportPrompt(t *testing.T) {
 	assert.Equal(t, "user", msgs[0]["role"])
 	assert.NotEmpty(t, msgs[0]["content"])
 }
+
+func regenPromptVars(extra map[string]interface{}) evalContext {
+	vars := map[string]interface{}{
+		"student_name":        "Alice",
+		"class_name":          "Grade 3A",
+		"notes":               []interface{}{map[string]interface{}{"date": "2026-01-15", "summary": "Strong reader."}},
+		"report_instructions": "Write a three-section report.",
+	}
+	for k, v := range extra {
+		vars[k] = v
+	}
+	return evalContext{Vars: mustRawMap(vars)}
+}
+
+func TestRunBuildReportPrompt_RoundPicksFeedback(t *testing.T) {
+	feedback := []string{"take out the cushions", "make it warmer"}
+	cases := map[string]struct {
+		round      interface{}
+		want, skip string
+	}{
+		"unset is the first round": {nil, "take out the cushions", "make it warmer"},
+		"later round":              {1, "make it warmer", "take out the cushions"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			extra := map[string]interface{}{"draft": "<p>the draft</p>", "feedback": feedback}
+			if tc.round != nil {
+				extra["round"] = tc.round
+			}
+			out, err := captureOutput(func() error { return runBuildReportPrompt(regenPromptVars(extra)) })
+			require.NoError(t, err)
+			var msgs []map[string]string
+			require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
+			assert.Contains(t, msgs[0]["content"], "<p>the draft</p>")
+			assert.Contains(t, msgs[0]["content"], tc.want)
+			assert.NotContains(t, msgs[0]["content"], tc.skip)
+		})
+	}
+}
+
+func TestRunBuildReportPrompt_RegenerateVarsRejected(t *testing.T) {
+	cases := map[string]struct {
+		extra map[string]interface{}
+		want  string
+	}{
+		"feedback without draft": {map[string]interface{}{"feedback": []string{"warmer"}}, "needs vars.draft"},
+		"draft without feedback": {map[string]interface{}{"draft": "<p/>"}, "needs vars.feedback"},
+		"round past the last":    {map[string]interface{}{"draft": "<p/>", "feedback": []string{"warmer"}, "round": 1}, "outside"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := captureOutput(func() error { return runBuildReportPrompt(regenPromptVars(tc.extra)) })
+			assert.ErrorContains(t, err, tc.want)
+		})
+	}
+}

@@ -2,6 +2,7 @@ description: GradeBee LLM evaluation harness — Report domain
 
 # gradebee-prompt dispatches to build-report-prompt via vars.task.
 # gold-reference echoes the reference report; see the gold-reference provider.
+# Regenerate tests name gradebee-prompt (eval-cli gradedPrompt): rename both.
 prompts:
   - label: gradebee-prompt
     raw: exec:../bin/eval-cli
@@ -15,20 +16,28 @@ prompts:
 # pins the eval there too. omitDefaults: see the judge provider below.
 # showThinking: false keeps luna's reasoning out of the output; promptfoo
 # prepends it by default, and the judge and the regex below graded it.
+# regen-chain runs a regenerate case's feedback rounds on the inner model;
+# a case without feedback is one plain call.
 providers:
-  - id: openrouter:openai/gpt-6-luna
+  - id: file://providers/regen-chain.js
     label: gradebee-report
     prompts: [gradebee-prompt]
     config:
-      apiBaseUrl: https://eu.openrouter.ai/api/v1
-      omitDefaults: true
-      showThinking: false
+      inner:
+        id: openrouter:openai/gpt-6-luna
+        config:
+          apiBaseUrl: https://eu.openrouter.ai/api/v1
+          omitDefaults: true
+          showThinking: false
 
   # Comparison / experimental providers:
   # Medium 3.5, production report model until task 193.
-  - id: mistral:mistral-medium-3-5
+  - id: file://providers/regen-chain.js
     label: gradebee-report-medium
     prompts: [gradebee-prompt]
+    config:
+      inner:
+        id: mistral:mistral-medium-3-5
 
   # mistral-large-4, task 190, prompt bbcc024bf1b6, 3 uncached runs: row 0.624
   # vs Medium 0.613, grounding 0.29 vs 0.35, all inside the ±0.15 gold band;
@@ -233,6 +242,9 @@ defaultTest:
         required example is a minimum when the Specification also asks for every relevant fact;
         "each fact once" covers facts from the notes, not general statements about attitude or
         progress, which may recur.
+        A weakness rule (what we do, or its [MISSING] marker) covers a difficulty the student still
+        has. A difficulty a later note shows resolved needs neither; leaving it out is fact coverage,
+        not a broken rule.
         5: every rule followed
         4: one rule bent slightly (e.g. a few words over a limit)
         3: one rule broken

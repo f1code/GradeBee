@@ -8,10 +8,11 @@ The repo is public. Report eval fixtures held real student names, teacher notes 
 and the Level Report Instructions they need are a school's private text (Kids&Us protocol).
 
 Report eval cases are **ids, not data**. The repo commits `backend/evals/fixtures.manifest.json`:
-per case a slug, a name-free description, `student_id` and `report_id`. `make eval-fixtures`
+per case a slug, a name-free description, `student_id` and `report_id`, and for a regenerate case
+the `artifact_feedback` ids whose comments drive each round. `make eval-fixtures`
 materializes each case from the local `data/gradebee.db` into gitignored files, through the same
 `ReportInputResolver` production regenerate uses: names, class, notes in range, the Level's Report
-Instructions, ad-hoc instructions, reference HTML. Both eval baselines live under `data/` too,
+Instructions, ad-hoc instructions, reference HTML, feedback text. Both eval baselines live under `data/` too,
 since their outputs carry names and note text. Extraction fixtures stay committed: they are synthetic or anonymized
 by hand, and their transcripts are not in the DB.
 
@@ -56,5 +57,7 @@ current-term notes, then reviewed against the Kids&Us sources, not reports a tea
   Print only the part you need when a dump's notes may hold one.
 - Case inputs follow the DB: a teacher editing a Level's instructions changes the next run's
   inputs while the reference stays fixed. Snapshotting instructions per report is #185.
+- References are rows in the local DB. Replacing `data/gradebee.db` with a prod copy (Oct 12)
+  renumbered reports and orphaned every manifest id; the cases were regenerated (#216).
 - Current-term rule (`gen-report` refuses a start before 2026-09-01) is hard-coded until report
   periods exist.

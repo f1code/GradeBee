@@ -154,26 +154,49 @@ func runBuildExtractPrompt(ec evalContext) error {
 }
 
 // runBuildReportPrompt outputs a promptfoo messages array for report generation.
+// A regenerate case sets vars.draft and vars.feedback (oldest first); vars.round
+// picks the feedback this prompt answers, 0 when unset. The chain provider
+// (evals/providers/regen-chain.js) asks for later rounds with the previous
+// round's output as the draft.
 func runBuildReportPrompt(ec evalContext) error {
-	var studentName, className, instructions, reportInstructions string
-	if err := ec.unmarshalVar("student_name", &studentName); err != nil {
-		return err
-	}
-	if err := ec.unmarshalVar("class_name", &className); err != nil {
-		return err
-	}
-	if err := ec.unmarshalVar("report_instructions", &reportInstructions); err != nil {
-		return err
-	}
-	if err := ec.unmarshalVar("instructions", &instructions); err != nil {
-		return err
+	var studentName, className, instructions, reportInstructions, draft string
+	for name, v := range map[string]*string{
+		"student_name":        &studentName,
+		"class_name":          &className,
+		"report_instructions": &reportInstructions,
+		"instructions":        &instructions,
+		"draft":               &draft,
+	} {
+		if err := ec.unmarshalVar(name, v); err != nil {
+			return err
+		}
 	}
 	var notes []handler.Note
 	if err := ec.unmarshalVar("notes", &notes); err != nil {
 		return err
 	}
+	var feedbacks []string
+	if err := ec.unmarshalVar("feedback", &feedbacks); err != nil {
+		return err
+	}
+	var round int
+	if err := ec.unmarshalVar("round", &round); err != nil {
+		return err
+	}
+	var feedback string
+	if len(feedbacks) > 0 {
+		if draft == "" {
+			return fmt.Errorf("vars.feedback needs vars.draft")
+		}
+		if round < 0 || round >= len(feedbacks) {
+			return fmt.Errorf("vars.round %d is outside vars.feedback's %d rounds", round, len(feedbacks))
+		}
+		feedback = feedbacks[round]
+	} else if draft != "" {
+		return fmt.Errorf("vars.draft needs vars.feedback")
+	}
 	// Production sends the built prompt as a single user message (no system role).
-	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, "", "")
+	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, draft, feedback)
 	return writeJSON([]map[string]string{
 		{"role": "user", "content": prompt},
 	})

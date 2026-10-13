@@ -2,57 +2,96 @@
   "reports": [
     {
       "id": "short_set_no_adhoc",
-      "description": "Kids story Level, two notes a week apart, no ad-hoc instructions",
+      "description": "Kids story Level, three weekly notes, the last one long, no ad-hoc instructions",
       "student_id": 792,
-      "report_id": 231
+      "report_id": 272
     },
     {
       "id": "sam_mixed_lengths",
-      "description": "Sam text, four notes incl. two likely absences and one long note",
+      "description": "Sam text, five notes incl. two likely absences and one long note",
       "student_id": 656,
-      "report_id": 232
+      "report_id": 273
     },
     {
       "id": "sam_second_student",
-      "description": "Sam text, same class as sam_mixed_lengths, three notes of 44 to 844 characters",
+      "description": "Sam text, same class as sam_mixed_lengths, four notes of 44 to 844 characters",
       "student_id": 653,
-      "report_id": 233
+      "report_id": 274
     },
     {
       "id": "tweens_pair_a",
       "description": "Tweens and Teens text, two notes on one day: sparse data, placeholders over padding",
       "student_id": 562,
-      "report_id": 234
+      "report_id": 275
     },
     {
       "id": "tweens_pair_b",
       "description": "Tweens and Teens text, same class as tweens_pair_a, one note",
       "student_id": 518,
-      "report_id": 235
+      "report_id": 276
     },
     {
       "id": "mousy_adhoc",
-      "description": "Toddler Level, three weekly notes, ad-hoc 50-word limit and home-practice activity",
+      "description": "Toddler Level, four weekly notes, ad-hoc 50-word limit and home-practice activity",
       "student_id": 495,
-      "report_id": 240
+      "report_id": 280
     },
     {
       "id": "linda_typical",
-      "description": "Babies Level, four weekly notes of 300 to 460 characters: typical term",
+      "description": "Babies Level, five weekly notes of 300 to 460 characters: typical term",
       "student_id": 506,
-      "report_id": 237
+      "report_id": 277
     },
     {
-      "id": "very_short_last_note",
-      "description": "Kids story Level, four weekly notes, the last only 17 characters",
+      "id": "very_short_note",
+      "description": "Kids story Level, five weekly notes, the fourth only 17 characters",
       "student_id": 608,
-      "report_id": 238
+      "report_id": 278
     },
     {
       "id": "single_note",
       "description": "Kids story Level, one 240-character note: whole report from one observation",
       "student_id": 272,
-      "report_id": 239
+      "report_id": 279
+    },
+    {
+      "id": "regen_behaviour_two_rounds",
+      "description": "Regenerate, Babies Level, two rounds: fix Behaviour facts, then warmer; the first fix must survive the second round",
+      "student_id": 506,
+      "report_id": 231,
+      "feedback": [81, 82],
+      "expect": [
+        "No cushions appear anywhere in the report.",
+        "Behaviour speaks of one other child, not of several other children."
+      ]
+    },
+    {
+      "id": "regen_soften_behaviour",
+      "description": "Regenerate, Babies Level, one round: Behaviour less negative, Motivation redone; tone ask must not strip the difficulties",
+      "student_id": 702,
+      "report_id": 232,
+      "feedback": [83],
+      "expect": [
+        "Behaviour still names the child's difficulties, written gently, and says what the teacher does about them."
+      ]
+    },
+    {
+      "id": "regen_positive_two_rounds",
+      "description": "Regenerate, Babies Level, two rounds: more positive, then less flattering; positivity must not drop the difficulties or the parent's support",
+      "student_id": 713,
+      "report_id": 251,
+      "feedback": [97, 98],
+      "expect": [
+        "The report still names the child's difficulties, written positively, with what the adults do about them.",
+        "The report still says the child's mother takes part in redirecting him."
+      ]
+    },
+    {
+      "id": "regen_note_added",
+      "description": "Regenerate, Babies Level, one round: less focus on not speaking; a note added after the draft reaches the report",
+      "student_id": 717,
+      "report_id": 241,
+      "feedback": [88]
     }
   ]
 }

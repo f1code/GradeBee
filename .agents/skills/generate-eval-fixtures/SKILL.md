@@ -165,7 +165,11 @@ Report cases live in the DB, keyed by id in
    case tests, without names: the manifest is public.
 3. `make eval`, then `make eval-baseline` once the score looks right.
 
-See `backend/evals/README.md`, "Report cases".
+See `backend/evals/README.md`, "Report cases". A regenerate case names the
+draft as `report_id` plus `feedback` ids (`artifact_feedback`, oldest first)
+and optional name-free `expect` lines: "Regenerate cases" there. Find chains
+by feedback rows with `signal = 'regenerated'` (ids, `artifact_id`, times);
+like `r.html`, never `SELECT` `comment`: it can hold names.
 
 ### Selecting report cases
 

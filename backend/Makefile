@@ -11,7 +11,7 @@ test:
 	# Race detector only where goroutines share state: the whole suite under
 	# -race takes minutes.
 	go test -race -count=1 -run 'GenericQueue|ReportBatch|ProcessReportBatch|GenerateReports' .
-	node --test evals/scoring/extraction.test.js evals/scoring/report-wordcounts.test.js
+	node --test evals/scoring/extraction.test.js evals/scoring/report-wordcounts.test.js evals/providers/regen-chain.test.js
 
 # Live-LLM tests (llm_live_test.go) run as part of `test` when LLM_PROVIDER
 # and the matching API key are set, and skip themselves otherwise.

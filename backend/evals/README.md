@@ -10,7 +10,7 @@ The harness is split into two domain-specific configs:
 - **`promptfooconfig.extract.yaml`** — extraction tests with structured output (json_schema)
 - **`promptfooconfig.report.yaml`** — report generation tests with per-axis llm-rubric scoring (see "Report scoring")
 
-Adding a new report model only requires editing the providers list in `promptfooconfig.report.yaml`; no per-test changes needed.
+Adding a new report model only requires editing the providers list in `promptfooconfig.report.yaml`; no per-test changes needed. Report rows wrap their model in `providers/regen-chain.js` (`config.inner`), which runs regenerate cases' feedback rounds; see "Regenerate cases".
 
 Previously the harness used `exec:` providers where eval-cli built the prompt **and** called OpenAI itself. That approach bypassed promptfoo's caching and tracking. See `docs/plans/2026-05-25-eval-harness-switch-to-exec.md` for the earlier exec-provider rationale and `docs/plans/2026-05-25-eval-harness-promptfoo-drives-llm.md` for this change.
 
@@ -159,6 +159,7 @@ make bin/eval-cli
 evals/
   promptfooconfig.extract.yaml    extraction test suite
   promptfooconfig.report.yaml     report suite: judge, five axis rubrics, source-mention regex, gold-reference row; tests from tests.report.generated.yaml
+  providers/regen-chain.js        wraps a report model: runs a regenerate case's feedback rounds, last output graded
   fixtures.manifest.json          curated report cases by DB id (committed, PII-free)
   tests.report.generated.yaml     report test list (generated, git-ignored)
   scoring/extraction.js           custom JS scorer (precision/recall + voice preservation + attribution)
@@ -176,14 +177,16 @@ evals/
       notes.json                  the student's notes in the report's date range
       report_instructions.txt     the Level's Report Instructions
       instructions.txt            the report's ad-hoc instructions (may be empty)
-      reference.html              the report itself: an accepted example for the judge, and the gold-reference row's output
+      reference.html              the report itself: an accepted example for the judge, and the gold-reference row's output; for a regenerate case, the draft revised
+      feedback.json               regenerate cases only: feedback comments, oldest first
 ```
 
 ## Report cases
 
 Report cases hold real names, notes and report text, so the repo keeps only
 `fixtures.manifest.json`: per case an `id` (directory name), a `description`
-(test description, no names), a `student_id` and a `report_id`.
+(test description, no names), a `student_id` and a `report_id`; a regenerate
+case adds `feedback` and optional `expect` (see "Regenerate cases").
 Why, and what agents may read: `docs/adr/0005-report-eval-data-stays-local.md`.
 
 `make eval-fixtures` runs `eval-cli gen-report-cases`, which reads each case
@@ -226,6 +229,50 @@ its task and rubric from the report config's `defaultTest`.
    say what the case tests, without names.
 4. `make eval` to see the score.
 5. `make eval-baseline` once the score looks right.
+
+### Regenerate cases
+
+A regenerate case scores what `Regenerate` writes when a Teacher sends feedback
+on a draft. Its manifest entry adds:
+
+- `feedback`: `artifact_feedback` ids, oldest first. Each id is one round; its
+  comment must be non-empty and on a report of the case's student. The text
+  stays in the DB.
+- `expect` (optional): name-free rubric lines, e.g. "No cushions appear
+  anywhere in the report."
+
+`report_id` is the draft the first round revises. `make eval-fixtures` writes it
+as `reference.html` and passes it as `vars.draft`; `feedback.json` holds the
+comments. Notes come from today's DB, as in production: a note created or
+edited after the draft is a Teacher correction, not staleness, so generation
+does not fail on it.
+
+`providers/regen-chain.js` runs the rounds on each row's model. Round 1 is the
+prompt promptfoo built; for each later round it calls `eval-cli` with
+`vars.draft` set to the previous output and `vars.round` to the round index,
+then calls the model again. promptfoo grades the last output; the earlier ones
+sit in the result's `response.metadata.earlierRounds`. The wrapper loads the
+inner model through a second promptfoo copy, whose own view of the cache file
+the CLI overwrites; so each call skips that copy's cache and goes through the
+CLI's (`context.getCache`), keyed by inner model, repeat index and prompt.
+`--no-cache` reaches it like any other call.
+Until #214, the prompt carries the current round's feedback only.
+
+Besides the shared axes, each regenerate test gets `llm-rubric` lines, threshold
+0.75, written by `gen-report-cases` with the case's text inline:
+
+| Metric | One line per | Asks |
+|---|---|---|
+| `feedback` | round | the output does what that round asked |
+| `kept` | case | facts of the draft no feedback touches survive |
+| `new-notes` | case with notes changed since the draft | the output uses them |
+| `expect` | `expect` entry | the line holds |
+
+Lines sharing a metric average in `namedScores`. They carry no word-count
+transform: promptfoo inlines `file://` strings in an external tests file, so
+the transform would arrive as source text. The judge sees the draft as its
+reference report. Regenerate tests run on `gradebee-prompt` only: the
+gold-reference row would echo the draft, which ignores the feedback.
 
 ## Report scoring
 
@@ -277,7 +324,9 @@ length is completeness; going over a cap is compliance. Compliance flags a note
 fact in two sections or in a section that does not cover it (#188), and reads
 the Level rules together: a section with no fact of its own passes with general
 statements and its `[MISSING]` marker, a required example is a minimum, and
-"each fact once" covers note facts, not general statements. Grounding checks
+"each fact once" covers note facts, not general statements. A difficulty a
+later note shows resolved needs no what-we-do or marker; leaving it out costs
+completeness, not compliance (#216, `linda_typical`). Grounding checks
 every time-ordered claim against the note dates: a change needs an earlier and
 a later note that differ on the same skill, or a note stating it, so a trend or before/after story the
 notes do not show is an invented fact. A behaviour, routine or interaction no
