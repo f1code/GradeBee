@@ -22,20 +22,28 @@ type ArtifactFeedback struct {
 	Signal        string  // 'explicit' | 'regenerated' | 'edited' | 'deleted'
 	Comment       *string // populated for 'explicit' and 'regenerated'
 	PreviousValue *string // populated for 'edited' and 'deleted'
+	ResultID      *int64  // 'regenerated': the report this regenerate produced; ArtifactID is its source
 	UserID        string
 	CreatedAt     time.Time
 }
 
 // Insert creates a new feedback row. Returns the new row ID.
 func (r *ArtifactFeedbackRepo) Insert(ctx context.Context, f ArtifactFeedback) (int64, error) {
+	return insertFeedback(ctx, r.db, f)
+}
+
+// insertFeedback runs on a *sql.DB or a *sql.Tx.
+func insertFeedback(ctx context.Context, q interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, f ArtifactFeedback) (int64, error) {
 	var id int64
-	err := r.db.QueryRowContext(ctx, `
+	err := q.QueryRowContext(ctx, `
 		INSERT INTO artifact_feedback
-		  (artifact_type, artifact_id, rating, signal, comment, previous_value, user_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		  (artifact_type, artifact_id, rating, signal, comment, previous_value, user_id, result_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id`,
 		f.ArtifactType, f.ArtifactID, f.Rating, f.Signal,
-		f.Comment, f.PreviousValue, f.UserID,
+		f.Comment, f.PreviousValue, f.UserID, f.ResultID,
 	).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("insert artifact_feedback: %w", err)
@@ -43,10 +51,40 @@ func (r *ArtifactFeedbackRepo) Insert(ctx context.Context, f ArtifactFeedback) (
 	return id, nil
 }
 
+// RegenerateChain returns the Teacher feedback of every regenerate that led to
+// report id, oldest first; empty for a first draft. It walks the feedback rows,
+// not the reports, so a deleted draft in the middle does not cut the chain.
+func (r *ArtifactFeedbackRepo) RegenerateChain(ctx context.Context, id int64) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		WITH RECURSIVE chain(artifact_id, comment, depth) AS (
+			SELECT artifact_id, comment, 0 FROM artifact_feedback
+			WHERE result_id = ? AND artifact_type = 'report' AND signal = 'regenerated'
+			UNION ALL
+			SELECT f.artifact_id, f.comment, c.depth + 1
+			FROM artifact_feedback f JOIN chain c ON f.result_id = c.artifact_id
+			WHERE f.artifact_type = 'report' AND f.signal = 'regenerated'
+		)
+		SELECT comment FROM chain WHERE comment IS NOT NULL ORDER BY depth DESC`, id)
+	if err != nil {
+		return nil, fmt.Errorf("regenerate chain: %w", err)
+	}
+	defer rows.Close()
+
+	var chain []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, fmt.Errorf("scan regenerate chain: %w", err)
+		}
+		chain = append(chain, c)
+	}
+	return chain, rows.Err()
+}
+
 // ListByArtifact returns all feedback rows for a specific artifact, newest first.
 func (r *ArtifactFeedbackRepo) ListByArtifact(ctx context.Context, artifactType string, artifactID int64) ([]ArtifactFeedback, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, artifact_type, artifact_id, rating, signal, comment, previous_value, user_id, created_at
+		SELECT id, artifact_type, artifact_id, rating, signal, comment, previous_value, result_id, user_id, created_at
 		FROM artifact_feedback
 		WHERE artifact_type = ? AND artifact_id = ?
 		ORDER BY created_at DESC`, artifactType, artifactID)
@@ -60,7 +98,7 @@ func (r *ArtifactFeedbackRepo) ListByArtifact(ctx context.Context, artifactType 
 // ListByUser returns feedback rows for a user since a given time, capped by limit.
 func (r *ArtifactFeedbackRepo) ListByUser(ctx context.Context, userID string, since time.Time, limit int) ([]ArtifactFeedback, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, artifact_type, artifact_id, rating, signal, comment, previous_value, user_id, created_at
+		SELECT id, artifact_type, artifact_id, rating, signal, comment, previous_value, result_id, user_id, created_at
 		FROM artifact_feedback
 		WHERE user_id = ? AND created_at >= ?
 		ORDER BY created_at DESC
@@ -104,7 +142,7 @@ func scanFeedbackRows(rows *sql.Rows) ([]ArtifactFeedback, error) {
 		var createdAt string
 		if err := rows.Scan(
 			&f.ID, &f.ArtifactType, &f.ArtifactID, &f.Rating, &f.Signal,
-			&f.Comment, &f.PreviousValue, &f.UserID, &createdAt,
+			&f.Comment, &f.PreviousValue, &f.ResultID, &f.UserID, &createdAt,
 		); err != nil {
 			return nil, fmt.Errorf("scan artifact_feedback: %w", err)
 		}

@@ -3,10 +3,12 @@ package handler
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/clerk/clerk-sdk-go/v2"
@@ -91,12 +93,13 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 	levelRepo := &LevelRepo{db: db}
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
 	withDeps(t, &mockDepsAll{
-		db:          db,
-		classRepo:   classRepo,
-		studentRepo: studentRepo,
-		reportRepo:  reportRepo,
-		reportGen:   gen,
-		levelRepo:   levelRepo,
+		db:           db,
+		classRepo:    classRepo,
+		studentRepo:  studentRepo,
+		reportRepo:   reportRepo,
+		reportGen:    gen,
+		levelRepo:    levelRepo,
+		feedbackRepo: &ArtifactFeedbackRepo{db: db},
 	})
 
 	body, err := json.Marshal(map[string]string{"feedback": "make it shorter"})
@@ -115,11 +118,140 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 	assert.Equal(t, "Thursday Timezone · Mon", gen.lastRegenReq.ClassName)
 	assert.Equal(t, "2026-01-01", gen.lastRegenReq.StartDate)
 	assert.Equal(t, "make it shorter", gen.lastRegenReq.Feedback)
-	assert.Equal(t, "<p>old</p>", gen.lastRegenReq.PreviousDraft)
+	assert.Equal(t, "<p>old</p>", gen.lastRegenReq.Draft)
 	assert.Equal(t, "be concise", gen.lastRegenReq.Instructions)
 	assert.Equal(t, "Write three sections.", gen.lastRegenReq.ReportInstructions)
 	require.Len(t, gen.lastRegenReq.Notes, 1)
 	assert.Equal(t, "in range", gen.lastRegenReq.Notes[0].Summary)
+}
+
+// regenFixture is a student with one report and a regenerate handler wired to
+// a fake provider.
+type regenFixture struct {
+	reportRepo *ReportRepo
+	first      *Report
+	regenerate func(id int64, feedback string) (newID int64, prompt string)
+}
+
+// newRegenFixture creates the report first, then runs setup (e.g. to add notes
+// or backdate rows) before the handler is wired.
+func newRegenFixture(t *testing.T, setup func(db *sql.DB, studentID int64, first *Report)) *regenFixture {
+	t.Helper()
+	db := setupTestDB(t)
+	classRepo := &ClassRepo{db: db}
+	studentRepo := &StudentRepo{db: db}
+	reportRepo := &ReportRepo{db: db}
+	levelRepo := &LevelRepo{db: db}
+	ctx := context.Background()
+
+	cls := newTestClass(t, classRepo, "test-group", "user_abc", "Thursday Timezone", "")
+	stu, err := studentRepo.Create(ctx, cls.ID, "Maxence")
+	require.NoError(t, err)
+	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
+	first := &Report{StudentID: stu.ID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>first</p>"}
+	require.NoError(t, reportRepo.Create(ctx, first))
+	if setup != nil {
+		setup(db, stu.ID, first)
+	}
+
+	provider := &fakeLLMProvider{text: "<p>next</p>"}
+	gen, err := newDBReportGenerator(provider, reportRepo)
+	require.NoError(t, err)
+	withDeps(t, &mockDepsAll{
+		db:           db,
+		classRepo:    classRepo,
+		studentRepo:  studentRepo,
+		reportRepo:   reportRepo,
+		reportGen:    gen,
+		levelRepo:    levelRepo,
+		feedbackRepo: &ArtifactFeedbackRepo{db: db},
+	})
+
+	regenerate := func(id int64, feedback string) (newID int64, prompt string) {
+		t.Helper()
+		body, err := json.Marshal(map[string]string{"feedback": feedback})
+		require.NoError(t, err)
+		req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/reports/%d/regenerate", id), bytes.NewReader(body))
+		req.SetPathValue("id", itoa(id))
+		req = clerkReq(req, "user_abc")
+		rec := httptest.NewRecorder()
+		handleRegenerateReport(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, "body = %s", rec.Body.String())
+		var res ReportResult
+		require.NoError(t, json.NewDecoder(rec.Body).Decode(&res))
+		return res.ID, provider.calls[len(provider.calls)-1].UserPrompt
+	}
+	return &regenFixture{reportRepo: reportRepo, first: first, regenerate: regenerate}
+}
+
+// TestHandleRegenerateReport_CarriesFeedbackChain regenerates three times in a
+// row, then once more from the first draft: each prompt carries the feedback
+// of the rounds behind its draft, oldest first, and no other branch's. A note
+// edited after a draft is "(new)" against that draft only.
+func TestHandleRegenerateReport_CarriesFeedbackChain(t *testing.T) {
+	ctx := context.Background()
+	f := newRegenFixture(t, func(db *sql.DB, studentID int64, first *Report) {
+		noteRepo := &NoteRepo{db: db}
+		for _, n := range []struct{ summary, updatedAt string }{
+			{"older note", "2026-03-01T00:00:00.000Z"},
+			{"edited note", "2026-05-01T00:00:00.000Z"},
+		} {
+			note := &Note{StudentID: studentID, Date: "2026-02-01", Summary: n.summary, Source: "manual"}
+			require.NoError(t, noteRepo.Create(ctx, note))
+			_, err := db.ExecContext(ctx, `UPDATE notes SET updated_at = ? WHERE id = ?`, n.updatedAt, note.ID)
+			require.NoError(t, err)
+		}
+		_, err := db.ExecContext(ctx, `UPDATE reports SET created_at = '2026-04-01T00:00:00.000Z' WHERE id = ?`, first.ID)
+		require.NoError(t, err)
+	})
+	first, reportRepo, regenerate := f.first, f.reportRepo, f.regenerate
+
+	second, prompt := regenerate(first.ID, "take out the cushions")
+	assert.NotContains(t, prompt, reportEarlierFeedbackHeader, "a first draft has no earlier rounds")
+	assert.Contains(t, prompt, reportFeedbackHeader+"take out the cushions")
+	assert.Contains(t, prompt, "- 2026-02-01: older note\n")
+	assert.Contains(t, prompt, "- 2026-02-01"+reportNewNoteTag+": edited note\n")
+
+	third, prompt := regenerate(second, "warmer")
+	assert.Contains(t, prompt, "- 2026-02-01: edited note\n", "the second draft is newer than the edit")
+	fourth, prompt := regenerate(third, "shorter")
+	assert.Contains(t, prompt, reportEarlierFeedbackHeader+"Round 1: take out the cushions\nRound 2: warmer\n")
+	assert.Contains(t, prompt, reportFeedbackHeader+"shorter")
+	assert.Less(t, strings.Index(prompt, reportEarlierFeedbackHeader), strings.Index(prompt, reportFeedbackHeader))
+
+	_, prompt = regenerate(first.ID, "more on reading")
+	assert.NotContains(t, prompt, reportEarlierFeedbackHeader, "another branch's rounds leaked in")
+	assert.Contains(t, prompt, reportFeedbackHeader+"more on reading")
+
+	// Deleting a middle draft keeps the rounds behind it.
+	require.NoError(t, reportRepo.Delete(ctx, second))
+	_, prompt = regenerate(fourth, "again")
+	assert.Contains(t, prompt, reportEarlierFeedbackHeader+"Round 1: take out the cushions\nRound 2: warmer\nRound 3: shorter\n")
+}
+
+// TestHandleRegenerateReport_DeletedReportIDNotReused: feedback rows outlive
+// deleted reports, so a reused reports.id would collide with or inherit the
+// old chain.
+func TestHandleRegenerateReport_DeletedReportIDNotReused(t *testing.T) {
+	ctx := context.Background()
+	f := newRegenFixture(t, nil)
+	source, reportRepo, regenerate := f.first, f.reportRepo, f.regenerate
+
+	deleted, _ := regenerate(source.ID, "take out the cushions")
+	require.NoError(t, reportRepo.Delete(ctx, deleted))
+
+	again, prompt := regenerate(source.ID, "warmer")
+	assert.NotEqual(t, deleted, again)
+	assert.NotContains(t, prompt, reportEarlierFeedbackHeader)
+
+	require.NoError(t, reportRepo.Delete(ctx, again))
+	fresh := &Report{StudentID: source.StudentID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>fresh</p>"}
+	require.NoError(t, reportRepo.Create(ctx, fresh))
+	assert.NotEqual(t, again, fresh.ID)
+	assert.NotEqual(t, deleted, fresh.ID)
+
+	_, prompt = regenerate(fresh.ID, "shorter")
+	assert.NotContains(t, prompt, reportEarlierFeedbackHeader, "a fresh report inherited a deleted report's chain")
 }
 
 func TestHandleGenerateReports_ResponseShape(t *testing.T) {
@@ -275,6 +407,7 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
 	withDeps(t, &mockDepsAll{
 		db: db, classRepo: classRepo, studentRepo: studentRepo, reportRepo: reportRepo, reportGen: gen, levelRepo: levelRepo,
+		feedbackRepo: &ArtifactFeedbackRepo{db: db},
 	})
 
 	body, err := json.Marshal(map[string]string{"feedback": "shorter"})
@@ -363,10 +496,11 @@ func TestHandleRegenerateReport_LevelOutsideGroup(t *testing.T) {
 	require.NoError(t, (&ReportRepo{db: db}).Create(ctx, rpt))
 	gen := &stubReportGenerator{}
 	withDeps(t, &mockDepsAll{
-		db:          db,
-		studentRepo: &StudentRepo{db: db},
-		reportRepo:  &ReportRepo{db: db},
-		reportGen:   gen,
+		db:           db,
+		studentRepo:  &StudentRepo{db: db},
+		reportRepo:   &ReportRepo{db: db},
+		reportGen:    gen,
+		feedbackRepo: &ArtifactFeedbackRepo{db: db},
 	})
 
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader([]byte(`{"feedback":"shorter"}`)))

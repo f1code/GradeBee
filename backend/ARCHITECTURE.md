@@ -108,7 +108,7 @@ Audio is deleted right after transcription. The row and its transcript go after 
 
 ## Report regenerate (`handleRegenerateReport`)
 
-Feedback required (`400` when blank). The prompt carries the report's HTML as the previous draft (`reportPrevDraftHeader`).
+Feedback required (`400` when blank). The prompt carries the report's HTML as the previous draft (`reportPrevDraftHeader`) and the feedback of every round behind it, oldest first (`ArtifactFeedbackRepo.RegenerateChain` walks `artifact_feedback`, so a deleted draft keeps the chain; `reportEarlierFeedbackHeader`). Notes with `updated_at` after the draft's `created_at` are tagged `(new)`; the model adds their facts and keeps the rest of the draft. The new report and its `regenerated` feedback row (thumbs-down on the source, `result_id` = the new report) are written in one transaction (`ReportRepo.CreateRegenerated`); either failing fails the regenerate.
 
 Ownership and input checks run on the request context. LLM call, save and implicit thumbs-down run on `context.WithoutCancel`: closing the tab does not stop them. `llmChatTimeout` bounds the call; a restart kills it.
 
@@ -151,10 +151,10 @@ SQLite, WAL (`db.go`). Migrations in `sql/`, embedded, applied in filename order
 | `students` | Students per class |
 | `student_aliases` | Name variants, unique per class, case-insensitive |
 | `notes` | Per-student notes. `trace_id` names the source recording (no FK). `source`: `auto`, `reviewed` (model-written; edit/delete fires implicit thumbs-down), `assigned`, `manual` (not model-written) |
-| `reports` | Generated HTML reports |
+| `reports` | Generated HTML reports. `AUTOINCREMENT`: ids are never reused, because `artifact_feedback.result_id` outlives deleted reports and a reused id would inherit another report's chain |
 | `voice_notes` | Upload tracking: file path, `processed_at`, `purged_at`, `transcript`, `trace_id` (unique UUID; row ids get reused) |
 | `llm_calls` | One row per answered AI call: user, trace, provider, model, task, tokens/audio seconds, `ok`. Read by `scripts/ai_cost.sql`; see `docs/ai-usage.md` |
-| `artifact_feedback` | Append-only thumbs ratings: `explicit`, `regenerated`, `edited`, `deleted` |
+| `artifact_feedback` | Append-only thumbs ratings: `explicit`, `regenerated`, `edited`, `deleted`. A `regenerated` row's `artifact_id` is the source report and `result_id` the report it produced; rows outlive deleted reports and carry the regenerate chain |
 
 ## Authorization
 

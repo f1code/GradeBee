@@ -190,29 +190,41 @@ func regenPromptVars(extra map[string]interface{}) evalContext {
 }
 
 func TestRunBuildReportPrompt_RoundPicksFeedback(t *testing.T) {
-	feedback := []string{"take out the cushions", "make it warmer"}
-	cases := map[string]struct {
-		round      interface{}
-		want, skip string
-	}{
-		"unset is the first round": {nil, "take out the cushions", "make it warmer"},
-		"later round":              {1, "make it warmer", "take out the cushions"},
+	feedback := []string{"take out the cushions", "make it warmer", "shorter"}
+	build := func(t *testing.T, round interface{}) string {
+		extra := map[string]interface{}{
+			"draft": "<p>the draft</p>", "feedback": feedback, "draft_created_at": "2026-01-20T00:00:00.000Z",
+			"notes": []interface{}{map[string]interface{}{"date": "2026-01-15", "summary": "Strong reader.", "updatedAt": "2026-01-21T00:00:00.000Z"}},
+		}
+		if round != nil {
+			extra["round"] = round
+		}
+		out, err := captureOutput(func() error { return runBuildReportPrompt(regenPromptVars(extra)) })
+		require.NoError(t, err)
+		var msgs []map[string]string
+		require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
+		assert.Contains(t, msgs[0]["content"], "<p>the draft</p>")
+		return msgs[0]["content"]
 	}
-	for name, tc := range cases {
-		t.Run(name, func(t *testing.T) {
-			extra := map[string]interface{}{"draft": "<p>the draft</p>", "feedback": feedback}
-			if tc.round != nil {
-				extra["round"] = tc.round
-			}
-			out, err := captureOutput(func() error { return runBuildReportPrompt(regenPromptVars(extra)) })
-			require.NoError(t, err)
-			var msgs []map[string]string
-			require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
-			assert.Contains(t, msgs[0]["content"], "<p>the draft</p>")
-			assert.Contains(t, msgs[0]["content"], tc.want)
-			assert.NotContains(t, msgs[0]["content"], tc.skip)
-		})
-	}
+
+	t.Run("unset is the first round, no earlier feedback", func(t *testing.T) {
+		prompt := build(t, nil)
+		assert.Contains(t, prompt, "take out the cushions")
+		assert.NotContains(t, prompt, "Earlier Teacher Feedback")
+		assert.NotContains(t, prompt, "make it warmer")
+		assert.Contains(t, prompt, "- 2026-01-15 (new): Strong reader.", "a note edited after the case's draft")
+	})
+	t.Run("later round carries the rounds before it", func(t *testing.T) {
+		prompt := build(t, 2)
+		assert.Contains(t, prompt, "- 2026-01-15: Strong reader.", "the round's draft is newer than every note")
+		first := strings.Index(prompt, "Round 1: take out the cushions")
+		second := strings.Index(prompt, "Round 2: make it warmer")
+		current := strings.Index(prompt, "Teacher Feedback on Previous Draft\nshorter")
+		require.NotEqual(t, -1, first)
+		require.NotEqual(t, -1, current)
+		assert.Less(t, first, second)
+		assert.Less(t, second, current)
+	})
 }
 
 func TestRunBuildReportPrompt_RegenerateVarsRejected(t *testing.T) {

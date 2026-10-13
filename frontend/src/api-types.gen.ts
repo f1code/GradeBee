@@ -468,6 +468,7 @@ export interface ArtifactFeedback {
   Signal: string; // 'explicit' | 'regenerated' | 'edited' | 'deleted'
   Comment?: string; // populated for 'explicit' and 'regenerated'
   PreviousValue?: string; // populated for 'edited' and 'deleted'
+  ResultID?: number /* int64 */; // 'regenerated': the report this regenerate produced; ArtifactID is its source
   UserID: string;
   CreatedAt: string;
 }

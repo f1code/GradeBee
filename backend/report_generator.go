@@ -32,10 +32,9 @@ type ReportGenerator interface {
 // RegenerateReportRequest is the input for regenerating an existing report.
 type RegenerateReportRequest struct {
 	ReportInputs
-	ReportID      int64
-	PreviousDraft string
-	Feedback      string
-	UserID        string
+	ReportRevision
+	ReportID int64
+	UserID   string
 }
 
 // llmReportGenerator implements ReportGenerator using an LLMProvider + ReportRepo.
@@ -72,7 +71,7 @@ func newDBReportGenerator(provider LLMProvider, rr *ReportRepo) (*llmReportGener
 }
 
 func (g *llmReportGenerator) Draft(ctx context.Context, in ReportInputs) (string, error) {
-	return g.callLLM(ctx, BuildReportPrompt(in.StudentName, in.ClassName, in.Notes, in.ReportInstructions, in.Instructions, "", ""))
+	return g.callLLM(ctx, BuildReportPrompt(in.StudentName, in.ClassName, in.Notes, in.ReportInstructions, in.Instructions, nil))
 }
 
 func (g *llmReportGenerator) Model() string { return g.model }
@@ -111,7 +110,7 @@ func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 
 func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateReportRequest) (*GenerateReportResponse, error) {
 	// 1. Build prompt with previous draft and feedback, call LLM.
-	prompt := BuildReportPrompt(req.StudentName, req.ClassName, req.Notes, req.ReportInstructions, req.Instructions, req.PreviousDraft, req.Feedback)
+	prompt := BuildReportPrompt(req.StudentName, req.ClassName, req.Notes, req.ReportInstructions, req.Instructions, &req.ReportRevision)
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err
@@ -131,7 +130,17 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	if req.Instructions != "" {
 		rpt.Instructions = &req.Instructions
 	}
-	if err := g.reportRepo.Create(ctx, rpt); err != nil {
+	// Implicit signal: regenerating records a thumbs-down on the source report.
+	// Saved with the report: the chain of later rounds reads this row.
+	fb := ArtifactFeedback{
+		ArtifactType: "report",
+		ArtifactID:   req.ReportID,
+		Rating:       "down",
+		Signal:       "regenerated",
+		Comment:      &req.Feedback,
+		UserID:       req.UserID,
+	}
+	if err := g.reportRepo.CreateRegenerated(ctx, rpt, fb); err != nil {
 		return nil, fmt.Errorf("report: save: %w", err)
 	}
 

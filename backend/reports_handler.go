@@ -342,6 +342,11 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		writeInternalError(w, r, err)
 		return
 	}
+	earlier, err := serviceDeps.GetFeedbackRepo().RegenerateChain(ctx, rpt.ID)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 
 	generator, err := serviceDeps.GetReportGenerator()
 	if err != nil {
@@ -354,11 +359,15 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	// llmChatTimeout bounds the call.
 	ctx = context.WithoutCancel(ctx)
 	resp, err := generator.Regenerate(ctx, RegenerateReportRequest{
-		ReportInputs:  in,
-		ReportID:      rpt.ID,
-		PreviousDraft: rpt.HTML,
-		Feedback:      req.Feedback,
-		UserID:        userID,
+		ReportInputs: in,
+		ReportRevision: ReportRevision{
+			Draft:           rpt.HTML,
+			DraftCreatedAt:  rpt.CreatedAt,
+			EarlierFeedback: earlier,
+			Feedback:        req.Feedback,
+		},
+		ReportID: rpt.ID,
+		UserID:   userID,
 	})
 	if err != nil {
 		log.Error("regenerate report failed", "student_id", rpt.StudentID, "error", err)
@@ -367,21 +376,6 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info("regenerate report completed", "user_id", userID, "report_id", resp.ReportID)
-
-	// Implicit signal: regenerating always records a thumbs-down on the *original* report.
-	// Best-effort: a failure here should not fail the regen response.
-	if feedbackRepo := serviceDeps.GetFeedbackRepo(); feedbackRepo != nil {
-		if _, fbErr := feedbackRepo.Insert(ctx, ArtifactFeedback{
-			ArtifactType: "report",
-			ArtifactID:   rpt.ID, // original report, not the new one
-			Rating:       "down",
-			Signal:       "regenerated",
-			Comment:      &req.Feedback,
-			UserID:       userID,
-		}); fbErr != nil {
-			log.Warn("implicit regen feedback insert failed", "error", fbErr)
-		}
-	}
 
 	writeJSON(w, http.StatusOK, ReportResult{
 		ID:        resp.ReportID,

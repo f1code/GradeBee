@@ -283,13 +283,27 @@ const reportNotesFiling = "The teacher filed every note below to this student. "
 
 // reportPrevDraftHeader prefixes the draft a regenerate revises (#213). Without
 // the draft each regenerate wrote from scratch and undid the last feedback.
-// The last clause lets notes added between drafts in: a Teacher corrects a
-// report with a note. Known defect: it also brings back facts an earlier
-// feedback removed; #214 carries the feedback chain.
+// The (new) clause lets notes edited since the draft in, over earlier
+// feedback: a Teacher corrects a report with a note. #213 let in every note
+// the draft left out, which brought back facts and wording an earlier round
+// removed (#214).
 const reportPrevDraftHeader = "## Previous Draft — revise it: change only what the " +
-	"Teacher Feedback below asks and keep everything else as written. " +
-	"The Report Specification still applies, and facts from the notes " +
-	"that the draft leaves out still belong in the report.\n"
+	"Teacher Feedback on Previous Draft asks and keep everything else as written. " +
+	"The Report Specification still applies. Notes marked" + reportNewNoteTag +
+	" were added or edited after the draft, so after the earlier feedback: add " +
+	"their facts, and where they differ from the draft or earlier feedback, follow them.\n"
+
+// reportNewNoteTag follows the date of a note edited after the draft.
+const reportNewNoteTag = " (new)"
+
+// reportEarlierFeedbackHeader prefixes the feedback of the rounds that wrote
+// the draft, one reportEarlierFeedbackRound line each (#214). "Over the notes":
+// without it a wording correction slid back to the notes' wording.
+const reportEarlierFeedbackHeader = "## Earlier Teacher Feedback (oldest first) — " +
+	"the draft already applies it, and it still holds, over the notes not marked" +
+	reportNewNoteTag + " where they differ\n"
+
+const reportEarlierFeedbackRound = "Round %d: %s\n"
 
 // reportFeedbackHeader prefixes the feedback-on-previous-draft block.
 const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
@@ -339,6 +353,7 @@ func init() {
 		reportInstructionsHeader + "<<<instructions>>>" +
 		reportNotesHeader + "<<<student>>>" + reportNotesFiling + "<<<notes>>>" +
 		reportPrevDraftHeader + "<<<draft>>>" +
+		reportEarlierFeedbackHeader + reportEarlierFeedbackRound + "<<<earlierFeedback>>>" +
 		reportFeedbackHeader + "<<<feedback>>>" +
 		reportTaskFooter
 	ReportPromptHash = hashPrompt(reportTemplate)

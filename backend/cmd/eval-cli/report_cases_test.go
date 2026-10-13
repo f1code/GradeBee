@@ -96,12 +96,16 @@ func TestWriteReportCases_Regenerate(t *testing.T) {
 		{ID: "regen", Description: "desc", StudentID: 1, ReportID: 2, Feedback: []int64{81, 82}, Expect: []string{"no cushions"}},
 		{ID: "regen_plain", Description: "plain", StudentID: 1, ReportID: 3, Feedback: []int64{83}},
 	}}
-	notes := []handler.Note{{Date: "2026-03-10", Summary: "read well"}}
+	notes := []handler.Note{
+		{ID: 1, Date: "2026-03-10", Summary: "read well", UpdatedAt: "2026-03-10T00:00:00.000Z"},
+		{ID: 2, Date: "2026-03-12", Summary: "now says hello", UpdatedAt: "2026-04-05T00:00:00.000Z"},
+	}
 	c := reportCase{
-		ReportInputs:  handler.ReportInputs{StudentName: "Alice", Notes: notes},
-		ReferenceHTML: "<p>draft</p>",
-		Feedback:      []string{"take out the cushions", "warmer"},
-		ChangedNotes:  []handler.Note{{Date: "2026-03-12", Summary: "now says hello"}},
+		ReportInputs:   handler.ReportInputs{StudentName: "Alice", Notes: notes},
+		ReferenceHTML:  "<p>draft</p>",
+		Feedback:       []string{"take out the cushions", "warmer"},
+		ChangedNotes:   notes[1:],
+		DraftCreatedAt: "2026-04-01T00:00:00.000Z",
 	}
 	plain := reportCase{ReportInputs: handler.ReportInputs{Notes: notes}, ReferenceHTML: "<p/>", Feedback: []string{"shorter"}}
 	require.NoError(t, writeReportCases(m, []reportCase{c, plain}, casesDir, testsPath))
@@ -117,6 +121,17 @@ func TestWriteReportCases_Regenerate(t *testing.T) {
 	fb, err := os.ReadFile(filepath.Join(evals, tc.Vars.Feedback[len("file://"):]))
 	require.NoError(t, err)
 	assert.JSONEq(t, `["take out the cushions","warmer"]`, string(fb), "rounds oldest first")
+	assert.Equal(t, "2026-04-01T00:00:00.000Z", tc.Vars.DraftCreatedAt)
+
+	notesOf := func(tc reportTest) string {
+		raw, err := os.ReadFile(filepath.Join(evals, tc.Vars.Notes[len("file://"):]))
+		require.NoError(t, err)
+		return string(raw)
+	}
+	assert.JSONEq(t, `[{"date":"2026-03-10","summary":"read well"},
+		{"date":"2026-03-12","summary":"now says hello","updatedAt":"2026-04-05T00:00:00.000Z"}]`,
+		notesOf(tc), "only the changed note keeps updatedAt, so round 1 tags it alone")
+	assert.NotContains(t, notesOf(tests[1]), "updatedAt", "no notes changed since that draft")
 
 	metricsOf := func(tc reportTest) []string {
 		var out []string

@@ -72,7 +72,14 @@ func (r *ReportRepo) GetByID(ctx context.Context, id int64) (Report, error) {
 
 // Create inserts a new report.
 func (r *ReportRepo) Create(ctx context.Context, rpt *Report) error {
-	err := r.db.QueryRowContext(ctx, `
+	return insertReport(ctx, r.db, rpt)
+}
+
+// insertReport runs on a *sql.DB or a *sql.Tx.
+func insertReport(ctx context.Context, q interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, rpt *Report) error {
+	err := q.QueryRowContext(ctx, `
 		INSERT INTO reports (student_id, start_date, end_date, html, instructions, model_version, prompt_hash)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at`,
@@ -80,6 +87,27 @@ func (r *ReportRepo) Create(ctx context.Context, rpt *Report) error {
 	).Scan(&rpt.ID, &rpt.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create report: %w", err)
+	}
+	return nil
+}
+
+// CreateRegenerated inserts the report a regenerate produced together with its
+// feedback row, so no report exists without the text that produced it.
+func (r *ReportRepo) CreateRegenerated(ctx context.Context, rpt *Report, fb ArtifactFeedback) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("create regenerated report: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+	if err := insertReport(ctx, tx, rpt); err != nil {
+		return err
+	}
+	fb.ResultID = &rpt.ID
+	if _, err := insertFeedback(ctx, tx, fb); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("create regenerated report: %w", err)
 	}
 	return nil
 }

@@ -16,6 +16,7 @@ packages:
       - "report_inputs.go"
       - "report_generator.go"
       - "report_batch_job.go"
+      - "report_prompt.go"
     include_types:
       # Core entities
       - Note

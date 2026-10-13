@@ -57,6 +57,7 @@ type reportTestVars struct {
 	Instructions       string `yaml:"instructions"`
 	Reference          string `yaml:"reference"`
 	Draft              string `yaml:"draft,omitempty"`
+	DraftCreatedAt     string `yaml:"draft_created_at,omitempty"`
 	Feedback           string `yaml:"feedback,omitempty"`
 }
 
@@ -68,10 +69,12 @@ type reportAssert struct {
 }
 
 // reportNote is the note shape the prompt and the judge read; other Note
-// fields (transcript, ids) would only bloat the judge prompt.
+// fields (transcript, ids) would only bloat the judge prompt. UpdatedAt is set
+// on notes changed since a regenerate case's draft only: the prompt tags them.
 type reportNote struct {
-	Date    string `json:"date"`
-	Summary string `json:"summary"`
+	Date      string `json:"date"`
+	Summary   string `json:"summary"`
+	UpdatedAt string `json:"updatedAt,omitempty"`
 }
 
 // gradedPrompt is the report config's model prompt; regenerate cases run on
@@ -146,10 +149,11 @@ func readReportManifest(path string) (reportManifest, error) {
 type reportCase struct {
 	handler.ReportInputs
 	ReferenceHTML string
-	// Regenerate cases only: feedback comments oldest first, and the notes
-	// added or edited since the draft.
-	Feedback     []string
-	ChangedNotes []handler.Note
+	// Regenerate cases only: feedback comments oldest first, the notes added
+	// or edited since the draft, and the draft's created_at.
+	Feedback       []string
+	ChangedNotes   []handler.Note
+	DraftCreatedAt string
 }
 
 // loadReportCases reads every case, then closes the DB before anything is
@@ -227,7 +231,7 @@ func loadRegenerateCase(ctx context.Context, db *sql.DB, resolver *handler.Repor
 			return reportCase{}, err
 		}
 	}
-	return reportCase{ReportInputs: in, ReferenceHTML: rpt.HTML, Feedback: feedback, ChangedNotes: changed}, nil
+	return reportCase{ReportInputs: in, ReferenceHTML: rpt.HTML, Feedback: feedback, ChangedNotes: changed, DraftCreatedAt: rpt.CreatedAt}, nil
 }
 
 // loadFeedbackComment returns a feedback row's comment, refusing a row on
@@ -296,9 +300,16 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
+		changed := map[int64]bool{}
+		for _, n := range c.ChangedNotes {
+			changed[n.ID] = true
+		}
 		notes := make([]reportNote, len(c.Notes))
 		for j, n := range c.Notes {
 			notes[j] = reportNote{Date: n.Date, Summary: n.Summary}
+			if changed[n.ID] {
+				notes[j].UpdatedAt = n.UpdatedAt
+			}
 		}
 		notesJSON, err := json.MarshalIndent(notes, "", "  ")
 		if err != nil {
@@ -336,6 +347,7 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 		}
 		if len(c.Feedback) > 0 {
 			t.Vars.Draft = ref("reference.html")
+			t.Vars.DraftCreatedAt = c.DraftCreatedAt
 			t.Vars.Feedback = ref("feedback.json")
 			t.Prompts = []string{gradedPrompt}
 			t.Assert = regenerateAsserts(c, e.Expect)

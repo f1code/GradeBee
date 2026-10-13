@@ -149,17 +149,20 @@ func runBuildExtractPrompt(ec evalContext) error {
 
 // runBuildReportPrompt outputs a promptfoo messages array for report generation.
 // A regenerate case sets vars.draft and vars.feedback (oldest first); vars.round
-// picks the feedback this prompt answers, 0 when unset. The chain provider
+// picks the feedback this prompt answers, 0 when unset, and the rounds before
+// it go in as earlier feedback, as production's chain does. The chain provider
 // (evals/providers/regen-chain.js) asks for later rounds with the previous
-// round's output as the draft.
+// round's output as the draft. vars.draft_created_at tags notes edited after
+// the case's draft, in round 0 only: later drafts are newer than every note.
 func runBuildReportPrompt(ec evalContext) error {
-	var studentName, className, instructions, reportInstructions, draft string
+	var studentName, className, instructions, reportInstructions, draft, draftCreatedAt string
 	for name, v := range map[string]*string{
 		"student_name":        &studentName,
 		"class_name":          &className,
 		"report_instructions": &reportInstructions,
 		"instructions":        &instructions,
 		"draft":               &draft,
+		"draft_created_at":    &draftCreatedAt,
 	} {
 		if err := ec.unmarshalVar(name, v); err != nil {
 			return err
@@ -177,7 +180,7 @@ func runBuildReportPrompt(ec evalContext) error {
 	if err := ec.unmarshalVar("round", &round); err != nil {
 		return err
 	}
-	var feedback string
+	var rev *handler.ReportRevision
 	if len(feedbacks) > 0 {
 		if draft == "" {
 			return fmt.Errorf("vars.feedback needs vars.draft")
@@ -185,12 +188,15 @@ func runBuildReportPrompt(ec evalContext) error {
 		if round < 0 || round >= len(feedbacks) {
 			return fmt.Errorf("vars.round %d is outside vars.feedback's %d rounds", round, len(feedbacks))
 		}
-		feedback = feedbacks[round]
+		rev = &handler.ReportRevision{Draft: draft, EarlierFeedback: feedbacks[:round], Feedback: feedbacks[round]}
+		if round == 0 {
+			rev.DraftCreatedAt = draftCreatedAt
+		}
 	} else if draft != "" {
 		return fmt.Errorf("vars.draft needs vars.feedback")
 	}
 	// Production sends the built prompt as a single user message (no system role).
-	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, draft, feedback)
+	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, rev)
 	return writeJSON([]map[string]string{
 		{"role": "user", "content": prompt},
 	})

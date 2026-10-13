@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 	"testing"
@@ -58,7 +59,9 @@ func (f *fakeLLMProvider) Transcribe(_ context.Context, _ TranscribeRequest) (LL
 // can pair every "must not appear" with a "must appear" from the same table.
 type reportGenFixture struct {
 	ctx        context.Context
+	db         *sql.DB
 	reportRepo *ReportRepo
+	feedback   *ArtifactFeedbackRepo
 	studentID  int64
 	// notes is what the resolver would pass: the student's in-range notes.
 	notes    []Note
@@ -115,7 +118,9 @@ func newReportGenFixture(t *testing.T, provider *fakeLLMProvider) *reportGenFixt
 	require.NoError(t, err)
 	return &reportGenFixture{
 		ctx:        ctx,
+		db:         db,
 		reportRepo: reportRepo,
+		feedback:   &ArtifactFeedbackRepo{db: db},
 		studentID:  stu.ID,
 		notes:      notes,
 		provider:   provider,
@@ -280,11 +285,10 @@ func TestLLMReportGenerator_Regenerate_WritesNewRowKeepsOld(t *testing.T) {
 	require.NoError(t, f.reportRepo.Create(f.ctx, old))
 
 	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{
-		ReportInputs:  f.inputs(),
-		ReportID:      old.ID,
-		PreviousDraft: old.HTML,
-		Feedback:      fixtureFeedback,
-		UserID:        "user_abc",
+		ReportInputs:   f.inputs(),
+		ReportRevision: ReportRevision{Draft: old.HTML, Feedback: fixtureFeedback},
+		ReportID:       old.ID,
+		UserID:         "user_abc",
 	})
 	require.NoError(t, err)
 
@@ -328,6 +332,61 @@ func TestLLMReportGenerator_Regenerate_WritesNewRowKeepsOld(t *testing.T) {
 	assert.ElementsMatch(t, []int64{old.ID, resp.ReportID}, ids)
 }
 
+func TestLLMReportGenerator_Regenerate_RecordsFeedbackLinkedToBothReports(t *testing.T) {
+	f := newReportGenFixture(t, &fakeLLMProvider{text: regeneratedHTML})
+	old := &Report{StudentID: f.studentID, StartDate: fixtureStart, EndDate: fixtureEnd, HTML: "<p>old draft</p>"}
+	require.NoError(t, f.reportRepo.Create(f.ctx, old))
+
+	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{
+		ReportInputs:   f.inputs(),
+		ReportRevision: ReportRevision{Draft: old.HTML, Feedback: fixtureFeedback},
+		ReportID:       old.ID,
+		UserID:         "user_abc",
+	})
+	require.NoError(t, err)
+
+	fb, err := f.feedback.ListByArtifact(f.ctx, "report", old.ID)
+	require.NoError(t, err)
+	require.Len(t, fb, 1)
+	assert.Equal(t, "down", fb[0].Rating)
+	assert.Equal(t, "regenerated", fb[0].Signal)
+	assert.Equal(t, "user_abc", fb[0].UserID)
+	require.NotNil(t, fb[0].Comment)
+	assert.Equal(t, fixtureFeedback, *fb[0].Comment)
+	require.NotNil(t, fb[0].ResultID)
+	assert.Equal(t, resp.ReportID, *fb[0].ResultID)
+
+	onNew, err := f.feedback.ListByArtifact(f.ctx, "report", resp.ReportID)
+	require.NoError(t, err)
+	assert.Empty(t, onNew, "the new report has no feedback of its own yet")
+}
+
+// A failed feedback write must not leave the report behind: the chain would
+// otherwise lose a round.
+func TestLLMReportGenerator_Regenerate_FeedbackWriteFailureLeavesNoReport(t *testing.T) {
+	f := newReportGenFixture(t, &fakeLLMProvider{text: regeneratedHTML})
+	old := &Report{StudentID: f.studentID, StartDate: fixtureStart, EndDate: fixtureEnd, HTML: "<p>old draft</p>"}
+	require.NoError(t, f.reportRepo.Create(f.ctx, old))
+	_, err := f.db.ExecContext(f.ctx, `
+		CREATE TRIGGER fail_regen_feedback BEFORE INSERT ON artifact_feedback
+		BEGIN SELECT RAISE(ABORT, 'feedback write refused'); END`)
+	require.NoError(t, err)
+
+	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{
+		ReportInputs:   f.inputs(),
+		ReportRevision: ReportRevision{Draft: old.HTML, Feedback: fixtureFeedback},
+		ReportID:       old.ID,
+		UserID:         "user_abc",
+	})
+	require.Error(t, err)
+	assert.Nil(t, resp)
+
+	reports, err := f.reportRepo.List(f.ctx, f.studentID)
+	require.NoError(t, err)
+	require.Len(t, reports, 1)
+	assert.Equal(t, old.ID, reports[0].ID)
+}
+
 func TestLLMReportGenerator_Regenerate_LLMErrorLeavesOldRowIntact(t *testing.T) {
 	llmErr := errors.New("fake provider timed out")
 	f := newReportGenFixture(t, &fakeLLMProvider{err: llmErr})
@@ -336,10 +395,10 @@ func TestLLMReportGenerator_Regenerate_LLMErrorLeavesOldRowIntact(t *testing.T) 
 	require.NoError(t, f.reportRepo.Create(f.ctx, old))
 
 	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{
-		ReportInputs: f.inputs(),
-		ReportID:     old.ID,
-		Feedback:     fixtureFeedback,
-		UserID:       "user_abc",
+		ReportInputs:   f.inputs(),
+		ReportRevision: ReportRevision{Feedback: fixtureFeedback},
+		ReportID:       old.ID,
+		UserID:         "user_abc",
 	})
 	require.Error(t, err)
 	assert.Nil(t, resp)

@@ -256,7 +256,9 @@ on a draft. Its manifest entry adds:
 as `reference.html` and passes it as `vars.draft`; `feedback.json` holds the
 comments. Notes come from today's DB, as in production: a note created or
 edited after the draft is a Teacher correction, not staleness, so generation
-does not fail on it.
+does not fail on it. Such notes keep `updatedAt` in `notes.json`, and
+`vars.draft_created_at` holds the draft's `created_at`: round 1's prompt tags
+them `(new)`, as production does.
 
 `providers/regen-chain.js` runs the rounds on each row's model. Round 1 is the
 prompt promptfoo built; for each later round it calls `eval-cli` with
@@ -267,7 +269,8 @@ inner model through a second promptfoo copy, whose own view of the cache file
 the CLI overwrites; so each call skips that copy's cache and goes through the
 CLI's (`context.getCache`), keyed by inner model, repeat index and prompt.
 `--no-cache` reaches it like any other call.
-Until #214, the prompt carries the current round's feedback only.
+Round N's prompt lists rounds 1..N-1 as earlier feedback, as production's chain
+does.
 
 Besides the shared axes, each regenerate test gets `llm-rubric` lines, threshold
 0.75, written by `gen-report-cases` with the case's text inline:
