@@ -34,6 +34,8 @@ make lint   # lint
 make test   # test
 ```
 
+Needs Node 24.13.x (`.nvmrc`); Node 25+ breaks jsdom `localStorage`. If `node -v` drifts: `eval "$(fnm env)" && fnm use`.
+
 ## Start command
 
 ```bash
