@@ -25,28 +25,25 @@ Update this document when the backend is updated. Record what and where; reasoni
 
 Follow the design system documented in `frontend/DESIGN.md` for all UI work. Use the established color tokens, typography, and component patterns.
 
-## Editing Code - Definition of Done
+## Check commands
 
-1. Use Node **24.13.x** from `.nvmrc` (`package.json` `engines` is `>=24.13.0 <25`). Agent shells often have Homebrew Node 25+ on `PATH`, which breaks jsdom `localStorage` in frontend tests. Before `make lint` / `make test`:
-
-```bash
-eval "$(fnm env)"
-fnm use
-# `node -v` must print v24.13.x
-```
-
-2. After editing **any** code, run lint and test **from the root of the repo** to catch issues:
+Run from repo root after editing **any** code. All must pass. Do not skip tests, do not run bare `go test`.
 
 ```bash
-make lint
-make test
+make lint   # lint
+make test   # test
 ```
 
-Run this before considering code changes complete. 
-Do not skip tests, do not run bare `go test`.
+## Start command
 
-3. **Docs updated** - see "Documentation Maintenance".
-If unsure whether a doc update is needed, prefer updating the authoritative doc over leaving it stale.
+```bash
+pnpm run dev   # frontend http://localhost:5173, backend http://localhost:8080
+```
+
+## Definition of Done
+
+- All check commands pass
+- Docs updated - see "Documentation Maintenance". If unsure whether a doc update is needed, prefer updating the authoritative doc over leaving it stale.
 
 ## Documentation Maintenance
 
