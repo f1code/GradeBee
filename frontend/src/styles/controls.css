@@ -1,5 +1,24 @@
 /* === GradeBee — Controls (buttons, item-row, cards, forms, error primitives, hint-banner) === */
 
+/* --- Muted text (sizes: tokens.css --text-*) --- */
+.aka-label,
+.aka-names,
+.note-source-badge {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+}
+
+.add-class-hint,
+.note-transcript-text {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.hint-banner p {
+  color: var(--ink-muted);
+  font-size: var(--text-md);
+}
+
 /* --- Buttons --- */
 /* NOTE: This list enumerates flat-button selectors defined across
    feature stylesheets (roster-upload, reports, student-detail-notes,
@@ -152,17 +171,13 @@ button:active,
 }
 
 .aka-label {
-  font-size: 0.7rem;
   font-weight: 400;
   letter-spacing: 0.05em;
-  color: var(--ink-muted);
   font-style: normal;
   margin-right: 0.25rem;
 }
 
 .aka-names {
-  font-size: 0.78rem;
-  color: var(--ink-muted);
   font-style: normal;
   font-weight: 400;
 }
@@ -335,9 +350,7 @@ button:active,
 .add-class-hint {
   margin: -0.5rem 0 1rem;
   font-family: var(--font-body);
-  font-size: 0.85rem;
   line-height: 1.4;
-  color: var(--ink-muted);
 }
 
 .add-class-autocomplete-wrapper {
@@ -592,8 +605,6 @@ button:active,
 
 .hint-banner p {
   flex: 1;
-  color: var(--ink-muted);
-  font-size: 0.9rem;
   margin: 0;
   line-height: 1.5;
 }
@@ -748,13 +759,11 @@ button:active,
 
 .note-source-badge {
   font-family: var(--font-body);
-  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 0.1rem 0.45rem;
   border-radius: 6px;
-  color: var(--ink-muted);
 }
 
 .note-source-auto {
@@ -832,9 +841,7 @@ button:active,
   padding: 0.6rem 0.75rem;
   margin: 0.35rem 0 0;
   font-family: var(--font-body);
-  font-size: 0.82rem;
   line-height: 1.55;
-  color: var(--ink-muted);
   white-space: pre-wrap;
   word-break: break-word;
   overflow-x: auto;

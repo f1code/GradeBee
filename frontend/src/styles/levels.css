@@ -1,5 +1,11 @@
 /* === GradeBee — Levels admin screen === */
 
+/* --- Muted text (sizes: tokens.css --text-*) --- */
+.levels-admin-instructions label {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
 .levels-admin {
   max-width: 860px;
 }
@@ -35,8 +41,6 @@
 
 .levels-admin-instructions label {
   display: block;
-  font-size: 0.85rem;
-  color: var(--ink-muted);
   margin-bottom: 0.25rem;
 }
 

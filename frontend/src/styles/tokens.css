@@ -25,6 +25,11 @@ html {
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
 
+  /* Muted text sizes (DESIGN.md "Muted text") */
+  --text-xs: 0.75rem;
+  --text-sm: 0.82rem;
+  --text-md: 0.9rem;
+
   /* Shadows (warm-toned) */
   --shadow-sm: 0 1px 3px rgba(44, 24, 16, 0.06);
   --shadow-md: 0 4px 12px rgba(44, 24, 16, 0.08);

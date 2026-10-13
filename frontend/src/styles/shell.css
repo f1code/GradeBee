@@ -1,5 +1,13 @@
 /* === GradeBee — App Shell (chrome, header, nav, footer) === */
 
+/* --- Muted text (sizes: tokens.css --text-*) --- */
+/* .app-footer prefix outranks .text-link, which the privacy button also carries. */
+.app-footer a,
+.app-footer .privacy-preferences-link {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+}
+
 /* --- App container, header, honeycomb divider, logo, bee-icon --- */
 /* --- Layout --- */
 .app {
@@ -188,8 +196,6 @@ header::after {
 
 .app-footer a,
 .privacy-preferences-link {
-  color: var(--ink-muted);
-  font-size: 0.75rem;
   font-weight: 400;
   opacity: 0.72;
   text-decoration: none;

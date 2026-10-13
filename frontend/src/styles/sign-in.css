@@ -1,5 +1,16 @@
 /* === GradeBee — Sign-in Page === */
 
+/* --- Muted text (sizes: tokens.css --text-*) --- */
+.consent-label {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.feature-list li {
+  color: var(--ink-muted);
+  font-size: var(--text-md);
+}
+
 /* --- Sign-in page --- */
 .sign-in-container {
   display: flex;
@@ -78,10 +89,7 @@
    ============================================ */
 
 .sign-in-tagline {
-  color: var(--ink-muted);
-  font-size: 1.02rem;
   line-height: 1.6;
-  margin-bottom: 1.25rem;
 }
 
 .feature-list {
@@ -92,8 +100,6 @@
 }
 
 .feature-list li {
-  color: var(--ink-muted);
-  font-size: 0.95rem;
   line-height: 2.2;
   display: flex;
   align-items: center;
@@ -108,8 +114,6 @@
   display: flex;
   align-items: flex-start;
   gap: 0.5em;
-  font-size: 0.85rem;
-  color: var(--ink-muted);
   margin: 0.75rem 0;
   cursor: pointer;
 }

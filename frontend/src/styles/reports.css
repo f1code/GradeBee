@@ -1,5 +1,31 @@
 /* === GradeBee — Reports (generation, viewer, history) === */
 
+/* --- Muted text (sizes: tokens.css --text-*) --- */
+.report-viewer-frame .para-copy-btn,
+.ai-badge {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+}
+
+.report-period label span,
+.report-class-count,
+.report-level-instructions summary,
+.thumb-comment-privacy-hint,
+.report-history-created,
+.report-ai-label {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+}
+
+.report-empty,
+.report-results-summary,
+.report-thumbs-label,
+.report-thumbs-done,
+.report-result-status {
+  color: var(--ink-muted);
+  font-size: var(--text-md);
+}
+
 /* --- Report generation --- */
 /* ============================================
    Report Generation
@@ -31,8 +57,6 @@
 }
 
 .report-period label span {
-  font-size: 0.85rem;
-  color: var(--ink-muted);
   font-weight: 500;
 }
 
@@ -62,11 +86,6 @@
   font-size: 1.1rem;
   color: var(--ink);
   margin-bottom: 0.75rem;
-}
-
-.report-empty {
-  color: var(--ink-muted);
-  font-size: 0.9rem;
 }
 
 .report-class-groups {
@@ -99,8 +118,6 @@
 }
 
 .report-class-count {
-  font-size: 0.8rem;
-  color: var(--ink-muted);
   margin-left: auto;
 }
 
@@ -189,8 +206,6 @@
 
 .report-level-instructions summary {
   cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--ink-muted);
 }
 
 .report-level-instructions-text {
@@ -246,8 +261,6 @@
 }
 
 .report-results-summary {
-  color: var(--ink-muted);
-  font-size: 0.9rem;
   margin: 0 0 0.75rem;
 }
 
@@ -322,13 +335,11 @@
   top: 0.1rem;
   right: 0.1rem;
   font-family: var(--font-body);
-  font-size: 0.7rem;
   line-height: 1;
   padding: 0.2rem 0.45rem;
   border: 1px solid var(--comb);
   border-radius: 4px;
   background: var(--chalk);
-  color: var(--ink-muted);
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s, background 0.12s, color 0.12s;
@@ -399,9 +410,7 @@
 .thumb-comment-privacy-hint {
   margin: 0.375rem 0 0;
   font-family: var(--font-body);
-  font-size: 0.8rem;
   line-height: 1.4;
-  color: var(--ink-muted);
 }
 
 .report-regenerate-actions {
@@ -428,15 +437,8 @@
 }
 
 .report-thumbs-label {
-  font-size: 0.9rem;
-  color: var(--ink-muted);
   white-space: nowrap;
   margin-right: 0.25rem;
-}
-
-.report-thumbs-done {
-  font-size: 0.9rem;
-  color: var(--ink-muted);
 }
 
 
@@ -476,17 +478,9 @@
   background: var(--honey-light);
 }
 
-.report-result-error,
-.report-result-status {
-  font-size: 0.9rem;
-}
-
 .report-result-error {
+  font-size: 0.9rem;
   color: var(--error-red);
-}
-
-.report-result-status {
-  color: var(--ink-muted);
 }
 
 .report-result-item-expanded {
@@ -579,8 +573,6 @@
 }
 
 .report-history-created {
-  font-size: 0.82rem;
-  color: var(--ink-muted);
   white-space: nowrap;
 }
 
@@ -592,9 +584,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.2em;
-  font-size: 0.72rem;
   font-family: var(--font-body);
-  color: var(--ink-muted);
   background: var(--comb);
   border: 1px solid var(--honey-light);
   border-radius: 4px;
@@ -604,8 +594,6 @@
 }
 
 .report-ai-label {
-  font-size: 0.8rem;
-  color: var(--ink-muted);
   margin-bottom: 0.5rem;
   display: flex;
   align-items: center;

@@ -1,5 +1,11 @@
 /* === GradeBee — Feedback FAB & Privacy Page === */
 
+/* --- Muted text (sizes: tokens.css --text-*) --- */
+.feedback-popover-desc {
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+}
+
 /* --- Feedback FAB + popover --- */
 /* ─── Feedback FAB ─────────────────────────────────────────────────────────── */
 
@@ -104,8 +110,6 @@
 
 .feedback-popover-desc {
   display: block;
-  font-size: 0.78rem;
-  color: var(--ink-muted);
   margin-top: 0.1rem;
   line-height: 1.3;
 }

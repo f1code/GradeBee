@@ -1,5 +1,11 @@
 /* === GradeBee — Modals (How It Works, Student Detail shell) === */
 
+/* --- Muted text (sizes: tokens.css --text-*) --- */
+.guide-step p {
+  color: var(--ink-muted);
+  font-size: var(--text-md);
+}
+
 /* ============================================
    How It Works Modal
    ============================================ */
@@ -149,8 +155,6 @@
 }
 
 .guide-step p {
-  color: var(--ink-muted);
-  font-size: 0.92rem;
   margin: 0;
   line-height: 1.55;
 }

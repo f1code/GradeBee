@@ -23,6 +23,22 @@
 - **Body:** [Source Sans 3](https://fonts.google.com/specimen/Source+Sans+3) — `var(--font-body)`. Clean, readable, pairs well with Fraunces.
 - All headings use Fraunces at weight 500. Body text at 400.
 
+### Muted text
+
+`--ink-muted` text uses one of three size tokens (`tokens.css`):
+
+| Token | Size | For |
+| --- | --- | --- |
+| `--text-xs` | 0.75rem | Badges, eyebrows, tiny meta |
+| `--text-sm` | 0.82rem | Captions, dates, counts, form labels and hints, inline status |
+| `--text-md` | 0.9rem | Banner and modal copy, empty states, summary status lines |
+
+- Page-level empty and error copy inherits body size (1rem); no token.
+- Exception: sign-in hero copy (`.sign-in-card p`) stays 1.05rem.
+- Each stylesheet groups its muted selectors per token in one rule at the top of the file. Add new muted text there; no utility classes.
+- Badges keep their own weight, case and letter-spacing.
+- Out of scope: icon buttons, placeholders, muted headings, nav tabs, and colour-only state rules keep their own sizes.
+
 ## Component Patterns
 
 ### Cards
