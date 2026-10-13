@@ -31,7 +31,8 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
 ```bash
 # Prerequisites: MISTRAL_API_KEY (extraction, Medium comparison row),
 # OPENROUTER_API_KEY (canonical report row, report judge)
-# and the local DB at ../data/gradebee.db for report cases (see "Report cases")
+# the local DB at ../data/gradebee.db and the main tree's data/eval-references/
+# for report cases (see "Report cases")
 
 # Run both domains, print one diff per domain vs its baseline
 cd backend && make eval
@@ -160,7 +161,7 @@ evals/
   promptfooconfig.extract.yaml    extraction test suite
   promptfooconfig.report.yaml     report suite: judge, five axis rubrics, source-mention regex, gold-reference row; tests from tests.report.generated.yaml
   providers/regen-chain.js        wraps a report model: runs a regenerate case's feedback rounds, last output graded
-  fixtures.manifest.json          curated report cases by DB id (committed, PII-free)
+  fixtures.manifest.json          curated report cases by id (committed, PII-free)
   tests.report.generated.yaml     report test list (generated, git-ignored)
   scoring/extraction.js           custom JS scorer (precision/recall + voice preservation + attribution)
   scoring/assemble.js             folds pass-2 passages into per-child notes before scoring
@@ -174,10 +175,10 @@ evals/
       classes.json                class roster
       expected.json               expected students + must_quote_substrings / must_not_quote_substrings
     reports/<case>/               generated, git-ignored
-      notes.json                  the student's notes in the report's date range
+      notes.json                  the student's notes in the case's date range
       report_instructions.txt     the Level's Report Instructions
-      instructions.txt            the report's ad-hoc instructions (may be empty)
-      reference.html              the report itself: an accepted example for the judge, and the gold-reference row's output; for a regenerate case, the draft revised
+      instructions.txt            the case's ad-hoc instructions (may be empty)
+      reference.html              the reference: an accepted example for the judge, and the gold-reference row's output; for a regenerate case, the draft revised
       feedback.json               regenerate cases only: feedback comments, oldest first
 ```
 
@@ -185,46 +186,56 @@ evals/
 
 Report cases hold real names, notes and report text, so the repo keeps only
 `fixtures.manifest.json`: per case an `id` (directory name), a `description`
-(test description, no names), a `student_id` and a `report_id`; a regenerate
-case adds `feedback` and optional `expect` (see "Regenerate cases").
+(test description, no names) and a `student_id`; a regenerate case adds
+`report_id`, `feedback` and optional `expect` (see "Regenerate cases").
 Why, and what agents may read: `docs/adr/0005-report-eval-data-stays-local.md`.
 
-`make eval-fixtures` runs `eval-cli gen-report-cases`, which reads each case
-from the local DB (`../data/gradebee.db`; override with `EVAL_DB=`) through the
-resolver regenerating that report uses: the student's name, the class display
-name, the notes in the report's date range, the Level's Report Instructions and
-the report's ad-hoc instructions. It rewrites `fixtures/reports/` and
-`tests.report.generated.yaml`, and fails naming the case for an unknown id, a
-report with no notes in its range, or a Level without Report Instructions.
+A fresh case's reference lives outside the DB, in the reference store
+`data/eval-references/<id>/` of the main tree (override with `EVAL_REFS=`), so
+replacing `data/gradebee.db` with a prod copy keeps it. Worktrees read and
+write the main tree's store.
 
-Notes come from today's DB. If a note in the range was created or edited after
-the report, the reference was written from other notes, so generation fails
-naming the case, the report and the notes; pick a newer report. A note deleted
-since the report goes unseen.
+```
+data/eval-references/<id>/
+  reference.html    the reference report
+  meta.json         student_id, start_date, end_date, instructions (ad-hoc),
+                    model, created_at, notes: [{id, updated_at}] it was written from
+```
 
-`make eval` and `make eval-report` regenerate first when the manifest, the DB or
-its WAL is newer than `tests.report.generated.yaml`. Every generated test gets
-its task and rubric from the report config's `defaultTest`.
+`make eval-fixtures` runs `eval-cli gen-report-cases`. For a fresh case it reads
+the reference and `meta.json` from the store, and the student's name, class
+display name, notes in range and the Level's Report Instructions from the local
+DB (`../data/gradebee.db`; override with `EVAL_DB=`), through the resolver
+`Generate` uses. It rewrites `fixtures/reports/` and
+`tests.report.generated.yaml`, and fails naming the case for a missing
+reference, a `student_id` other than the reference's, a range with no notes,
+or a Level without Report Instructions.
+
+Notes follow today's DB. When the notes in range differ from those in
+`meta.json`, the reference was written from other facts, so generation fails
+naming the case and each missing, extra or edited note id. Write a new
+reference (delete its directory, then `make eval-gen-report`) or drop the case.
+
+`make eval` and `make eval-report` regenerate first when the manifest, the DB,
+its WAL or a reference file is newer than `tests.report.generated.yaml`. Every
+generated test gets its task and rubric from the report config's `defaultTest`.
 
 ### Adding a report case
 
-0. No report yet, or only one written under older Level instructions:
-   `make eval-gen-report STUDENT_ID=N START=YYYY-MM-DD END=YYYY-MM-DD [INSTRUCTIONS='...']`
-   generates one through production `Generate` (needs the provider's API key)
-   and prints its id only. `START` must fall in the current term (on or after
-   2026-09-01). Read it through `make eval-dump-report` and check it against
-   the Level's Kids&Us sources before trusting it as a reference.
-1. `make eval-add-report STUDENT_ID=N` lists the student's reports, newest
-   first: id, date range, created date, Level, whether the Level has Report
-   Instructions, whether the report has ad-hoc instructions, notes in range.
-   It prints a draft entry for the newest report not yet in the manifest that
-   `make eval-fixtures` would accept; pick another with `REPORT_ID=M`. Output goes to the terminal only.
-2. Optional: `make eval-dump-report STUDENT_ID=N REPORT_ID=M` prints the
-   report's notes and reference HTML with class roster names and aliases
-   replaced by `STUDENT` / `CLASSMATE_n`, misspellings within an edit or two
-   included (`CLASSMATE_?` when two children are equally close), for reading
-   the case before describing it. Terminal only: health and family details
+1. `make eval-gen-report CASE=id STUDENT_ID=N START=YYYY-MM-DD END=YYYY-MM-DD [INSTRUCTIONS='...']`
+   drafts a reference through production `Generate`'s prompt (needs the
+   provider's API key) and writes it to the store under `CASE`; it refuses an
+   id the store already holds. It prints the case, range and note count, and a
+   draft manifest entry; never the report. `START` must fall in the current
+   term (on or after 2026-09-01).
+2. `make eval-dump-report CASE=id` prints the reference and the notes in its
+   range with class roster names and aliases replaced by `STUDENT` /
+   `CLASSMATE_n`, misspellings within an edit or two included (`CLASSMATE_?`
+   when two children are equally close). Check it against the Level's Kids&Us
+   sources before trusting it. Terminal only: health and family details
    remain, and names off the roster (other classes, the teacher) still print.
+   `STUDENT_ID=N REPORT_ID=M` dumps a DB report instead, such as a
+   regenerate case's draft.
 3. Paste the entry into `fixtures.manifest.json`; rewrite the description to
    say what the case tests, without names.
 4. `make eval` to see the score.
@@ -536,7 +547,7 @@ then prints nothing at all — no table, no summary, exit 0. Run
 ## Adding a fixture
 
 1. Extraction: create `fixtures/extraction/<descriptive-name>/` with the files above and add a test entry to `promptfooconfig.extract.yaml` with flat `vars` (no `body` wrapper).
-2. Report: append an entry to `fixtures.manifest.json` naming a report whose Level has Report Instructions, then run `make eval-fixtures`.
+2. Report: `make eval-gen-report` writes a fresh case's reference; append its entry to `fixtures.manifest.json`, then run `make eval-fixtures`. See "Adding a report case".
 3. Run `make eval` (or `make eval-extract` / `make eval-report`) to see the score; if correct, run `make eval-baseline`.
 
 ## Baseline lifecycle

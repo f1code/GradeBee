@@ -45,14 +45,22 @@ type llmReportGenerator struct {
 	reportRepo *ReportRepo
 }
 
-// NewReportGenerator builds the production generator outside the server, for
+// ReportDrafter writes a first-generation report through the prompt Generate
+// uses, without saving it: cmd/eval-cli keeps eval references in files, out of
+// the DB a prod copy replaces.
+type ReportDrafter interface {
+	Draft(ctx context.Context, in ReportInputs) (string, error)
+	Model() string
+}
+
+// NewReportDrafter builds the production drafter outside the server, for
 // cmd/eval-cli. It reads LLM_PROVIDER and the API key like the server.
-func NewReportGenerator(db *sql.DB) (ReportGenerator, error) {
+func NewReportDrafter(db *sql.DB) (ReportDrafter, error) {
 	provider, err := LoadProvider(db)
 	if err != nil {
 		return nil, err
 	}
-	return newDBReportGenerator(provider, &ReportRepo{db: db})
+	return newDBReportGenerator(provider, nil)
 }
 
 func newDBReportGenerator(provider LLMProvider, rr *ReportRepo) (*llmReportGenerator, error) {
@@ -63,10 +71,15 @@ func newDBReportGenerator(provider LLMProvider, rr *ReportRepo) (*llmReportGener
 	}, nil
 }
 
+func (g *llmReportGenerator) Draft(ctx context.Context, in ReportInputs) (string, error) {
+	return g.callLLM(ctx, BuildReportPrompt(in.StudentName, in.ClassName, in.Notes, in.ReportInstructions, in.Instructions, "", ""))
+}
+
+func (g *llmReportGenerator) Model() string { return g.model }
+
 func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportRequest) (*GenerateReportResponse, error) {
 	// 1. Build prompt and call LLM.
-	prompt := BuildReportPrompt(req.StudentName, req.ClassName, req.Notes, req.ReportInstructions, req.Instructions, "", "")
-	html, err := g.callLLM(ctx, prompt)
+	html, err := g.Draft(ctx, req.ReportInputs)
 	if err != nil {
 		return nil, err
 	}

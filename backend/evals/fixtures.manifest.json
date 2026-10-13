@@ -3,56 +3,47 @@
     {
       "id": "short_set_no_adhoc",
       "description": "Kids story Level, three weekly notes, the last one long, no ad-hoc instructions",
-      "student_id": 792,
-      "report_id": 272
+      "student_id": 792
     },
     {
       "id": "sam_mixed_lengths",
       "description": "Sam text, five notes incl. two likely absences and one long note",
-      "student_id": 656,
-      "report_id": 273
+      "student_id": 656
     },
     {
       "id": "sam_second_student",
       "description": "Sam text, same class as sam_mixed_lengths, four notes of 44 to 844 characters",
-      "student_id": 653,
-      "report_id": 274
+      "student_id": 653
     },
     {
       "id": "tweens_pair_a",
       "description": "Tweens and Teens text, two notes on one day: sparse data, placeholders over padding",
-      "student_id": 562,
-      "report_id": 275
+      "student_id": 562
     },
     {
       "id": "tweens_pair_b",
       "description": "Tweens and Teens text, same class as tweens_pair_a, one note",
-      "student_id": 518,
-      "report_id": 276
+      "student_id": 518
     },
     {
       "id": "mousy_adhoc",
       "description": "Toddler Level, four weekly notes, ad-hoc 50-word limit and home-practice activity",
-      "student_id": 495,
-      "report_id": 280
+      "student_id": 495
     },
     {
       "id": "linda_typical",
       "description": "Babies Level, five weekly notes of 300 to 460 characters: typical term",
-      "student_id": 506,
-      "report_id": 277
+      "student_id": 506
     },
     {
       "id": "very_short_note",
       "description": "Kids story Level, five weekly notes, the fourth only 17 characters",
-      "student_id": 608,
-      "report_id": 278
+      "student_id": 608
     },
     {
       "id": "single_note",
       "description": "Kids story Level, one 240-character note: whole report from one observation",
-      "student_id": 272,
-      "report_id": 279
+      "student_id": 272
     },
     {
       "id": "regen_behaviour_two_rounds",

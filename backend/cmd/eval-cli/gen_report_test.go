@@ -12,62 +12,80 @@ import (
 	handler "github.com/nicogaller/gradebee/backend"
 )
 
-type fakeGenerator struct {
-	calls []handler.GenerateReportRequest
+type fakeDrafter struct {
+	calls []handler.ReportInputs
 }
 
-func (f *fakeGenerator) Generate(_ context.Context, req handler.GenerateReportRequest) (*handler.GenerateReportResponse, error) {
-	f.calls = append(f.calls, req)
-	return &handler.GenerateReportResponse{ReportID: 99, HTML: "<p>Élodie</p>"}, nil
+func (f *fakeDrafter) Draft(_ context.Context, in handler.ReportInputs) (string, error) {
+	f.calls = append(f.calls, in)
+	return "<p>Élodie</p>", nil
 }
 
-func (f *fakeGenerator) Regenerate(context.Context, handler.RegenerateReportRequest) (*handler.GenerateReportResponse, error) {
-	panic("not used")
-}
+func (f *fakeDrafter) Model() string { return "test-model" }
 
 func seedGenReportDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db := seedDumpDB(t)
-	_, err := db.Exec(`INSERT INTO notes (student_id, date, summary) VALUES
-		(1, '2026-08-29', 'before the break'), (1, '2026-09-08', 'in term')`)
+	_, err := db.Exec(`INSERT INTO notes (id, student_id, date, summary, updated_at) VALUES
+		(20, 1, '2026-08-29', 'before the break', '2026-08-29T00:00:00Z'),
+		(21, 1, '2026-09-08', 'in term', '2026-09-08T00:00:00Z')`)
 	require.NoError(t, err)
 	return db
 }
 
-func TestGenReport_PassesAdHocAndDBNames(t *testing.T) {
+func TestGenReport_WritesReference(t *testing.T) {
 	db := seedGenReportDB(t)
-	gen := &fakeGenerator{}
+	gen := &fakeDrafter{}
+	refs := t.TempDir()
 	var out bytes.Buffer
-	require.NoError(t, genReport(context.Background(), db, gen, &out,
-		genReportOptions{studentID: 1, start: "2026-09-01", end: "2026-09-30", instructions: "Under 300 characters."}))
+	require.NoError(t, genReport(context.Background(), db, gen, &out, genReportOptions{
+		refsDir: refs, caseID: "c", studentID: 1, start: "2026-09-01", end: "2026-09-30", instructions: "Under 300 characters.",
+	}))
 
 	require.Len(t, gen.calls, 1)
-	in := gen.calls[0].ReportInputs
+	in := gen.calls[0]
 	assert.Equal(t, "Under 300 characters.", in.Instructions)
 	assert.Equal(t, "Élodie", in.StudentName)
-	assert.Equal(t, "Marcia · Mon", in.ClassName)
 	assert.Equal(t, "Three sections.", in.ReportInstructions)
 	require.Len(t, in.Notes, 1)
 	assert.Equal(t, "in term", in.Notes[0].Summary)
-	assert.Equal(t, "report 99: student 1, 2026-09-01..2026-09-30, 1 notes\n", out.String())
+
+	meta, html, err := readReference(refs, "c")
+	require.NoError(t, err)
+	assert.Equal(t, "<p>Élodie</p>", html)
+	assert.Equal(t, int64(1), meta.StudentID)
+	assert.Equal(t, "2026-09-01", meta.StartDate)
+	assert.Equal(t, "2026-09-30", meta.EndDate)
+	assert.Equal(t, "Under 300 characters.", meta.Instructions)
+	assert.Equal(t, "test-model", meta.Model)
+	assert.NotEmpty(t, meta.CreatedAt)
+	assert.Equal(t, []referenceNote{{ID: 21, UpdatedAt: "2026-09-08T00:00:00Z"}}, meta.Notes)
+
+	assert.NotContains(t, out.String(), "Élodie", "stdout must not carry the report or names")
+	assert.Contains(t, out.String(), `"id": "c"`)
+	assert.NotContains(t, out.String(), "report_id")
 }
 
 func TestGenReport_Refuses(t *testing.T) {
 	for name, tc := range map[string]struct {
-		start, end, err string
+		caseID, start, end, err string
 	}{
-		"start before term": {"2026-08-31", "2026-09-30", "before the current term"},
-		"malformed start":   {"2026-9-1", "2026-09-30", "start"},
-		"end before start":  {"2026-09-10", "2026-09-09", "before start"},
-		"no notes in range": {"2026-10-01", "2026-10-31", "no notes"},
+		"start before term": {"c", "2026-08-31", "2026-09-30", "before the current term"},
+		"malformed start":   {"c", "2026-9-1", "2026-09-30", "start"},
+		"end before start":  {"c", "2026-09-10", "2026-09-09", "before start"},
+		"no notes in range": {"c", "2026-10-01", "2026-10-31", "no notes"},
+		"unsafe case id":    {"../c", "2026-09-01", "2026-09-30", "must match"},
+		"reference exists":  {"taken", "2026-09-01", "2026-09-30", "exists"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			db := seedGenReportDB(t)
-			gen := &fakeGenerator{}
+			refs := t.TempDir()
+			require.NoError(t, writeReference(refs, "taken", referenceMeta{}, ""))
+			gen := &fakeDrafter{}
 			err := genReport(context.Background(), db, gen, &bytes.Buffer{},
-				genReportOptions{studentID: 1, start: tc.start, end: tc.end})
+				genReportOptions{refsDir: refs, caseID: tc.caseID, studentID: 1, start: tc.start, end: tc.end})
 			assert.ErrorContains(t, err, tc.err)
-			assert.Empty(t, gen.calls, "generator must not run")
+			assert.Empty(t, gen.calls, "drafter must not run")
 		})
 	}
 }

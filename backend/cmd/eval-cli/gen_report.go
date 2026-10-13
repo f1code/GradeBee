@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -18,18 +19,22 @@ import (
 var termStart = time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
 
 type genReportOptions struct {
+	refsDir      string
+	caseID       string
 	studentID    int64
 	start, end   string
 	instructions string
 }
 
-// runGenReport generates a fresh report through production Generate, for use
-// as an eval reference. It prints the new report id only: the HTML holds
-// names, and the redacted dump-report is the way to read it.
+// runGenReport drafts a fresh report through production Generate's prompt
+// and writes it as a case's eval reference. It prints no report text: the
+// HTML holds names, and the redacted dump-report is the way to read it.
 func runGenReport(args []string) error {
 	fls := flag.NewFlagSet("gen-report", flag.ContinueOnError)
-	dbPath := fls.String("db", "", "SQLite DB to read inputs from and write the report to")
+	dbPath := fls.String("db", "", "SQLite DB to read inputs from")
 	var o genReportOptions
+	fls.StringVar(&o.refsDir, "refs", "", "reference store; the reference goes to REFS/CASE")
+	fls.StringVar(&o.caseID, "case", "", "manifest case id")
 	fls.Int64Var(&o.studentID, "student", 0, "student id")
 	fls.StringVar(&o.start, "start", "", "range start, YYYY-MM-DD, on or after "+termStart.Format(time.DateOnly))
 	fls.StringVar(&o.end, "end", "", "range end, YYYY-MM-DD")
@@ -37,8 +42,8 @@ func runGenReport(args []string) error {
 	if err := fls.Parse(args); err != nil {
 		return err
 	}
-	if *dbPath == "" || o.studentID <= 0 || o.start == "" || o.end == "" {
-		return fmt.Errorf("usage: eval-cli gen-report -db PATH -student N -start YYYY-MM-DD -end YYYY-MM-DD [-instructions TEXT]")
+	if *dbPath == "" || o.refsDir == "" || o.caseID == "" || o.studentID <= 0 || o.start == "" || o.end == "" {
+		return fmt.Errorf("usage: eval-cli gen-report -db PATH -refs DIR -case ID -student N -start YYYY-MM-DD -end YYYY-MM-DD [-instructions TEXT]")
 	}
 	if _, err := os.Stat(*dbPath); err != nil {
 		return fmt.Errorf("db: %w", err)
@@ -48,11 +53,11 @@ func runGenReport(args []string) error {
 		return err
 	}
 	defer db.Close()
-	gen, err := handler.NewReportGenerator(db)
+	drafter, err := handler.NewReportDrafter(db)
 	if err != nil {
 		return err
 	}
-	return genReport(context.Background(), db, gen, os.Stdout, o)
+	return genReport(context.Background(), db, drafter, os.Stdout, o)
 }
 
 func checkGenReportRange(start, end string) error {
@@ -73,7 +78,10 @@ func checkGenReportRange(start, end string) error {
 	return nil
 }
 
-func genReport(ctx context.Context, db *sql.DB, gen handler.ReportGenerator, w io.Writer, o genReportOptions) error {
+func genReport(ctx context.Context, db *sql.DB, drafter handler.ReportDrafter, w io.Writer, o genReportOptions) error {
+	if _, err := checkNoReference(o.refsDir, o.caseID); err != nil {
+		return err
+	}
 	if err := checkGenReportRange(o.start, o.end); err != nil {
 		return err
 	}
@@ -84,10 +92,31 @@ func genReport(ctx context.Context, db *sql.DB, gen handler.ReportGenerator, w i
 	if len(in.Notes) == 0 {
 		return fmt.Errorf("student %d has no notes between %s and %s", o.studentID, o.start, o.end)
 	}
-	resp, err := gen.Generate(ctx, handler.GenerateReportRequest{ReportInputs: in})
+	html, err := drafter.Draft(ctx, in)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "report %d: student %d, %s..%s, %d notes\n", resp.ReportID, o.studentID, o.start, o.end, len(in.Notes))
+	meta := referenceMeta{
+		StudentID:    o.studentID,
+		StartDate:    o.start,
+		EndDate:      o.end,
+		Instructions: o.instructions,
+		Model:        drafter.Model(),
+		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
+		Notes:        referenceNotes(in.Notes),
+	}
+	if err := writeReference(o.refsDir, o.caseID, meta, html); err != nil {
+		return err
+	}
+	draft, err := json.MarshalIndent(reportManifestEntry{
+		ID:          o.caseID,
+		Description: "WHAT THE CASE TESTS, NO NAMES",
+		StudentID:   o.studentID,
+	}, "    ", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "reference %s: student %d, %s..%s, %d notes\n", o.caseID, o.studentID, o.start, o.end, len(in.Notes))
+	fmt.Fprintf(w, "\nAppend to \"reports\" in evals/fixtures.manifest.json, then run make eval-fixtures:\n\n    %s\n", draft)
 	return nil
 }

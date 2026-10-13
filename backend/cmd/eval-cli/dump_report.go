@@ -20,20 +20,25 @@ import (
 	handler "github.com/nicogaller/gradebee/backend"
 )
 
-// runDumpReport prints one report's notes and reference HTML with the class
-// roster's names redacted, misspellings included, so an agent can read it to pick and describe cases.
+// runDumpReport prints a DB report's or a fresh case reference's notes and
+// HTML with the class roster's names redacted, misspellings included, so an
+// agent can read it to pick and describe cases.
 // Terminal only: the text still carries sensitive non-name content.
 func runDumpReport(args []string) error {
 	fls := flag.NewFlagSet("dump-report", flag.ContinueOnError)
-	dbPath := fls.String("db", "", "SQLite DB to read the report from")
-	studentID := fls.Int64("student", 0, "student id")
-	reportID := fls.Int64("report", 0, "report id")
+	dbPath := fls.String("db", "", "SQLite DB to read the report and notes from")
+	studentID := fls.Int64("student", 0, "student id, with -report")
+	reportID := fls.Int64("report", 0, "DB report id, with -student")
+	refsDir := fls.String("refs", "", "reference store, with -case")
+	caseID := fls.String("case", "", "fresh case whose reference to dump, with -refs")
 	replPath := fls.String("replacements", "", "append each fuzzy replacement (word, token) to this file; it holds names")
 	if err := fls.Parse(args); err != nil {
 		return err
 	}
-	if *dbPath == "" || *studentID <= 0 || *reportID <= 0 {
-		return fmt.Errorf("usage: eval-cli dump-report -db PATH -student N -report M [-replacements FILE]")
+	byReport := *studentID > 0 && *reportID > 0
+	byCase := *refsDir != "" && *caseID != ""
+	if *dbPath == "" || byReport == byCase {
+		return fmt.Errorf("usage: eval-cli dump-report -db PATH (-student N -report M | -refs DIR -case ID) [-replacements FILE]")
 	}
 	if _, err := os.Stat(*dbPath); err != nil {
 		return fmt.Errorf("db: %w", err)
@@ -52,10 +57,13 @@ func runDumpReport(args []string) error {
 		defer f.Close()
 		repl = f
 	}
+	if byCase {
+		return dumpReference(context.Background(), db, os.Stdout, repl, *refsDir, *caseID)
+	}
 	return dumpReport(context.Background(), db, os.Stdout, repl, *studentID, *reportID)
 }
 
-// dumpReport writes the redacted report to w and, when replacements is not
+// dumpReport writes a DB report redacted to w and, when replacements is not
 // nil, each fuzzy-matched word with its token, for a human to check.
 func dumpReport(ctx context.Context, db *sql.DB, w, replacements io.Writer, studentID, reportID int64) error {
 	resolver := handler.NewReportInputResolver(db)
@@ -63,13 +71,32 @@ func dumpReport(ctx context.Context, db *sql.DB, w, replacements io.Writer, stud
 	if err != nil {
 		return err
 	}
-	roster, err := resolver.ClassRoster(ctx, studentID)
+	return dumpRedacted(ctx, resolver, w, replacements, fmt.Sprintf("report %d", reportID), in, rpt.HTML)
+}
+
+// dumpReference is dumpReport for a fresh case's reference, with today's
+// notes in its range.
+func dumpReference(ctx context.Context, db *sql.DB, w, replacements io.Writer, refsDir, caseID string) error {
+	meta, html, err := readReference(refsDir, caseID)
 	if err != nil {
 		return err
 	}
-	r := newRedactor(roster, studentID)
+	resolver := handler.NewReportInputResolver(db)
+	in, err := resolver.ForGenerate(ctx, "", handler.ReportStudentInput{StudentID: meta.StudentID}, meta.StartDate, meta.EndDate, meta.Instructions)
+	if err != nil {
+		return err
+	}
+	return dumpRedacted(ctx, resolver, w, replacements, "reference "+caseID, in, html)
+}
 
-	texts := []string{in.Instructions, rpt.HTML}
+func dumpRedacted(ctx context.Context, resolver *handler.ReportInputResolver, w, replacements io.Writer, label string, in handler.ReportInputs, html string) error {
+	roster, err := resolver.ClassRoster(ctx, in.StudentID)
+	if err != nil {
+		return err
+	}
+	r := newRedactor(roster, in.StudentID)
+
+	texts := []string{in.Instructions, html}
 	for _, n := range in.Notes {
 		texts = append(texts, n.Summary)
 	}
@@ -84,14 +111,14 @@ func dumpReport(ctx context.Context, db *sql.DB, w, replacements io.Writer, stud
 	maps.Copy(fuzzed, openers)
 	if replacements != nil {
 		words := slices.Sorted(maps.Keys(fuzzed))
-		fmt.Fprintf(replacements, "# report %d, student %d\n", reportID, studentID)
+		fmt.Fprintf(replacements, "# %s, student %d\n", label, in.StudentID)
 		for _, word := range words {
 			fmt.Fprintf(replacements, "%s\t%s\n", word, fuzzed[word])
 		}
-		fmt.Fprintf(os.Stderr, "report %d: %d fuzzy replacements\n", reportID, len(words))
+		fmt.Fprintf(os.Stderr, "%s: %d fuzzy replacements\n", label, len(words))
 	}
 
-	fmt.Fprintf(w, "Report %d, student %d, %s..%s, %d notes\n", reportID, studentID, in.StartDate, in.EndDate, len(in.Notes))
+	fmt.Fprintf(w, "%s, student %d, %s..%s, %d notes\n", label, in.StudentID, in.StartDate, in.EndDate, len(in.Notes))
 	if strings.TrimSpace(texts[0]) != "" {
 		fmt.Fprintf(w, "\n## Ad-hoc instructions\n\n%s\n", texts[0])
 	}

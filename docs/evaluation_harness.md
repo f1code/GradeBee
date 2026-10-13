@@ -25,8 +25,9 @@ Extraction: use the **`generate-eval-fixtures`** skill (`.agents/skills/generate
 It covers orientation queries, file layout, how to derive `expected.json` from real DB data,
 and the config entry template.
 
-Report: append ids to `backend/evals/fixtures.manifest.json` and run `make eval-fixtures`;
-see `backend/evals/README.md`, "Report cases".
+Report: `make eval-gen-report` writes a fresh case's reference to `data/eval-references/`; append its
+entry to `backend/evals/fixtures.manifest.json` and run `make eval-fixtures`; see
+`backend/evals/README.md`, "Report cases".
 
 ## How to Use
 

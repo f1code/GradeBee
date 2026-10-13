@@ -122,7 +122,7 @@ Ownership and input checks run on the request context. LLM call, save and implic
 | `Transcriber` | `transcriber.go` | `providerTranscriber` | Audio → text via `LLMProvider` |
 | `Extractor` | `extract.go` | `llmExtractor` | Transcript → passages (two passes); `ExtractPassages` runs pass 2 alone |
 | `NoteCreator` | `notes.go` | `dbNoteCreator` | `CreateNotes` files a batch in one transaction |
-| `ReportGenerator` | `report_generator.go` | `llmReportGenerator` | Report cards (HTML) |
+| `ReportGenerator` | `report_generator.go` | `llmReportGenerator` | Report cards (HTML); also `ReportDrafter` (`NewReportDrafter`), the same prompt unsaved, for `cmd/eval-cli` references |
 | `JobQueue[T]` | `job_queue.go` | `MemQueue[T]` | In-memory job queue (`VoiceNoteJob`, `ReportJob`) |
 
 ## External Services

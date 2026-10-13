@@ -154,16 +154,23 @@ ORDER BY n.id"
 
 ## Report Cases
 
-Report cases live in the DB, keyed by id in
-`backend/evals/fixtures.manifest.json`; `make eval-fixtures` materializes them
-(git-ignored). To add one:
+Report cases are keyed by id in `backend/evals/fixtures.manifest.json`. A
+fresh case's reference lives in the main tree's `data/eval-references/<id>/`
+(`reference.html`, `meta.json`), not in the DB, so a DB refresh keeps it;
+notes and Level text come from the DB. `make eval-fixtures` materializes cases
+(git-ignored). To add one (from the repo root or `backend/`):
 
-1. `make eval-add-report STUDENT_ID=N` (from the repo root or `backend/`)
-   lists the student's reports and prints a draft entry for the newest usable
-   one; `REPORT_ID=M` picks another.
-2. Paste the entry into the manifest. Rewrite the description to say what the
+1. `make eval-gen-report CASE=id STUDENT_ID=N START=YYYY-MM-DD END=YYYY-MM-DD [INSTRUCTIONS='...']`
+   writes the reference and prints a draft entry, no report text. Run it in
+   any tree: it writes to the main tree's store. It refuses an existing id;
+   delete the directory to rewrite one.
+2. `make eval-dump-report CASE=id` to read it redacted.
+3. Paste the entry into the manifest. Rewrite the description to say what the
    case tests, without names: the manifest is public.
-3. `make eval`, then `make eval-baseline` once the score looks right.
+4. `make eval`, then `make eval-baseline` once the score looks right.
+
+`make eval-fixtures` fails naming the case when the notes in range differ from
+those in `meta.json` (missing, extra or edited): write a new reference.
 
 See `backend/evals/README.md`, "Report cases". A regenerate case names the
 draft as `report_id` plus `feedback` ids (`artifact_feedback`, oldest first)
@@ -176,10 +183,11 @@ like `r.html`, never `SELECT` `comment`: it can hold names.
 Pick cases that widen coverage, then hand the list to the user before any
 manifest change.
 
-**Content rule.** Read notes and reports only through
-`make eval-dump-report STUDENT_ID=N REPORT_ID=M`. Skip the Orientation
+**Content rule.** Read notes and reports only through `make eval-dump-report`
+(`CASE=id`, or `STUDENT_ID=N REPORT_ID=M` for a DB report). Skip the Orientation
 Queries above (they print names and transcripts); never `SELECT` `s.name`,
-`n.summary`, `n.transcript`, `r.html` or `r.instructions` with sqlite. The
+`n.summary`, `n.transcript`, `r.html` or `r.instructions` with sqlite, nor
+read `data/eval-references/` files directly. The
 dump redacts the class roster, misspellings included; names off the roster
 (other classes, the teacher) can still appear.
 Copy no proper noun into a description.
@@ -246,11 +254,12 @@ then widen along:
 the case tests. A student with no report in the range has nothing to dump:
 describe from survey metadata only (note count, span, lengths).
 
-**5. Output** per case: student id, start, end, source report id (optional),
-ad-hoc instructions to use (if any; propose name-free text when the axis needs
-one the DB lacks), description. Save it under `../research/` (local, never
-committed). Generate fresh reports from student, range and ad-hoc text under
-current Level instructions before pasting entries into the manifest; the user then reviews the manifest diff.
+**5. Output** per case: case id, student id, start, end, source report id
+(optional), ad-hoc instructions to use (if any; propose name-free text when the
+axis needs one the DB lacks), description. Save it under `../research/` (local,
+never committed). Write each reference with `make eval-gen-report` under
+current Level instructions before pasting entries into the manifest; the user
+then reviews the manifest diff.
 
 ---
 

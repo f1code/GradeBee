@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,13 +19,14 @@ func TestReadReportManifest_Rejects(t *testing.T) {
 		manifest string
 		want     string
 	}{
-		"no cases":        {`{"reports":[]}`, "lists no report cases"},
-		"unsafe id":       {`{"reports":[{"id":"../x","description":"d","student_id":1,"report_id":1}]}`, "must match"},
-		"duplicate id":    {`{"reports":[{"id":"a","description":"d","student_id":1,"report_id":1},{"id":"a","description":"d","student_id":1,"report_id":2}]}`, "duplicate id"},
-		"no description":  {`{"reports":[{"id":"a","student_id":1,"report_id":1}]}`, "description is required"},
-		"missing report":  {`{"reports":[{"id":"a","description":"d","student_id":1}]}`, "report_id are required"},
-		"missing student": {`{"reports":[{"id":"a","description":"d","report_id":1}]}`, "report_id are required"},
-		"expect, no feedback": {`{"reports":[{"id":"a","description":"d","student_id":1,"report_id":1,"expect":["x"]}]}`, "expect needs feedback"},
+		"no cases":                 {`{"reports":[]}`, "lists no report cases"},
+		"unsafe id":                {`{"reports":[{"id":"../x","description":"d","student_id":1}]}`, "must match"},
+		"duplicate id":             {`{"reports":[{"id":"a","description":"d","student_id":1},{"id":"a","description":"d","student_id":2}]}`, "duplicate id"},
+		"no description":           {`{"reports":[{"id":"a","student_id":1}]}`, "description is required"},
+		"missing student":          {`{"reports":[{"id":"a","description":"d"}]}`, "student_id is required"},
+		"fresh with report_id":     {`{"reports":[{"id":"a","description":"d","student_id":1,"report_id":1}]}`, "not report_id"},
+		"regenerate, no report_id": {`{"reports":[{"id":"a","description":"d","student_id":1,"feedback":[1]}]}`, "needs report_id"},
+		"expect, no feedback":      {`{"reports":[{"id":"a","description":"d","student_id":1,"expect":["x"]}]}`, "expect needs feedback"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -43,7 +45,7 @@ func TestWriteReportCases(t *testing.T) {
 	stale := filepath.Join(casesDir, "dropped_case")
 	require.NoError(t, os.MkdirAll(stale, 0o755))
 
-	m := reportManifest{Reports: []reportManifestEntry{{ID: "a_case", Description: "desc", StudentID: 1, ReportID: 2}}}
+	m := reportManifest{Reports: []reportManifestEntry{{ID: "a_case", Description: "desc", StudentID: 1}}}
 	transcript := "raw transcript"
 	c := reportCase{
 		ReportInputs: handler.ReportInputs{
@@ -132,9 +134,8 @@ func TestWriteReportCases_Regenerate(t *testing.T) {
 }
 
 func TestLoadFeedbackComment(t *testing.T) {
-	db := seedAddReportDB(t)
+	db := seedDumpDB(t)
 	for _, stmt := range []string{
-		`INSERT INTO students (id, class_id, name) VALUES (2, 1, 'Bob')`,
 		`INSERT INTO reports (id, student_id, start_date, end_date, html, created_at) VALUES (20, 2, '2026-03-01', '2026-03-31', '<p/>', '2026-04-03T00:00:00Z')`,
 		`INSERT INTO artifact_feedback (id, artifact_type, artifact_id, rating, signal, comment, user_id) VALUES
 			(1, 'report', 10, 'down', 'regenerated', 'warmer', 'u'),
@@ -161,39 +162,99 @@ func TestLoadFeedbackComment(t *testing.T) {
 	}
 }
 
-func TestCheckReportCase(t *testing.T) {
+func TestNotesChangedSince(t *testing.T) {
 	rpt := handler.Report{ID: 218, CreatedAt: "2026-04-03T10:00:00Z"}
 	note := func(id int64, created, updated string) handler.Note {
 		return handler.Note{ID: id, CreatedAt: created, UpdatedAt: updated}
 	}
-	cases := map[string]struct {
-		notes []handler.Note
-		want  string
-	}{
-		"same instant is not stale": {notes: []handler.Note{note(1, "2026-04-03T10:00:00.000Z", "2026-04-03T10:00:00Z")}},
+	changed, err := notesChangedSince(handler.ReportInputs{Notes: []handler.Note{
+		note(1, "2026-04-03T10:00:00.000Z", "2026-04-03T10:00:00Z"), // same instant
 		// String order would put ".5Z" before "Z".
-		"created after, fractional seconds": {
-			notes: []handler.Note{note(605, "2026-04-03T10:00:00.500Z", "2026-04-03T10:00:00.500Z")},
-			want:  "note 605 changed after report 218 was generated; pick a newer report",
-		},
-		"edited after": {
-			notes: []handler.Note{
-				note(605, "2026-03-01T00:00:00Z", "2026-05-01T00:00:00Z"),
-				note(606, "2026-03-02T00:00:00Z", "2026-03-02T00:00:00Z"),
-				note(609, "2026-06-01T00:00:00Z", "2026-06-01T00:00:00Z"),
-			},
-			want: "notes 605, 609 changed after report 218 was generated",
-		},
-		"no notes": {want: "has no notes between"},
+		note(605, "2026-04-03T10:00:00.500Z", "2026-04-03T10:00:00.500Z"),
+		note(606, "2026-03-01T00:00:00Z", "2026-05-01T00:00:00Z"), // edited after
+		note(607, "2026-03-02T00:00:00Z", "2026-03-02T00:00:00Z"),
+	}}, rpt)
+	require.NoError(t, err)
+	ids := make([]int64, len(changed))
+	for i, n := range changed {
+		ids[i] = n.ID
 	}
-	for name, tc := range cases {
+	assert.Equal(t, []int64{605, 606}, ids)
+}
+
+// seedReferenceStore writes a reference for case "c" from student 1's notes as
+// seedDumpDB leaves them, and returns the DB and store.
+func seedReferenceStore(t *testing.T) (db *sql.DB, refs string) {
+	t.Helper()
+	db = seedDumpDB(t)
+	in, err := handler.NewReportInputResolver(db).ForGenerate(context.Background(), "", handler.ReportStudentInput{StudentID: 1}, "2026-03-01", "2026-03-31", "be brief")
+	require.NoError(t, err)
+	require.Len(t, in.Notes, 2)
+	refs = t.TempDir()
+	require.NoError(t, writeReference(refs, "c", referenceMeta{
+		StudentID: 1, StartDate: "2026-03-01", EndDate: "2026-03-31", Instructions: "be brief",
+		Notes: referenceNotes(in.Notes),
+	}, "<p>ref</p>"))
+	return db, refs
+}
+
+func TestLoadFreshCase(t *testing.T) {
+	db, refs := seedReferenceStore(t)
+	// A prod refresh drops local report rows; the case must not need them.
+	_, err := db.Exec(`DELETE FROM reports`)
+	require.NoError(t, err)
+	c, err := loadFreshCase(context.Background(), handler.NewReportInputResolver(db), refs,
+		reportManifestEntry{ID: "c", Description: "d", StudentID: 1})
+	require.NoError(t, err)
+	assert.Equal(t, "<p>ref</p>", c.ReferenceHTML)
+	assert.Equal(t, "be brief", c.Instructions)
+	assert.Equal(t, "Élodie", c.StudentName)
+	assert.Len(t, c.Notes, 2)
+}
+
+func TestLoadReportCases_FreshRefuses(t *testing.T) {
+	for name, tc := range map[string]struct {
+		stmt    string
+		student int64
+		id      string
+		want    string
+	}{
+		"note added": {stmt: `INSERT INTO notes (id, student_id, date, summary) VALUES (50, 1, '2026-03-20', 'later')`, want: `case "c": notes in range differ from the reference's (extra 50)`},
+		// A prod copy can hold notes the local DB never had, created before the reference.
+		"note added, older timestamp": {stmt: `INSERT INTO notes (id, student_id, date, summary, created_at, updated_at) VALUES (51, 1, '2026-03-20', 'x', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`, want: "(extra 51)"},
+		"note deleted":                {stmt: `DELETE FROM notes WHERE id = 1`, want: "(missing 1)"},
+		"note edited":                 {stmt: `UPDATE notes SET summary = 'changed', updated_at = '2030-01-01T00:00:00Z' WHERE id = 2`, want: "(edited 2)"},
+		"several":                     {stmt: `DELETE FROM notes WHERE id = 1; INSERT INTO notes (id, student_id, date, summary) VALUES (50, 1, '2026-03-20', 'x')`, want: "(missing 1; extra 50)"},
+		"wrong student":               {student: 2, want: "reference is for student 1, not student 2"},
+		"no reference":                {id: "other", want: `case "other": reference:`},
+	} {
 		t.Run(name, func(t *testing.T) {
-			err := checkReportCase(handler.ReportInputs{Notes: tc.notes}, rpt)
-			if tc.want == "" {
-				assert.NoError(t, err)
-				return
+			db, refs := seedReferenceStore(t)
+			if tc.stmt != "" {
+				_, err := db.Exec(tc.stmt)
+				require.NoError(t, err)
 			}
+			e := reportManifestEntry{ID: "c", Description: "d", StudentID: 1}
+			if tc.student != 0 {
+				e.StudentID = tc.student
+			}
+			if tc.id != "" {
+				e.ID = tc.id
+			}
+			path := filepath.Join(t.TempDir(), "db.sqlite")
+			_, err := db.Exec(`VACUUM INTO ?`, path)
+			require.NoError(t, err)
+			_, err = loadReportCases(path, refs, reportManifest{Reports: []reportManifestEntry{e}})
 			assert.ErrorContains(t, err, tc.want)
 		})
 	}
+}
+
+func TestWriteReference_RefusesOverwrite(t *testing.T) {
+	refs := t.TempDir()
+	require.NoError(t, writeReference(refs, "c", referenceMeta{StudentID: 1}, "<p>first</p>"))
+	assert.ErrorContains(t, writeReference(refs, "c", referenceMeta{StudentID: 1}, "<p>second</p>"), "exists")
+	_, html, err := readReference(refs, "c")
+	require.NoError(t, err)
+	assert.Equal(t, "<p>first</p>", html)
 }

@@ -54,6 +54,19 @@ func TestDumpReport_RedactsRoster(t *testing.T) {
 	}
 }
 
+func TestDumpReference_RedactsRoster(t *testing.T) {
+	db, refs := seedReferenceStore(t)
+	_, err := db.Exec(`DELETE FROM reports`)
+	require.NoError(t, err)
+	var out bytes.Buffer
+	require.NoError(t, dumpReference(context.Background(), db, &out, nil, refs, "c"))
+	got := out.String()
+	assert.Contains(t, got, "reference c, student 1, 2026-03-01..2026-03-31, 2 notes")
+	assert.Contains(t, got, "be brief")
+	assert.Contains(t, got, "2026-03-11: STUDENT and CLASSMATE_2 argued")
+	assert.NotContains(t, strings.ToLower(got), "élodie")
+}
+
 func TestRedact_WordBoundaries(t *testing.T) {
 	r := newRedactor([]handler.Student{
 		{ID: 1, Name: "Ann", Aliases: []string{"Ann Lee"}},
