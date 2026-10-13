@@ -281,6 +281,16 @@ const reportNotesFiling = "The teacher filed every note below to this student. "
 	"Notes are transcribed speech: the name a note opens with, however spelled, " +
 	"is this student; sentences naming other children are about them.\n\n"
 
+// reportPrevDraftHeader prefixes the draft a regenerate revises (#213). Without
+// the draft each regenerate wrote from scratch and undid the last feedback.
+// The last clause lets notes added between drafts in: a Teacher corrects a
+// report with a note. Known defect: it also brings back facts an earlier
+// feedback removed; #214 carries the feedback chain.
+const reportPrevDraftHeader = "## Previous Draft — revise it: change only what the " +
+	"Teacher Feedback below asks and keep everything else as written. " +
+	"The Report Specification still applies, and facts from the notes " +
+	"that the draft leaves out still belong in the report.\n"
+
 // reportFeedbackHeader prefixes the feedback-on-previous-draft block.
 const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
 
@@ -322,12 +332,13 @@ func init() {
 		classPickSchema(sentinelClasses), passageSchema(sentinelClasses[0])))
 
 	// The report hash covers all static fragments concatenated with separators.
-	// Dynamic parts (student name, notes, examples, feedback) are represented by
+	// Dynamic parts (student name, notes, examples, draft, feedback) are represented by
 	// sentinels so the hash captures the structural template, not the data.
 	reportTemplate := reportPromptBase +
 		reportSpecHeader + "<<<reportInstructions>>>" +
 		reportInstructionsHeader + "<<<instructions>>>" +
 		reportNotesHeader + "<<<student>>>" + reportNotesFiling + "<<<notes>>>" +
+		reportPrevDraftHeader + "<<<draft>>>" +
 		reportFeedbackHeader + "<<<feedback>>>" +
 		reportTaskFooter
 	ReportPromptHash = hashPrompt(reportTemplate)

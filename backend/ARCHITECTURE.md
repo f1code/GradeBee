@@ -108,6 +108,8 @@ Audio is deleted right after transcription. The row and its transcript go after 
 
 ## Report regenerate (`handleRegenerateReport`)
 
+Feedback required (`400` when blank). The prompt carries the report's HTML as the previous draft (`reportPrevDraftHeader`).
+
 Ownership and input checks run on the request context. LLM call, save and implicit thumbs-down run on `context.WithoutCancel`: closing the tab does not stop them. `llmChatTimeout` bounds the call; a restart kills it.
 
 ## Dependency Injection

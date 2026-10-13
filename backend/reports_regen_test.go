@@ -115,6 +115,7 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 	assert.Equal(t, "Thursday Timezone · Mon", gen.lastRegenReq.ClassName)
 	assert.Equal(t, "2026-01-01", gen.lastRegenReq.StartDate)
 	assert.Equal(t, "make it shorter", gen.lastRegenReq.Feedback)
+	assert.Equal(t, "<p>old</p>", gen.lastRegenReq.PreviousDraft)
 	assert.Equal(t, "be concise", gen.lastRegenReq.Instructions)
 	assert.Equal(t, "Write three sections.", gen.lastRegenReq.ReportInstructions)
 	require.Len(t, gen.lastRegenReq.Notes, 1)
@@ -210,6 +211,20 @@ func TestHandleGenerateReports_ResponseShape(t *testing.T) {
 	assert.Equal(t, "Write three sections.", gen.lastGenReq.ReportInstructions)
 	assert.Equal(t, "secret instructions", gen.lastGenReq.Instructions)
 	assert.Equal(t, []string{"user_abc"}, gen.genCallers, "llm_calls keep their user")
+}
+
+func TestHandleRegenerateReport_EmptyFeedback(t *testing.T) {
+	gen := &stubReportGenerator{}
+	withDeps(t, &mockDepsAll{reportGen: gen})
+
+	req := httptest.NewRequest(http.MethodPost, "/reports/1/regenerate", bytes.NewReader([]byte(`{"feedback":"  "}`)))
+	req.SetPathValue("id", "1")
+	req = clerkReq(req, "user_abc")
+	rec := httptest.NewRecorder()
+	handleRegenerateReport(rec, req)
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "body = %s", rec.Body.String())
+	assert.Empty(t, gen.lastRegenReq.StudentName, "generator must not be called")
 }
 
 func TestHandleRegenerateReport_ReportNotFound(t *testing.T) {
@@ -354,7 +369,7 @@ func TestHandleRegenerateReport_LevelOutsideGroup(t *testing.T) {
 		reportGen:   gen,
 	})
 
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader([]byte(`{}`)))
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/reports/%d/regenerate", rpt.ID), bytes.NewReader([]byte(`{"feedback":"shorter"}`)))
 	req.SetPathValue("id", itoa(rpt.ID))
 	req = clerkReq(req, "user_abc")
 	rec := httptest.NewRecorder()

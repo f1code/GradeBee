@@ -173,7 +173,7 @@ func runBuildReportPrompt(ec evalContext) error {
 		return err
 	}
 	// Production sends the built prompt as a single user message (no system role).
-	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, "")
+	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, "", "")
 	return writeJSON([]map[string]string{
 		{"role": "user", "content": prompt},
 	})

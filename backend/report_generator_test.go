@@ -167,6 +167,7 @@ func TestLLMReportGenerator_Generate_PromptAndPersistedRow(t *testing.T) {
 	// Generate has no previous draft, so no feedback block (Regenerate test
 	// asserts the positive arm).
 	assert.NotContains(t, prompt, reportFeedbackHeader)
+	assert.NotContains(t, prompt, reportPrevDraftHeader)
 
 	// Response mirrors the persisted row.
 	assert.Equal(t, cannedHTML, resp.HTML)
@@ -279,14 +280,16 @@ func TestLLMReportGenerator_Regenerate_WritesNewRowKeepsOld(t *testing.T) {
 	require.NoError(t, f.reportRepo.Create(f.ctx, old))
 
 	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{
-		ReportInputs: f.inputs(),
-		ReportID:     old.ID,
-		Feedback:     fixtureFeedback,
-		UserID:       "user_abc",
+		ReportInputs:  f.inputs(),
+		ReportID:      old.ID,
+		PreviousDraft: old.HTML,
+		Feedback:      fixtureFeedback,
+		UserID:        "user_abc",
 	})
 	require.NoError(t, err)
 
 	prompt := f.singlePrompt(t)
+	assert.Contains(t, prompt, reportPrevDraftHeader+"<p>old draft</p>")
 	assert.Contains(t, prompt, reportFeedbackHeader+fixtureFeedback)
 	assert.Contains(t, prompt, "- 2026-02-20: "+noteInRangeFeb)
 	assert.Contains(t, prompt, reportInstructionsHeader+fixtureInstructions)

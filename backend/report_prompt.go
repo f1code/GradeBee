@@ -9,7 +9,7 @@ import (
 
 // BuildReportPrompt builds the GPT system prompt for report card generation.
 // Exported for use by cmd/eval-cli.
-func BuildReportPrompt(student, className string, notes []Note, reportInstructions, instructions, feedback string) string {
+func BuildReportPrompt(student, className string, notes []Note, reportInstructions, instructions, draft, feedback string) string {
 	var sb strings.Builder
 
 	sb.WriteString(reportPromptBase)
@@ -39,6 +39,12 @@ func BuildReportPrompt(student, className string, notes []Note, reportInstructio
 		sb.WriteString(fmt.Sprintf("- %s: %s\n", n.Date, n.Summary))
 	}
 	sb.WriteString("\n")
+
+	if draft != "" {
+		sb.WriteString(reportPrevDraftHeader)
+		sb.WriteString(draft)
+		sb.WriteString("\n\n")
+	}
 
 	// Feedback on previous draft (for regeneration)
 	if feedback != "" {

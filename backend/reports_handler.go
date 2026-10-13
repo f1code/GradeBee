@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -297,6 +298,11 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		return
 	}
+	// The draft goes in the prompt: with no feedback the model returns it unchanged.
+	if strings.TrimSpace(req.Feedback) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "feedback is required"})
+		return
+	}
 
 	userID, err := userIDFromRequest(r)
 	if err != nil {
@@ -348,10 +354,11 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	// llmChatTimeout bounds the call.
 	ctx = context.WithoutCancel(ctx)
 	resp, err := generator.Regenerate(ctx, RegenerateReportRequest{
-		ReportInputs: in,
-		ReportID:     rpt.ID,
-		Feedback:     req.Feedback,
-		UserID:       userID,
+		ReportInputs:  in,
+		ReportID:      rpt.ID,
+		PreviousDraft: rpt.HTML,
+		Feedback:      req.Feedback,
+		UserID:        userID,
 	})
 	if err != nil {
 		log.Error("regenerate report failed", "student_id", rpt.StudentID, "error", err)
@@ -364,16 +371,12 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	// Implicit signal: regenerating always records a thumbs-down on the *original* report.
 	// Best-effort: a failure here should not fail the regen response.
 	if feedbackRepo := serviceDeps.GetFeedbackRepo(); feedbackRepo != nil {
-		var feedbackComment *string
-		if req.Feedback != "" {
-			feedbackComment = &req.Feedback
-		}
 		if _, fbErr := feedbackRepo.Insert(ctx, ArtifactFeedback{
 			ArtifactType: "report",
 			ArtifactID:   rpt.ID, // original report, not the new one
 			Rating:       "down",
 			Signal:       "regenerated",
-			Comment:      feedbackComment,
+			Comment:      &req.Feedback,
 			UserID:       userID,
 		}); fbErr != nil {
 			log.Warn("implicit regen feedback insert failed", "error", fbErr)
