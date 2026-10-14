@@ -186,8 +186,10 @@ evals/
 
 Report cases hold real names, notes and report text, so the repo keeps only
 `fixtures.manifest.json`: per case an `id` (directory name), a `description`
-(test description, no names) and a `student_id`; a regenerate case adds
-`report_id`, `feedback` and optional `expect` (see "Regenerate cases").
+(test description, no names), a `student_id` and optional `expect`:
+name-free `llm-rubric` lines (metric `expect`, threshold 0.75) on top of the
+shared axes. A regenerate case adds `report_id` and `feedback` (see
+"Regenerate cases").
 Why, and what agents may read: `docs/adr/0005-report-eval-data-stays-local.md`.
 
 A fresh case's reference lives outside the DB, in the reference store
