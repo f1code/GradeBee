@@ -83,6 +83,22 @@
       "student_id": 717,
       "report_id": 241,
       "feedback": [88]
+    },
+    {
+      "id": "linda_class_animal_names",
+      "description": "Babies Level, a class note says the children repeated the farm animal names and sounds, for a child who speaks a little: it may appear only as class practice",
+      "student_id": 713,
+      "expect": [
+        "No sentence says the child said or repeated the farm animal names or animal sounds; the class practising them together may appear, or be left out when the child's own notes fill Learning."
+      ]
+    },
+    {
+      "id": "linda_class_note_quiet_child",
+      "description": "Babies Level, same class note for a child whose own notes say she was quiet and did not speak: the class note must not make her speak",
+      "student_id": 717,
+      "expect": [
+        "No sentence says the child said or repeated the farm animal names or animal sounds; the class practising them together may appear."
+      ]
     }
   ]
 }

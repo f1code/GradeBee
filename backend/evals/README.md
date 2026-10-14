@@ -29,7 +29,7 @@ Previously the harness used `exec:` providers where eval-cli built the prompt **
 ## Running
 
 ```bash
-# Prerequisites: MISTRAL_API_KEY (extraction, Medium comparison row),
+# Prerequisites: MISTRAL_API_KEY (extraction),
 # OPENROUTER_API_KEY (canonical report row, report judge)
 # the local DB at ../data/gradebee.db and the main tree's data/eval-references/
 # for report cases (see "Report cases")
@@ -53,7 +53,7 @@ cd backend && make eval-baseline
 | Variable | Required | Notes |
 |---|---|---|
 | `OPENAI_API_KEY` | No | Neither config needs it; only for an OpenAI comparison row you uncomment |
-| `MISTRAL_API_KEY` | Yes | Extraction rows and the Medium report row |
+| `MISTRAL_API_KEY` | Yes | Extraction rows (and the Medium report row, when uncommented) |
 | `OPENROUTER_API_KEY` | Yes (for reports) | Canonical report row (`openrouter:openai/gpt-6-luna` on the EU host) and the report judge |
 | `LLM_PROVIDER` | No | `eval-cli gen-report` picks providers like the server (`LLM_PROVIDER`, `LLM_PROVIDER_REPORT`); graded providers come from the config |
 
@@ -68,7 +68,7 @@ Each config runs a **canonical** provider plus any number of **comparison** prov
 | `promptfooconfig.extract.yaml` | `gradebee-extract` | `mistral-medium-3-5` | yes (★) |
 | `promptfooconfig.report.yaml` | `gradebee-report` | `openrouter:openai/gpt-6-luna` (EU host) | yes (★) |
 
-The canonical provider must grade the model **production actually runs** — `defaultModels()` in `backend/llm_provider.go` for the task's deployed provider: `mistral-medium-3-5` for extraction, `openai/gpt-6-luna` on OpenRouter for reports (ADR 0006). Medium stays a comparison row in the report config. `diff-baseline.js` counts regressions on canonical rows alone, so a canonical provider pinned to anything else means the regression signal describes a model we do not ship. That is exactly what happened before: the extraction config graded `mistral-small-2603` for its whole life while production ran `mistral-medium-2508`.
+The canonical provider must grade the model **production actually runs** — `defaultModels()` in `backend/llm_provider.go` for the task's deployed provider: `mistral-medium-3-5` for extraction, `openai/gpt-6-luna` on OpenRouter for reports (ADR 0006). Medium stays in the report config as a commented-out comparison row. `diff-baseline.js` counts regressions on canonical rows alone, so a canonical provider pinned to anything else means the regression signal describes a model we do not ship. That is exactly what happened before: the extraction config graded `mistral-small-2603` for its whole life while production ran `mistral-medium-2508`.
 
 `TestEvalConfigsTrackProductionModels` in `backend/evals_config_test.go` parses both configs and fails if a canonical provider's `id` drifts from `defaultModels()`. It needs no API key and runs under `make test`. The deployed provider per task (extraction `mistral`, report `openrouter`) is written in the test, since it lives in env the test cannot read; `LLM_MODEL_*` overrides are outside what this guard can see. **If you deliberately change a production model, update `defaultModels()` and the config together, then regenerate the baseline.**
 
@@ -227,7 +227,7 @@ generated test gets its task and rubric from the report config's `defaultTest`.
    provider's API key) and writes it to the store under `CASE`; it refuses an
    id the store already holds. It prints the case, range and note count, and a
    draft manifest entry; never the report. `START` must fall in the current
-   term (on or after 2026-09-01).
+   term (on or after 2026-08-24).
 2. `make eval-dump-report CASE=id` prints the reference and the notes in its
    range with class roster names and aliases replaced by `STUDENT` /
    `CLASSMATE_n`, misspellings within an edit or two included (`CLASSMATE_?`

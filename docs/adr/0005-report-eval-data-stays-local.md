@@ -65,5 +65,5 @@ current-term notes, then reviewed against the Kids&Us sources, not reports a tea
   cases whose prod notes the reference never saw. Each reference records the note ids and
   `updated_at` it was written from; a case whose notes in range differ fails by name (#217).
   Regenerate cases still point at prod report and feedback ids, which held across the refresh.
-- Current-term rule (`gen-report` refuses a start before 2026-09-01) is hard-coded until report
+- Current-term rule (`gen-report` refuses a start before 2026-08-24) is hard-coded until report
   periods exist.

@@ -27,7 +27,7 @@ func seedGenReportDB(t *testing.T) *sql.DB {
 	t.Helper()
 	db := seedDumpDB(t)
 	_, err := db.Exec(`INSERT INTO notes (id, student_id, date, summary, updated_at) VALUES
-		(20, 1, '2026-08-29', 'before the break', '2026-08-29T00:00:00Z'),
+		(20, 1, '2026-08-20', 'before the break', '2026-08-20T00:00:00Z'),
 		(21, 1, '2026-09-08', 'in term', '2026-09-08T00:00:00Z')`)
 	require.NoError(t, err)
 	return db
@@ -70,7 +70,7 @@ func TestGenReport_Refuses(t *testing.T) {
 	for name, tc := range map[string]struct {
 		caseID, start, end, err string
 	}{
-		"start before term": {"c", "2026-08-31", "2026-09-30", "before the current term"},
+		"start before term": {"c", "2026-08-23", "2026-09-30", "before the current term"},
 		"malformed start":   {"c", "2026-9-1", "2026-09-30", "start"},
 		"end before start":  {"c", "2026-09-10", "2026-09-09", "before start"},
 		"no notes in range": {"c", "2026-10-01", "2026-10-31", "no notes"},

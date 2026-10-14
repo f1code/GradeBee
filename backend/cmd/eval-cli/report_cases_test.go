@@ -26,7 +26,6 @@ func TestReadReportManifest_Rejects(t *testing.T) {
 		"missing student":          {`{"reports":[{"id":"a","description":"d"}]}`, "student_id is required"},
 		"fresh with report_id":     {`{"reports":[{"id":"a","description":"d","student_id":1,"report_id":1}]}`, "not report_id"},
 		"regenerate, no report_id": {`{"reports":[{"id":"a","description":"d","student_id":1,"feedback":[1]}]}`, "needs report_id"},
-		"expect, no feedback":      {`{"reports":[{"id":"a","description":"d","student_id":1,"expect":["x"]}]}`, "expect needs feedback"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -45,7 +44,7 @@ func TestWriteReportCases(t *testing.T) {
 	stale := filepath.Join(casesDir, "dropped_case")
 	require.NoError(t, os.MkdirAll(stale, 0o755))
 
-	m := reportManifest{Reports: []reportManifestEntry{{ID: "a_case", Description: "desc", StudentID: 1}}}
+	m := reportManifest{Reports: []reportManifestEntry{{ID: "a_case", Description: "desc", StudentID: 1, Expect: []string{"no cushions"}}}}
 	transcript := "raw transcript"
 	c := reportCase{
 		ReportInputs: handler.ReportInputs{
@@ -85,7 +84,9 @@ func TestWriteReportCases(t *testing.T) {
 		assert.Equal(t, want, string(got))
 	}
 	assert.Empty(t, tests[0].Prompts, "a fresh case runs on every row, gold-reference included")
-	assert.Empty(t, tests[0].Assert)
+	require.Len(t, tests[0].Assert, 1)
+	assert.Equal(t, "expect", tests[0].Assert[0].Metric)
+	assert.Contains(t, tests[0].Assert[0].Value, "no cushions")
 }
 
 func TestWriteReportCases_Regenerate(t *testing.T) {

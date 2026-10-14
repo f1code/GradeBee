@@ -135,8 +135,6 @@ func readReportManifest(path string) (reportManifest, error) {
 			return reportManifest{}, fmt.Errorf("case %q: a regenerate case needs report_id, the draft", e.ID)
 		case len(e.Feedback) == 0 && e.ReportID != 0:
 			return reportManifest{}, fmt.Errorf("case %q: a fresh case takes its reference from the store by id, not report_id", e.ID)
-		case len(e.Expect) > 0 && len(e.Feedback) == 0:
-			return reportManifest{}, fmt.Errorf("case %q: expect needs feedback", e.ID)
 		}
 		seen[e.ID] = true
 	}
@@ -351,6 +349,8 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 			t.Vars.Feedback = ref("feedback.json")
 			t.Prompts = []string{gradedPrompt}
 			t.Assert = regenerateAsserts(c, e.Expect)
+		} else {
+			t.Assert = expectAsserts("the output is a fresh report written from the notes", e.Expect)
 		}
 		tests = append(tests, t)
 	}
@@ -413,15 +413,22 @@ The output does what round %d asked. A later round overrides it only where the t
 1: none used, or the draft's old version kept
 `, draftIs, notes.String())))
 	}
+	return append(out, expectAsserts(draftIs, expect)...)
+}
+
+// expectAsserts turns the manifest's expect lines into rubric lines; context
+// tells the judge what the output is.
+func expectAsserts(context string, expect []string) []reportAssert {
+	var out []reportAssert
 	for _, x := range expect {
-		out = append(out, rubric("expect", fmt.Sprintf(`expect: %s.
+		out = append(out, reportAssert{Type: "llm-rubric", Metric: "expect", Threshold: 0.75, Value: fmt.Sprintf(`expect: %s.
 %s
 5: holds in full
 4: holds, one slip
 3: half holds
 2: barely holds
 1: fails
-`, draftIs, x)))
+`, context, x)})
 	}
 	return out
 }

@@ -16,7 +16,7 @@ import (
 // termStart is the first day of the current term. Notes from before the
 // summer break must not feed a reference report. Hard-coded until terms exist
 // in the DB.
-var termStart = time.Date(2026, time.September, 1, 0, 0, 0, 0, time.UTC)
+var termStart = time.Date(2026, time.August, 24, 0, 0, 0, 0, time.UTC)
 
 type genReportOptions struct {
 	refsDir      string
