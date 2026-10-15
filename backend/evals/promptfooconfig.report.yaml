@@ -153,7 +153,7 @@ defaultTest:
     # music wording ("played the notes", "recorded a song"); no case has it yet.
     - type: not-regex
       metric: source-mention
-      value: '(?i:\b(the|our|her|his|these) notes?\b|notes? (record|show|describe)|\brecorded\b)'
+      value: '(?i:\b(the|our|her|his|these) notes?\b|notes? (record|show|describe)|\brecorded\b|\b(was|were) (described|reported)\b)'
     - type: llm-rubric
       metric: structure
       threshold: 0.5

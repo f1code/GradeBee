@@ -329,10 +329,11 @@ row passes when every axis clears its floor. The row score is the mean over the
 axes and the regex below, for trends only; one axis step moves it about 0.04.
 
 A sixth assertion, `not-regex` with metric `source-mention`, needs no judge: it
-fails a report that names its source ("the notes", "as recorded") instead of
-telling what happened in class (#196). The canonical provider sets
-`showThinking: false`: promptfoo otherwise prepends gpt-6-luna's reasoning to the
-output, and the judge and the regex would grade it as report text.
+fails a report that names its source ("the notes", "as recorded", "was
+described as") instead of telling what happened in class (#196). The canonical
+provider sets `showThinking: false`: promptfoo otherwise prepends gpt-6-luna's
+reasoning to the output, and the judge and the regex would grade it as report
+text.
 
 The axes do not grade each other: compliance leaves out grounding, fact
 coverage, falling short of a length, sections and tone. Falling short of a

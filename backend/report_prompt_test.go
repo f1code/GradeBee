@@ -109,5 +109,5 @@ func TestBuildReportPrompt_FactOnceAndDatedChange(t *testing.T) {
 func TestBuildReportPrompt_NoSourceMention(t *testing.T) {
 	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", nil)
 	assert.Contains(t, prompt, "Write each fact as something observed in class; never mention the notes or records, "+
-		"or that something was noted or recorded.")
+		"or that something was noted, recorded, described or reported.")
 }

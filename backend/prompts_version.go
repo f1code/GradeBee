@@ -313,6 +313,7 @@ const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
 // say which section a fact belongs in. The last rule (#196): gpt-6-luna named
 // its source ("the notes also record…"). Measured on luna, 9 cases x 3, with
 // the report eval's source-mention regex: 9/27 reports without it, 0/27 with.
+// Later luna drafts wrote "was described as"; described/reported added.
 const reportTaskFooter = "## Task\n" +
 	"Write a report card narrative for this student based on the notes above.\n" +
 	"Output the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\n" +
@@ -325,7 +326,7 @@ const reportTaskFooter = "## Task\n" +
 	"Describe a change over time only when notes on different dates show it or a note states it; " +
 	"what the latest note says is how the student is now.\n" +
 	"Write each fact as something observed in class; never mention the notes or records, " +
-	"or that something was noted or recorded.\n"
+	"or that something was noted, recorded, described or reported.\n"
 
 // --- Computed hashes (populated at init) ---
 
