@@ -81,6 +81,28 @@ func (r *ArtifactFeedbackRepo) RegenerateChain(ctx context.Context, id int64) ([
 	return chain, rows.Err()
 }
 
+// LatestRegenerated returns the newest surviving report regenerated, at any
+// depth, from report id; id itself when none survives. Like RegenerateChain it
+// walks the feedback rows, so a deleted draft does not cut the chain.
+func (r *ArtifactFeedbackRepo) LatestRegenerated(ctx context.Context, id int64) (int64, error) {
+	var latest int64
+	err := r.db.QueryRowContext(ctx, `
+		WITH RECURSIVE descendants(id) AS (
+			SELECT ?
+			UNION
+			SELECT f.result_id FROM artifact_feedback f JOIN descendants d ON f.artifact_id = d.id
+			WHERE f.artifact_type = 'report' AND f.signal = 'regenerated' AND f.result_id IS NOT NULL
+		)
+		SELECT COALESCE((
+			SELECT r.id FROM reports r JOIN descendants d ON r.id = d.id
+			ORDER BY r.created_at DESC, r.id DESC LIMIT 1
+		), ?)`, id, id).Scan(&latest)
+	if err != nil {
+		return 0, fmt.Errorf("latest regenerated: %w", err)
+	}
+	return latest, nil
+}
+
 // ListByArtifact returns all feedback rows for a specific artifact, newest first.
 func (r *ArtifactFeedbackRepo) ListByArtifact(ctx context.Context, artifactType string, artifactID int64) ([]ArtifactFeedback, error) {
 	rows, err := r.db.QueryContext(ctx, `

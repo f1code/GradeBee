@@ -58,6 +58,7 @@ func newReportBatchFixture(t *testing.T, n int, failAt ...int) *reportBatchFixtu
 		classRepo:        classRepo,
 		studentRepo:      studentRepo,
 		reportRepo:       &ReportRepo{db: db},
+		feedbackRepo:     &ArtifactFeedbackRepo{db: db},
 		reportGen:        f.gen,
 		levelRepo:        levelRepo,
 		reportBatchQueue: f.queue,
@@ -432,6 +433,8 @@ func TestHandleRetryReportBatch_QueueFullRestoresFailedRows(t *testing.T) {
 // Two clicks race each other and a poll: one wins, one publish.
 func TestHandleRetryReportBatch_DoubleClick(t *testing.T) {
 	f := newReportBatchFixture(t, 2, 0)
+	// Concurrent handlers query the DB; a second :memory: connection is empty.
+	f.deps.db.SetMaxOpenConns(1)
 	id, _ := f.finishedBatch(t)
 	published := len(f.queue.work)
 
@@ -448,4 +451,61 @@ func TestHandleRetryReportBatch_DoubleClick(t *testing.T) {
 
 	assert.ElementsMatch(t, []int{http.StatusAccepted, http.StatusConflict}, codes)
 	assert.Equal(t, published+1, len(f.queue.work), "one retry published")
+}
+
+func TestHandleListReportBatches_RowOpensLatestDraft(t *testing.T) {
+	f := newReportBatchFixture(t, 2)
+	ctx := context.Background()
+	reports := f.deps.reportRepo
+	draft := func(source int64) int64 {
+		t.Helper()
+		rpt := &Report{StudentID: f.ids[0], StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>x</p>"}
+		if source == 0 {
+			require.NoError(t, reports.Create(ctx, rpt))
+			return rpt.ID
+		}
+		fb := ArtifactFeedback{ArtifactType: "report", ArtifactID: source, Rating: "down", Signal: "regenerated", UserID: "user_abc"}
+		require.NoError(t, reports.CreateRegenerated(ctx, rpt, fb))
+		return rpt.ID
+	}
+	root := draft(0)
+	failed := reportStudentErrGenerate
+	require.NoError(t, f.queue.UpdateJob(ctx, ReportJob{
+		UserID: "user_abc", BatchID: "b", CreatedAt: time.Now(),
+		Students: []ReportBatchStudent{
+			{StudentID: f.ids[0], Status: ReportStudentDone, ReportID: &root},
+			{StudentID: f.ids[1], Status: ReportStudentFailed, Error: &failed},
+		},
+	}))
+	rowReport := func() int64 {
+		t.Helper()
+		batches := listBatches(t)
+		require.Len(t, batches, 1)
+		require.NotNil(t, batches[0].Students[0].ReportID)
+		return *batches[0].Students[0].ReportID
+	}
+
+	assert.Equal(t, root, rowReport(), "no regenerates")
+	a := draft(root)
+	b := draft(a)
+	assert.Equal(t, b, rowReport(), "follows the chain")
+	c := draft(root)
+	assert.Equal(t, c, rowReport(), "newest branch wins")
+	d := draft(a)
+	assert.Equal(t, d, rowReport(), "newest descendant wins, on any branch")
+	require.NoError(t, reports.Delete(ctx, d))
+	assert.Equal(t, c, rowReport(), "deleted latest falls back to the newest survivor")
+	require.NoError(t, reports.Delete(ctx, a))
+	assert.Equal(t, c, rowReport(), "a deleted middle draft keeps its descendants")
+	require.NoError(t, reports.Delete(ctx, c))
+	assert.Equal(t, b, rowReport(), "b survives behind deleted a")
+
+	rec := retryBatch("user_abc", "b")
+	require.Equal(t, http.StatusAccepted, rec.Code, "body = %s", rec.Body.String())
+	var snap ReportBatch
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&snap))
+	assert.Equal(t, b, *snap.Students[0].ReportID, "retry answers with latest drafts too")
+	job, err := f.queue.GetJob(ctx, "user_abc/b")
+	require.NoError(t, err)
+	assert.Equal(t, root, *job.Students[0].ReportID, "stored job keeps the original id")
 }

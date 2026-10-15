@@ -104,6 +104,7 @@ Audio is deleted right after transcription. The row and its transcript go after 
 - Retry: same lock. Flips `failed` rows back to `queued` and republishes the same job with its POST-time inputs; `done` rows keep their report. A failed publish restores the rows and answers `503`.
 - One batch per Teacher: a new POST deletes the previous finished batch after its own publish succeeds; a failed publish answers `503` and keeps the previous one.
 - Worker (`processReportBatch`): `withLLMCaller(ctx, userID, "")`; clones `Students` before each write (`GetJob` copies share the slice). A failure does not stop the batch; 3 in a row mark the rest failed without calling the LLM.
+- Latest draft: list and retry answers point each row's `reportId` at the newest surviving report regenerated from it (`ArtifactFeedbackRepo.LatestRegenerated`, any depth, any branch). The stored job keeps the original id.
 - Lost on restart. The page polls `GET /api/reports/batches` every 3s and shows "interrupted" when its running batch vanishes.
 
 ## Report regenerate (`handleRegenerateReport`)

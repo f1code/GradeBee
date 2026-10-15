@@ -217,9 +217,32 @@ func handleListReportBatches(w http.ResponseWriter, r *http.Request) {
 	slices.SortFunc(jobs, func(a, b ReportJob) int { return b.CreatedAt.Compare(a.CreatedAt) })
 	batches := make([]ReportBatch, len(jobs))
 	for i, j := range jobs {
-		batches[i] = j.snapshot()
+		if batches[i], err = latestDrafts(r.Context(), j.snapshot()); err != nil {
+			writeInternalError(w, r, err)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, ListReportBatchesResponse{Batches: batches})
+}
+
+// latestDrafts points each row at the newest draft regenerated from its
+// report, here or from Report History, so a reload opens what the Teacher last
+// revised and Regenerate keeps its feedback chain. Rows are cloned: snapshot
+// shares them with the stored job.
+func latestDrafts(ctx context.Context, b ReportBatch) (ReportBatch, error) {
+	b.Students = slices.Clone(b.Students)
+	feedback := serviceDeps.GetFeedbackRepo()
+	for i, s := range b.Students {
+		if s.ReportID == nil {
+			continue
+		}
+		latest, err := feedback.LatestRegenerated(ctx, *s.ReportID)
+		if err != nil {
+			return b, err
+		}
+		b.Students[i].ReportID = &latest
+	}
+	return b, nil
 }
 
 // Done rows stay done, so a retry gives no student a second report.
@@ -260,7 +283,13 @@ func handleRetryReportBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	snapshot := retried.snapshot()
+	// The page replaces its batch with this answer, so done rows need their
+	// latest drafts too.
+	snapshot, err := latestDrafts(ctx, retried.snapshot())
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
 	// Publish stores the queued rows before its channel send; put the failed
 	// rows back, or the batch shows running forever.
 	restore := func() {
