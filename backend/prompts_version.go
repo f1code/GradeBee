@@ -321,7 +321,7 @@ const reportTaskFooter = "## Task\n" +
 	"Only include structured Data fields (Absences, Marks, Frequency of use, etc.) if those\n" +
 	"values are explicitly present in the notes.\n" +
 	"Never contradict the notes or invent a specific observation, weakness or date. " +
-	"Follow the Report Specification on length; do not condense.\n" +
+	"Follow the Report Specification on length.\n" +
 	"Use each fact from the notes in one section only.\n" +
 	"Describe a change over time only when notes on different dates show it or a note states it; " +
 	"what the latest note says is how the student is now.\n" +
