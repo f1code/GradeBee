@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -32,13 +33,14 @@ func runDumpReport(args []string) error {
 	refsDir := fls.String("refs", "", "reference store, with -case")
 	caseID := fls.String("case", "", "fresh case whose reference to dump, with -refs")
 	replPath := fls.String("replacements", "", "append each fuzzy replacement (word, token) to this file; it holds names")
+	resultPath := fls.String("result", "", "promptfoo report result JSON, with -case: append the gold-reference row's judge reasons")
 	if err := fls.Parse(args); err != nil {
 		return err
 	}
 	byReport := *studentID > 0 && *reportID > 0
 	byCase := *refsDir != "" && *caseID != ""
 	if *dbPath == "" || byReport == byCase {
-		return fmt.Errorf("usage: eval-cli dump-report -db PATH (-student N -report M | -refs DIR -case ID) [-replacements FILE]")
+		return fmt.Errorf("usage: eval-cli dump-report -db PATH (-student N -report M | -refs DIR -case ID [-result FILE]) [-replacements FILE]")
 	}
 	if _, err := os.Stat(*dbPath); err != nil {
 		return fmt.Errorf("db: %w", err)
@@ -58,9 +60,61 @@ func runDumpReport(args []string) error {
 		repl = f
 	}
 	if byCase {
-		return dumpReference(context.Background(), db, os.Stdout, repl, *refsDir, *caseID)
+		var grades []string
+		if *resultPath != "" {
+			if grades, err = goldGrades(*resultPath, *caseID); err != nil {
+				return err
+			}
+		}
+		return dumpReference(context.Background(), db, os.Stdout, repl, *refsDir, *caseID, grades)
 	}
 	return dumpReport(context.Background(), db, os.Stdout, repl, *studentID, *reportID)
+}
+
+// Reasons quote the report, so callers pass them through the redactor.
+func goldGrades(path, caseID string) ([]string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var res struct {
+		Results struct {
+			Results []struct {
+				Provider struct {
+					Label string `json:"label"`
+				} `json:"provider"`
+				TestCase struct {
+					Vars struct {
+						Reference string `json:"reference"`
+					} `json:"vars"`
+				} `json:"testCase"`
+				GradingResult struct {
+					ComponentResults []struct {
+						Score     float64 `json:"score"`
+						Reason    string  `json:"reason"`
+						Assertion struct {
+							Metric string `json:"metric"`
+						} `json:"assertion"`
+					} `json:"componentResults"`
+				} `json:"gradingResult"`
+			} `json:"results"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(raw, &res); err != nil {
+		return nil, fmt.Errorf("result %s: %w", path, err)
+	}
+	ref := "file://fixtures/reports/" + caseID + "/reference.html"
+	for _, r := range res.Results.Results {
+		if r.Provider.Label != "gold-reference" || r.TestCase.Vars.Reference != ref {
+			continue
+		}
+		var out []string
+		for _, c := range r.GradingResult.ComponentResults {
+			out = append(out, fmt.Sprintf("%s %.2f: %s", c.Assertion.Metric, c.Score, c.Reason))
+		}
+		return out, nil
+	}
+	return nil, fmt.Errorf("result %s: no gold-reference row for case %q", path, caseID)
 }
 
 // dumpReport writes a DB report redacted to w and, when replacements is not
@@ -71,12 +125,12 @@ func dumpReport(ctx context.Context, db *sql.DB, w, replacements io.Writer, stud
 	if err != nil {
 		return err
 	}
-	return dumpRedacted(ctx, resolver, w, replacements, fmt.Sprintf("report %d", reportID), in, rpt.HTML)
+	return dumpRedacted(ctx, resolver, w, replacements, fmt.Sprintf("report %d", reportID), in, rpt.HTML, nil)
 }
 
 // dumpReference is dumpReport for a fresh case's reference, with today's
 // notes in its range.
-func dumpReference(ctx context.Context, db *sql.DB, w, replacements io.Writer, refsDir, caseID string) error {
+func dumpReference(ctx context.Context, db *sql.DB, w, replacements io.Writer, refsDir, caseID string, grades []string) error {
 	meta, html, err := readReference(refsDir, caseID)
 	if err != nil {
 		return err
@@ -86,10 +140,10 @@ func dumpReference(ctx context.Context, db *sql.DB, w, replacements io.Writer, r
 	if err != nil {
 		return err
 	}
-	return dumpRedacted(ctx, resolver, w, replacements, "reference "+caseID, in, html)
+	return dumpRedacted(ctx, resolver, w, replacements, "reference "+caseID, in, html, grades)
 }
 
-func dumpRedacted(ctx context.Context, resolver *handler.ReportInputResolver, w, replacements io.Writer, label string, in handler.ReportInputs, html string) error {
+func dumpRedacted(ctx context.Context, resolver *handler.ReportInputResolver, w, replacements io.Writer, label string, in handler.ReportInputs, html string, grades []string) error {
 	roster, err := resolver.ClassRoster(ctx, in.StudentID)
 	if err != nil {
 		return err
@@ -100,10 +154,12 @@ func dumpRedacted(ctx context.Context, resolver *handler.ReportInputResolver, w,
 	for _, n := range in.Notes {
 		texts = append(texts, n.Summary)
 	}
+	nNotes := len(in.Notes)
+	texts = append(texts, grades...)
 	for i, t := range texts {
 		texts[i] = r.redact(t)
 	}
-	openers := r.noteOpeners(texts[2:])
+	openers := r.noteOpeners(texts[2 : 2+nNotes])
 	for i := 2; i < len(texts); i++ {
 		texts[i] = replaceWords(texts[i], openers)
 	}
@@ -127,6 +183,12 @@ func dumpRedacted(ctx context.Context, resolver *handler.ReportInputResolver, w,
 		fmt.Fprintf(w, "\n%s: %s\n", n.Date, texts[i+2])
 	}
 	fmt.Fprintf(w, "\n## Reference report\n\n%s\n", texts[1])
+	if len(grades) > 0 {
+		fmt.Fprintln(w, "\n## Judge grades (gold-reference)")
+		for _, g := range texts[2+nNotes:] {
+			fmt.Fprintf(w, "\n%s\n", g)
+		}
+	}
 	return nil
 }
 

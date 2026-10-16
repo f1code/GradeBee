@@ -19,8 +19,9 @@
  * Taught vocabulary is the case it exists for (#121): "He was doing good with
  * making the full sentences. Yes, I can. No, I can't." says which structure,
  * where the first sentence alone does not — but the model reaches it only some
- * runs, and the run that misses it is not a failing recording. evals/README.md
- * owns the measured rate; do not restate it here, it drifted once already.
+ * runs, and the run that misses it is not a failing recording. Measured on
+ * fuzzy_name_matching (15 runs, mistral-medium-2508, no cache): the class drill
+ * lands about one run in three, Théo's own drill never.
  *
  * The axis is skipped entirely for fixtures that define no should_quote_substrings,
  * so adding it moved no other row's score.

@@ -79,12 +79,13 @@ eval-gen-report: bin/eval-cli
 		$(if $(INSTRUCTIONS),-instructions "$$INSTRUCTIONS")
 
 # Print a fresh case's reference, or a DB report, with its notes, roster names
-# redacted (terminal only).
-# Usage: make eval-dump-report CASE=id | make eval-dump-report STUDENT_ID=N REPORT_ID=M
+# redacted (terminal only). RESULT= adds the gold-reference row's judge reasons
+# from that promptfoo result file.
+# Usage: make eval-dump-report CASE=id [RESULT=evals/results/X-report.json] | make eval-dump-report STUDENT_ID=N REPORT_ID=M
 eval-dump-report: bin/eval-cli
-	$(if $(or $(CASE),$(and $(STUDENT_ID),$(REPORT_ID))),,$(error usage: make eval-dump-report CASE=id | STUDENT_ID=N REPORT_ID=M))
+	$(if $(or $(CASE),$(and $(STUDENT_ID),$(REPORT_ID))),,$(error usage: make eval-dump-report CASE=id [RESULT=file] | STUDENT_ID=N REPORT_ID=M))
 	@./bin/eval-cli dump-report -db $(EVAL_DB) \
-		$(if $(CASE),$(NEED_EVAL_REFS)-refs $(EVAL_REFS) -case $(CASE),-student $(STUDENT_ID) -report $(REPORT_ID))
+		$(if $(CASE),$(NEED_EVAL_REFS)-refs $(EVAL_REFS) -case $(CASE) $(if $(RESULT),-result $(RESULT)),-student $(STUDENT_ID) -report $(REPORT_ID))
 
 # Regenerates report cases first when the manifest, DB or references changed.
 # promptfoo exits non-zero when any assertion fails, so its exit code can't

@@ -54,9 +54,9 @@ providers:
             required: [observations]
             additionalProperties: false
 
-  # mistral-small-2603 and mistral-large-2512 were both measured and dropped —
-  # see "Cheaper models, and why none is graded here" in README.md before
-  # adding either back.
+  # mistral-small-2603 and mistral-large-2512 were both measured and dropped:
+  # both miss wrong_class_group and shared_clause, small's pass-1 class pick is
+  # unstable across identical replays, and large scored lower on reports.
   #
   # require_parameters keeps the routing on a backend that honours
   # response_format: 4 of the 10 OpenRouter endpoints serving this model do not.
@@ -65,7 +65,8 @@ providers:
   # empty content, sending the reasoning text to assemble.js.
   #
   # Commented out: every run spends OpenRouter credits. Uncomment with
-  # OPENROUTER_API_KEY in .env. Results in README.md, "DeepSeek via OpenRouter".
+  # OPENROUTER_API_KEY in .env. Matched Medium on extraction (70/70, 5 runs per
+  # fixture), slower; pass 1 and reports unmeasured.
   # - id: openrouter:deepseek/deepseek-v4.1-flash
   #   label: openrouter-deepseek
   #   config:
@@ -106,7 +107,7 @@ tests:
   # the pass-2 builder and needs a class_name var — and that fixture's class is
   # the thing under test: it names two classes inline with no header, and the
   # right answer is pass 1 declining. It is asserted against the real
-  # classPickSchema in backend/llm_live_test.go instead. See README.md.
+  # classPickSchema in backend/llm_live_test.go instead.
 
   - description: "extraction: fuzzy name matching (Inaia→Inaya, Liana→Lina)"
     vars:
@@ -164,8 +165,7 @@ tests:
           expected: file://fixtures/extraction/pronoun_run_bleed/expected.json
           metric: attribution
 
-  # Green on this contract, red under a passage contract — see
-  # evals/README.md, "Fixtures #125 owns".
+  # Green on this contract, red under a passage contract.
 
   - description: "extraction: two children in one exchange keep separate notes"
     vars:

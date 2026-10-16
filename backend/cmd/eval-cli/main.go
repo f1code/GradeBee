@@ -18,7 +18,7 @@
 //
 // # Usage (redacted report dump — invoked by make eval-dump-report)
 //
-//	eval-cli dump-report -db PATH (-student N -report M | -refs DIR -case ID)
+//	eval-cli dump-report -db PATH (-student N -report M | -refs DIR -case ID [-result FILE])
 package main
 
 import (

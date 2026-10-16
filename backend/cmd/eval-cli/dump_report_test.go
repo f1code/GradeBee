@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -59,12 +61,38 @@ func TestDumpReference_RedactsRoster(t *testing.T) {
 	_, err := db.Exec(`DELETE FROM reports`)
 	require.NoError(t, err)
 	var out bytes.Buffer
-	require.NoError(t, dumpReference(context.Background(), db, &out, nil, refs, "c"))
+	require.NoError(t, dumpReference(context.Background(), db, &out, nil, refs, "c", nil))
 	got := out.String()
 	assert.Contains(t, got, "reference c, student 1, 2026-03-01..2026-03-31, 2 notes")
 	assert.Contains(t, got, "be brief")
 	assert.Contains(t, got, "2026-03-11: STUDENT and CLASSMATE_2 argued")
+	assert.NotContains(t, got, "Judge grades")
 	assert.NotContains(t, strings.ToLower(got), "élodie")
+}
+
+func TestDumpReference_RedactsGoldGrades(t *testing.T) {
+	db, refs := seedReferenceStore(t)
+	result := filepath.Join(t.TempDir(), "result.json")
+	row := func(label, ref, reason string) string {
+		return `{"provider":{"label":"` + label + `"},"testCase":{"vars":{"reference":"file://fixtures/reports/` + ref + `/reference.html"}},
+			"gradingResult":{"componentResults":[{"score":0.25,"reason":"` + reason + `","assertion":{"metric":"compliance"}}]}}`
+	}
+	require.NoError(t, os.WriteFile(result, []byte(`{"results":{"results":[`+
+		row("gradebee-report", "c", "luna row")+","+
+		row("gold-reference", "other", "other case")+","+
+		row("gold-reference", "c", "Élodie repeats what Bobby did")+`]}}`), 0o600))
+
+	grades, err := goldGrades(result, "c")
+	require.NoError(t, err)
+	var out bytes.Buffer
+	require.NoError(t, dumpReference(context.Background(), db, &out, nil, refs, "c", grades))
+	got := out.String()
+	assert.Contains(t, got, "## Judge grades (gold-reference)\n\ncompliance 0.25: STUDENT repeats what CLASSMATE_2 did\n")
+	assert.NotContains(t, got, "luna row")
+	assert.NotContains(t, got, "other case")
+
+	_, err = goldGrades(result, "missing")
+	assert.ErrorContains(t, err, `no gold-reference row for case "missing"`)
 }
 
 func TestRedact_WordBoundaries(t *testing.T) {

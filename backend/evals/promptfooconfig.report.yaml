@@ -86,8 +86,9 @@ defaultTest:
     task: build-report-prompt
   options:
     provider:
-      # Claude Agent SDK judge. Anthropic wrote the references, so expect
-      # self-preference; see evals/README.md "Report scoring". tools,
+      # Claude Agent SDK judge, about $0.055 a grading call. Anthropic wrote
+      # the references, so read gold and luna moves with self-preference in
+      # mind. tools,
       # setting_sources and the system prompt are bare, or the judge loads
       # ~/.claude settings and the Claude Code prompt. apiKeyRequired false:
       # ANTHROPIC_API_KEY if set, else the Claude Code login.
@@ -125,7 +126,8 @@ defaultTest:
 
       <reference_report>
       A report the school accepted for the same notes: an example of the general statements and the
-      length the school accepts. Student name and exact structure may differ.
+      length the school accepts. Student name and exact structure may differ. The output may be this
+      report itself; never count a match with it against the output.
       {{reference}}
       </reference_report>
 
@@ -136,7 +138,8 @@ defaultTest:
       Code measured the <word_counts> block at the end of the output; it is not part of the report.
       Use those counts for any length judgement, and read the length rule from the Report
       Specification and ad-hoc instructions. A section tagged "[MISSING] marker" may be shorter when
-      the notes give it no fact of its own.
+      the notes give it no fact of its own, or when it ends with the marker the Specification gives
+      for a section short of facts.
 
       <axis>
       {{rubric}}
@@ -204,7 +207,8 @@ defaultTest:
         Report Specification asks for; a condensed report that drops facts or falls short is a
         defect. Where ad-hoc instructions set a shorter length, a fact dropped to meet it is no defect.
         Going over a length cap is compliance, not completeness. A section with no fact of its own
-        that carries a [MISSING] marker is not short.
+        that carries a [MISSING] marker, or one ending with the Specification's short-of-facts
+        marker, is not short.
         5: every relevant note fact used; every section reaches the asked length
         4: one minor fact dropped, or one section slightly short
         3: several facts dropped, or sections clearly short
@@ -216,6 +220,8 @@ defaultTest:
       transform: *wordcounts
       value: |
         tone: the report matches whatever tone the Report Specification and ad-hoc instructions call for.
+        Grade register and voice only; a sentence a Specification content rule bans (filler, padding,
+        a banned phrase) is compliance, not tone.
         5: the asked tone throughout
         4: one slip
         3: several slips, or an uneven register
@@ -232,12 +238,14 @@ defaultTest:
         a length, sections and their order, and tone: never score those here. Going over a length
         cap is compliance.
         Each fact from the notes sits in one section only, the section the Specification defines for
-        it: a note fact repeated in a second section, or placed in a section that does not cover it,
-        breaks a rule. Example: "repeated the days of the week after the teacher" in both Motivation &
-        Participation and Learning breaks a rule once.
+        it: a note fact repeated in a second section, or placed in a section the Specification's
+        section definitions exclude it from, breaks a rule; a fact the Specification assigns to no
+        section may sit in any section it fits. Example: "repeated the days of the week after us" in
+        both Motivation & Participation and Learning breaks a rule once.
         Read the rules together: a section the notes give no fact of its own follows the rules with
-        one or two general statements and the [MISSING] marker the Specification gives, even below the
-        word minimum and with no example; filling it with another section's facts breaks a rule. A
+        what the Specification asks for there (a short sentence, general statements or school
+        examples) and the [MISSING] marker it gives, even below the word minimum and with no example;
+        filling it with another section's facts breaks a rule. A
         required example is a minimum when the Specification also asks for every relevant fact;
         "each fact once" covers facts from the notes, not general statements about attitude or
         progress, which may recur.
