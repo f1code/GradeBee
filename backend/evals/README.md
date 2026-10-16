@@ -1,145 +1,77 @@
 # GradeBee LLM Evaluation Harness
 
-Regression tests for extraction and report-generation quality, powered by [promptfoo](https://promptfoo.dev). On-demand only — not CI-gated.
+Regression tests for extraction and report-generation quality, powered by [promptfoo](https://promptfoo.dev). On-demand only, not CI-gated.
 
-## Why promptfoo drives the LLM
+## Design
 
-Promptfoo owns the model call, not eval-cli. This unlocks promptfoo's native response caching (re-runs don't re-hit the model), cost/latency tracking per test, and multi-model comparison by changing the `id:` in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml`. Prompt construction stays in Go — eval-cli is a pure prompt builder that outputs a messages array; it has no LLM client.
+Promptfoo owns the model call: response caching, per-test cost/latency, multi-model comparison by changing a provider `id:`. Prompt construction stays in Go: eval-cli builds a messages array and has no LLM client.
 
-The harness is split into two domain-specific configs:
-- **`promptfooconfig.extract.yaml`** — extraction tests with structured output (json_schema)
-- **`promptfooconfig.report.yaml`** — report generation tests with per-axis llm-rubric scoring (see "Report scoring")
+Two configs:
+- **`promptfooconfig.extract.yaml`**: extraction, structured output (json_schema)
+- **`promptfooconfig.report.yaml`**: report generation, per-axis llm-rubric scoring (see "Report scoring")
 
-Adding a new report model only requires editing the providers list in `promptfooconfig.report.yaml`; no per-test changes needed. Report rows wrap their model in `providers/regen-chain.js` (`config.inner`), which runs regenerate cases' feedback rounds; see "Regenerate cases".
-
-Previously the harness used `exec:` providers where eval-cli built the prompt **and** called OpenAI itself. That approach bypassed promptfoo's caching and tracking. See `docs/plans/2026-05-25-eval-harness-switch-to-exec.md` for the earlier exec-provider rationale and `docs/plans/2026-05-25-eval-harness-promptfoo-drives-llm.md` for this change.
+Adding a report model means editing the providers list only. Report rows wrap their model in `providers/regen-chain.js` (`config.inner`), which runs regenerate cases' feedback rounds.
 
 ## How it works
 
 1. `make eval` builds `bin/eval-cli` from `cmd/eval-cli/`.
-2. promptfoo reads both config files and, for each test case, calls the exec-prompt function:
+2. promptfoo calls eval-cli per test case:
    ```
    bin/eval-cli '{"vars":{...},"config":{"task":"build-extract-prompt"}}'
    bin/eval-cli '{"vars":{...},"config":{"task":"build-report-prompt"}}'
    ```
-3. eval-cli outputs a JSON messages array (no LLM call): `[{"role":"system","content":"..."},{"role":"user","content":"..."}]`
-4. promptfoo sends the messages to the native provider (with structured output schema for extraction), folds the extraction response into notes with `scoring/assemble.js`, and scores the result against the assertions.
-5. `make eval` prints one diff per domain against that domain's baseline (see [Baseline lifecycle](#baseline-lifecycle)).
+3. eval-cli outputs a messages array: `[{"role":"system","content":"..."},{"role":"user","content":"..."}]`
+4. promptfoo sends it to the provider, folds extraction responses into notes with `scoring/assemble.js`, and scores against the assertions.
+5. `make eval` prints one diff per domain against its baseline (see [Baseline lifecycle](#baseline-lifecycle)).
 
 ## Running
 
 ```bash
 # Prerequisites: MISTRAL_API_KEY (extraction),
-# OPENROUTER_API_KEY (canonical report row, report judge)
+# OPENROUTER_API_KEY (canonical report row),
+# ANTHROPIC_API_KEY or a Claude Code login (report judge)
 # the local DB at ../data/gradebee.db and the main tree's data/eval-references/
 # for report cases (see "Report cases")
 
-# Run both domains, print one diff per domain vs its baseline
-cd backend && make eval
-
-# Run a single domain
-cd backend && make eval-extract   # extraction only
-cd backend && make eval-report    # report only
-
-# Regenerate report cases from the DB (eval/eval-report do it when stale)
-cd backend && make eval-fixtures
-
-# Update both baselines after a deliberate prompt/model change
-cd backend && make eval-baseline
+cd backend && make eval            # both domains, diff vs baseline
+cd backend && make eval-extract    # extraction only
+cd backend && make eval-report     # report only
+cd backend && make eval-fixtures   # regenerate report cases (eval/eval-report do it when stale)
+cd backend && make eval-baseline   # re-pin both baselines after a deliberate change
 ```
+
+**Empty output?** `make eval` exports `.env`, whose `LOG_LEVEL=DEBUG` is not a promptfoo level; promptfoo then prints nothing and exits 0. Run `LOG_LEVEL= make eval`.
 
 ## Environment variables
 
 | Variable | Required | Notes |
 |---|---|---|
-| `OPENAI_API_KEY` | No | Neither config needs it; only for an OpenAI comparison row you uncomment |
+| `OPENAI_API_KEY` | No | Only for an OpenAI comparison row you uncomment |
 | `MISTRAL_API_KEY` | Yes | Extraction rows (and the Medium report row, when uncommented) |
-| `OPENROUTER_API_KEY` | Yes (for reports) | Canonical report row (`openrouter:openai/gpt-6-luna` on the EU host) and the report judge |
+| `OPENROUTER_API_KEY` | Yes (for reports) | Canonical report row (`openrouter:openai/gpt-6-luna` on the EU host) |
+| `ANTHROPIC_API_KEY` | Yes (for reports) | Report judge (Claude Agent SDK); a Claude Code login works instead |
 | `LLM_PROVIDER` | No | `eval-cli gen-report` picks providers like the server (`LLM_PROVIDER`, `LLM_PROVIDER_REPORT`); graded providers come from the config |
-
-> Model selection lives in `promptfooconfig.report.yaml` or `promptfooconfig.extract.yaml` (`providers[].id`). To test a different model, add a provider there — but see "Which model the evals grade" below before touching a canonical one.
 
 ## Which model the evals grade
 
-Each config runs a **canonical** provider plus any number of **comparison** providers.
+Each config runs one **canonical** provider plus optional **comparison** providers.
 
-| Config | Canonical label | Model | Tracked by `diff-baseline.js` |
-|---|---|---|---|
-| `promptfooconfig.extract.yaml` | `gradebee-extract` | `mistral-medium-3-5` | yes (★) |
-| `promptfooconfig.report.yaml` | `gradebee-report` | `openrouter:openai/gpt-6-luna` (EU host) | yes (★) |
-
-The canonical provider must grade the model **production actually runs** — `defaultModels()` in `backend/llm_provider.go` for the task's deployed provider: `mistral-medium-3-5` for extraction, `openai/gpt-6-luna` on OpenRouter for reports (ADR 0006). Medium stays in the report config as a commented-out comparison row. `diff-baseline.js` counts regressions on canonical rows alone, so a canonical provider pinned to anything else means the regression signal describes a model we do not ship. That is exactly what happened before: the extraction config graded `mistral-small-2603` for its whole life while production ran `mistral-medium-2508`.
-
-`TestEvalConfigsTrackProductionModels` in `backend/evals_config_test.go` parses both configs and fails if a canonical provider's `id` drifts from `defaultModels()`. It needs no API key and runs under `make test`. The deployed provider per task (extraction `mistral`, report `openrouter`) is written in the test, since it lives in env the test cannot read; `LLM_MODEL_*` overrides are outside what this guard can see. **If you deliberately change a production model, update `defaultModels()` and the config together, then regenerate the baseline.**
-
-Comparison providers are unconstrained — they exist to measure other models and the test ignores them. Note that extraction providers pin no `temperature`, so comparison scores move a little between runs; treat small deltas on non-canonical rows as noise.
-
-### Cheaper models, and why none is graded here
-
-Neither config carries a cheaper comparison row. The two Mistral candidates were
-measured in #164 and dropped; DeepSeek, measured since, sits commented out.
-Re-adding one costs a run per eval, so read this first.
-
-`mistral-small-2603` (a tenth of the canonical price) missed in three ways, over
-5 runs per fixture, no cache:
-
-- It files a spoken name that is on no roster under a listed child anyway
-  (`wrong_class_group`, 4 runs in 5). That also defeats the suppression in
-  `assemblePassages`, which relies on no name reaching a child, so a wrong pick
-  writes a note for every child instead of showing the picker.
-- A remark about two named children reaches the whole class
-  (`fuzzy_name_matching`, 4 in 5).
-- It drops the sentence shared by two children (`shared_clause`, 5 in 5).
-
-Two fixes were probed against those runs. A roster-name check — clear `student`
-when no spoken label resolves to the chosen child through `MatchStudent` — fixes
-the first failure only: 54 to 56 passing runs in 66, and it fired on none of the
-canonical model's outputs. A second model pass, the draft handed back with a
-checklist of these weak areas, was a wash: it fixed the same first failure, broke
-a name it had already matched, left the dropped sentence untouched, and cost a
-third more tokens.
-
-Pass 1 is the harder problem. Replayed over the stored recordings three times,
-small declined 1, then 3, then 2 of 16 — same inputs, and every decline shows the
-teacher a class picker instead of notes. Whether a given decline is right is not
-known; the instability is what rules the model out.
-
-`mistral-large-2512` missed `wrong_class_group` and `shared_clause` as well, and
-scored below the canonical model on reports: 4.05 against 4.30 over 3 runs. This
-account also rate-limits it hard enough that the Go live tests pass only one test
-at a time, with pauses between them.
-
-#### DeepSeek via OpenRouter
-
-`deepseek/deepseek-v4.1-flash` through promptfoo's `openrouter:` provider,
-commented out in `promptfooconfig.extract.yaml`. $0.30 / $1.20 per M tokens in /
-out, half that off-peak.
-
-Extraction, 5 runs per fixture, no cache, reasoning off:
-
-| | `mistral-medium-3-5` | `deepseek-v4.1-flash` |
+| Config | Canonical label | Model |
 |---|---|---|
-| Passing runs | 70/70 | 70/70 |
-| Mean score | 0.989 | 1.000 |
-| Median latency | 1.1s | 2.0s |
+| `promptfooconfig.extract.yaml` | `gradebee-extract` | `mistral-medium-3-5` |
+| `promptfooconfig.report.yaml` | `gradebee-report` | `openrouter:openai/gpt-6-luna` (EU host) |
 
-Mistral lost points on `fuzzy_name_matching` alone (0.84). DeepSeek passed
-`wrong_class_group`, `fuzzy_name_matching` and `shared_clause` 5 in 5, the three
-that ruled out small. The fixtures sit near ceiling, so this shows DeepSeek no
-worse on these cases, not better.
+The canonical provider must match the model production runs (`defaultModels()` in `backend/llm_provider.go`, ADR 0006). `diff-baseline.js` counts regressions on canonical rows only. `TestEvalConfigsTrackProductionModels` (`backend/evals_config_test.go`, runs under `make test`, no API key) fails if a canonical `id` drifts from `defaultModels()`; it hardcodes the deployed provider per task and cannot see `LLM_MODEL_*` overrides. **Changing a production model: update `defaultModels()` and the config together, then re-pin the baseline.**
 
-Two config traps:
+Comparison providers are unconstrained. Extraction pins no `temperature`, so treat small deltas on comparison rows as noise.
 
-- Reasoning. promptfoo sends `max_tokens: 1024` by default; reasoning ends most
-  calls there (`finish=length`, empty content), and promptfoo hands the reasoning
-  text to `assemble.js`, which fails to parse it. A 16k cap still left 2 in 8
-  `pronoun_run_bleed` calls reasoning past 14k with no answer.
-  `passthrough.reasoning.enabled: false` fixes both.
-- Routing. 4 of the 10 OpenRouter endpoints serving this model ignore
-  `response_format`; `provider.require_parameters: true` keeps calls off them.
+### Cheaper models
 
-Not measured: pass 1, the class pick that ruled out small (graded only in
-`backend/llm_live_test.go`, which has no OpenRouter path), and reports.
+None is graded. Measured and rejected:
+
+- `mistral-small-2603`: files off-roster names under a listed child (`wrong_class_group`), spreads a two-child remark to the whole class (`fuzzy_name_matching`), drops shared sentences (`shared_clause`), and its pass-1 class pick is unstable across identical replays.
+- `mistral-large-2512`: same `wrong_class_group` / `shared_clause` misses, lower report score, heavy rate limits.
+- `deepseek/deepseek-v4.1-flash` (OpenRouter, commented out in the extract config): matched Medium on extraction (70/70), slower; pass 1 and reports unmeasured. Config needs `passthrough.reasoning.enabled: false` (reasoning exhausts `max_tokens` and `assemble.js` fails to parse it) and `provider.require_parameters: true` (some endpoints ignore `response_format`).
 
 ## Debugging a single case
 
@@ -147,10 +79,10 @@ Not measured: pass 1, the class pick that ruled out small (graded only in
 cd backend
 make bin/eval-cli
 
-# Build extraction prompt (exec-prompt mode)
+# Build extraction prompt
 ./bin/eval-cli '{"vars":{"transcript":"Alice read well today.","class_name":"Grade 3A","classes":[{"name":"Grade 3A","students":[{"name":"Alice Chen"}]}]},"config":{"task":"build-extract-prompt"}}'
 
-# Build report prompt (exec-prompt mode)
+# Build report prompt
 ./bin/eval-cli '{"vars":{"student_name":"Alice Chen","class_name":"Grade 3A","notes":[{"date":"2026-01-15","summary":"Strong reading fluency."}],"report_instructions":"Two sections: Progress, Behaviour. Each with a Comment paragraph.","instructions":""},"config":{"task":"build-report-prompt"}}'
 ```
 
@@ -186,16 +118,14 @@ evals/
 
 Report cases hold real names, notes and report text, so the repo keeps only
 `fixtures.manifest.json`: per case an `id` (directory name), a `description`
-(test description, no names), a `student_id` and optional `expect`:
-name-free `llm-rubric` lines (metric `expect`, threshold 0.75) on top of the
-shared axes. A regenerate case adds `report_id` and `feedback` (see
-"Regenerate cases").
-Why, and what agents may read: `docs/adr/0005-report-eval-data-stays-local.md`.
+(no names), a `student_id` and optional `expect`: name-free `llm-rubric` lines
+(metric `expect`, threshold 0.75) on top of the shared axes. A regenerate case
+adds `report_id` and `feedback`. What agents may read:
+`docs/adr/0005-report-eval-data-stays-local.md`.
 
-A fresh case's reference lives outside the DB, in the reference store
-`data/eval-references/<id>/` of the main tree (override with `EVAL_REFS=`), so
-replacing `data/gradebee.db` with a prod copy keeps it. Worktrees read and
-write the main tree's store.
+A fresh case's reference lives in the main tree's reference store
+`data/eval-references/<id>/` (override with `EVAL_REFS=`), outside the DB, so
+swapping in a prod DB copy keeps it. Worktrees use the main tree's store.
 
 ```
 data/eval-references/<id>/
@@ -206,73 +136,65 @@ data/eval-references/<id>/
 
 `make eval-fixtures` runs `eval-cli gen-report-cases`. For a fresh case it reads
 the reference and `meta.json` from the store, and the student's name, class
-display name, notes in range and the Level's Report Instructions from the local
-DB (`../data/gradebee.db`; override with `EVAL_DB=`), through the resolver
+display name, notes in range and Report Instructions from the local DB
+(`../data/gradebee.db`; override with `EVAL_DB=`), through the resolver
 `Generate` uses. It rewrites `fixtures/reports/` and
 `tests.report.generated.yaml`, and fails naming the case for a missing
-reference, a `student_id` other than the reference's, a range with no notes,
-or a Level without Report Instructions.
+reference, a mismatched `student_id`, a range with no notes, or a Level
+without Report Instructions.
 
-Notes follow today's DB. When the notes in range differ from those in
-`meta.json`, the reference was written from other facts, so generation fails
-naming the case and each missing, extra or edited note id. Write a new
-reference (delete its directory, then `make eval-gen-report`) or drop the case.
+When notes in range differ from those in `meta.json`, generation fails naming
+the case and each missing, extra or edited note id. Write a new reference
+(delete its directory, then `make eval-gen-report`) or drop the case.
 
 `make eval` and `make eval-report` regenerate first when the manifest, the DB,
 its WAL or a reference file is newer than `tests.report.generated.yaml`. Every
-generated test gets its task and rubric from the report config's `defaultTest`.
+generated test takes task and rubric from the report config's `defaultTest`.
 
 ### Adding a report case
 
 1. `make eval-gen-report CASE=id STUDENT_ID=N START=YYYY-MM-DD END=YYYY-MM-DD [INSTRUCTIONS='...']`
    drafts a reference through production `Generate`'s prompt (needs the
-   provider's API key) and writes it to the store under `CASE`; it refuses an
-   id the store already holds. It prints the case, range and note count, and a
-   draft manifest entry; never the report. `START` must fall in the current
-   term (on or after 2026-08-24).
-2. `make eval-dump-report CASE=id` prints the reference and the notes in its
-   range with class roster names and aliases replaced by `STUDENT` /
-   `CLASSMATE_n`, misspellings within an edit or two included (`CLASSMATE_?`
-   when two children are equally close). Check it against the Level's Kids&Us
-   sources before trusting it. Terminal only: health and family details
-   remain, and names off the roster (other classes, the teacher) still print.
-   `STUDENT_ID=N REPORT_ID=M` dumps a DB report instead, such as a
-   regenerate case's draft.
+   provider's API key) and writes it to the store; refuses an existing id.
+   Prints case, range, note count and a draft manifest entry, never the
+   report. `START` must fall in the current term (on or after 2026-08-24).
+2. `make eval-dump-report CASE=id` prints the reference and notes with roster
+   names and aliases replaced by `STUDENT` / `CLASSMATE_n` (near misspellings
+   included; `CLASSMATE_?` when ambiguous). Check it against the Level's
+   Kids&Us sources. Terminal only: health and family details remain, and
+   off-roster names still print. `STUDENT_ID=N REPORT_ID=M` dumps a DB report
+   instead.
 3. Paste the entry into `fixtures.manifest.json`; rewrite the description to
    say what the case tests, without names.
 4. `make eval` to see the score.
-5. `make eval-baseline` once the score looks right.
+5. `make eval-baseline` once it looks right.
 
 ### Regenerate cases
 
-A regenerate case scores what `Regenerate` writes when a Teacher sends feedback
-on a draft. Its manifest entry adds:
+A regenerate case scores what `Regenerate` writes after Teacher feedback on a
+draft. Its manifest entry adds:
 
-- `feedback`: `artifact_feedback` ids, oldest first. Each id is one round; its
-  comment must be non-empty and on a report of the case's student. The text
-  stays in the DB.
+- `report_id`: the draft round 1 revises. Written as `reference.html` and
+  passed as `vars.draft`.
+- `feedback`: `artifact_feedback` ids, oldest first, one per round. Each
+  comment must be non-empty and on a report of the case's student. Text stays
+  in the DB; `feedback.json` holds it.
 - `expect` (optional): name-free rubric lines, e.g. "No cushions appear
   anywhere in the report."
 
-`report_id` is the draft the first round revises. `make eval-fixtures` writes it
-as `reference.html` and passes it as `vars.draft`; `feedback.json` holds the
-comments. Notes come from today's DB, as in production: a note created or
-edited after the draft is a Teacher correction, not staleness, so generation
-does not fail on it. Such notes keep `updatedAt` in `notes.json`, and
-`vars.draft_created_at` holds the draft's `created_at`: round 1's prompt tags
-them `(new)`, as production does.
+Notes come from today's DB, as in production: a note changed after the draft is
+a Teacher correction, not staleness, so generation does not fail on it. Such
+notes keep `updatedAt` in `notes.json`, and `vars.draft_created_at` lets round
+1's prompt tag them `(new)`, as production does.
 
-`providers/regen-chain.js` runs the rounds on each row's model. Round 1 is the
-prompt promptfoo built; for each later round it calls `eval-cli` with
-`vars.draft` set to the previous output and `vars.round` to the round index,
-then calls the model again. promptfoo grades the last output; the earlier ones
-sit in the result's `response.metadata.earlierRounds`. The wrapper loads the
-inner model through a second promptfoo copy, whose own view of the cache file
-the CLI overwrites; so each call skips that copy's cache and goes through the
-CLI's (`context.getCache`), keyed by inner model, repeat index and prompt.
-`--no-cache` reaches it like any other call.
-Round N's prompt lists rounds 1..N-1 as earlier feedback, as production's chain
-does.
+`providers/regen-chain.js` runs the rounds on each row's model. Round 1 uses
+promptfoo's prompt; each later round calls `eval-cli` with `vars.draft` set to
+the previous output and `vars.round` to the round index. Round N's prompt lists
+rounds 1..N-1 as earlier feedback, as in production. promptfoo grades the last
+output; earlier ones sit in `response.metadata.earlierRounds`. The wrapper
+caches through the CLI's `context.getCache` (its own promptfoo copy's cache
+gets overwritten), keyed by inner model, repeat index and prompt; `--no-cache`
+applies.
 
 Besides the shared axes, each regenerate test gets `llm-rubric` lines, threshold
 0.75, written by `gen-report-cases` with the case's text inline:
@@ -287,108 +209,69 @@ Besides the shared axes, each regenerate test gets `llm-rubric` lines, threshold
 Lines sharing a metric average in `namedScores`. They carry no word-count
 transform: promptfoo inlines `file://` strings in an external tests file, so
 the transform would arrive as source text. The judge sees the draft as its
-reference report. Regenerate tests run on `gradebee-prompt` only: the
-gold-reference row would echo the draft, which ignores the feedback.
+reference. Regenerate tests run on `gradebee-prompt` only: the gold-reference
+row would echo the draft.
 
 ## Report scoring
 
-The judge is `openrouter:google/gemini-3.8-flash`, pinned to Google Vertex with
-fallbacks off (#195). It needs `OPENROUTER_API_KEY`. No vendor under test may
-judge: not OpenAI (luna, the canonical report model), Anthropic (edited the
-references) or Mistral (the Medium row). OpenRouter's EU host does not serve it;
-ADR-0005 records the exception. `omitDefaults` drops promptfoo's `max_tokens`
-1024, which reasoning would exhaust, and `max_tokens: 32768` bounds a runaway.
-No `temperature`. `showThinking: false` keeps the reasoning, which drafts its
-own JSON, out of the graded answer.
+The judge is `anthropic:claude-agent-sdk` on `claude-opus-5-5`, one turn, no
+tools, no user settings, a one-line system prompt. It uses `ANTHROPIC_API_KEY`
+if set, else the Claude Code login (`apiKeyRequired: false`), and needs
+`@anthropic-ai/claude-agent-sdk` (pinned) from the root `pnpm install`. About
+$0.05–0.06 per grading call plus a claude-haiku-5-5 housekeeping call (about
+$0.0008). It runs outside the EU; ADR-0005 records the exception.
 
-#195 measured the candidates on the same cached luna and Medium outputs, plus
-three `--no-cache` runs each of the gold rows and of nine fixed luna outputs
-(an `echo` row like gold, since gold sat at the top of the scale):
+Anthropic wrote the reference reports, so the judge may favour them
+(self-preference). Read gold-row and luna-row moves with that in mind.
 
-| Judge | Judge cost a full run | Luna fixed-output row swing | Luna − Medium row |
-| --- | --- | --- | --- |
-| gpt-6.1-sol (before) | $1.09 | not measured | 0.817 − 0.618 (#190) |
-| deepseek-v4.1-flash (Together) | $0.48 | 0.25 | 0.811 − 0.628 |
-| deepseek-v4-pro-0813 (StreamLake) | $1.03, 4x flash's time | 0.25 | 0.817 − 0.661 |
-| gemini-3.8-flash (Vertex), with the anchor below | $0.69 | 0.10 | 0.811 − 0.672 |
+Five `llm-rubric` assertions, one per axis, each a promptfoo `metric` reported
+in `namedScores`: structure, grounding, completeness, tone, compliance. Each
+axis gives a 1-5 anchor table; the judge returns it as 0-1 (1 = 0, 2 = 0.25,
+3 = 0.5, 4 = 0.75, 5 = 1). The custom `rubricPrompt` asks for `{reason, score}`
+only, so the per-assertion `threshold` decides pass: grounding needs 0.75, the
+others 0.5. A row passes when every axis clears its floor. The row score is the
+mean over the axes and the regex below, for trends only; one axis step moves it
+about 0.04.
 
-At `temperature: 0` DeepSeek flash looped to the token cap in 5 of 135 calls and
-scored "No output" as 0. DeepSeek's own host is off: the account's data policy
-blocks a host that trains on prompts. Gemini first passed invented behaviours
-("waits her turn") as general statements, grounding Medium at 0.75; the
-grounding anchor below brought it to 0.53. The non-OpenAI judges score luna as
-sol did (0.81–0.82), so sol showed no sign of self-preference.
+A sixth assertion, `not-regex` with metric `source-mention`, fails a report
+that names its source ("the notes", "as recorded", "was described as") instead
+of telling what happened in class. The canonical provider sets
+`showThinking: false` so gpt-6-luna's reasoning stays out of the graded output.
 
-Five `llm-rubric` assertions, one per axis, each a promptfoo `metric`, so the
-results JSON carries them in `namedScores`: structure, grounding, completeness,
-tone, compliance. Each axis gives a 1-5 anchor table; the judge returns the
-anchor as 0-1 (1 = 0, 2 = 0.25, 3 = 0.5, 4 = 0.75, 5 = 1). The custom
-`rubricPrompt` asks for `{reason, score}` only, so the per-assertion
-`threshold` decides pass, not the judge: grounding needs 0.75, the others 0.5. A
-row passes when every axis clears its floor. The row score is the mean over the
-axes and the regex below, for trends only; one axis step moves it about 0.04.
+Axis boundaries:
 
-A sixth assertion, `not-regex` with metric `source-mention`, needs no judge: it
-fails a report that names its source ("the notes", "as recorded", "was
-described as") instead of telling what happened in class (#196). The canonical
-provider sets `showThinking: false`: promptfoo otherwise prepends gpt-6-luna's
-reasoning to the output, and the judge and the regex would grade it as report
-text.
+- **Compliance** excludes grounding, fact coverage, short length, sections and
+  tone. It flags going over a length cap, a note fact in two sections or in a
+  section that does not cover it. It reads Level rules together: a section with
+  no fact of its own passes with general statements and its `[MISSING]` marker,
+  a required example is a minimum, "each fact once" covers note facts only. A
+  difficulty a later note shows resolved needs no what-we-do or marker.
+- **Completeness** covers dropped note facts and falling short of a length.
+- **Grounding** checks every time-ordered claim against note dates: a change
+  needs an earlier and later note differing on the same skill, or a note
+  stating it. A behaviour, routine or interaction no note shows ("waits her
+  turn", "gets on well with the other children") is an invented fact, not a
+  general statement.
 
-The axes do not grade each other: compliance leaves out grounding, fact
-coverage, falling short of a length, sections and tone. Falling short of a
-length is completeness; going over a cap is compliance. Compliance flags a note
-fact in two sections or in a section that does not cover it (#188), and reads
-the Level rules together: a section with no fact of its own passes with general
-statements and its `[MISSING]` marker, a required example is a minimum, and
-"each fact once" covers note facts, not general statements. A difficulty a
-later note shows resolved needs no what-we-do or marker; leaving it out costs
-completeness, not compliance (#216, `linda_typical`). Grounding checks
-every time-ordered claim against the note dates: a change needs an earlier and
-a later note that differ on the same skill, or a note stating it, so a trend or before/after story the
-notes do not show is an invented fact. A behaviour, routine or interaction no
-note shows ("waits her turn", "gets on well with the other children") is an
-invented fact too, not a general statement (#195): a parent who knows the class
-can tell it never happened.
+The judge cannot count words, so `scoring/report-wordcounts.js`, an assertion
+`transform`, appends per-section word counts (and tags sections holding a
+`[MISSING` marker) to the judge's copy of the output. The rubric reads the
+length rule from the instructions; none lives in code. A transform, not a
+`nunjucksFilters` filter: promptfoo renders `rubricPrompt` with bare nunjucks,
+so config filters never reach it.
 
-The judge cannot count words (it said 63 for a section of 83), so code
-measures: `scoring/report-wordcounts.js`, an assertion `transform`, appends
-per-section word counts to the judge's copy of the output. The rubric says to
-use them and read the length rule from the instructions; no length rule lives in
-code. A section holding a `[MISSING` marker is tagged in the block, since a
-section with no facts of its own may fall under the Level's minimum. A transform, not a `nunjucksFilters` filter: promptfoo renders
-`rubricPrompt` with bare nunjucks, so config filters never reach it.
-
-The grading prompt carries the same note-filing statement as the report prompt:
-the teacher filed every note to this student, and the name a note opens with,
+The grading prompt carries the report prompt's note-filing statement: the
+teacher filed every note to this student, and the name a note opens with,
 however spelled, is this student.
 
 ### Gold-reference row
 
 The `gold-reference` provider (`echo`, prompt `{{reference}}`) grades each
 case's reference report. Its output never changes, so its movement is judge
-noise. Non-canonical: it never counts as a regression.
-
-Three `--no-cache` runs on 2026-10-07 (#186): gold means 0.939, 0.928 and
-0.911; every gold row passed in two runs, one row failed compliance in the
-third. The largest row spread was 0.10 (one axis moving two steps), so `make
-eval` counts a report move as a regression or improvement only beyond ±0.15
-(`REPORT_DIFF_FLAGS`); extraction keeps ±0.05. The report diff also lists the
-axes that moved.
-
-#188 rewrote all nine references to its rules (no unsupported trajectory, each
-fact in one section, `[MISSING]` marker for a section with no fact of its own).
-Three `--no-cache` gold runs: means 0.917, 0.928 and 0.922; `tweens_pair_a`
-failed grounding in all three on a change its one note states, which led to
-the "or a note states it" clause; `very_short_last_note` failed compliance once.
-The baseline re-pinned after that clause passes every gold row.
-
-#195 swapped the judge and added the behaviour clause, which failed
-`very_short_last_note` and `single_note` on "gets on well with the other
-children"; both references dropped the phrase, in `data/gradebee.db`. Three
-`--no-cache` gold runs then: every row passed, means 0.989 each, spread 0.00.
-Nine fixed luna outputs, three runs: largest row spread 0.10, so the ±0.15 band
-stands.
+noise. Non-canonical: never a regression. Measured row spread reaches 0.10, so
+`make eval` counts a report move as a regression or improvement only beyond
+±0.15 (`REPORT_DIFF_FLAGS`); extraction uses ±0.05. The report diff also lists
+the axes that moved.
 
 ## Extraction scoring axes
 
@@ -405,216 +288,95 @@ passes only if the hard five do and nothing forbidden leaked.
 | (global) | `must_keep_substrings` | an observation was dropped as `none` instead of reaching a note or the unattributed list |
 | preference (soft) | `should_quote_substrings` | text that makes a note better and whose absence is not a defect |
 
-`should_quote_substrings` scores as the fraction matched and is deliberately kept
-out of the pass decision, so a run that drops it scores lower and still passes.
-Taught vocabulary is what it exists for: "He was doing good with making the full
-sentences. Yes, I can. No, I can't." names the structure, where the first
-sentence alone does not — but the model carries the drill into the notes only
-some runs, and the run that misses it is not a bad recording. The axis is
-skipped entirely for a fixture that defines none, so adding it moved no other
-row's score.
+`should_quote_substrings` scores as the fraction matched and stays out of the
+pass decision; skipped for fixtures that define none. It exists for taught
+vocabulary the model carries into notes only some runs (e.g. the
+`fuzzy_name_matching` drill lands about one run in three). The result also
+carries a `hard` named score without the soft axis; `scripts/diff-baseline.js`
+reads `hard` so a flaky preferred phrase does not trip the ±0.05 band.
 
-The result also carries a `hard` named score: the same score with the soft axis
-taken out. `scripts/diff-baseline.js` reads `hard` as the regression signal,
-because a preferred phrase the model reaches only some runs swings a row by more
-than the differ's ±0.05 band and would announce a regression nobody caused.
+`must_not_quote_substrings` is the per-student counterpart of
+`must_not_extract`. Precision/recall compare only the *set* of names, so a run
+copying the whole transcript into every student's `quoted_text` scores 1.00 on
+them. Every multi-student fixture should list the other named students here.
 
-**This file owns the measured rate.** 15 runs of `fuzzy_name_matching`,
-`mistral-medium-2508`, no cache: 10 runs carried no drill at all, 5 carried the
-class drill to all five children, and **none** carried Théo's own drill into his
-note. So the class drill lands about one run in three and his own never does —
-worth knowing before anyone tunes the prompt for it.
-
-`must_not_quote_substrings` is the per-student counterpart of `must_not_extract`.
-It exists because precision/recall compare only the *set* of extracted names: a
-run that copies the whole transcript into every student's `quoted_text` scores a
-perfect 1.00 on them. That is exactly how the cross-student bleed regression
-reached production unnoticed, so every new multi-student fixture should carry
-`must_not_quote_substrings` listing the other named students.
-
-Both substring fields accept a plain substring or `/pattern/flags` regex syntax.
+Both substring fields accept a plain substring or `/pattern/flags` regex.
 
 ## What extraction grades
 
-Extraction is two model calls in production (#125): pass 1 names the class
-from the class list alone, pass 2 reads the transcript against that one class's
-roster and returns passages. **This harness grades pass 2 only.** promptfoo
-makes one call per test, and pass 1 is a different prompt against a different
-schema, so each fixture names the class pass 1 is taken to have pinned, in
-`vars.class_name`. Pass 1 measured 93/93 on `mistral-medium-2508` over 31
-samples. The case it exists for — declining a recording it cannot place (#127)
-— is graded in Go, not here: see `multi_class` below.
+Production extraction is two calls: pass 1 picks the class (and returns the
+spoken header), pass 2 reads the transcript against that class's roster and
+returns passages. **This harness grades pass 2 only.** Each fixture names the
+pinned class in `vars.class_name`, and its header, if any, in `vars.header`;
+eval-cli cuts it with production's `CutHeader`, and a header that cuts nothing
+fails the row. Pass 1 is graded in Go (`backend/llm_live_test.go`):
+`TestLLM_DeclinesWhenNoHeaderPinsOneClass` (the `multi_class` fixture) and
+`TestLLM_PassOneReturnsTheHeaderToCut`.
 
-Since #155 pass 1 also returns the spoken header, and production cuts it before
-pass 2. Each fixture with a header names it in `vars.header`, and eval-cli cuts
-it with the same `CutHeader` production calls; a header that cuts nothing fails
-the row. The values are pass 1's modal answers from
-`research/2026-09-13-152-header-strip`; `TestLLM_PassOneReturnsTheHeaderToCut`
-pins the live cut on `date_drill`.
+`scoring/assemble.js` folds pass-2 passages into notes with the same pronoun
+guard and assembly rules as production: it is the JavaScript twin of
+`guardPassages` (`backend/extract.go`) and `assemblePassages`
+(`backend/voice_note_passages.go`). Change one, change both.
 
-`scoring/assemble.js` sits between the model and the scorer. Pass 2 returns
-passages; `expected.json` and the four scoring axes describe notes. The
-transform folds one into the other, applying the same pronoun guard and
-assembly rules as production — it is the JavaScript twin of `guardPassages`
-(`backend/extract.go`) and `assemblePassages`
-(`backend/voice_note_passages.go`). Change one, change both, or the eval stops
-grading what ships.
+All fixtures score 1.000 on `gradebee-extract` except `fuzzy_name_matching`
+(0.800: every hard axis passes; the soft drill lands in a `none` passage).
 
-Scores are `gradebee-extract` (`mistral-medium-3-5`), the extraction baseline
-pinned on 2026-09-17 by #164, with pass 1 cutting the header before
-pass 2 (#155). `mistral-medium-2508` scored the same on every row.
-
-| Fixture | Score | State |
-| --- | --- | --- |
-| `voice_preservation` | 1.000 | green |
-| `cross_student_bleed` | 1.000 | green |
-| `group_observation` | 1.000 | green — the group remark reaches the whole pinned roster, never the sibling class. |
-| `shared_clause` | 1.000 | green — 6 runs in 7 on `mistral-medium-3-5`, no cache (#164); the miss gave the shared "colours" sentence to Bruno alone. |
-| `full_name_roster` | 1.000 | green |
-| `numbered_roster` | 1.000 | green |
-| `pronoun_run_bleed` | 1.000 | green — was 0.333. Two blocks are owned by nobody; passages are the unit that lets them reach no note. 5 runs in 5. |
-| `date_drill` | 1.000 | green — was 0.000. A group passage reaches every child. 5 runs in 5. |
-| `roster_phantom` | 1.000 | green — new. Note 694's shape at the roster order that produces the phantom. 5 runs in 5. |
-| `absent_child` | 1.000 | green — new. A child named absent keeps their own note. |
-| `absent_phrasing` | 1.000 | green — new. Absence in wording the prompt does not spell out. |
-| `absent_group` | 1.000 | green — new. A group remark skips the absent child, reaches everyone else. |
-| `wrong_class_group` | 1.000 | green — a wrong pick on a declined card. Names off the roster suppress the group remark; no note. Pass 1 declines this transcript; the row is pass 2 after the pick. |
-| `placeholder_name` | 1.000 | green — new. A pasted `STUDENT` placeholder reaches nobody; nothing dropped. Old prompt: 3/3 red, one phantom note. |
-| `off_roster_name` | 1.000 | green — new. A name off the roster reaches nobody; nothing dropped. Old prompt: 3/3 red, the whole note dropped as `none`. |
-| `fuzzy_name_matching` | 0.800 | green — was 0.600 under #155's cut; every hard axis passes. See below. |
-
-`multi_class` is no longer a row here. #127 gave pass 1 a `""` to return, so the
-fixture's right answer is a decline — and a decline is pass 1's, while every row
-in this config is a pass-2 row: `build-extract-prompt` is the pass-2 builder and
-takes a `class_name` var, which is the very thing that fixture withholds. It
-moved to `backend/llm_live_test.go`
-(`TestLLM_DeclinesWhenNoHeaderPinsOneClass`), which builds the real
-`classPickSchema` — the one function #127 changed — where a promptfoo row would
-score a re-implementation of it. The fixture files stay where they are; that
-test reads them.
-
-### `fuzzy_name_matching`, the shared passage that was split
-
-"Liana and Lucie did well. They did well with Marcia's playing, Marcia's
-jumping." should come back once per child with the same summary. Under #125
-the model split it instead: Lucie got both sentences and Lina only "Liana did
-well", so Lina's note lost her half. 2 runs in 8 green, then 0 in 6 after
-#155's header cut; the row sat pinned red at 0.600.
-
-The cause was the contract sentence, not the per-child rule: "contiguous
-passages … together covering the whole transcript" reads as a partition, and
-the model honoured it by cutting the name list in two. #128 added three
-sentences to the per-child rule: the shared passage runs to where the teacher
-moves on, pronoun sentences included, and a copy shorter than another is
-wrong. On cut transcripts, `mistral-medium-2508`, 10 runs per cell: 2/10 →
-10/10, with date_drill, shared_clause, roster_phantom and pronoun_run_bleed
-all holding 10/10. The rule's roster-phantom measurement stands: same text
-plus an extent clause. Write-up: `research/2026-09-14-128-residue`.
-
-The same failure in production, before the fix: 1 of 22 real recordings on
-one run and 0 on the next, cut or uncut. The fixture is the hard case.
-
-The row scores 0.800, not 1.000: every hard axis is green, and the soft
-`should_quote_substrings` drill ("Yes, they can") lands in a `none` passage on
-every run, before and after the fix.
-
-### `wrong_class_group` was a coin toss
-
-Re-running the suite for #128 turned this row red (0.625) with no change near
-it, so it was re-measured uncut on `mistral-medium-2508`: 10 passes in 30 on
-the prompt before #128, 4 in 30 with the fuzzy fix alone. The pass condition
-(no note) holds only when the model returns Inès and Nathan as `child`
-passages with a spoken label and an empty `student`, so the no-names rule can
-suppress the group remark. The `unknown` bullet told it the opposite: "a name
-that matches nobody listed" was listed as `unknown`, which carries no label.
-#128 cut that clause. 30 runs in 30 afterwards; the other five measured rows
-held 10/10. The then-untracked `mistral-small-2603` comparison row went the other way on this
-row in the same run, 1.000 to 0.500; not measured further.
-
-### `roster_phantom` and the negative it is paired with
-
-`roster_phantom` is green with the prompt's no-elimination rules and the Go
-guard. The other half — red without the rules and with the guard off — is not a
-row here: a promptfoo row that must fail is a trap for the next reader, and the
-rules-off prompt text does not exist in the shipped code to point a row at. The
-measurement lives in
-`research/2026-09-05-123-summaries-vs-spans/RESULTS.md`: on note 694's real
-transcript, the unnamed block was filed under a listed child **8 runs in 10**
-without the rules and **0 in 10** with them, and the guard removed 100% of what
-was left across 280 runs with no false positive.
-
-### Known trap: `LOG_LEVEL`
-
-`make eval` exports the repo's `.env`, and promptfoo reads `LOG_LEVEL`. The
-project sets `LOG_LEVEL=DEBUG`, which is not one of promptfoo's levels, and it
-then prints nothing at all — no table, no summary, exit 0. Run
-`LOG_LEVEL= make eval`, or unset it, if the output is empty.
+| Fixture | What it covers |
+| --- | --- |
+| `voice_preservation` | |
+| `cross_student_bleed` | |
+| `group_observation` | group remark reaches the whole pinned roster, never the sibling class |
+| `shared_clause` | shared sentence reaches both children |
+| `full_name_roster` | |
+| `numbered_roster` | |
+| `pronoun_run_bleed` | blocks owned by nobody reach no note |
+| `date_drill` | group passage reaches every child |
+| `roster_phantom` | unnamed block not filed under a listed child (negative measured in `research/2026-09-05-123-summaries-vs-spans/RESULTS.md`) |
+| `absent_child` | child named absent keeps their own note |
+| `absent_phrasing` | absence in wording the prompt does not spell out |
+| `absent_group` | group remark skips the absent child |
+| `wrong_class_group` | pass 2 after a wrong class pick: off-roster names suppress the group remark; no note |
+| `placeholder_name` | pasted `STUDENT` placeholder reaches nobody; nothing dropped |
+| `off_roster_name` | off-roster name reaches nobody; nothing dropped |
+| `fuzzy_name_matching` | "Liana and Lucie did well. They…" comes back whole for each child, not split |
 
 ## Adding a fixture
 
 1. Extraction: create `fixtures/extraction/<descriptive-name>/` with the files above and add a test entry to `promptfooconfig.extract.yaml` with flat `vars` (no `body` wrapper).
-2. Report: `make eval-gen-report` writes a fresh case's reference; append its entry to `fixtures.manifest.json`, then run `make eval-fixtures`. See "Adding a report case".
-3. Run `make eval` (or `make eval-extract` / `make eval-report`) to see the score; if correct, run `make eval-baseline`.
+2. Report: see "Adding a report case".
+3. Run `make eval` (or `make eval-extract` / `make eval-report`); if correct, `make eval-baseline`.
 
 ## Baseline lifecycle
 
-One baseline per domain, both overwritten by `make eval-baseline`:
+One baseline per domain, both local only under the gitignored `data/`, both overwritten by `make eval-baseline`:
 
-- **Extraction** — `data/eval-baseline-extract.json` at the repo root, local only. Outputs quote real teacher notes, so it stays out of the public repo.
-- **Report** — `data/eval-baseline-report.json` at the repo root, local only. Report outputs hold real student names, so the file sits under the gitignored `data/` next to `gradebee.db`; copy both when setting up a worktree. On a fresh clone `make eval` skips the report diff with a message until `make eval-baseline` pins one. Losing it means re-pinning from a fresh run.
+- **Extraction**: `data/eval-baseline-extract.json`. Outputs quote real teacher notes.
+- **Report**: `data/eval-baseline-report.json`. Outputs hold real student names. On a fresh clone `make eval` skips the report diff until `make eval-baseline` pins one.
 
-Both files keep only what `diff-baseline.js` reads; `scripts/pin-baseline.js` drops the per-run eval id, share URL and config, which change every run.
+Copy both when setting up a worktree. `scripts/pin-baseline.js` keeps only what `diff-baseline.js` reads.
 
-`make eval-baseline` pins the run its own `make eval` just made, and writes neither file unless both results are clean. It stops if a promptfoo run wrote no output, or if any row errored (`failureReason` 2: API outage, transform failure), on any provider, canonical or comparison: an errored row scores 0 and would read as a regression on every later run. Re-run once the errors clear.
+`make eval-baseline` pins the run its own `make eval` just made, and writes neither file unless both results are clean: it stops if a promptfoo run wrote no output or any row on any provider errored (`failureReason` 2), since an errored row scores 0 and would read as a regression later. Re-run once errors clear. Prefer re-pinning over hand-editing; `diff-baseline.js` keys on description plus provider, so dropping a row by hand is safe if you must.
 
-The report cases came from #177 (2026-10-04): 9 cases, references generated by the production model under the Level instructions as revised after a teacher's review (see "What grounding means" below), then edited by Claude Opus to that standard and checked by a second reviewer. #186 re-pinned the baseline on 2026-10-07 from a `--no-cache` run under per-axis scoring (see "Report scoring"); scores before it used a different judge and scale and do not compare.
+## Report instructions and grounding
 
-Both started out as one combined `baseline.json`. #172 split it by provider label, by hand, instead of regenerating: extraction rows unchanged and committed. The report rows were dropped, not moved under `data/`: they grade the old `fixtures/reports/` cases, which #173 replaces with cases generated from the DB, so they would never match a future run.
+A Level's `report_instructions` defines structure, sections and content; ad-hoc
+`instructions` (a teacher's per-run override) win where they conflict. The
+shared axis rubrics in `defaultTest` never hardcode structure or length; they
+say "as instructed" and the vars carry the specifics. Grounding is graded
+regardless of instructions.
 
-**One exception on record.** #127 removed the `multi_class` row rather than changing a
-score, and it was cut out of `baseline.json` by hand instead of regenerating. A full
-`make eval-baseline` was run first and rejected: the extraction rows came back identical,
-while four `report:` rows dropped 1.0–1.5 on the canonical provider — movement #127 cannot
-cause, since it changed one const and some comments in `prompts_version.go` and the report
-templates are byte-identical. A `--no-cache` re-run of the report eval came back at
-baseline, confirming judge variance, and pinning the low run would have hidden the next
-real report regression. `diff-baseline.js` keys on description plus provider, so dropping
-two rows is a safe edit; the `prompt.raw` the file stores is pass 2's, which #127 does not
-touch. Prefer regenerating. If you hand-edit, say so here.
-
-## Report instructions authority
-
-Reports are instruction-driven: a Level's `report_instructions` defines the required
-structure, sections, and content, and the model must follow it. Ad-hoc
-`instructions` (a teacher's per-run override) outrank `report_instructions` where
-they conflict. Grounding is graded as a separate axis regardless of
-instructions.
-
-### What grounding means (teacher review, #177)
-
-A teacher reviewed the first corrected references and rejected strict
-grounding: references cut down to note-traceable sentences read as thin and
-condensed, and the model's general statements ("settled in well", "understood
-the instructions") were wanted. Since then:
+Grounding rules, from teacher review; the Level instructions, report prompt
+and rubric all follow them:
 
 - A report may complete a section with general statements about attitude,
   progress and time in class that fit the notes.
 - A defect is a statement that contradicts a note, an invented specific fact
   (activity, incident, example, quote, mark, rating, date) or an invented
   weakness or problem.
-- Completeness is graded: dropping note facts or falling short of the Level's
-  length is a defect.
-- Reports name "the teacher", never "we" or "us"; carry no dates; and add no
-  marker questioning a note, because the teacher vets notes when writing them.
-- Since #188: a section the notes give no fact of its own gets one or two
-  general statements and a `[MISSING: example of …]` marker, never another
-  section's facts; a change over time needs notes on different dates showing it.
-
-The Level instructions, the report prompt and the rubric all follow these rules.
-
-`promptfooconfig.report.yaml` passes `report_instructions` and `instructions` as
-separate vars per test case and grades both with the shared axis rubrics in
-`defaultTest` rather than a bespoke rubric per case — the
-rubric never hardcodes a structure or length rule that belongs in
-`report_instructions` itself; it says "as instructed" and lets the var carry the
-specifics.
+- Dropping note facts or falling short of the Level's length is a
+  completeness defect.
+- Reports name "the teacher", never "we" or "us"; carry no dates; add no marker
+  questioning a note.
+- A section with no fact of its own gets one or two general statements and a
+  `[MISSING: example of …]` marker, never another section's facts. A change
+  over time needs notes on different dates showing it.

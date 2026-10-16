@@ -13,7 +13,7 @@ prompts:
 # gradebee-report is the canonical (production) provider — tracked for
 # regressions against the local report baseline (data/eval-baseline-report.json).
 # Production routes reports to OpenRouter's EU host (ADR 0006); apiBaseUrl
-# pins the eval there too. omitDefaults: see the judge provider below.
+# pins the eval there too. omitDefaults drops promptfoo's max_tokens default.
 # showThinking: false keeps luna's reasoning out of the output; promptfoo
 # prepends it by default, and the judge and the regex below graded it.
 # regen-chain runs a regenerate case's feedback rounds on the inner model;
@@ -86,21 +86,19 @@ defaultTest:
     task: build-report-prompt
   options:
     provider:
-      # Not OpenAI (luna's vendor), Anthropic (wrote the references) or
-      # Mistral (Medium row); see evals/README.md "Report scoring" and
-      # ADR-0005 for the non-EU host. omitDefaults drops promptfoo's
-      # max_tokens 1024, which reasoning would exhaust; 32768 bounds a
-      # runaway. No temperature: at 0 DeepSeek, a candidate, looped to the cap.
-      # showThinking off, or the reasoning, which drafts its own JSON, lands
-      # in front of the answer.
-      id: openrouter:google/gemini-3.8-flash
+      # Claude Agent SDK judge. Anthropic wrote the references, so expect
+      # self-preference; see evals/README.md "Report scoring". tools,
+      # setting_sources and the system prompt are bare, or the judge loads
+      # ~/.claude settings and the Claude Code prompt. apiKeyRequired false:
+      # ANTHROPIC_API_KEY if set, else the Claude Code login.
+      id: anthropic:claude-agent-sdk
       config:
-        omitDefaults: true
-        showThinking: false
-        max_tokens: 32768
-        provider:
-          order: [google-vertex]
-          allow_fallbacks: false
+        model: claude-opus-5-5
+        max_turns: 1
+        tools: []
+        setting_sources: []
+        custom_system_prompt: You grade school reports. Reply with the JSON object only.
+        apiKeyRequired: false
     rubricPrompt: |
       You grade one axis of a school report card that a model wrote from a teacher's notes.
 
