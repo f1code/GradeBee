@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -158,6 +159,22 @@ func TestMistralTranscribe_CtxCancelAbortsRequest(t *testing.T) {
 	}
 }
 
+func TestOpenAIChatText_SendsMinimalReasoningEffort(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ReasoningEffort string `json:"reasoning_effort"`
+		}
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		assert.Equal(t, "minimal", body.ReasoningEffort)
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"report"}}]}`) //nolint:errcheck // test server
+	}))
+	defer srv.Close()
+
+	p := newOpenAIProvider("key", srv.URL+"/v1", map[LLMTask]string{LLMTaskReport: "m"})
+	_, err := p.ChatText(context.Background(), ChatTextRequest{UserPrompt: "x"})
+	require.NoError(t, err)
+}
+
 func TestMistralChatJSON_DecodeFailureReturnsUsage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/v1/chat/completions", r.URL.Path)
@@ -170,7 +187,7 @@ func TestMistralChatJSON_DecodeFailureReturnsUsage(t *testing.T) {
 	assert.Equal(t, &LLMUsage{InputTokens: 7, OutputTokens: 3}, resp.Usage)
 }
 
-func TestMistralTranscribe_DecodeFailureReturnsUsage(t *testing.T) {
+func TestMistralTranscribe_DecodeFailureReturnsNoUsage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `not json`) //nolint:errcheck // test server
 	}))
@@ -178,7 +195,7 @@ func TestMistralTranscribe_DecodeFailureReturnsUsage(t *testing.T) {
 
 	resp, err := newTestMistralProvider(srv.URL).Transcribe(context.Background(), TranscribeRequest{Audio: strings.NewReader("x")})
 	require.Error(t, err)
-	assert.NotNil(t, resp.Usage)
+	assert.Nil(t, resp.Usage)
 }
 
 func TestOpenAITranscribe_RoundsDuration(t *testing.T) {
@@ -235,7 +252,7 @@ func TestLoadProvider_PerTask(t *testing.T) {
 				assert.Equal(t, "openrouter", r.report.Name())
 				assert.Equal(t, "mistral", r.extraction.Name())
 				assert.Equal(t, "mistral", r.transcription.Name())
-				assert.Equal(t, "openai/gpt-6-luna", p.Model(LLMTaskReport))
+				assert.Equal(t, "openai/gpt-6.1-sol", p.Model(LLMTaskReport))
 				assert.Equal(t, "mistral-medium-3-5", p.Model(LLMTaskExtraction))
 				assert.Equal(t, "voxtral-mini-latest", p.Model(LLMTaskTranscription))
 			},
@@ -343,6 +360,6 @@ func TestLoadProvider_RoutesTasksAndRecordsRealProvider(t *testing.T) {
 	rows := llmCallRows(t, db)
 	require.Len(t, rows, 3)
 	assert.Equal(t, []string{"mistral", "voxtral-mini-latest", "transcription"}, []string{rows[2].Provider, rows[2].Model, rows[2].Task})
-	assert.Equal(t, []string{"openrouter", "openai/gpt-6-luna", "report"}, []string{rows[0].Provider, rows[0].Model, rows[0].Task})
+	assert.Equal(t, []string{"openrouter", "openai/gpt-6.1-sol", "report"}, []string{rows[0].Provider, rows[0].Model, rows[0].Task})
 	assert.Equal(t, []string{"mistral", "mistral-medium-3-5", "extraction"}, []string{rows[1].Provider, rows[1].Model, rows[1].Task})
 }

@@ -41,6 +41,7 @@ func llmCallsFake(resp LLMResponse, err error) *metricsFakeProvider {
 		models: map[LLMTask]string{
 			LLMTaskExtraction:    "mistral-medium-2508",
 			LLMTaskTranscription: "voxtral-mini-latest",
+			LLMTaskReport:        "mistral-medium-3-5",
 		},
 		resp:        resp,
 		chatJSONErr: err,
@@ -100,8 +101,23 @@ func TestInstrumentedProvider_TimeoutRecordsNotOKWithoutUsage(t *testing.T) {
 	require.Len(t, rows, 1)
 	assert.False(t, rows[0].OK)
 	assert.Equal(t, "report", rows[0].Task)
+	assert.Equal(t, "mistral-medium-3-5", rows[0].Model)
 	assert.False(t, rows[0].InputTokens.Valid)
 	assert.False(t, rows[0].OutputTokens.Valid)
+}
+
+func TestInstrumentedProvider_TranscriptionFailureRecordsNotOKWithoutSeconds(t *testing.T) {
+	db := setupTestDB(t)
+	p := instrumentProvider(llmCallsFake(LLMResponse{}, context.DeadlineExceeded), db)
+
+	_, err := p.Transcribe(withLLMCaller(context.Background(), "user_1", "trace_1"), TranscribeRequest{})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	rows := llmCallRows(t, db)
+	require.Len(t, rows, 1)
+	assert.False(t, rows[0].OK)
+	assert.Equal(t, "transcription", rows[0].Task)
+	assert.False(t, rows[0].AudioSecs.Valid)
 }
 
 func TestInstrumentedProvider_MissingUserStillReturnsResult(t *testing.T) {
@@ -133,6 +149,7 @@ func TestAICostScript(t *testing.T) {
 	_, err = db.Exec(`INSERT INTO llm_calls (created_at, user_id, provider, model, task, input_tokens, output_tokens, audio_seconds, ok) VALUES
 		(` + yesterday + `, 'priced', 'mistral', 'mistral-medium-2508', 'extraction', 1000000, 1000000, NULL, 1),
 		(` + yesterday + `, 'priced', 'mistral', 'voxtral-mini-latest', 'transcription', NULL, NULL, 120, 1),
+		(` + yesterday + `, 'priced', 'openrouter', 'openai/gpt-6-luna', 'report', NULL, NULL, NULL, 0),
 		(` + yesterday + `, 'unpriced', 'mistral', 'no-such-model', 'report', 500, 50, NULL, 0),
 		(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), 'priced', 'mistral', 'mistral-medium-2508', 'report', 1000000, 0, NULL, 1)`)
 	require.NoError(t, err)
@@ -154,9 +171,10 @@ func TestAICostScript(t *testing.T) {
 	}
 	require.NoError(t, rows.Err())
 
-	// priced: $0.40 + $2.00 for the tokens, 2 min x $0.003 for the audio. Today's row is out of range.
+	// priced: $0.40 + $2.00 for the tokens, 2 min x $0.003 for the audio, $0 for the timed-out call.
+	// Today's row is out of range.
 	assert.Equal(t, []costRow{
-		{UserID: "priced", Calls: 2, InputTokens: 1000000, OutputTokens: 1000000, AudioMinutes: 2, USD: 2.406},
+		{UserID: "priced", Calls: 3, InputTokens: 1000000, OutputTokens: 1000000, AudioMinutes: 2, USD: 2.406},
 		{UserID: "unpriced", Calls: 1, InputTokens: 500, OutputTokens: 50, UnpricedCalls: 1},
 	}, got)
 }
