@@ -20,6 +20,7 @@ prices (model, per_1m_input, per_1m_output, per_minute) AS (
     -- https://eu.openrouter.ai/api/v1/models, 2026-10-07 (Azure EU endpoint).
     -- Reasoning tokens bill as output. OpenRouter's platform fee comes on top.
     ('openai/gpt-6-luna', 0.11, 0.55, NULL),
+    ('openai/gpt-6.1-sol', 2.20, 11.00, NULL),
     ('whisper-1', NULL, NULL, 0.006)
 ),
 -- Yesterday, UTC. For another day: SELECT '2026-09-16'.

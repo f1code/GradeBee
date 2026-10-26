@@ -14,8 +14,10 @@ prompts:
 # regressions against the local report baseline (data/eval-baseline-report.json).
 # Production routes reports to OpenRouter's EU host (ADR 0006); apiBaseUrl
 # pins the eval there too. omitDefaults drops promptfoo's max_tokens default.
-# showThinking: false keeps luna's reasoning out of the output; promptfoo
+# showThinking: false keeps the model's reasoning out of the output; promptfoo
 # prepends it by default, and the judge and the regex below graded it.
+# reasoning_effort goes in passthrough: promptfoo drops the plain key for any
+# model name it does not take for a reasoning model (gpt-6* included).
 # regen-chain runs a regenerate case's feedback rounds on the inner model;
 # a case without feedback is one plain call.
 providers:
@@ -24,11 +26,28 @@ providers:
     prompts: [gradebee-prompt]
     config:
       inner:
-        id: openrouter:openai/gpt-6-luna
+        id: openrouter:openai/gpt-6.1-sol
         config:
           apiBaseUrl: https://eu.openrouter.ai/api/v1
           omitDefaults: true
           showThinking: false
+          passthrough:
+            reasoning_effort: medium
+
+  # gpt-6-luna, production report model until 2026-10-26, default effort, 2
+  # uncached runs: row 0.85, 9.5/15 pass, 25-32 s p50, 83 s max (sol medium:
+  # 0.891, 12/15, 22 s, 35 s). At low or minimal effort luna reasoned ~670
+  # tokens and compliance fell to 0.40 (4-5/15 pass).
+  # - id: file://providers/regen-chain.js
+  #   label: gradebee-report-luna
+  #   prompts: [gradebee-prompt]
+  #   config:
+  #     inner:
+  #       id: openrouter:openai/gpt-6-luna
+  #       config:
+  #         apiBaseUrl: https://eu.openrouter.ai/api/v1
+  #         omitDefaults: true
+  #         showThinking: false
 
   # Comparison / experimental providers:
   # Medium 3.5, production report model until task 193. Off by default: its
@@ -55,7 +74,7 @@ providers:
 
   # gpt-6-luna on OpenAI direct, task 190, prompt bbcc024bf1b6, 3 uncached
   # runs: row 0.817 vs Medium 0.618, grounding 0.94 vs 0.38, 16/27 pass vs
-  # 0/27; 26 s a report. Now canonical via OpenRouter EU (task 193).
+  # 0/27; 26 s a report. Canonical via OpenRouter EU from task 193 to 2026-10-26.
 
   # gpt-6.1-sol, task 190 probe, 2 cases: every axis 1.0, 33 s. Judge until
   # task 195.

@@ -13,7 +13,7 @@ export default function PrivacyPage() {
         <ul>
           <li><strong>Mistral Voxtral</strong> — transcribes your audio recordings to text.</li>
           <li><strong>Mistral AI</strong> — analyses transcripts to extract student observations.</li>
-          <li><strong>OpenAI gpt-6-luna</strong>, via OpenRouter on Microsoft Azure (EU) — generates report card text from the notes.</li>
+          <li><strong>OpenAI gpt-6.1-sol</strong>, via OpenRouter on Microsoft Azure (EU) — generates report card text from the notes.</li>
         </ul>
       </section>
 
