@@ -137,7 +137,7 @@ Ownership and input checks run on the request context. LLM call, save and implic
 
 ### LLM Provider (`llm_provider*.go`)
 
-`LLMProvider` interface; `openaiProvider` (OpenAI, and OpenRouter at `OPENROUTER_BASE_URL`, no transcription) and `mistralProvider` (chat + Voxtral). `LoadProvider(db)` picks one per task from `LLM_PROVIDER_EXTRACTION`/`_REPORT`/`_TRANSCRIPTION` (default `LLM_PROVIDER`, default `mistral`) and fails fast on a bad name or missing key. Production: `mistral`, reports on `openrouter` (ADR 0006). Models: `LLM_MODEL_*`.
+`LLMProvider` interface; `openaiProvider` (OpenAI, and OpenRouter at `OPENROUTER_BASE_URL`, no transcription) and `mistralProvider` (chat + Voxtral). `LoadProvider(db)` picks one per task from `LLM_PROVIDER_EXTRACTION`/`_REPORT`/`_TRANSCRIPTION` (default `LLM_PROVIDER`, default `mistral`) and fails fast on a bad name or missing key. Production: `mistral`, reports on `openrouter` (ADR 0006; model and effort ADR 0007). Models: `LLM_MODEL_*`.
 
 `instrumentedProvider` writes one `llm_calls` row per call, failed ones with `ok = 0` (caller from `withLLMCaller`) and emits Sentry metrics.
 

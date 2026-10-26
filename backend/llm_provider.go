@@ -213,7 +213,7 @@ func defaultModels(provider string) map[LLMTask]string {
 		// No transcription: OpenRouter has no /audio/transcriptions.
 		return map[LLMTask]string{
 			LLMTaskExtraction: "mistralai/mistral-medium-3-5",
-			LLMTaskReport:     "openai/gpt-6-luna",
+			LLMTaskReport:     "openai/gpt-6.1-sol",
 		}
 	case "openai":
 		return map[LLMTask]string{
