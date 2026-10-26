@@ -89,13 +89,19 @@ func TestInstrumentedProvider_DecodeFailureRecordsNotOK(t *testing.T) {
 	assert.Equal(t, int64(5), rows[0].InputTokens.Int64)
 }
 
-func TestInstrumentedProvider_NoResponseNoRow(t *testing.T) {
+func TestInstrumentedProvider_TimeoutRecordsNotOKWithoutUsage(t *testing.T) {
 	db := setupTestDB(t)
 	p := instrumentProvider(llmCallsFake(LLMResponse{}, context.DeadlineExceeded), db)
 
-	_, err := p.ChatJSON(withLLMCaller(context.Background(), "user_1", ""), ChatJSONRequest{}, &struct{}{})
-	require.Error(t, err)
-	assert.Empty(t, llmCallRows(t, db))
+	_, err := p.ChatText(withLLMCaller(context.Background(), "user_1", ""), ChatTextRequest{})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	rows := llmCallRows(t, db)
+	require.Len(t, rows, 1)
+	assert.False(t, rows[0].OK)
+	assert.Equal(t, "report", rows[0].Task)
+	assert.False(t, rows[0].InputTokens.Valid)
+	assert.False(t, rows[0].OutputTokens.Valid)
 }
 
 func TestInstrumentedProvider_MissingUserStillReturnsResult(t *testing.T) {

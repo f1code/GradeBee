@@ -148,10 +148,12 @@ func withLLMCaller(ctx context.Context, userID, traceID string) context.Context 
 	return context.WithValue(ctx, llmCallerKey, llmCaller{userID: userID, traceID: traceID})
 }
 
-// saveLLMCall inserts the llm_calls row for a call that got a response. It
-// never fails the call: the result already cost money and the caller needs it.
+// saveLLMCall inserts the llm_calls row for a call. A failed call with no
+// response (timeout, network, non-2xx) gets a row with NULL usage, so failures
+// show in the table. It never fails the call: the result already cost money
+// and the caller needs it.
 func (p *instrumentedProvider) saveLLMCall(ctx context.Context, task LLMTask, usage *LLMUsage, callErr error) {
-	if usage == nil {
+	if usage == nil && callErr == nil {
 		return
 	}
 	log := loggerFromContext(ctx)
@@ -161,9 +163,11 @@ func (p *instrumentedProvider) saveLLMCall(ctx context.Context, task LLMTask, us
 		return
 	}
 	var inputTokens, outputTokens, audioSeconds any
-	if task == LLMTaskTranscription {
+	switch {
+	case usage == nil:
+	case task == LLMTaskTranscription:
 		audioSeconds = usage.AudioSeconds
-	} else {
+	default:
 		inputTokens, outputTokens = usage.InputTokens, usage.OutputTokens
 	}
 	// WithoutCancel: a client gone mid-report still got billed.
