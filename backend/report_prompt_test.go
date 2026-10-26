@@ -111,3 +111,10 @@ func TestBuildReportPrompt_NoSourceMention(t *testing.T) {
 	assert.Contains(t, prompt, "Write each fact as something observed in class; never mention the notes or records, "+
 		"or that something was noted, recorded, described or reported.")
 }
+
+// gpt-6.1-sol kept every fact and overran a teacher's 50-word limit at 60-80 words.
+func TestBuildReportPrompt_AdHocLengthDropsFacts(t *testing.T) {
+	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", nil)
+	assert.Contains(t, prompt, "A length in the Teacher's Instructions overrides it: "+
+		"keep to that length and leave out the least important facts.")
+}

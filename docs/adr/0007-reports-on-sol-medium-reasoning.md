@@ -41,5 +41,5 @@ the Business platform fee.
 - Report cost rises about 7x.
 - Privacy page names the new model.
 - Sol's Azure EU endpoint is on OpenRouter's ZDR list (confirmed 2026-10-26).
-- Open: sol still overruns a teacher's ad-hoc word limit (Toddler case: 61 and 70 words against
-  ~50) at every effort tried. A prompt fix, not effort.
+- Sol overran a teacher's ad-hoc word limit (Toddler case: 61-74 words against ~50) at every
+  effort tried. The report prompt now says an ad-hoc length wins and the least important facts go.
