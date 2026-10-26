@@ -4,17 +4,16 @@ Ballpark AI cost per user. The provider invoice stays the source of truth for to
 
 ## What we record
 
-`instrumentedProvider` (`backend/llm_provider.go`) writes one `llm_calls` row per provider call that got a response: extraction (both passes, and the class picker's pass 2), transcription, reports.
+`instrumentedProvider` (`backend/llm_provider.go`) writes one `llm_calls` row per provider call: extraction (both passes, and the class picker's pass 2), transcription, reports.
 
 - `user_id`: the Clerk user. HTTP requests take it from the session; queue jobs from the job.
 - `trace_id`: the recording, for queue jobs only. `NULL` for the class picker and reports.
 - `model`: the name we sent, not the one the provider echoed.
 - Chat fills `input_tokens` / `output_tokens`; transcription fills `audio_seconds`.
-- `ok = 0`: a response came back but failed to decode or had no choices. Still billed.
+- `ok = 0`: the call failed. With tokens: a response came back but failed to decode or had no choices; still billed. With `NULL` usage: timeout, network error or non-2xx; no usage to read.
 
 Not recorded:
 
-- Timeouts, network errors, non-2xx responses: no response to read usage from. Sentry metrics and logs have them.
 - Retries: the SDK does none.
 - Duration and error text: Sentry and logs.
 - A call with no user on the context: logged as a warning, no row.

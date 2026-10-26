@@ -199,7 +199,7 @@ func (p *mistralProvider) Transcribe(ctx context.Context, req TranscribeRequest)
 		} `json:"usage"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return LLMResponse{Usage: &LLMUsage{}}, fmt.Errorf("voxtral transcription failed: decode response: %w", err)
+		return LLMResponse{}, fmt.Errorf("voxtral transcription failed: decode response: %w", err)
 	}
 	return LLMResponse{Text: out.Text, Usage: &LLMUsage{AudioSeconds: out.Usage.PromptAudioSeconds}}, nil
 }

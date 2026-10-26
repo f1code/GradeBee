@@ -170,7 +170,7 @@ func TestMistralChatJSON_DecodeFailureReturnsUsage(t *testing.T) {
 	assert.Equal(t, &LLMUsage{InputTokens: 7, OutputTokens: 3}, resp.Usage)
 }
 
-func TestMistralTranscribe_DecodeFailureReturnsUsage(t *testing.T) {
+func TestMistralTranscribe_DecodeFailureReturnsNoUsage(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = io.WriteString(w, `not json`) //nolint:errcheck // test server
 	}))
@@ -178,7 +178,7 @@ func TestMistralTranscribe_DecodeFailureReturnsUsage(t *testing.T) {
 
 	resp, err := newTestMistralProvider(srv.URL).Transcribe(context.Background(), TranscribeRequest{Audio: strings.NewReader("x")})
 	require.Error(t, err)
-	assert.NotNil(t, resp.Usage)
+	assert.Nil(t, resp.Usage)
 }
 
 func TestOpenAITranscribe_RoundsDuration(t *testing.T) {

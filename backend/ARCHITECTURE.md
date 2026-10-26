@@ -139,7 +139,7 @@ Ownership and input checks run on the request context. LLM call, save and implic
 
 `LLMProvider` interface; `openaiProvider` (OpenAI, and OpenRouter at `OPENROUTER_BASE_URL`, no transcription) and `mistralProvider` (chat + Voxtral). `LoadProvider(db)` picks one per task from `LLM_PROVIDER_EXTRACTION`/`_REPORT`/`_TRANSCRIPTION` (default `LLM_PROVIDER`, default `mistral`) and fails fast on a bad name or missing key. Production: `mistral`, reports on `openrouter` (ADR 0006). Models: `LLM_MODEL_*`.
 
-`instrumentedProvider` writes one `llm_calls` row per answered call (caller from `withLLMCaller`) and emits Sentry metrics.
+`instrumentedProvider` writes one `llm_calls` row per call, failed ones with `ok = 0` (caller from `withLLMCaller`) and emits Sentry metrics.
 
 ## Database
 
@@ -154,7 +154,7 @@ SQLite, WAL (`db.go`). Migrations in `sql/`, embedded, applied in filename order
 | `notes` | Per-student notes. `trace_id` names the source recording (no FK). `source`: `auto`, `reviewed` (model-written; edit/delete fires implicit thumbs-down), `assigned`, `manual` (not model-written) |
 | `reports` | Generated HTML reports. `AUTOINCREMENT`: ids are never reused, because `artifact_feedback.result_id` outlives deleted reports and a reused id would inherit another report's chain |
 | `voice_notes` | Upload tracking: file path, `processed_at`, `purged_at`, `transcript`, `trace_id` (unique UUID; row ids get reused) |
-| `llm_calls` | One row per answered AI call: user, trace, provider, model, task, tokens/audio seconds, `ok`. Read by `scripts/ai_cost.sql`; see `docs/ai-usage.md` |
+| `llm_calls` | One row per AI call: user, trace, provider, model, task, tokens/audio seconds, `ok`. Read by `scripts/ai_cost.sql`; see `docs/ai-usage.md` |
 | `artifact_feedback` | Append-only thumbs ratings: `explicit`, `regenerated`, `edited`, `deleted`. A `regenerated` row's `artifact_id` is the source report and `result_id` the report it produced; rows outlive deleted reports and carry the regenerate chain |
 
 ## Authorization
