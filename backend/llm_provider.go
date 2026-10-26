@@ -148,10 +148,8 @@ func withLLMCaller(ctx context.Context, userID, traceID string) context.Context 
 	return context.WithValue(ctx, llmCallerKey, llmCaller{userID: userID, traceID: traceID})
 }
 
-// saveLLMCall inserts the llm_calls row for a call. A failed call with no
-// response (timeout, network, non-2xx) gets a row with NULL usage, so failures
-// show in the table. It never fails the call: the result already cost money
-// and the caller needs it.
+// saveLLMCall inserts the llm_calls row; failed calls with no response get NULL
+// usage. It never fails the call: the result already cost money.
 func (p *instrumentedProvider) saveLLMCall(ctx context.Context, task LLMTask, usage *LLMUsage, callErr error) {
 	if usage == nil && callErr == nil {
 		return
