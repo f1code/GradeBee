@@ -78,7 +78,7 @@ func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (LLM
 		},
 		// Default effort ran 30 s median, 120 s timeouts (ADR 0007). Report
 		// models all reason; a non-reasoning one rejects this.
-		ReasoningEffort: "minimal",
+		ReasoningEffort: "medium",
 	})
 	if err != nil {
 		return LLMResponse{}, fmt.Errorf("%s chat text failed: %w", p.name, err)

@@ -159,13 +159,13 @@ func TestMistralTranscribe_CtxCancelAbortsRequest(t *testing.T) {
 	}
 }
 
-func TestOpenAIChatText_SendsMinimalReasoningEffort(t *testing.T) {
+func TestOpenAIChatText_SendsMediumReasoningEffort(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			ReasoningEffort string `json:"reasoning_effort"`
 		}
 		assert.NoError(t, json.NewDecoder(r.Body).Decode(&body))
-		assert.Equal(t, "minimal", body.ReasoningEffort)
+		assert.Equal(t, "medium", body.ReasoningEffort)
 		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"report"}}]}`) //nolint:errcheck // test server
 	}))
 	defer srv.Close()
