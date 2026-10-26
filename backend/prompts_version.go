@@ -314,6 +314,9 @@ const reportFeedbackHeader = "## Teacher Feedback on Previous Draft\n"
 // its source ("the notes also record…"). Measured on luna, 9 cases x 3, with
 // the report eval's source-mention regex: 9/27 reports without it, 0/27 with.
 // Later luna drafts wrote "was described as"; described/reported added.
+// The ad-hoc length rule: sol kept every fact ("use every relevant fact")
+// and wrote 61-74 words under a teacher's "about 50 words" in every run.
+// With it, 3 of 3 runs at 49-53 words.
 const reportTaskFooter = "## Task\n" +
 	"Write a report card narrative for this student based on the notes above.\n" +
 	"Output the report as clean HTML (using <p>, <h3>, <ul>, <li> tags as appropriate).\n" +
@@ -321,7 +324,8 @@ const reportTaskFooter = "## Task\n" +
 	"Only include structured Data fields (Absences, Marks, Frequency of use, etc.) if those\n" +
 	"values are explicitly present in the notes.\n" +
 	"Never contradict the notes or invent a specific observation, weakness or date. " +
-	"Follow the Report Specification on length.\n" +
+	"Follow the Report Specification on length. A length in the Teacher's Instructions " +
+	"overrides it: keep to that length and leave out the least important facts.\n" +
 	"Use each fact from the notes in one section only.\n" +
 	"Describe a change over time only when notes on different dates show it or a note states it; " +
 	"what the latest note says is how the student is now.\n" +
