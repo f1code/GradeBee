@@ -35,4 +35,4 @@ report vs luna's $0.0026, plus the Business platform fee.
 
 - Report cost rises about 4.5x.
 - Privacy page names the new model.
-- Open: confirm sol's Azure EU endpoint is on OpenRouter's ZDR list.
+- Sol's Azure EU endpoint is on OpenRouter's ZDR list (confirmed 2026-10-26).
