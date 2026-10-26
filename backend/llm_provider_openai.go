@@ -76,10 +76,8 @@ func (p *openaiProvider) ChatText(ctx context.Context, req ChatTextRequest) (LLM
 		Messages: []openai.ChatCompletionMessage{
 			{Role: openai.ChatMessageRoleUser, Content: req.UserPrompt},
 		},
-		// Default effort reasoned ~3.4k tokens a report on luna: 30 s median,
-		// timeouts at 120 s. Sol at minimal matched luna's eval scores in ~15 s.
-		// Every report model this provider serves reasons; a non-reasoning one
-		// would reject the field.
+		// Default effort ran 30 s median, 120 s timeouts (ADR 0007). Report
+		// models all reason; a non-reasoning one rejects this.
 		ReasoningEffort: "minimal",
 	})
 	if err != nil {
