@@ -393,7 +393,7 @@ The output does what round %d asked. A later round overrides it only where the t
 `, draftIs, len(c.Feedback), i+1, fb, i+1)))
 	}
 	out = append(out, rubric("kept", fmt.Sprintf(`kept: %s. The feedback, oldest first:
-%sEvery fact of the draft that no feedback asks to remove or change is still in the output, reworded at most. A fact the feedback asks to soften stays, softened. Facts from the notes that the draft lacked may be added.
+%sEvery fact of the draft that no feedback asks to remove or change is still in the output, reworded at most. A fact the feedback asks to soften stays, softened. Facts from the notes that the draft lacked may be added. A fact left out is no loss when the output meets a length the feedback or the Report Specification sets.
 5: every such fact kept
 4: one minor fact lost
 3: several facts lost, or a section no feedback names rewritten
@@ -405,7 +405,7 @@ The output does what round %d asked. A later round overrides it only where the t
 		for _, n := range c.ChangedNotes {
 			fmt.Fprintf(&notes, "- %s: %s\n", n.Date, n.Summary)
 		}
-		out = append(out, rubric("new-notes", fmt.Sprintf(`new-notes: %s. The Teacher added or edited these notes after the draft; the output uses their facts, even where the draft said otherwise:
+		out = append(out, rubric("new-notes", fmt.Sprintf(`new-notes: %s. The Teacher added or edited these notes after the draft; the output uses their facts, even where the draft said otherwise. A fact left out is no miss when the output meets a length the feedback or the Report Specification sets:
 %s5: every fact used
 4: one minor fact missed
 3: some facts used

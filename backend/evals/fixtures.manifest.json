@@ -99,6 +99,36 @@
       "expect": [
         "No sentence says the child said or repeated the farm animal names or animal sounds; the class practising them together may appear."
       ]
+    },
+    {
+      "id": "mousy_many_facts",
+      "description": "Toddler Level, nine notes full of small activity facts, no ad-hoc: sections stay within the 80-word cap",
+      "student_id": 495,
+      "expect": [
+        "No section is over 80 words; similar small activities are grouped in one sentence, not listed one by one."
+      ]
+    },
+    {
+      "id": "teens_long_performance",
+      "description": "Teens text, eighteen notes heavy on grammar and pronunciation: Performance stays within the 80-word cap",
+      "student_id": 783,
+      "expect": [
+        "No section is over 80 words; Performance keeps the difficulties and what we do about them over minor successes."
+      ]
+    },
+    {
+      "id": "regen_mousy_total_length",
+      "description": "Regenerate, Toddler Level, one round: whole report around 400 characters",
+      "student_id": 495,
+      "report_id": 453,
+      "feedback": [177]
+    },
+    {
+      "id": "regen_mousy_section_length",
+      "description": "Regenerate, Toddler Level, one round: each section around 400 characters",
+      "student_id": 495,
+      "report_id": 455,
+      "feedback": [178]
     }
   ]
 }
