@@ -142,6 +142,13 @@ defaultTest:
       conflict. Empty means none.
       {{instructions}}
       </adhoc_instructions>
+      {% if feedback %}
+      <teacher_feedback>
+      The Teacher's feedback on earlier drafts, oldest first; like ad-hoc instructions, it overrides
+      the Report Specification where they conflict.
+      {{feedback}}
+      </teacher_feedback>
+      {% endif %}
 
       <reference_report>
       A report the school accepted for the same notes: an example of the general statements and the
@@ -156,7 +163,7 @@ defaultTest:
 
       Code measured the <word_counts> block at the end of the output; it is not part of the report.
       Use those counts for any length judgement, and read the length rule from the Report
-      Specification and ad-hoc instructions. A section tagged "[MISSING] marker" may be shorter when
+      Specification, ad-hoc instructions and Teacher feedback. A section tagged "[MISSING] marker" may be shorter when
       the notes give it no fact of its own, or when it ends with the marker the Specification gives
       for a section short of facts.
 
@@ -224,7 +231,8 @@ defaultTest:
       value: |
         completeness: every relevant fact in the notes is used, and sections reach the length the
         Report Specification asks for; a condensed report that drops facts or falls short is a
-        defect. Where ad-hoc instructions set a shorter length, a fact dropped to meet it is no defect.
+        defect. A fact left out is no defect when the section meets the length it must keep to,
+        whether the Report Specification, ad-hoc instructions or Teacher feedback set it.
         Going over a length cap is compliance, not completeness. A section with no fact of its own
         that carries a [MISSING] marker, or one ending with the Specification's short-of-facts
         marker, is not short.
