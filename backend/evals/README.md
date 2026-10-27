@@ -45,6 +45,7 @@ evals/
   scoring/assemble.js             folds pass-2 passages into notes, as production does
   scoring/report-wordcounts.js    gives the judge per-section word counts
   scripts/diff-baseline.js        baseline diff
+  scripts/confirm-regressions.js  reruns flagged report cases to confirm them
   scripts/pin-baseline.js         writes a baseline from a result
   results/                        per-run results (git-ignored)
   fixtures/extraction/<case>/     committed, synthetic or anonymized
@@ -72,7 +73,7 @@ Score what `Regenerate` writes after Teacher feedback. `report_id` is the draft;
 
 The judge and its per-axis rubrics (structure, grounding, completeness, tone, compliance) are in `promptfooconfig.report.yaml` `defaultTest`; that file is the authority on what each axis grades and its pass threshold. A row passes when every axis clears its floor. A `not-regex` (`source-mention`) fails reports that cite "the notes". The judge runs outside the EU (ADR-0005).
 
-The **gold-reference** row echoes each case's reference. Its movement is judge noise, and it never counts as a regression. Report diffs flag moves beyond ±0.15 (`REPORT_DIFF_FLAGS` in the Makefile), extraction beyond ±0.05. If gold rows fail, read the judge reasons (`RESULT=` above): either the reference breaks the current Level text, or the rubric needs a clarification.
+The **gold-reference** row echoes each case's reference. Its movement is judge noise, and it never counts as a regression. Report diffs flag moves beyond ±0.15 (`REPORT_DIFF_FLAGS` in the Makefile), extraction beyond ±0.05. One report run is noisy (the model writes a new report each time), so `make eval` reruns each flagged report case 3 times, cache off, and confirms it only when 2 reruns regress too (`scripts/confirm-regressions.js`, output `results/<stamp>-report-confirm.json`). Pinning ignores reruns. If gold rows fail, read the judge reasons (`RESULT=` above): either the reference breaks the current Level text, or the rubric needs a clarification.
 
 ## Extraction scoring
 
