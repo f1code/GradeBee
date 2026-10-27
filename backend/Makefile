@@ -11,7 +11,7 @@ test:
 	# Race detector only where goroutines share state: the whole suite under
 	# -race takes minutes.
 	go test -race -count=1 -run 'GenericQueue|ReportBatch|ProcessReportBatch|GenerateReports' .
-	node --test evals/scoring/extraction.test.js evals/scoring/report-wordcounts.test.js evals/providers/regen-chain.test.js
+	node --test evals/scoring/extraction.test.js evals/scoring/report-wordcounts.test.js evals/providers/regen-chain.test.js evals/scripts/confirm-regressions.test.js
 
 # Live-LLM tests (llm_live_test.go) run as part of `test` when LLM_PROVIDER
 # and the matching API key are set, and skip themselves otherwise.
@@ -42,6 +42,7 @@ REPORT_DIFF_FLAGS := --band=0.15 --axes
 EVAL_STAMP     := $(shell date +%Y%m%d-%H%M%S)
 EXTRACT_RESULT := evals/results/$(EVAL_STAMP)-extract.json
 REPORT_RESULT  := evals/results/$(EVAL_STAMP)-report.json
+REPORT_CONFIRM := evals/results/$(EVAL_STAMP)-report-confirm.json
 
 bin/eval-cli:
 	@mkdir -p bin
@@ -90,6 +91,7 @@ eval-dump-report: bin/eval-cli
 # Regenerates report cases first when the manifest, DB or references changed.
 # promptfoo exits non-zero when any assertion fails, so its exit code can't
 # tell a failed run from a low score. A run that failed writes no output file.
+# Report regressions get confirmed by fresh reruns: one sol run is noisy.
 eval: bin/eval-cli $(EVAL_REPORT_TESTS)
 	-cd evals && pnpm exec promptfoo eval \
 	  --config promptfooconfig.extract.yaml \
@@ -101,6 +103,7 @@ eval: bin/eval-cli $(EVAL_REPORT_TESTS)
 	@node evals/scripts/diff-baseline.js $(EXTRACT_BASELINE) $(EXTRACT_RESULT)
 	@echo; echo '=== Report diff ==='
 	@node evals/scripts/diff-baseline.js $(REPORT_DIFF_FLAGS) $(REPORT_BASELINE) $(REPORT_RESULT)
+	@node evals/scripts/confirm-regressions.js $(REPORT_DIFF_FLAGS) $(REPORT_BASELINE) $(REPORT_RESULT) $(REPORT_CONFIRM)
 	@test -f $(EXTRACT_RESULT) && test -f $(REPORT_RESULT) || { echo "A promptfoo run wrote no output: it failed, see above."; exit 1; }
 
 # Run extraction eval only.

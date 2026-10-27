@@ -21,6 +21,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { regressed } = require('./confirm-regressions');
 
 const flags = process.argv.slice(2).filter(a => a.startsWith('--'));
 const [baselinePath, currentPath] = process.argv.slice(2).filter(a => !a.startsWith('--'));
@@ -167,11 +168,8 @@ for (const desc of sortedDescs) {
     const hardDelta = (bHard !== null && cHard !== null) ? (cHard - bHard) : null;
 
     const isCanonical = CANONICAL_PROVIDERS.has(provider);
-    // Epsilon: float means land a hair either side of a band edge. A pass
-    // flip counts on its own, since a floor breach can move the mean less
-    // than the band.
     const flipped = bPass !== null && cPass !== null && bPass !== cPass;
-    if (isCanonical && ((hardDelta !== null && hardDelta < -BAND - 1e-9) || (flipped && !cPass))) regressions++;
+    if (isCanonical && b && c && regressed(b, c, BAND)) regressions++;
     else if (isCanonical && ((hardDelta !== null && hardDelta > BAND + 1e-9) || (flipped && cPass))) improvements++;
 
     const providerLabel = isCanonical
