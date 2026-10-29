@@ -84,6 +84,7 @@ button:active,
 .job-note-link:hover, .job-note-link:active,
 .job-dismiss-btn:hover, .job-dismiss-btn:active,
 .note-show-toggle:hover, .note-show-toggle:active,
+.report-viewer-body .para-btn:hover, .report-viewer-body .para-btn:active,
 .student-detail-back:hover, .student-detail-back:active {
   transform: none;
 }

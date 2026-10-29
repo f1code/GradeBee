@@ -18,6 +18,10 @@ type ReportRevision struct {
 	// EarlierFeedback is the feedback of the rounds that wrote Draft, oldest first.
 	EarlierFeedback []string
 	Feedback        string
+	// Paragraph is the p/li block a tweak rewrites, numbered as
+	// reportParagraphs does; nil revises the whole report. Callers check it
+	// against Draft first.
+	Paragraph *int
 }
 
 // BuildReportPrompt builds the GPT system prompt for report card generation;
@@ -52,7 +56,8 @@ func BuildReportPrompt(student, className string, notes []Note, reportInstructio
 	// milliseconds coexist, and "...:00Z" sorts after "...:00.500Z".
 	var draftAt time.Time
 	tagNew := false
-	if rev != nil {
+	// A tweak touches one paragraph, so notes edited since the draft stay out.
+	if rev != nil && rev.Paragraph == nil {
 		if t, err := time.Parse(time.RFC3339Nano, rev.DraftCreatedAt); err == nil {
 			draftAt, tagNew = t, true
 		}
@@ -66,11 +71,16 @@ func BuildReportPrompt(student, className string, notes []Note, reportInstructio
 	}
 	sb.WriteString("\n")
 
-	if rev != nil {
+	switch {
+	case rev == nil:
+		sb.WriteString(reportTaskFooter)
+	case rev.Paragraph != nil:
+		writeTweak(&sb, rev)
+		sb.WriteString(reportTweakFooter)
+	default:
 		writeRevision(&sb, rev)
+		sb.WriteString(reportTaskFooter)
 	}
-
-	sb.WriteString(reportTaskFooter)
 
 	return sb.String()
 }
@@ -79,17 +89,35 @@ func writeRevision(sb *strings.Builder, rev *ReportRevision) {
 	sb.WriteString(reportPrevDraftHeader)
 	sb.WriteString(rev.Draft)
 	sb.WriteString("\n\n")
-
-	// Rounds before this one, so their removals hold against the notes (#214).
-	if len(rev.EarlierFeedback) > 0 {
-		sb.WriteString(reportEarlierFeedbackHeader)
-		for i, fb := range rev.EarlierFeedback {
-			fmt.Fprintf(sb, reportEarlierFeedbackRound, i+1, fb)
-		}
-		sb.WriteString("\n")
-	}
+	writeEarlierFeedback(sb, rev.EarlierFeedback)
 
 	sb.WriteString(reportFeedbackHeader)
+	sb.WriteString(rev.Feedback)
+	sb.WriteString("\n\n")
+}
+
+// Rounds before this one, so their removals hold against the notes (#214).
+func writeEarlierFeedback(sb *strings.Builder, earlier []string) {
+	if len(earlier) == 0 {
+		return
+	}
+	sb.WriteString(reportEarlierFeedbackHeader)
+	for i, fb := range earlier {
+		fmt.Fprintf(sb, reportEarlierFeedbackRound, i+1, fb)
+	}
+	sb.WriteString("\n")
+}
+
+func writeTweak(sb *strings.Builder, rev *ReportRevision) {
+	paragraph, _ := ReportParagraph(rev.Draft, *rev.Paragraph) //nolint:errcheck // callers check the index
+	sb.WriteString(reportTweakDraftHeader)
+	sb.WriteString(rev.Draft)
+	sb.WriteString("\n\n")
+	writeEarlierFeedback(sb, rev.EarlierFeedback)
+	sb.WriteString(reportTweakParagraphHeader)
+	sb.WriteString(paragraph)
+	sb.WriteString("\n\n")
+	sb.WriteString(reportTweakAskHeader)
 	sb.WriteString(rev.Feedback)
 	sb.WriteString("\n\n")
 }

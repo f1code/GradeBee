@@ -1,6 +1,6 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, onTestFinished } from 'vitest'
 import type { ReportBatchStudent } from '../../api'
 
 const mockGenerateReports = vi.fn()
@@ -236,6 +236,37 @@ describe('ReportGeneration', () => {
     expect(mockDeleteReport).toHaveBeenCalledWith(8, stableGetToken)
     expect(await screen.findByTestId('report-result-deleted')).toHaveTextContent('Alice')
     expect(screen.getByTestId('report-batch-summary')).toHaveTextContent(/deleted/i)
+  })
+
+  it('highlights the tweaked paragraph once, not on re-expand', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }))
+    onTestFinished(() => {
+      vi.unstubAllGlobals()
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    })
+    const v2 = {
+      id: 8, studentId: 10, student: 'Alice', className: 'Math 101', html: '<p>Intro</p><p>New body</p>',
+      startDate: '', endDate: '', createdAt: '',
+    }
+    mockGenerateReports.mockResolvedValue(batch([{ studentId: 10, name: 'Alice', status: 'done', reportId: 7 }]))
+    mockGetReport.mockResolvedValueOnce({ ...v2, id: 7, html: '<p>Intro</p><p>Old body</p>' }).mockResolvedValue(v2)
+    mockRegenerateReport.mockResolvedValue(v2)
+    const user = await renderWithStudents()
+    await user.click(screen.getByText('Alice'))
+    await user.click(screen.getByText(/Generate 1 Report/))
+    await user.click(await screen.findByTestId('report-result-name'))
+
+    await user.hover(await screen.findByText('Old body'))
+    fireEvent.click(screen.getByRole('button', { name: 'Tweak paragraph' }))
+    await user.type(screen.getByPlaceholderText(/how should this paragraph change/i), 'Shorter')
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+    expect(await screen.findByText('New body')).toHaveClass('para-tweaked')
+
+    await user.click(screen.getByTestId('report-result-name'))
+    await waitFor(() => expect(screen.queryByText('New body')).not.toBeInTheDocument())
+    await user.click(screen.getByTestId('report-result-name'))
+    expect(await screen.findByText('New body')).not.toHaveClass('para-tweaked')
   })
 
   it('a regenerate finishing after the row collapsed leaves it collapsed', async () => {

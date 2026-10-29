@@ -502,7 +502,9 @@ export async function retryReportBatch(
 export async function regenerateReport(
   reportId: number,
   feedback: string,
-  getToken: () => Promise<string | null>
+  getToken: () => Promise<string | null>,
+  // Set for a paragraph tweak: the server rewrites that block only.
+  tweak?: { paragraph: number; excerpt: string }
 ): Promise<ReportResult> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/reports/${reportId}/regenerate`, {
@@ -511,7 +513,7 @@ export async function regenerateReport(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ feedback }),
+    body: JSON.stringify({ feedback, ...tweak }),
   })
   const body = await readBody(resp)
   if (!resp.ok) throw new Error(body.error || 'Report regeneration failed')

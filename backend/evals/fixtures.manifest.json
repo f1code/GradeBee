@@ -129,6 +129,48 @@
       "student_id": 495,
       "report_id": 455,
       "feedback": [178]
+    },
+    {
+      "id": "tweak_linda_typical",
+      "description": "Tweak, Babies Level: pad the paragraph beside a [MISSING] marker to 300 characters with general statements",
+      "student_id": 506,
+      "tweak": {"of": "linda_typical", "paragraph": 2, "ask": "fluff this up to 300 characters with some general statements", "chars": [250, 350]}
+    },
+    {
+      "id": "tweak_sam_mixed_lengths",
+      "description": "Tweak, Sam text: pad the paragraph beside a [MISSING] marker to 300 characters with general statements",
+      "student_id": 656,
+      "tweak": {"of": "sam_mixed_lengths", "paragraph": 2, "ask": "fluff this up to 300 characters with some general statements", "chars": [250, 350]}
+    },
+    {
+      "id": "tweak_teens_long_performance",
+      "description": "Tweak, Teens text: pad the paragraph beside a [MISSING] marker to 300 characters with general statements",
+      "student_id": 783,
+      "tweak": {"of": "teens_long_performance", "paragraph": 0, "ask": "fluff this up to 300 characters with some general statements", "chars": [250, 350]}
+    },
+    {
+      "id": "tweak_single_note",
+      "description": "Tweak, Kids story Level, one note: pad the paragraph beside a [MISSING] marker to 300 characters with general statements",
+      "student_id": 272,
+      "tweak": {"of": "single_note", "paragraph": 1, "ask": "fluff this up to 300 characters with some general statements", "chars": [250, 350]}
+    },
+    {
+      "id": "tweak_tweens_pair_b",
+      "description": "Tweak, Tweens and Teens text, one note: pad the paragraph beside a [MISSING] marker to 300 characters with general statements",
+      "student_id": 518,
+      "tweak": {"of": "tweens_pair_b", "paragraph": 0, "ask": "fluff this up to 300 characters with some general statements", "chars": [250, 350]}
+    },
+    {
+      "id": "tweak_nostock_linda_typical",
+      "description": "Tweak, Babies Level with its example sentences removed: pad the paragraph beside a [MISSING] marker to 300 characters with general statements",
+      "student_id": 506,
+      "tweak": {"of": "linda_typical", "paragraph": 2, "ask": "fluff this up to 300 characters with some general statements", "chars": [250, 350], "strip_level_examples": true}
+    },
+    {
+      "id": "tweak_nostock_teens_long_performance",
+      "description": "Tweak, Teens text with its example sentences removed: pad the paragraph beside a [MISSING] marker to 300 characters with general statements",
+      "student_id": 783,
+      "tweak": {"of": "teens_long_performance", "paragraph": 0, "ask": "fluff this up to 300 characters with some general statements", "chars": [250, 350], "strip_level_examples": true}
     }
   ]
 }

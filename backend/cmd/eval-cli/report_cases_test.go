@@ -26,6 +26,8 @@ func TestReadReportManifest_Rejects(t *testing.T) {
 		"missing student":          {`{"reports":[{"id":"a","description":"d"}]}`, "student_id is required"},
 		"fresh with report_id":     {`{"reports":[{"id":"a","description":"d","student_id":1,"report_id":1}]}`, "not report_id"},
 		"regenerate, no report_id": {`{"reports":[{"id":"a","description":"d","student_id":1,"feedback":[1]}]}`, "needs report_id"},
+		"tweak, no ask":            {`{"reports":[{"id":"a","description":"d","student_id":1,"tweak":{"of":"b","paragraph":0}}]}`, "needs of and ask"},
+		"tweak, one-sided chars":   {`{"reports":[{"id":"a","description":"d","student_id":1,"tweak":{"of":"b","ask":"x","chars":[1]}}]}`, "[min, max]"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -149,6 +151,47 @@ func TestWriteReportCases_Regenerate(t *testing.T) {
 	assert.Equal(t, []string{"feedback", "kept"}, metricsOf(tests[1]), "no notes changed since the draft, no new-notes line")
 }
 
+// A tweak case outputs one paragraph: the whole-report default axes are off,
+// and the judge reads the paragraph it rewrites.
+func TestWriteReportCases_Tweak(t *testing.T) {
+	evals := t.TempDir()
+	casesDir := filepath.Join(evals, "fixtures", "reports")
+	testsPath := filepath.Join(evals, "tests.report.generated.yaml")
+	tw := reportTweak{Of: "base", Paragraph: 1, Ask: "pad to 300 characters", Chars: []int{250, 350}}
+	m := reportManifest{Reports: []reportManifestEntry{{ID: "tweak", Description: "desc", StudentID: 1, Tweak: &tw}}}
+	c := reportCase{
+		ReportInputs:  handler.ReportInputs{StudentName: "Alice"},
+		ReferenceHTML: "<p>one</p><p>two [MISSING]</p>",
+		Feedback:      []string{tw.Ask},
+		ParagraphText: "two {{x}} [MISSING]",
+	}
+	require.NoError(t, writeReportCases(m, []reportCase{c}, casesDir, testsPath))
+
+	raw, err := os.ReadFile(testsPath)
+	require.NoError(t, err)
+	var tests []reportTest
+	require.NoError(t, yaml.Unmarshal(raw, &tests))
+	require.Len(t, tests, 1)
+	tc := tests[0]
+	assert.Equal(t, []string{"gradebee-prompt"}, tc.Prompts)
+	require.NotNil(t, tc.Options)
+	assert.True(t, tc.Options.DisableDefaultAsserts)
+	require.NotNil(t, tc.Vars.Paragraph)
+	assert.Equal(t, 1, *tc.Vars.Paragraph)
+	assert.Equal(t, tc.Vars.Reference, tc.Vars.Draft)
+	fb, err := os.ReadFile(filepath.Join(evals, tc.Vars.Feedback[len("file://"):]))
+	require.NoError(t, err)
+	assert.JSONEq(t, `["pad to 300 characters"]`, string(fb))
+
+	var metrics []string
+	for _, a := range tc.Assert {
+		metrics = append(metrics, a.Metric)
+	}
+	assert.Equal(t, []string{"one-paragraph", "length", "tweak", "no-invention"}, metrics)
+	assert.Contains(t, tc.Assert[1].Value, "t.length >= 250 && t.length <= 350")
+	assert.Contains(t, tc.Assert[2].Value, `"two x [MISSING]"`, "braces stripped for nunjucks")
+}
+
 func TestLoadFeedbackComment(t *testing.T) {
 	db := seedDumpDB(t)
 	for _, stmt := range []string{
@@ -226,6 +269,30 @@ func TestLoadFreshCase(t *testing.T) {
 	assert.Equal(t, "be brief", c.Instructions)
 	assert.Equal(t, "Élodie", c.StudentName)
 	assert.Len(t, c.Notes, 2)
+}
+
+func TestLoadTweakCase(t *testing.T) {
+	db, refs := seedReferenceStore(t)
+	_, err := db.Exec(`UPDATE levels SET report_instructions = 'Say "Reads with growing confidence." or leave a placeholder.'`)
+	require.NoError(t, err)
+	resolver := handler.NewReportInputResolver(db)
+	entry := func(tw reportTweak) reportManifestEntry {
+		return reportManifestEntry{ID: "t", Description: "d", StudentID: 1, Tweak: &tw}
+	}
+
+	c, err := loadTweakCase(context.Background(), resolver, refs, entry(reportTweak{Of: "c", Paragraph: 0, Ask: "longer"}))
+	require.NoError(t, err)
+	assert.Equal(t, "<p>ref</p>", c.ReferenceHTML, "the base case's reference is the draft")
+	assert.Equal(t, []string{"longer"}, c.Feedback)
+	assert.Equal(t, "ref", c.ParagraphText)
+	assert.Contains(t, c.ReportInstructions, "Reads with growing confidence.")
+
+	c, err = loadTweakCase(context.Background(), resolver, refs, entry(reportTweak{Of: "c", Ask: "longer", StripLevelExamples: true}))
+	require.NoError(t, err)
+	assert.Equal(t, "Say  or leave a placeholder.", c.ReportInstructions)
+
+	_, err = loadTweakCase(context.Background(), resolver, refs, entry(reportTweak{Of: "c", Paragraph: 1, Ask: "longer"}))
+	assert.ErrorContains(t, err, "tweak paragraph 1")
 }
 
 func TestLoadReportCases_FreshRefuses(t *testing.T) {

@@ -54,7 +54,7 @@ evals/
 
 ## Report cases
 
-Report cases hold real names and notes, so the repo keeps only `fixtures.manifest.json` (id, name-free description, `student_id`, optional `expect` rubric lines; regenerate cases add `report_id` and `feedback` ids). What agents may read: `docs/adr/0005-report-eval-data-stays-local.md`.
+Report cases hold real names and notes, so the repo keeps only `fixtures.manifest.json` (id, name-free description, `student_id`, optional `expect` rubric lines; regenerate cases add `report_id` and `feedback` ids, tweak cases a `tweak` block). What agents may read: `docs/adr/0005-report-eval-data-stays-local.md`.
 
 A fresh case's reference lives in `data/eval-references/<id>/` of the main tree (`reference.html` + `meta.json` with range, ad-hoc instructions and the note ids it was written from). `make eval-fixtures` joins it with the DB's notes and Level instructions; it fails by name when the notes in range no longer match the reference. Fix: delete the case's directory and `make eval-gen-report` again, or drop the case.
 
@@ -68,6 +68,10 @@ A fresh case's reference lives in `data/eval-references/<id>/` of the main tree 
 ### Regenerate cases
 
 Score what `Regenerate` writes after Teacher feedback. `report_id` is the draft; each `feedback` id is one round, oldest first. `regen-chain.js` replays the rounds like production. Extra rubric lines per test: `feedback` (each round done), `kept` (untouched draft facts survive), `new-notes` (notes changed since the draft used), `expect`. No gold row: it would echo the draft.
+
+### Tweak cases
+
+Score a paragraph tweak. `tweak.of` names a fresh case; its reference is the draft. `paragraph` numbers the `p`/`li` blocks as the server does, `ask` is the Teacher's ask (written in the manifest, so name-free), `chars` the text length the ask sets, `strip_level_examples` drops the Level's quoted example sentences. The output is the paragraph alone, so the default axes are off. Lines: `one-paragraph` and `length` (code), `tweak` (ask done, facts kept), `no-invention` (added sentences are notes, Level examples or class-wide statements), `expect`.
 
 ## Report scoring
 

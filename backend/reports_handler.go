@@ -308,8 +308,12 @@ func handleRetryReportBatch(w http.ResponseWriter, r *http.Request) {
 }
 
 // RegenerateReportHTTPRequest is the JSON body for POST /reports/:id/regenerate.
+// Paragraph and Excerpt make it a paragraph tweak: Paragraph numbers the p/li
+// blocks, Excerpt is the start of that block's text as the viewer shows it.
 type RegenerateReportHTTPRequest struct {
-	Feedback string `json:"feedback"`
+	Feedback  string `json:"feedback"`
+	Paragraph *int   `json:"paragraph,omitempty"`
+	Excerpt   string `json:"excerpt,omitempty"`
 }
 
 func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
@@ -355,6 +359,16 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 	if !requireStudentOwnership(w, r, rpt.StudentID, userID, "report not found") {
 		return
 	}
+	if req.Paragraph != nil {
+		if strings.TrimSpace(req.Excerpt) == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "excerpt is required with paragraph"})
+			return
+		}
+		if err := checkParagraph(rpt.HTML, *req.Paragraph, req.Excerpt); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+	}
 
 	groupID, err := groupIDFromRequest(r)
 	if err != nil {
@@ -394,6 +408,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 			DraftCreatedAt:  rpt.CreatedAt,
 			EarlierFeedback: earlier,
 			Feedback:        req.Feedback,
+			Paragraph:       req.Paragraph,
 		},
 		ReportID: rpt.ID,
 		UserID:   userID,

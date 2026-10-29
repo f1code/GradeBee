@@ -26,15 +26,29 @@ type reportManifest struct {
 
 // A fresh case's reference lives in the reference store under its id. A
 // regenerate case names the DB report the Teacher revised and its feedback
-// rows, one per round, oldest first. Expect holds extra rubric lines,
-// name-free like the description.
+// rows, one per round, oldest first. A tweak case rewrites one paragraph of
+// a fresh case's reference. Expect holds extra rubric lines, name-free like
+// the description.
 type reportManifestEntry struct {
-	ID          string   `json:"id"`
-	Description string   `json:"description"`
-	StudentID   int64    `json:"student_id"`
-	ReportID    int64    `json:"report_id,omitempty"`
-	Feedback    []int64  `json:"feedback,omitempty"`
-	Expect      []string `json:"expect,omitempty"`
+	ID          string       `json:"id"`
+	Description string       `json:"description"`
+	StudentID   int64        `json:"student_id"`
+	ReportID    int64        `json:"report_id,omitempty"`
+	Feedback    []int64      `json:"feedback,omitempty"`
+	Tweak       *reportTweak `json:"tweak,omitempty"`
+	Expect      []string     `json:"expect,omitempty"`
+}
+
+// reportTweak is a paragraph tweak of fresh case Of's reference. Ask is
+// written in the manifest, so name-free. Chars bounds the paragraph's text
+// length when the ask sets one. StripLevelExamples removes the quoted example
+// sentences from the Level text: a Level with nothing stock to pad from.
+type reportTweak struct {
+	Of                 string `json:"of"`
+	Paragraph          int    `json:"paragraph"`
+	Ask                string `json:"ask"`
+	Chars              []int  `json:"chars,omitempty"`
+	StripLevelExamples bool   `json:"strip_level_examples,omitempty"`
 }
 
 // caseIDPattern keeps ids safe as directory names.
@@ -45,8 +59,11 @@ type reportTest struct {
 	Vars        reportTestVars `yaml:"vars"`
 	// Prompts keeps regenerate cases off the gold-reference row: it echoes the
 	// draft, which ignores the feedback.
-	Prompts []string       `yaml:"prompts,omitempty"`
-	Assert  []reportAssert `yaml:"assert,omitempty"`
+	Prompts []string `yaml:"prompts,omitempty"`
+	// Set on tweak cases: the default axes grade a whole report, and a tweak
+	// outputs one paragraph.
+	Options *reportTestOptions `yaml:"options,omitempty"`
+	Assert  []reportAssert     `yaml:"assert,omitempty"`
 }
 
 type reportTestVars struct {
@@ -59,12 +76,17 @@ type reportTestVars struct {
 	Draft              string `yaml:"draft,omitempty"`
 	DraftCreatedAt     string `yaml:"draft_created_at,omitempty"`
 	Feedback           string `yaml:"feedback,omitempty"`
+	Paragraph          *int   `yaml:"paragraph,omitempty"`
+}
+
+type reportTestOptions struct {
+	DisableDefaultAsserts bool `yaml:"disableDefaultAsserts"`
 }
 
 type reportAssert struct {
 	Type      string  `yaml:"type"`
 	Metric    string  `yaml:"metric"`
-	Threshold float64 `yaml:"threshold"`
+	Threshold float64 `yaml:"threshold,omitempty"`
 	Value     string  `yaml:"value"`
 }
 
@@ -135,6 +157,10 @@ func readReportManifest(path string) (reportManifest, error) {
 			return reportManifest{}, fmt.Errorf("case %q: a regenerate case needs report_id, the draft", e.ID)
 		case len(e.Feedback) == 0 && e.ReportID != 0:
 			return reportManifest{}, fmt.Errorf("case %q: a fresh case takes its reference from the store by id, not report_id", e.ID)
+		case e.Tweak != nil && (len(e.Feedback) > 0 || e.Tweak.Of == "" || strings.TrimSpace(e.Tweak.Ask) == ""):
+			return reportManifest{}, fmt.Errorf("case %q: a tweak case needs of and ask, and no feedback ids", e.ID)
+		case e.Tweak != nil && len(e.Tweak.Chars) != 0 && len(e.Tweak.Chars) != 2:
+			return reportManifest{}, fmt.Errorf("case %q: tweak chars is [min, max]", e.ID)
 		}
 		seen[e.ID] = true
 	}
@@ -152,6 +178,8 @@ type reportCase struct {
 	Feedback       []string
 	ChangedNotes   []handler.Note
 	DraftCreatedAt string
+	// Tweak cases only: the paragraph's text, for the judge.
+	ParagraphText string
 }
 
 // loadReportCases reads every case, then closes the DB before anything is
@@ -172,9 +200,12 @@ func loadReportCases(dbPath, refsDir string, m reportManifest) ([]reportCase, er
 	for _, e := range m.Reports {
 		var c reportCase
 		var err error
-		if len(e.Feedback) == 0 {
+		switch {
+		case e.Tweak != nil:
+			c, err = loadTweakCase(ctx, resolver, refsDir, e)
+		case len(e.Feedback) == 0:
 			c, err = loadFreshCase(ctx, resolver, refsDir, e)
-		} else {
+		default:
 			c, err = loadRegenerateCase(ctx, db, resolver, e)
 		}
 		if err != nil {
@@ -207,6 +238,27 @@ func loadFreshCase(ctx context.Context, resolver *handler.ReportInputResolver, r
 		return reportCase{}, fmt.Errorf("student %d has no notes between %s and %s", e.StudentID, meta.StartDate, meta.EndDate)
 	}
 	return reportCase{ReportInputs: in, ReferenceHTML: html}, nil
+}
+
+var levelExample = regexp.MustCompile(`"[^"\n]{8,}"|“[^”\n]{8,}”`)
+
+// loadTweakCase takes the base case's inputs and reference as the draft.
+func loadTweakCase(ctx context.Context, resolver *handler.ReportInputResolver, refsDir string, e reportManifestEntry) (reportCase, error) {
+	tw := e.Tweak
+	c, err := loadFreshCase(ctx, resolver, refsDir, reportManifestEntry{ID: tw.Of, StudentID: e.StudentID})
+	if err != nil {
+		return reportCase{}, fmt.Errorf("tweak of %q: %w", tw.Of, err)
+	}
+	paragraph, err := handler.ReportParagraph(c.ReferenceHTML, tw.Paragraph)
+	if err != nil {
+		return reportCase{}, fmt.Errorf("tweak paragraph %d: %w", tw.Paragraph, err)
+	}
+	if tw.StripLevelExamples {
+		c.ReportInstructions = levelExample.ReplaceAllString(c.ReportInstructions, "")
+	}
+	c.Feedback = []string{tw.Ask}
+	c.ParagraphText = handler.ParagraphText(paragraph)
+	return c, nil
 }
 
 // loadRegenerateCase feeds today's notes, as regenerate does: notes changed
@@ -343,13 +395,21 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 				Reference:          ref("reference.html"),
 			},
 		}
-		if len(c.Feedback) > 0 {
+		switch {
+		case e.Tweak != nil:
+			t.Vars.Draft = ref("reference.html")
+			t.Vars.Feedback = ref("feedback.json")
+			t.Vars.Paragraph = &e.Tweak.Paragraph
+			t.Prompts = []string{gradedPrompt}
+			t.Options = &reportTestOptions{DisableDefaultAsserts: true}
+			t.Assert = tweakAsserts(c, *e.Tweak, e.Expect)
+		case len(c.Feedback) > 0:
 			t.Vars.Draft = ref("reference.html")
 			t.Vars.DraftCreatedAt = c.DraftCreatedAt
 			t.Vars.Feedback = ref("feedback.json")
 			t.Prompts = []string{gradedPrompt}
 			t.Assert = regenerateAsserts(c, e.Expect)
-		} else {
+		default:
 			t.Assert = expectAsserts("the output is a fresh report written from the notes", e.Expect)
 		}
 		tests = append(tests, t)
@@ -422,6 +482,43 @@ Facts from the notes that the draft lacked may be added. In your reason, name ea
 `, draftIs, notes.String())))
 	}
 	return append(out, expectAsserts(draftIs, expect)...)
+}
+
+// tweakAsserts grades a paragraph tweak's output, the paragraph alone: one
+// paragraph with no placeholder left, the length the ask set, the ask done,
+// nothing claimed about the student beyond the notes. Braces and % go from the
+// quoted paragraph: promptfoo renders rubric values as nunjucks.
+func tweakAsserts(c reportCase, tw reportTweak, expect []string) []reportAssert {
+	rubric := func(metric, value string) reportAssert {
+		return reportAssert{Type: "llm-rubric", Metric: metric, Threshold: 0.75, Value: value}
+	}
+	quoted := strings.NewReplacer("{", "", "}", "", "%", "").Replace(c.ParagraphText)
+	// Mirrors the server's refusal: block tags inside the unwrapped answer.
+	out := []reportAssert{{Type: "javascript", Metric: "one-paragraph",
+		Value: `!/<\/?(p|li|ul|ol|h[1-6]|div|table)\b/i.test(output.trim().replace(/^<(p|li)\b[^>]*>([\s\S]*)<\/\1>$/, '$2'))`}}
+	if len(tw.Chars) == 2 {
+		out = append(out, reportAssert{Type: "javascript", Metric: "length", Value: fmt.Sprintf(
+			`(t => !t.includes('[MISSING') && t.length >= %d && t.length <= %d)(output.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())`,
+			tw.Chars[0], tw.Chars[1])})
+	}
+	out = append(out,
+		rubric("tweak", fmt.Sprintf(`tweak: the output is one paragraph of a report card, rewritten from this one: %q. The Teacher asked: %q. The ask overrides the Report Specification's length, placeholder and padding rules.
+5: the ask done in full, the paragraph's facts kept, no placeholder left
+4: done, length a little off
+3: placeholder gone but the ask half done, or placeholder kept beside new text
+2: barely changed
+1: unchanged, or not a single paragraph
+`, quoted, tw.Ask)),
+		rubric("no-invention", fmt.Sprintf(`no-invention: the output is one rewritten paragraph of a report card. Sort every sentence it adds to the original paragraph (%q): (a) a fact from the notes below; (b) a sentence or phrase the Report Specification below offers, near verbatim; (c) a statement true of any student in this class (the class's activities, the course's aims) that says nothing about this student in particular; (d) a claim about this student (behaviour, liking, skill, progress, feeling, event) the notes do not support. Name each (d) sentence in your reason, and count (a), (b), (c), (d).
+Report Specification:
+{{report_instructions}}
+Notes:
+{{notes}}
+5: no (d)
+3: one (d), mild
+1: one clear (d) or several
+`, quoted)))
+	return append(out, expectAsserts("the output is one paragraph a Teacher asked to rewrite", expect)...)
 }
 
 // expectAsserts turns the manifest's expect lines into rubric lines; context

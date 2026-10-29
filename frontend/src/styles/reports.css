@@ -1,7 +1,7 @@
 /* === GradeBee — Reports (generation, viewer, history) === */
 
 /* --- Muted text (sizes: tokens.css --text-*) --- */
-.report-viewer-frame .para-copy-btn,
+.report-viewer-body .para-btn,
 .ai-badge {
   color: var(--ink-muted);
   font-size: var(--text-xs);
@@ -325,42 +325,89 @@
   overflow-x: auto;
 }
 
-/* Per-paragraph copy button (hover-reveal) */
-.report-viewer-frame .has-para-copy {
+/* Per-paragraph icon toolbar, in a right gutter clear of the text */
+.report-viewer-body {
   position: relative;
 }
 
-.report-viewer-frame .para-copy-btn {
+.report-viewer-frame p {
+  padding-right: 1.75rem;
+}
+
+.report-viewer-body .para-toolbar {
   position: absolute;
-  top: 0.1rem;
-  right: 0.1rem;
-  font-family: var(--font-body);
-  line-height: 1;
-  padding: 0.2rem 0.45rem;
-  border: 1px solid var(--comb);
+  top: var(--para-top);
+  margin-top: 0.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.report-viewer-body .para-btn {
+  display: inline-flex;
+  min-height: 0;
+  padding: 0.2rem;
+  border: none;
   border-radius: 4px;
   background: var(--chalk);
+  box-shadow: none;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.12s, background 0.12s, color 0.12s;
+  transition: background 0.12s, color 0.12s;
   user-select: none;
 }
 
-.report-viewer-frame .has-para-copy:hover > .para-copy-btn,
-.report-viewer-frame .para-copy-btn:focus-visible {
-  opacity: 1;
-}
-
-.report-viewer-frame .para-copy-btn:hover {
+.report-viewer-body .para-btn:hover {
   background: var(--honey-light);
   color: var(--ink);
 }
 
-.report-viewer-frame .para-copy-btn-success {
-  opacity: 1 !important;
+/* Touch: two 44px targets don't fit the gutter. A row under the tapped
+   paragraph instead. */
+@media (hover: none) {
+  .report-viewer-frame p {
+    padding-right: 0;
+  }
+
+  .report-viewer-body .para-toolbar {
+    top: var(--para-bottom);
+    margin-top: 0;
+    flex-direction: row;
+  }
+
+  .report-viewer-body .para-btn {
+    justify-content: center;
+    align-items: center;
+    min-width: 44px;
+    min-height: 44px;
+    box-shadow: var(--shadow-sm);
+  }
+}
+
+.report-viewer-body .para-btn.para-btn-success {
   background: var(--honey);
   color: var(--ink);
-  border-color: var(--honey);
+}
+
+/* A Tweak's rewritten paragraph, after regenerate */
+.report-viewer-frame .para-tweaked {
+  border-radius: 4px;
+  animation: para-tweaked 2s ease-out;
+}
+
+@keyframes para-tweaked {
+  from {
+    background: var(--honey-light);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+/* Reduced motion: the colour holds, then goes, without a fade */
+@media (prefers-reduced-motion: reduce) {
+  .report-viewer-frame .para-tweaked {
+    animation-timing-function: step-end;
+  }
 }
 
 .report-viewer-error {
@@ -377,6 +424,13 @@
 .report-regenerate-form {
   margin-top: 0.75rem;
   overflow: hidden;
+}
+
+.report-tweak-quote {
+  margin: 0 0 0.5rem;
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
+  font-style: italic;
 }
 
 .report-regenerate-textarea {

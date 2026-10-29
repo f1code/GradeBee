@@ -680,6 +680,14 @@ export interface ReportBatch {
 }
 
 //////////
+// source: report_tweak.go
+/*
+report_tweak.go finds and replaces one paragraph of a report's HTML for a
+paragraph tweak.
+*/
+
+
+//////////
 // source: reports_handler.go
 /*
 reports_handler.go handles report generation, batch listing and retry,
@@ -731,9 +739,13 @@ export interface ListReportBatchesResponse {
 }
 /**
  * RegenerateReportHTTPRequest is the JSON body for POST /reports/:id/regenerate.
+ * Paragraph and Excerpt make it a paragraph tweak: Paragraph numbers the p/li
+ * blocks, Excerpt is the start of that block's text as the viewer shows it.
  */
 export interface RegenerateReportHTTPRequest {
   feedback: string;
+  paragraph?: number /* int */;
+  excerpt?: string;
 }
 /**
  * ReportDetail is the response for GET /reports/:id — includes student/class names.

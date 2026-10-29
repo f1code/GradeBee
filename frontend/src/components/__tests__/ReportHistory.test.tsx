@@ -1,6 +1,6 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, it, expect, vi } from 'vitest'
+import { beforeEach, describe, it, expect, onTestFinished, vi } from 'vitest'
 
 const mockListStudentReports = vi.fn()
 const mockGetReport = vi.fn()
@@ -49,6 +49,38 @@ describe('ReportHistory', () => {
     expect(screen.queryByText('Old report')).not.toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: /jan/i })).toHaveLength(2)
     expect(mockListStudentReports).toHaveBeenCalledTimes(1)
+  })
+
+  it('highlights the paragraph a Tweak rewrote in the new report', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }))
+    onTestFinished(() => {
+      vi.unstubAllGlobals()
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    })
+    const old = report(7, '<p>Old intro</p><p>Old body</p>')
+    mockListStudentReports.mockResolvedValue({ reports: [old] })
+    mockGetReport.mockResolvedValue(old)
+    mockRegenerateReport.mockResolvedValue(report(8, '<p>Old intro</p><p>New body</p>'))
+    const { default: ReportHistory } = await import('../ReportHistory')
+    const user = userEvent.setup()
+    render(<ReportHistory studentId={10} studentName="Alice" />)
+
+    await user.click(await screen.findByRole('button', { name: /jan/i }))
+    await user.hover(await screen.findByText('Old body'))
+    fireEvent.click(screen.getByRole('button', { name: 'Tweak paragraph' }))
+    await user.type(screen.getByPlaceholderText(/how should this paragraph change/i), 'Shorter')
+    await user.click(screen.getByRole('button', { name: 'Submit' }))
+
+    expect(await screen.findByText('New body')).toHaveClass('para-tweaked')
+    expect(screen.getByText('Old intro')).not.toHaveClass('para-tweaked')
+
+    mockGetReport.mockResolvedValue(report(8, '<p>Old intro</p><p>New body</p>'))
+    const newRow = screen.getAllByRole('button', { name: /jan/i })[0]
+    await user.click(newRow)
+    await waitFor(() => expect(screen.queryByText('New body')).not.toBeInTheDocument())
+    await user.click(newRow)
+    expect(await screen.findByText('New body')).not.toHaveClass('para-tweaked')
   })
 
   it('a regenerate finishing after the report closed lists the new one but leaves it closed', async () => {

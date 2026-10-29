@@ -115,10 +115,24 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	if err != nil {
 		return nil, err
 	}
+	promptHash := ReportPromptHash
+	comment := req.Feedback
+	if req.Paragraph != nil {
+		paragraph, err := ReportParagraph(req.Draft, *req.Paragraph)
+		if err != nil {
+			return nil, err
+		}
+		if html, err = spliceParagraph(req.Draft, *req.Paragraph, html); err != nil {
+			return nil, err
+		}
+		promptHash = ReportTweakPromptHash
+		// Later rounds read this as earlier feedback on the whole report: name
+		// the paragraph, or "about 300 characters" reads as the report's length.
+		comment = fmt.Sprintf("In the paragraph starting %q: %s", excerpt(ParagraphText(paragraph), 60), req.Feedback)
+	}
 
 	// 2. Save as a new report (new row, preserves history).
 	modelVersion := g.model
-	promptHash := ReportPromptHash
 	rpt := &Report{
 		StudentID:    req.StudentID,
 		StartDate:    req.StartDate,
@@ -137,7 +151,7 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 		ArtifactID:   req.ReportID,
 		Rating:       "down",
 		Signal:       "regenerated",
-		Comment:      &req.Feedback,
+		Comment:      &comment,
 		UserID:       req.UserID,
 	}
 	if err := g.reportRepo.CreateRegenerated(ctx, rpt, fb); err != nil {
@@ -166,6 +180,14 @@ func stripCodeFence(s string) string {
 	s = strings.TrimSpace(s)
 	if m := codeFence.FindStringSubmatch(s); m != nil {
 		return m[2]
+	}
+	return s
+}
+
+// excerpt cuts s to n runes.
+func excerpt(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n])
 	}
 	return s
 }

@@ -104,6 +104,8 @@ export default function ReportGeneration() {
   const [error, setError] = useState<string | null>(null)
   const [expandedReportId, setExpandedReportId] = useState<number | null>(null)
   const [expandedReport, setExpandedReport] = useState<ReportResult | null>(null)
+  // The paragraph the last Tweak rewrote, for the new report's viewer to highlight.
+  const [tweaked, setTweaked] = useState<{ reportId: number; paragraph: number } | null>(null)
   const [deletedReportIds, setDeletedReportIds] = useState<Set<number>>(new Set())
   // Last report the Teacher asked to expand; a slower earlier fetch must not land on it.
   const requestedReportId = useRef<number | null>(null)
@@ -301,6 +303,7 @@ export default function ReportGeneration() {
   }, [classes])
 
   async function handleExpand(reportId: number) {
+    setTweaked(null)
     if (expandedReportId === reportId) {
       requestedReportId.current = null
       setExpandedReportId(null)
@@ -325,7 +328,7 @@ export default function ReportGeneration() {
   }
 
   // Regenerate saves a new report; the row follows it so feedback and delete hit the new one.
-  function handleReportRegenerate(oldId: number, report: ReportResult) {
+  function handleReportRegenerate(oldId: number, report: ReportResult, paragraph?: number) {
     setBatch(prev => prev && {
       ...prev,
       students: prev.students.map(s => (s.reportId === oldId ? { ...s, reportId: report.id } : s)),
@@ -335,6 +338,7 @@ export default function ReportGeneration() {
     requestedReportId.current = report.id
     setExpandedReportId(report.id)
     setExpandedReport(report)
+    setTweaked(paragraph === undefined ? null : { reportId: report.id, paragraph })
   }
 
   // Functional updates: the 404 path in handleExpand runs before its own
@@ -550,7 +554,8 @@ export default function ReportGeneration() {
                               reportId={reportId}
                               html={expandedReport.html}
                               studentName={r.name}
-                              onRegenerate={report => handleReportRegenerate(reportId, report)}
+                              onRegenerate={(report, paragraph) => handleReportRegenerate(reportId, report, paragraph)}
+                              highlightParagraph={tweaked?.reportId === reportId ? tweaked.paragraph : undefined}
                               onDelete={() => handleReportDelete(reportId)}
                             />
                           ) : (

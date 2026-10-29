@@ -332,6 +332,33 @@ const reportTaskFooter = "## Task\n" +
 	"Write each fact as something observed in class; never mention the notes or records, " +
 	"or that something was noted, recorded, described or reported.\n"
 
+// Paragraph tweak (task 221): the model rewrites one paragraph and the server
+// splices it back, so the rest of the report is context only. Its rules live
+// apart from reportTaskFooter: in the shared prompt, letting feedback override
+// the Level's length and placeholder rules cut regen_positive_two_rounds from
+// 11/18 to 1/9 (task 220). A Teacher pads a section to a school's fixed length;
+// the Level's placeholder rule kept the [MISSING] marker.
+const reportTweakDraftHeader = "## Current Report — context only: every part of it " +
+	"except the paragraph below stays as written\n"
+
+const reportTweakParagraphHeader = "## Paragraph to Rewrite\n"
+
+const reportTweakAskHeader = "## Teacher's Ask for This Paragraph\n"
+
+const reportTweakFooter = "## Task\n" +
+	"Rewrite the paragraph above as the Teacher asks, and change nothing the ask does not cover.\n" +
+	"Output only the paragraph's new content as inline HTML, without its enclosing <p> or <li> tag " +
+	"and without any other part of the report.\n" +
+	"The Report Specification still applies, except that a length in the ask overrides its length " +
+	"and its rules on placeholders and padding: keep to that length. " +
+	"To meet a shorter length, leave out the least important facts. To meet a longer length, use " +
+	"the Report Specification's example sentences or statements true of any student in the class, and " +
+	"delete every placeholder in the paragraph; never a claim about this student that the notes do not support.\n" +
+	"Never contradict the notes or invent a specific observation, weakness or date.\n" +
+	"Do not repeat a fact another paragraph of the report already states.\n" +
+	"Write each fact as something observed in class; never mention the notes or records, " +
+	"or that something was noted, recorded, described or reported.\n"
+
 // --- Computed hashes (populated at init) ---
 
 // ExtractionPromptHash is the short hash of the extraction prompt templates.
@@ -341,6 +368,10 @@ var ExtractionPromptHash string
 // ReportPromptHash is the short hash of the report-generation prompt templates.
 // Stamped on every generated report row.
 var ReportPromptHash string
+
+// ReportTweakPromptHash stamps reports a paragraph tweak wrote. Its own hash
+// keeps ReportPromptHash where it was: the regenerate prompt did not move.
+var ReportTweakPromptHash string
 
 func init() {
 	// The extraction hash covers both passes, in the order they run, with
@@ -353,15 +384,20 @@ func init() {
 	// The report hash covers all static fragments concatenated with separators.
 	// Dynamic parts (student name, notes, examples, draft, feedback) are represented by
 	// sentinels so the hash captures the structural template, not the data.
-	reportTemplate := reportPromptBase +
+	reportHead := reportPromptBase +
 		reportSpecHeader + "<<<reportInstructions>>>" +
 		reportInstructionsHeader + "<<<instructions>>>" +
-		reportNotesHeader + "<<<student>>>" + reportNotesFiling + "<<<notes>>>" +
-		reportPrevDraftHeader + "<<<draft>>>" +
-		reportEarlierFeedbackHeader + reportEarlierFeedbackRound + "<<<earlierFeedback>>>" +
+		reportNotesHeader + "<<<student>>>" + reportNotesFiling + "<<<notes>>>"
+	earlier := reportEarlierFeedbackHeader + reportEarlierFeedbackRound + "<<<earlierFeedback>>>"
+	ReportPromptHash = hashPrompt(reportHead +
+		reportPrevDraftHeader + "<<<draft>>>" + earlier +
 		reportFeedbackHeader + "<<<feedback>>>" +
-		reportTaskFooter
-	ReportPromptHash = hashPrompt(reportTemplate)
+		reportTaskFooter)
+	ReportTweakPromptHash = hashPrompt(reportHead +
+		reportTweakDraftHeader + "<<<draft>>>" + earlier +
+		reportTweakParagraphHeader + "<<<paragraph>>>" +
+		reportTweakAskHeader + "<<<feedback>>>" +
+		reportTweakFooter)
 }
 
 // sentinelClasses is the fixed roster both extraction schemas are built with

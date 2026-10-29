@@ -227,14 +227,30 @@ func TestRunBuildReportPrompt_RoundPicksFeedback(t *testing.T) {
 	})
 }
 
+// vars.paragraph turns the case's last round into a paragraph tweak.
+func TestRunBuildReportPrompt_Tweak(t *testing.T) {
+	out, err := captureOutput(func() error {
+		return runBuildReportPrompt(regenPromptVars(map[string]interface{}{
+			"draft": "<h3>A</h3><p>one</p><p>two [MISSING]</p>", "feedback": []string{"about 300 characters"}, "paragraph": 1,
+		}))
+	})
+	require.NoError(t, err)
+	var msgs []map[string]string
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
+	assert.Contains(t, msgs[0]["content"], "## Paragraph to Rewrite\ntwo [MISSING]\n")
+	assert.NotContains(t, msgs[0]["content"], "Teacher Feedback on Previous Draft")
+}
+
 func TestRunBuildReportPrompt_RegenerateVarsRejected(t *testing.T) {
 	cases := map[string]struct {
 		extra map[string]interface{}
 		want  string
 	}{
-		"feedback without draft": {map[string]interface{}{"feedback": []string{"warmer"}}, "needs vars.draft"},
-		"draft without feedback": {map[string]interface{}{"draft": "<p/>"}, "needs vars.feedback"},
-		"round past the last":    {map[string]interface{}{"draft": "<p/>", "feedback": []string{"warmer"}, "round": 1}, "outside"},
+		"feedback without draft":     {map[string]interface{}{"feedback": []string{"warmer"}}, "needs vars.draft"},
+		"draft without feedback":     {map[string]interface{}{"draft": "<p/>"}, "needs vars.feedback"},
+		"round past the last":        {map[string]interface{}{"draft": "<p/>", "feedback": []string{"warmer"}, "round": 1}, "outside"},
+		"paragraph past the last":    {map[string]interface{}{"draft": "<p>a</p>", "feedback": []string{"warmer"}, "paragraph": 1}, "paragraph not found"},
+		"paragraph without feedback": {map[string]interface{}{"paragraph": 0}, "needs vars.feedback"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

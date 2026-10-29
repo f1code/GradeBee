@@ -1,16 +1,18 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef, type CSSProperties } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import DOMPurify from 'dompurify'
 import { regenerateReport, deleteReport, submitFeedback, type ReportResult } from '../api'
-import { ThumbUpIcon, ThumbDownIcon } from './Icons'
+import { ThumbUpIcon, ThumbDownIcon, CopyIcon, CheckIcon, WandIcon } from './Icons'
 import AIBadge from './AIBadge'
 
 interface ReportViewerProps {
   reportId: number
   html: string
   studentName: string
-  onRegenerate?: (report: ReportResult) => void
+  // paragraph: the block a Tweak rewrote; undefined for a whole-report regenerate.
+  onRegenerate?: (report: ReportResult, paragraph?: number) => void
+  highlightParagraph?: number
   onDelete?: () => void
 }
 
@@ -20,6 +22,7 @@ export default function ReportViewer({
   studentName,
   onRegenerate,
   onDelete,
+  highlightParagraph,
 }: ReportViewerProps) {
   const { getToken } = useAuth()
   const [copied, setCopied] = useState(false)
@@ -27,6 +30,11 @@ export default function ReportViewer({
   const [feedback, setFeedback] = useState('')
   const [regenerating, setRegenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The p/li block a Tweak rewrites (index in querySelectorAll('p, li'), as the
+  // server numbers them) and its opening text; null for a whole-report regenerate.
+  const [tweak, setTweak] = useState<{ paragraph: number; excerpt: string; quote: string } | null>(null)
+  const tweakQuote = tweak?.quote ?? null
+  const canTweak = !!onRegenerate
 
   // Thumbs feedback state
   const [thumbRating, setThumbRating] = useState<'up' | 'down' | null>(null)
@@ -35,64 +43,98 @@ export default function ReportViewer({
   const [thumbSubmitting, setThumbSubmitting] = useState(false)
   const [thumbDone, setThumbDone] = useState(false)
 
-  const sanitizedHtml = DOMPurify.sanitize(html)
+  const sanitizedHtml = useMemo(() => DOMPurify.sanitize(html), [html])
+  // React 19 compares this prop by identity: a fresh object each render would
+  // rewrite the frame's innerHTML and detach every block.
+  const frameHtml = useMemo(() => ({ __html: sanitizedHtml }), [sanitizedHtml])
   const frameRef = useRef<HTMLDivElement | null>(null)
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
+  const pointerInside = useRef(false)
+  const feedbackRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // Attach per-paragraph copy buttons after the sanitized HTML is rendered.
+  // The form sits below the report: focus brings it into view.
   useEffect(() => {
+    if (tweak) feedbackRef.current?.focus()
+  }, [tweak])
+
+  // Same index the server spliced: a tweak keeps the block count.
+  useEffect(() => {
+    if (highlightParagraph === undefined) return
+    const block = frameRef.current?.querySelectorAll('p, li')[highlightParagraph]
+    if (!block) return
+    block.classList.add('para-tweaked')
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    // ponytail: waits out the parents' 0.25s expand; the target moves until it ends.
+    const timer = window.setTimeout(() => block.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' }), 300)
+    return () => window.clearTimeout(timer)
+  }, [highlightParagraph, sanitizedHtml])
+
+  // The paragraph the toolbar serves. Parents key the viewer by report id, so
+  // its html never changes underneath.
+  const [shown, setShown] = useState<{ el: HTMLElement; paragraph: number; top: number; bottom: number; right: number } | null>(null)
+  const [copiedEl, setCopiedEl] = useState<HTMLElement | null>(null)
+
+  // List items are header data and placeholders, not prose: p only. The index
+  // still counts li, as the server numbers blocks.
+  const activate = useCallback((node: Node | null | undefined) => {
     const frame = frameRef.current
-    if (!frame) return
-
-    const blocks = frame.querySelectorAll<HTMLElement>('p, li')
-    const cleanups: Array<() => void> = []
-
-    blocks.forEach(block => {
-      // Skip empty/whitespace-only blocks
-      if (!(block.textContent || '').trim()) return
-      // Avoid double-decorating on re-render
-      if (block.querySelector(':scope > .para-copy-btn')) return
-
-      block.classList.add('has-para-copy')
-
-      const btn = document.createElement('button')
-      btn.type = 'button'
-      btn.className = 'para-copy-btn'
-      btn.setAttribute('aria-label', 'Copy paragraph')
-      btn.textContent = 'Copy'
-      // Don't let clicking the button clear the user's selection
-      btn.addEventListener('mousedown', e => e.preventDefault())
-
-      const onClick = async (e: MouseEvent) => {
-        e.stopPropagation()
-        // Clone and strip copy buttons so their label isn't included in the text.
-        const clone = block.cloneNode(true) as HTMLElement
-        clone.querySelectorAll('.para-copy-btn').forEach(el => el.remove())
-        const text = (clone.textContent || '').trim()
-        if (!text) return
-        try {
-          await navigator.clipboard.writeText(text)
-        } catch {
-          return
-        }
-        btn.textContent = '✓ Copied'
-        btn.classList.add('para-copy-btn-success')
-        window.setTimeout(() => {
-          btn.textContent = 'Copy'
-          btn.classList.remove('para-copy-btn-success')
-        }, 1500)
-      }
-      btn.addEventListener('click', onClick)
-
-      block.appendChild(btn)
-      cleanups.push(() => {
-        btn.removeEventListener('click', onClick)
-        btn.remove()
-        block.classList.remove('has-para-copy')
-      })
+    const body = bodyRef.current
+    const el = node instanceof Element ? node : node?.parentElement
+    if (!frame || !body || !el || !frame.contains(el)) return
+    const p = el.closest('p')
+    if (!p || !(p.textContent || '').trim()) {
+      // The frame's own margins keep it, so the pointer can reach a toolbar
+      // that overhangs a short paragraph.
+      if (el !== frame) setShown(null)
+      return
+    }
+    const rect = p.getBoundingClientRect()
+    const origin = body.getBoundingClientRect()
+    const paragraph = Array.from(frame.querySelectorAll('p, li')).indexOf(p)
+    setShown({
+      el: p,
+      paragraph,
+      top: rect.top - origin.top,
+      bottom: rect.bottom - origin.top,
+      right: origin.right - rect.right,
     })
+  }, [])
 
-    return () => cleanups.forEach(fn => fn())
-  }, [sanitizedHtml])
+  // Selection reaches the toolbar without a mouse: caret browsing, long-press.
+  useEffect(() => {
+    const onSelection = () => activate(document.getSelection()?.anchorNode)
+    document.addEventListener('selectionchange', onSelection)
+    return () => document.removeEventListener('selectionchange', onSelection)
+  }, [activate])
+
+  async function handleParagraphCopy() {
+    if (!shown) return
+    const el = shown.el
+    try {
+      await navigator.clipboard.writeText((el.textContent || '').trim())
+    } catch {
+      return
+    }
+    setCopiedEl(el)
+    window.setTimeout(() => setCopiedEl(c => (c === el ? null : c)), 1500)
+  }
+
+  function handleParagraphTweak() {
+    if (!shown) return
+    const text = (shown.el.textContent || '').trim().replace(/\s+/g, ' ')
+    // By code point: a split surrogate pair fails the server's prefix check.
+    const chars = Array.from(text)
+    const excerpt = chars.slice(0, 60).join('')
+    setTweak({ paragraph: shown.paragraph, excerpt, quote: chars.length > 60 ? `${excerpt}…` : text })
+    setShowRegenerateForm(true)
+  }
+
+  function closeRegenerateForm() {
+    setShowRegenerateForm(false)
+    setFeedback('')
+    setTweak(null)
+  }
 
   const handleCopy = useCallback(async () => {
     const aiFooter = '\n\nPortions of this report were generated by AI and reviewed by the teacher.'
@@ -121,10 +163,10 @@ export default function ReportViewer({
     setRegenerating(true)
     setError(null)
     try {
-      const result = await regenerateReport(reportId, feedback.trim(), getToken)
-      setShowRegenerateForm(false)
-      setFeedback('')
-      onRegenerate?.(result)
+      const target = tweak ? { paragraph: tweak.paragraph, excerpt: tweak.excerpt } : undefined
+      const result = await regenerateReport(reportId, feedback.trim(), getToken, target)
+      closeRegenerateForm()
+      onRegenerate?.(result, target?.paragraph)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Regeneration failed')
     } finally {
@@ -197,7 +239,10 @@ export default function ReportViewer({
         {onRegenerate && (
           <button
             className="btn-secondary btn-sm"
-            onClick={() => setShowRegenerateForm(!showRegenerateForm)}
+            onClick={() => {
+              setTweak(null)
+              setShowRegenerateForm(!showRegenerateForm || !!tweakQuote)
+            }}
           >
             Regenerate
           </button>
@@ -232,12 +277,55 @@ export default function ReportViewer({
         <AIBadge /> Please review before sharing or saving to official records
       </div>
 
-      {/* Report HTML content */}
+      {/* Report HTML content; the toolbar is a sibling since React owns no children of the frame */}
       <div
-        ref={frameRef}
-        className="report-viewer-frame"
-        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
-      />
+        ref={bodyRef}
+        className="report-viewer-body"
+        onMouseOver={e => {
+          pointerInside.current = true
+          activate(e.target as Node)
+        }}
+        onMouseLeave={() => {
+          pointerInside.current = false
+          // Unmounting a focused button would drop focus to <body>: wait for blur.
+          if (toolbarRef.current?.contains(document.activeElement)) return
+          const sel = document.getSelection()
+          if (sel && !sel.isCollapsed && frameRef.current?.contains(sel.anchorNode)) return
+          setShown(null)
+        }}
+      >
+        <div
+          ref={frameRef}
+          className="report-viewer-frame"
+          dangerouslySetInnerHTML={frameHtml}
+        />
+        {shown && (
+          // preventDefault on mousedown keeps the teacher's selection
+          <div
+            ref={toolbarRef}
+            className="para-toolbar"
+            style={{ '--para-top': `${shown.top}px`, '--para-bottom': `${shown.bottom}px`, right: shown.right } as CSSProperties}
+            onMouseDown={e => e.preventDefault()}
+            onBlur={e => {
+              if (!pointerInside.current && !toolbarRef.current?.contains(e.relatedTarget)) setShown(null)
+            }}>
+            <button
+              type="button"
+              className={`para-btn${copiedEl === shown.el ? ' para-btn-success' : ''}`}
+              aria-label="Copy paragraph"
+              title="Copy"
+              onClick={handleParagraphCopy}
+            >
+              {copiedEl === shown.el ? <CheckIcon /> : <CopyIcon />}
+            </button>
+            {canTweak && (
+              <button type="button" className="para-btn" aria-label="Tweak paragraph" title="Tweak" onClick={handleParagraphTweak}>
+                <WandIcon />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Thumbs feedback — explicit rating below the content, above the regen box.
           A user can click 👎 + comment AND ALSO click Regenerate: each produces its own
@@ -328,10 +416,18 @@ export default function ReportViewer({
             transition={{ duration: 0.2 }}
             style={{ overflow: 'hidden' }}
           >
+            {tweakQuote && (
+              <p className="report-tweak-quote" data-testid="report-tweak-quote">
+                Tweaking: “{tweakQuote}”
+              </p>
+            )}
             <textarea
+              ref={feedbackRef}
               value={feedback}
               onChange={e => setFeedback(e.target.value)}
-              placeholder="What should be different? e.g. 'Make it shorter', 'Focus more on math skills'"
+              placeholder={tweakQuote
+                ? "How should this paragraph change? e.g. 'About 50 words, add some general statements'"
+                : "What should be different? e.g. 'Make it shorter', 'Focus more on math skills'"}
               rows={3}
               className="report-regenerate-textarea"
             />
@@ -352,7 +448,7 @@ export default function ReportViewer({
               </button>
               <button
                 className="btn-secondary btn-sm"
-                onClick={() => { setShowRegenerateForm(false); setFeedback('') }}
+                onClick={closeRegenerateForm}
               >
                 Cancel
               </button>

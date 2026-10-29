@@ -111,6 +111,8 @@ Audio is deleted right after transcription. The row and its transcript go after 
 
 Feedback required (`400` when blank). The prompt carries the report's HTML as the previous draft (`reportPrevDraftHeader`) and the feedback of every round behind it, oldest first (`ArtifactFeedbackRepo.RegenerateChain` walks `artifact_feedback`, so a deleted draft keeps the chain; `reportEarlierFeedbackHeader`). Notes with `updated_at` after the draft's `created_at` are tagged `(new)`; the model adds their facts and keeps the rest of the draft. The new report and its `regenerated` feedback row (thumbs-down on the source, `result_id` = the new report) are written in one transaction (`ReportRepo.CreateRegenerated`); either failing fails the regenerate.
 
+Paragraph tweak: the viewer's per-paragraph Tweak sends `paragraph` (index of the block in `p, li` document order) and `excerpt` (start of its text). `400` unless that block exists in the stored HTML and its text starts with the excerpt. The prompt shows the whole report as context and asks for that block's content only (`reportTweak*` in `prompts_version.go`; Level length, placeholder and padding rules yield to the ask). `spliceParagraph` (`report_tweak.go`) puts the answer back between the block's tags by byte offset, so every other byte stays as stored; an answer holding block tags or unbalanced inline tags fails the call. The feedback row stores `In the paragraph starting "<excerpt>": <ask>` so later rounds read it as scoped. Rows carry `ReportTweakPromptHash`.
+
 Ownership and input checks run on the request context. LLM call, save and implicit thumbs-down run on `context.WithoutCancel`: closing the tab does not stop them. `llmChatTimeout` bounds the call; a restart kills it.
 
 ## Dependency Injection
@@ -184,7 +186,7 @@ if !requireStudentOwnership(w, r, studentID, userID, "student not found") {
 
 ## Prompt and model versioning (`prompts_version.go`)
 
-Reports and model-written notes carry `model_version` and `prompt_hash`. `ExtractionPromptHash` covers both passes' templates and schema bytes; `ReportPromptHash` the report templates. Bump `PromptVersionTag` for logic changes outside templates and schemas.
+Reports and model-written notes carry `model_version` and `prompt_hash`. `ExtractionPromptHash` covers both passes' templates and schema bytes; `ReportPromptHash` the report templates; `ReportTweakPromptHash` the paragraph tweak's. Bump `PromptVersionTag` for logic changes outside templates and schemas.
 
 ## Type Generation
 

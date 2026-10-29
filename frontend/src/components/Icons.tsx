@@ -56,3 +56,17 @@ export function MoveIcon() {
     </svg>
   )
 }
+
+const strokeIcon = { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const
+
+export function CopyIcon() {
+  return <svg {...strokeIcon}><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h8" /></svg>
+}
+
+export function CheckIcon() {
+  return <svg {...strokeIcon}><path d="M5 12l5 5L20 7" /></svg>
+}
+
+export function WandIcon() {
+  return <svg {...strokeIcon}><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8 19 13M15 9h.01M17.8 6.2 19 5M3 21l9-9M12.2 6.2 11 5" /></svg>
+}

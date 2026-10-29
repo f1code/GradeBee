@@ -154,6 +154,8 @@ func runBuildExtractPrompt(ec evalContext) error {
 // (evals/providers/regen-chain.js) asks for later rounds with the previous
 // round's output as the draft. vars.draft_created_at tags notes edited after
 // the case's draft, in round 0 only: later drafts are newer than every note.
+// vars.paragraph makes the last round a paragraph tweak of that p/li block;
+// the output is the paragraph alone, as the model returns it.
 func runBuildReportPrompt(ec evalContext) error {
 	var studentName, className, instructions, reportInstructions, draft, draftCreatedAt string
 	for name, v := range map[string]*string{
@@ -180,6 +182,10 @@ func runBuildReportPrompt(ec evalContext) error {
 	if err := ec.unmarshalVar("round", &round); err != nil {
 		return err
 	}
+	var paragraph *int
+	if err := ec.unmarshalVar("paragraph", &paragraph); err != nil {
+		return err
+	}
 	var rev *handler.ReportRevision
 	if len(feedbacks) > 0 {
 		if draft == "" {
@@ -192,8 +198,14 @@ func runBuildReportPrompt(ec evalContext) error {
 		if round == 0 {
 			rev.DraftCreatedAt = draftCreatedAt
 		}
-	} else if draft != "" {
-		return fmt.Errorf("vars.draft needs vars.feedback")
+		if paragraph != nil && round == len(feedbacks)-1 {
+			if _, err := handler.ReportParagraph(draft, *paragraph); err != nil {
+				return fmt.Errorf("vars.paragraph %d: %w", *paragraph, err)
+			}
+			rev.Paragraph = paragraph
+		}
+	} else if draft != "" || paragraph != nil {
+		return fmt.Errorf("vars.draft or vars.paragraph needs vars.feedback")
 	}
 	// Production sends the built prompt as a single user message (no system role).
 	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, rev)
