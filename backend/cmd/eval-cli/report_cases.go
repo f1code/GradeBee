@@ -392,13 +392,21 @@ The output does what round %d asked. A later round overrides it only where the t
 1: ignored or undone
 `, draftIs, len(c.Feedback), i+1, fb, i+1)))
 	}
+	// Counted, not holistic: the holistic line swung 0.5-1 on one output
+	// whether a softened difficulty lost its harsh details (task 220).
 	out = append(out, rubric("kept", fmt.Sprintf(`kept: %s. The feedback, oldest first:
-%sEvery fact of the draft that no feedback asks to remove or change is still in the output, reworded at most. A fact the feedback asks to soften stays, softened. Facts from the notes that the draft lacked may be added. A fact left out is no loss when the output meets a length the feedback or the Report Specification sets.
-5: every such fact kept
-4: one minor fact lost
-3: several facts lost, or a section no feedback names rewritten
-2: most facts lost
-1: rewritten from scratch
+%sCount lost facts:
+1. List each fact of the draft in one short line.
+2. A fact no feedback asks to change is kept when the output still states it, reworded at most.
+3. A fact the feedback asks to soften, reword or make more positive is kept when the output still names the difficulty or topic, in general words if need be. Its specific details (an action, an example, a frequency) may go.
+4. A fact the feedback asks to remove is never lost.
+5. A fact left out is not lost when the output meets a length the feedback or the Report Specification sets.
+Facts from the notes that the draft lacked may be added. In your reason, name each lost fact, or say none.
+5: no fact lost
+4: one fact lost
+3: two facts lost
+2: three or four facts lost
+1: five or more lost, or rewritten from scratch
 `, draftIs, list.String())))
 	if len(c.ChangedNotes) > 0 {
 		var notes strings.Builder
