@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"os"
@@ -58,7 +59,7 @@ func TestWriteReportCases(t *testing.T) {
 		},
 		ReferenceHTML: "<p>ref</p>",
 	}
-	require.NoError(t, writeReportCases(m, []reportCase{c}, casesDir, testsPath))
+	require.NoError(t, writeReportCases(m, []reportCase{c}, casesDir, testsPath, experiment{}))
 
 	assert.NoDirExists(t, stale, "cases dropped from the manifest must not linger")
 	notes, err := os.ReadFile(filepath.Join(casesDir, "a_case", "notes.json"))
@@ -111,7 +112,7 @@ func TestWriteReportCases_Regenerate(t *testing.T) {
 		DraftCreatedAt: "2026-04-01T00:00:00.000Z",
 	}
 	plain := reportCase{ReportInputs: handler.ReportInputs{Notes: notes}, ReferenceHTML: "<p/>", Feedback: []string{"shorter"}}
-	require.NoError(t, writeReportCases(m, []reportCase{c, plain}, casesDir, testsPath))
+	require.NoError(t, writeReportCases(m, []reportCase{c, plain}, casesDir, testsPath, experiment{}))
 
 	raw, err := os.ReadFile(testsPath)
 	require.NoError(t, err)
@@ -165,7 +166,7 @@ func TestWriteReportCases_Tweak(t *testing.T) {
 		Feedback:      []string{tw.Ask},
 		ParagraphText: "two {{x}} [MISSING]",
 	}
-	require.NoError(t, writeReportCases(m, []reportCase{c}, casesDir, testsPath))
+	require.NoError(t, writeReportCases(m, []reportCase{c}, casesDir, testsPath, experiment{}))
 
 	raw, err := os.ReadFile(testsPath)
 	require.NoError(t, err)
@@ -252,7 +253,7 @@ func seedReferenceStore(t *testing.T) (db *sql.DB, refs string) {
 	refs = t.TempDir()
 	require.NoError(t, writeReference(refs, "c", referenceMeta{
 		StudentID: 1, StartDate: "2026-03-01", EndDate: "2026-03-31", Instructions: "be brief",
-		Notes: referenceNotes(in.Notes),
+		LevelInstructions: in.ReportInstructions, Notes: referenceNotes(in.Notes),
 	}, "<p>ref</p>"))
 	return db, refs
 }
@@ -269,12 +270,133 @@ func TestLoadFreshCase(t *testing.T) {
 	assert.Equal(t, "be brief", c.Instructions)
 	assert.Equal(t, "Élodie", c.StudentName)
 	assert.Len(t, c.Notes, 2)
+	assert.False(t, c.LevelDrift)
+}
+
+// setLevelSnapshot rewrites case "c"'s reference with another Level text.
+func setLevelSnapshot(t *testing.T, refs, text string) {
+	t.Helper()
+	meta, html, err := readReference(refs, "c")
+	require.NoError(t, err)
+	meta.LevelInstructions = text
+	require.NoError(t, os.RemoveAll(filepath.Join(refs, "c")))
+	require.NoError(t, writeReference(refs, "c", meta, html))
+}
+
+func TestLoadFreshCase_LevelSnapshot(t *testing.T) {
+	db, refs := seedReferenceStore(t)
+	_, err := db.Exec(`UPDATE levels SET report_instructions = 'Edited since.'`)
+	require.NoError(t, err)
+	resolver := handler.NewReportInputResolver(db)
+	e := reportManifestEntry{ID: "c", Description: "d", StudentID: 1}
+
+	c, err := loadFreshCase(context.Background(), resolver, refs, e)
+	require.NoError(t, err)
+	assert.Equal(t, "Three sections.", c.ReportInstructions, "a Level edit must not change the case's inputs")
+	assert.True(t, c.LevelDrift)
+
+	setLevelSnapshot(t, refs, "")
+	_, err = loadFreshCase(context.Background(), resolver, refs, e)
+	assert.ErrorContains(t, err, "no level_instructions")
+}
+
+func TestLoadRegenerateCase_LevelSnapshot(t *testing.T) {
+	db := seedDumpDB(t)
+	_, err := db.Exec(`INSERT INTO artifact_feedback (id, artifact_type, artifact_id, rating, signal, comment, user_id) VALUES (1, 'report', 10, 'down', 'regenerated', 'warmer', 'u')`)
+	require.NoError(t, err)
+	resolver := handler.NewReportInputResolver(db)
+	e := reportManifestEntry{ID: "r", Description: "d", StudentID: 1, ReportID: 10, Feedback: []int64{1}}
+
+	_, err = loadRegenerateCase(context.Background(), db, resolver, e)
+	assert.ErrorContains(t, err, "report 10 has no level_instructions")
+
+	_, err = db.Exec(`UPDATE reports SET level_instructions = 'Snapshot.' WHERE id = 10`)
+	require.NoError(t, err)
+	c, err := loadRegenerateCase(context.Background(), db, resolver, e)
+	require.NoError(t, err)
+	assert.Equal(t, "Snapshot.", c.ReportInstructions)
+	assert.True(t, c.LevelDrift)
+}
+
+func TestReadCandidates(t *testing.T) {
+	dir := t.TempDir()
+	mapPath := filepath.Join(dir, "map.json")
+	require.NoError(t, os.WriteFile(mapPath, []byte(`{"linda.md": ["Linda", "Marcia"], "sam.md": ["Sam"]}`), 0o644))
+	cand := filepath.Join(dir, "cand")
+	require.NoError(t, os.MkdirAll(cand, 0o755))
+
+	_, err := readCandidates(mapPath, cand)
+	assert.ErrorContains(t, err, "holds none of the files")
+
+	require.NoError(t, os.WriteFile(filepath.Join(cand, "linda.md"), []byte("\nNew text.\n"), 0o644))
+	got, err := readCandidates(mapPath, cand)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"Linda": "New text.", "Marcia": "New text."}, got)
+
+	require.NoError(t, os.WriteFile(filepath.Join(cand, "sam.md"), []byte("x"), 0o644))
+	require.NoError(t, os.WriteFile(mapPath, []byte(`{"linda.md": ["Linda"], "sam.md": ["Linda"]}`), 0o644))
+	_, err = readCandidates(mapPath, cand)
+	assert.ErrorContains(t, err, `Level "Linda" under two candidate files`)
+}
+
+func TestPrintCandidateHeader(t *testing.T) {
+	m := reportManifest{Reports: []reportManifestEntry{{ID: "a"}, {ID: "b"}, {ID: "c"}}}
+	cases := []reportCase{
+		{ReportInputs: handler.ReportInputs{LevelName: "Linda"}},
+		{ReportInputs: handler.ReportInputs{LevelName: "Sam"}},
+		{ReportInputs: handler.ReportInputs{LevelName: "Linda"}},
+	}
+	var out bytes.Buffer
+	printCandidateHeader(&out, m, cases, map[string]string{"Linda": "x"})
+	assert.Equal(t, "candidate text (2): a, c\nsnapshot text, no candidate for the Level (1): b\n", out.String())
+}
+
+func TestWriteReportCases_Experiment(t *testing.T) {
+	evals := t.TempDir()
+	casesDir := filepath.Join(evals, "fixtures", "reports")
+	testsPath := filepath.Join(evals, "tests.report.experiment.generated.yaml")
+	tw := reportTweak{Of: "fresh", Ask: "longer", StripLevelExamples: true}
+	m := reportManifest{Reports: []reportManifestEntry{
+		{ID: "fresh", Description: "fresh", StudentID: 1},
+		{ID: "other_level", Description: "other", StudentID: 2},
+		{ID: "regen", Description: "regen", StudentID: 1, ReportID: 3, Feedback: []int64{1}},
+		{ID: "tweak", Description: "tweak", StudentID: 1, Tweak: &tw},
+	}}
+	in := func(level string) handler.ReportInputs {
+		return handler.ReportInputs{LevelName: level, ReportInstructions: "Snapshot."}
+	}
+	cases := []reportCase{
+		{ReportInputs: in("Linda"), ReferenceHTML: "<p/>"},
+		{ReportInputs: in("Sam"), ReferenceHTML: "<p/>"},
+		{ReportInputs: in("Linda"), ReferenceHTML: "<p/>", Feedback: []string{"warmer"}},
+		{ReportInputs: in("Linda"), ReferenceHTML: "<p>x</p>", Feedback: []string{"longer"}},
+	}
+	x := experiment{noReference: true, candidates: map[string]string{"Linda": `Say "Reads with growing confidence." now.`}}
+	require.NoError(t, writeReportCases(m, cases, casesDir, testsPath, x))
+
+	raw, err := os.ReadFile(testsPath)
+	require.NoError(t, err)
+	var tests []reportTest
+	require.NoError(t, yaml.Unmarshal(raw, &tests))
+	require.Len(t, tests, 4)
+	levelText := func(tc reportTest) string {
+		got, err := os.ReadFile(filepath.Join(evals, tc.Vars.ReportInstructions[len("file://"):]))
+		require.NoError(t, err)
+		return string(got)
+	}
+	assert.Equal(t, `Say "Reads with growing confidence." now.`, levelText(tests[0]))
+	assert.Equal(t, "Snapshot.", levelText(tests[1]), "a Level with no candidate keeps its snapshot")
+	assert.Equal(t, `Say "Reads with growing confidence." now.`, levelText(tests[2]))
+	assert.Equal(t, "Say  now.", levelText(tests[3]), "strip_level_examples applies to the candidate too")
+
+	for i, want := range []*bool{new(bool), new(bool), nil, nil} {
+		assert.Equal(t, want, tests[i].Vars.UseReference, tests[i].Description)
+	}
 }
 
 func TestLoadTweakCase(t *testing.T) {
 	db, refs := seedReferenceStore(t)
-	_, err := db.Exec(`UPDATE levels SET report_instructions = 'Say "Reads with growing confidence." or leave a placeholder.'`)
-	require.NoError(t, err)
+	setLevelSnapshot(t, refs, `Say "Reads with growing confidence." or leave a placeholder.`)
 	resolver := handler.NewReportInputResolver(db)
 	entry := func(tw reportTweak) reportManifestEntry {
 		return reportManifestEntry{ID: "t", Description: "d", StudentID: 1, Tweak: &tw}

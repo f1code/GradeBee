@@ -154,7 +154,7 @@ SQLite, WAL (`db.go`). Migrations in `sql/`, embedded, applied in filename order
 | `students` | Students per class |
 | `student_aliases` | Name variants, unique per class, case-insensitive |
 | `notes` | Per-student notes. `trace_id` names the source recording (no FK). `source`: `auto`, `reviewed` (model-written; edit/delete fires implicit thumbs-down), `assigned`, `manual` (not model-written) |
-| `reports` | Generated HTML reports. `AUTOINCREMENT`: ids are never reused, because `artifact_feedback.result_id` outlives deleted reports and a reused id would inherit another report's chain |
+| `reports` | Generated HTML reports. `level_instructions`: the Level text the prompt used (NULL before task 185), read by the eval only, not in the API. `AUTOINCREMENT`: ids are never reused, because `artifact_feedback.result_id` outlives deleted reports and a reused id would inherit another report's chain |
 | `voice_notes` | Upload tracking: file path, `processed_at`, `purged_at`, `transcript`, `trace_id` (unique UUID; row ids get reused) |
 | `llm_calls` | One row per AI call: user, trace, provider, model, task, tokens/audio seconds, `ok`. Read by `scripts/ai_cost.sql`; see `docs/ai-usage.md` |
 | `artifact_feedback` | Append-only thumbs ratings: `explicit`, `regenerated`, `edited`, `deleted`. A `regenerated` row's `artifact_id` is the source report and `result_id` the report it produced; rows outlive deleted reports and carry the regenerate chain |

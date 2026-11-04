@@ -20,7 +20,9 @@ type Report struct {
 	Instructions *string `json:"instructions,omitempty"`
 	ModelVersion *string `json:"modelVersion,omitempty"`
 	PromptHash   *string `json:"promptHash,omitempty"`
-	CreatedAt    string  `json:"createdAt"`
+	// The Level text the prompt used; the eval replays it (task 185).
+	LevelInstructions *string `json:"-"`
+	CreatedAt         string  `json:"createdAt"`
 }
 
 // ReportSummary is the lightweight representation returned by list endpoints
@@ -58,9 +60,9 @@ func (r *ReportRepo) List(ctx context.Context, studentID int64) ([]ReportSummary
 func (r *ReportRepo) GetByID(ctx context.Context, id int64) (Report, error) {
 	var rpt Report
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, student_id, start_date, end_date, html, instructions, model_version, prompt_hash, created_at
+		SELECT id, student_id, start_date, end_date, html, instructions, model_version, prompt_hash, level_instructions, created_at
 		FROM reports WHERE id = ?`, id,
-	).Scan(&rpt.ID, &rpt.StudentID, &rpt.StartDate, &rpt.EndDate, &rpt.HTML, &rpt.Instructions, &rpt.ModelVersion, &rpt.PromptHash, &rpt.CreatedAt)
+	).Scan(&rpt.ID, &rpt.StudentID, &rpt.StartDate, &rpt.EndDate, &rpt.HTML, &rpt.Instructions, &rpt.ModelVersion, &rpt.PromptHash, &rpt.LevelInstructions, &rpt.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Report{}, ErrNotFound
 	}
@@ -80,10 +82,10 @@ func insertReport(ctx context.Context, q interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }, rpt *Report) error {
 	err := q.QueryRowContext(ctx, `
-		INSERT INTO reports (student_id, start_date, end_date, html, instructions, model_version, prompt_hash)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO reports (student_id, start_date, end_date, html, instructions, model_version, prompt_hash, level_instructions)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at`,
-		rpt.StudentID, rpt.StartDate, rpt.EndDate, rpt.HTML, rpt.Instructions, rpt.ModelVersion, rpt.PromptHash,
+		rpt.StudentID, rpt.StartDate, rpt.EndDate, rpt.HTML, rpt.Instructions, rpt.ModelVersion, rpt.PromptHash, rpt.LevelInstructions,
 	).Scan(&rpt.ID, &rpt.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("create report: %w", err)

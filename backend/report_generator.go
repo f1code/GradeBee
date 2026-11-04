@@ -87,12 +87,13 @@ func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	modelVersion := g.model
 	promptHash := ReportPromptHash
 	rpt := &Report{
-		StudentID:    req.StudentID,
-		StartDate:    req.StartDate,
-		EndDate:      req.EndDate,
-		HTML:         html,
-		ModelVersion: &modelVersion,
-		PromptHash:   &promptHash,
+		StudentID:         req.StudentID,
+		StartDate:         req.StartDate,
+		EndDate:           req.EndDate,
+		HTML:              html,
+		ModelVersion:      &modelVersion,
+		PromptHash:        &promptHash,
+		LevelInstructions: &req.ReportInstructions,
 	}
 	if req.Instructions != "" {
 		rpt.Instructions = &req.Instructions
@@ -134,12 +135,13 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	// 2. Save as a new report (new row, preserves history).
 	modelVersion := g.model
 	rpt := &Report{
-		StudentID:    req.StudentID,
-		StartDate:    req.StartDate,
-		EndDate:      req.EndDate,
-		HTML:         html,
-		ModelVersion: &modelVersion,
-		PromptHash:   &promptHash,
+		StudentID:         req.StudentID,
+		StartDate:         req.StartDate,
+		EndDate:           req.EndDate,
+		HTML:              html,
+		ModelVersion:      &modelVersion,
+		PromptHash:        &promptHash,
+		LevelInstructions: &req.ReportInstructions,
 	}
 	if req.Instructions != "" {
 		rpt.Instructions = &req.Instructions

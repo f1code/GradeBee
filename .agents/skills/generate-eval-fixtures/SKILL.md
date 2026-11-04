@@ -157,7 +157,9 @@ ORDER BY n.id"
 Report cases are keyed by id in `backend/evals/fixtures.manifest.json`. A
 fresh case's reference lives in the main tree's `data/eval-references/<id>/`
 (`reference.html`, `meta.json`), not in the DB, so a DB refresh keeps it;
-notes and Level text come from the DB. `make eval-fixtures` materializes cases
+notes come from the DB. Level text is the snapshot the reference (`meta.json`
+`level_instructions`) or draft (`reports.level_instructions`) was written
+under; a case without one fails. `make eval-fixtures` materializes cases
 (git-ignored). To add one (from the repo root or `backend/`):
 
 1. `make eval-gen-report CASE=id STUDENT_ID=N START=YYYY-MM-DD END=YYYY-MM-DD [INSTRUCTIONS='...']`
@@ -171,6 +173,11 @@ notes and Level text come from the DB. `make eval-fixtures` materializes cases
 
 `make eval-fixtures` fails naming the case when the notes in range differ from
 those in `meta.json` (missing, extra or edited): write a new reference.
+
+Two modes run the cases: the regression run (`make eval`, `make eval-report`)
+and the Level instruction experiment (`make eval-report NOREF=1`, then
+`CANDIDATE=dir BASE=file`), which tries candidate Level texts against the
+snapshot. See `backend/evals/README.md`, "Level instruction experiments".
 
 See `backend/evals/README.md`, "Report cases". A regenerate case names the
 draft as `report_id` plus `feedback` ids (`artifact_feedback`, oldest first)

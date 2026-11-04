@@ -188,6 +188,8 @@ func TestLLMReportGenerator_Generate_PromptAndPersistedRow(t *testing.T) {
 	assert.Equal(t, ReportPromptHash, *rpt.PromptHash)
 	require.NotNil(t, rpt.Instructions)
 	assert.Equal(t, fixtureInstructions, *rpt.Instructions)
+	require.NotNil(t, rpt.LevelInstructions)
+	assert.Equal(t, fixtureSpec, *rpt.LevelInstructions, "row must snapshot the Level text the prompt used")
 	assert.NotEmpty(t, rpt.CreatedAt)
 	assert.Equal(t, rpt.CreatedAt, resp.CreatedAt)
 
@@ -316,6 +318,8 @@ func TestLLMReportGenerator_Regenerate_WritesNewRowKeepsOld(t *testing.T) {
 	assert.Equal(t, fakeReportModel, *fresh.ModelVersion)
 	require.NotNil(t, fresh.PromptHash)
 	assert.Equal(t, ReportPromptHash, *fresh.PromptHash)
+	require.NotNil(t, fresh.LevelInstructions)
+	assert.Equal(t, fixtureSpec, *fresh.LevelInstructions, "the new row snapshots the Level text this prompt used")
 
 	stale, err := f.reportRepo.GetByID(f.ctx, old.ID)
 	require.NoError(t, err)

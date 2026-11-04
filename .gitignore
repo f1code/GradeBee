@@ -24,6 +24,7 @@ backend/evals/results/
 # Report eval cases generated from the local DB (real names, notes, report text)
 backend/evals/fixtures/reports/
 backend/evals/tests.report.generated.yaml
+backend/evals/tests.report.experiment.generated.yaml
 
 
 node_modules

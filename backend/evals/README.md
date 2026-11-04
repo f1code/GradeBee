@@ -24,6 +24,8 @@ make eval-fixtures   # regenerate report cases (eval/eval-report do it when stal
 make eval-baseline   # re-pin both baselines after a deliberate change
 ```
 
+Trying new Level instructions: "Level instruction experiments" below.
+
 Needs the keys for the providers in the configs (see `.env.example`); the report judge takes `ANTHROPIC_API_KEY` or a Claude Code login. Report cases need `../data/gradebee.db` and the main tree's `data/eval-references/`.
 
 **Empty output?** `.env` sets `LOG_LEVEL=DEBUG`, which promptfoo rejects silently. Run `LOG_LEVEL= make eval`.
@@ -41,6 +43,7 @@ evals/
   providers/regen-chain.js        runs a regenerate case's feedback rounds; last output graded
   fixtures.manifest.json          report cases by id (committed, PII-free)
   tests.report.generated.yaml     report tests (generated, git-ignored)
+  tests.report.experiment.generated.yaml  experiment report tests (generated, git-ignored)
   scoring/extraction.js           extraction scorer
   scoring/goldens/                stored outputs with their verdict, replayed by make test
   scoring/assemble.js             folds pass-2 passages into notes, as production does
@@ -57,7 +60,9 @@ evals/
 
 Report cases hold real names and notes, so the repo keeps only `fixtures.manifest.json` (id, name-free description, `student_id`, optional `expect` rubric lines; regenerate cases add `report_id` and `feedback` ids, tweak cases a `tweak` block). What agents may read: `docs/adr/0005-report-eval-data-stays-local.md`.
 
-A fresh case's reference lives in `data/eval-references/<id>/` of the main tree (`reference.html` + `meta.json` with range, ad-hoc instructions and the note ids it was written from). `make eval-fixtures` joins it with the DB's notes and Level instructions; it fails by name when the notes in range no longer match the reference. Fix: delete the case's directory and `make eval-gen-report` again, or drop the case.
+A fresh case's reference lives in `data/eval-references/<id>/` of the main tree (`reference.html` + `meta.json` with range, ad-hoc instructions, the Level instructions and the note ids it was written from). `make eval-fixtures` joins it with the DB's notes; it fails by name when the notes in range no longer match the reference. Fix: delete the case's directory and `make eval-gen-report` again, or drop the case.
+
+Level instructions come from the snapshot the reference or draft was written under: `meta.json` `level_instructions` for fresh and tweak cases, `reports.level_instructions` for regenerate cases. A Teacher's Level edit leaves the cases' inputs alone; `make eval-fixtures` warns per case when the Level's text has moved on, and fails a case with no snapshot. Reports before task 185 have none.
 
 ### Adding a report case
 
@@ -79,6 +84,21 @@ Score a paragraph tweak. `tweak.of` names a fresh case; its reference is the dra
 The judge and its per-axis rubrics (structure, grounding, completeness, tone, compliance) are in `promptfooconfig.report.yaml` `defaultTest`; that file is the authority on what each axis grades and its pass threshold. A row passes when every axis clears its floor. A `not-regex` (`source-mention`) fails reports that cite "the notes". The judge runs outside the EU (ADR-0005).
 
 The **gold-reference** row echoes each case's reference. Its movement is judge noise, and it never counts as a regression. Report diffs flag moves beyond ±0.15 (`REPORT_DIFF_FLAGS` in the Makefile), extraction beyond ±0.05. One report run is noisy (the model writes a new report each time), so `make eval` reruns each flagged report case 3 times, cache off, and confirms it only when 2 reruns regress too (`scripts/confirm-regressions.js`, output `results/<stamp>-report-confirm.json`). Pinning ignores reruns. If gold rows fail, read the judge reasons (`RESULT=` above): either the reference breaks the current Level text, or the rubric needs a clarification.
+
+## Level instruction experiments
+
+Compare candidate Level instructions with the current ones on the regression cases. Two runs, diffed by `diff-baseline.js`:
+
+```bash
+make eval-report NOREF=1                                        # base: snapshot texts
+make eval-report CANDIDATE=dir BASE=evals/results/<base>-report.json   # candidate, then diff
+```
+
+- `CANDIDATE` holds files named as in `research/level-instructions/map.json` (file → Level names, shared with `apply.py`). A case whose Level has no file there runs its snapshot text: a free reading of noise. The run prints which cases are on candidate text and which fell back.
+- Both runs drop the reference from fresh cases' judge prompt (`use_reference: false`), since it was written under the snapshot text. Regenerate and tweak cases keep theirs: it is the draft. The judge grades each side against its own Level text.
+- Canonical row only, no gold row, cache off: a cached fallback case would replay the base run and read no noise. `REPEAT=n` passes `--repeat n` to promptfoo; the diff averages repeats. The ±0.15 band covers judge noise only, not generator noise: repeat both sides when a move matters.
+- One candidate dir per run; compare A/B/C as several candidate runs against one base. Candidate text stays out of the repo.
+- Experiment runs write their own test list, so the regression list stays put; the case files under `fixtures/reports/` are rewritten, with `candidate_instructions.txt` added.
 
 ## Extraction scoring
 

@@ -103,6 +103,9 @@ providers:
 defaultTest:
   vars:
     task: build-report-prompt
+    # Experiment tests set it false on fresh cases (eval-cli gen-report-cases
+    # -no-reference): the reference was written under the snapshot text.
+    use_reference: true
   options:
     provider:
       # Claude Agent SDK judge, about $0.055 a grading call. Anthropic wrote
@@ -149,13 +152,14 @@ defaultTest:
       {{feedback}}
       </teacher_feedback>
       {% endif %}
-
+      {% if use_reference %}
       <reference_report>
       A report the school accepted for the same notes: an example of the general statements and the
       length the school accepts. Student name and exact structure may differ. The output may be this
       report itself; never count a match with it against the output.
       {{reference}}
       </reference_report>
+      {% endif %}
 
       <output>
       {{output}}

@@ -21,7 +21,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { regressed } = require('./confirm-regressions');
+const { regressed, meanRow } = require('./confirm-regressions');
 
 const flags = process.argv.slice(2).filter(a => a.startsWith('--'));
 const [baselinePath, currentPath] = process.argv.slice(2).filter(a => !a.startsWith('--'));
@@ -71,14 +71,17 @@ const baselineResults = (baseline.results && baseline.results.results) ? baselin
 const currentResults  = (current.results  && current.results.results)  ? current.results.results  : [];
 
 // Index by (description, provider) to correctly handle multi-provider test runs.
+// A --repeat run holds one row per repeat: score and axes are their mean,
+// pass needs every repeat to pass.
 function indexByKey(arr) {
-  const map = {};
+  const groups = {};
   for (const r of arr) {
     const desc     = r.description || r.testCase?.description || '(unnamed)';
     const provider = r.provider?.label || r.provider?.id || 'unknown';
-    const key      = `${desc}|||${provider}`;
-    if (!map[key]) map[key] = r; // first occurrence wins (promptfoo may repeat)
+    (groups[`${desc}|||${provider}`] ??= []).push(r);
   }
+  const map = {};
+  for (const [key, rows] of Object.entries(groups)) map[key] = rows.length === 1 ? rows[0] : meanRow(rows);
   return map;
 }
 

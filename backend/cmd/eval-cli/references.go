@@ -23,14 +23,17 @@ const (
 
 // referenceMeta records what a reference was written from. Notes pins the note
 // set: gen-report-cases fails when the DB's notes in range no longer match.
+// LevelInstructions pins the Level text: the case replays it, whatever the
+// Level says today.
 type referenceMeta struct {
-	StudentID    int64           `json:"student_id"`
-	StartDate    string          `json:"start_date"`
-	EndDate      string          `json:"end_date"`
-	Instructions string          `json:"instructions"`
-	Model        string          `json:"model"`
-	CreatedAt    string          `json:"created_at"`
-	Notes        []referenceNote `json:"notes"`
+	StudentID         int64           `json:"student_id"`
+	StartDate         string          `json:"start_date"`
+	EndDate           string          `json:"end_date"`
+	Instructions      string          `json:"instructions"`
+	LevelInstructions string          `json:"level_instructions"`
+	Model             string          `json:"model"`
+	CreatedAt         string          `json:"created_at"`
+	Notes             []referenceNote `json:"notes"`
 }
 
 type referenceNote struct {

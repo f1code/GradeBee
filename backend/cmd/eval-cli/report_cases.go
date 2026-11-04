@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -77,6 +78,9 @@ type reportTestVars struct {
 	DraftCreatedAt     string `yaml:"draft_created_at,omitempty"`
 	Feedback           string `yaml:"feedback,omitempty"`
 	Paragraph          *int   `yaml:"paragraph,omitempty"`
+	// Experiment runs set it false on fresh cases: the reference was written
+	// under the snapshot text, so it would pull the candidate side toward it.
+	UseReference *bool `yaml:"use_reference,omitempty"`
 }
 
 type reportTestOptions struct {
@@ -112,22 +116,97 @@ func runGenReportCases(args []string) error {
 	manifestPath := fs.String("manifest", "", "report case manifest (JSON)")
 	casesDir := fs.String("cases-dir", "", "directory to write case files into; replaced on every run")
 	testsPath := fs.String("tests", "", "promptfoo test list to write (YAML)")
+	var x experiment
+	fs.BoolVar(&x.noReference, "no-reference", false, "experiment: fresh cases' judge reads no reference")
+	candidateDir := fs.String("candidate", "", "experiment: directory of candidate Level texts, named as in -map; implies -no-reference")
+	mapPath := fs.String("map", "", "map.json: Level instruction file -> Level names (with -candidate)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	if *dbPath == "" || *refsDir == "" || *manifestPath == "" || *casesDir == "" || *testsPath == "" {
-		return fmt.Errorf("usage: eval-cli gen-report-cases -db PATH -refs DIR -manifest PATH -cases-dir DIR -tests PATH")
+	if *dbPath == "" || *refsDir == "" || *manifestPath == "" || *casesDir == "" || *testsPath == "" || (*candidateDir != "") != (*mapPath != "") {
+		return fmt.Errorf("usage: eval-cli gen-report-cases -db PATH -refs DIR -manifest PATH -cases-dir DIR -tests PATH [-no-reference | -candidate DIR -map PATH]")
 	}
 
 	manifest, err := readReportManifest(*manifestPath)
 	if err != nil {
 		return err
 	}
+	if *candidateDir != "" {
+		if x.candidates, err = readCandidates(*mapPath, *candidateDir); err != nil {
+			return err
+		}
+		x.noReference = true
+	}
 	cases, err := loadReportCases(*dbPath, *refsDir, manifest)
 	if err != nil {
 		return err
 	}
-	return writeReportCases(manifest, cases, *casesDir, *testsPath)
+	for i, c := range cases {
+		if c.LevelDrift {
+			fmt.Fprintf(os.Stderr, "warning: case %q: Level %q text has changed since the case's snapshot; the case keeps the snapshot\n", manifest.Reports[i].ID, c.LevelName)
+		}
+	}
+	if x.candidates != nil {
+		printCandidateHeader(os.Stdout, manifest, cases, x.candidates)
+	}
+	return writeReportCases(manifest, cases, *casesDir, *testsPath, x)
+}
+
+// experiment configures a run that compares Level texts rather than guards
+// against regressions. Candidates maps Level name to candidate text; a case
+// whose Level has none keeps its snapshot text.
+type experiment struct {
+	noReference bool
+	candidates  map[string]string
+}
+
+// readCandidates reads map.json, shared with research/level-instructions/
+// apply.py, and the candidate files dir holds, trimmed as apply.py trims them.
+func readCandidates(mapPath, dir string) (map[string]string, error) {
+	raw, err := os.ReadFile(mapPath)
+	if err != nil {
+		return nil, fmt.Errorf("read map: %w", err)
+	}
+	var files map[string][]string
+	if err := json.Unmarshal(raw, &files); err != nil {
+		return nil, fmt.Errorf("parse map %s: %w", mapPath, err)
+	}
+	out := map[string]string{}
+	for file, levels := range files {
+		text, err := os.ReadFile(filepath.Join(dir, file))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if strings.TrimSpace(string(text)) == "" {
+			return nil, fmt.Errorf("candidate %s is empty", file)
+		}
+		for _, l := range levels {
+			if _, dup := out[l]; dup {
+				return nil, fmt.Errorf("map %s lists Level %q under two candidate files", mapPath, l)
+			}
+			out[l] = strings.TrimSpace(string(text))
+		}
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("candidate dir %s holds none of the files %s names", dir, mapPath)
+	}
+	return out, nil
+}
+
+func printCandidateHeader(w io.Writer, m reportManifest, cases []reportCase, candidates map[string]string) {
+	var on, fallback []string
+	for i, c := range cases {
+		if _, ok := candidates[c.LevelName]; ok {
+			on = append(on, m.Reports[i].ID)
+		} else {
+			fallback = append(fallback, m.Reports[i].ID)
+		}
+	}
+	fmt.Fprintf(w, "candidate text (%d): %s\n", len(on), strings.Join(on, ", "))
+	fmt.Fprintf(w, "snapshot text, no candidate for the Level (%d): %s\n", len(fallback), strings.Join(fallback, ", "))
 }
 
 func readReportManifest(path string) (reportManifest, error) {
@@ -180,6 +259,15 @@ type reportCase struct {
 	DraftCreatedAt string
 	// Tweak cases only: the paragraph's text, for the judge.
 	ParagraphText string
+	// The Level's current text differs from the snapshot ReportInstructions holds.
+	LevelDrift bool
+}
+
+// useSnapshot swaps the Level's current text for the one the reference or
+// draft was written under, so a Level edit leaves the case's inputs alone.
+func (c *reportCase) useSnapshot(snapshot string) {
+	c.LevelDrift = snapshot != c.ReportInstructions
+	c.ReportInstructions = snapshot
 }
 
 // loadReportCases reads every case, then closes the DB before anything is
@@ -237,7 +325,12 @@ func loadFreshCase(ctx context.Context, resolver *handler.ReportInputResolver, r
 	if len(in.Notes) == 0 {
 		return reportCase{}, fmt.Errorf("student %d has no notes between %s and %s", e.StudentID, meta.StartDate, meta.EndDate)
 	}
-	return reportCase{ReportInputs: in, ReferenceHTML: html}, nil
+	if strings.TrimSpace(meta.LevelInstructions) == "" {
+		return reportCase{}, fmt.Errorf("reference %s has no level_instructions, the Level text it was written under; add it or write a new reference", referenceMetaFile)
+	}
+	c := reportCase{ReportInputs: in, ReferenceHTML: html}
+	c.useSnapshot(meta.LevelInstructions)
+	return c, nil
 }
 
 var levelExample = regexp.MustCompile(`"[^"\n]{8,}"|“[^”\n]{8,}”`)
@@ -268,6 +361,9 @@ func loadRegenerateCase(ctx context.Context, db *sql.DB, resolver *handler.Repor
 	if err != nil {
 		return reportCase{}, err
 	}
+	if rpt.LevelInstructions == nil || strings.TrimSpace(*rpt.LevelInstructions) == "" {
+		return reportCase{}, fmt.Errorf("report %d has no level_instructions, the Level text it was written under (reports before task 185 have none); backfill it or pick a newer draft", rpt.ID)
+	}
 	if len(in.Notes) == 0 {
 		return reportCase{}, errNoNotes(in, rpt)
 	}
@@ -281,7 +377,9 @@ func loadRegenerateCase(ctx context.Context, db *sql.DB, resolver *handler.Repor
 			return reportCase{}, err
 		}
 	}
-	return reportCase{ReportInputs: in, ReferenceHTML: rpt.HTML, Feedback: feedback, ChangedNotes: changed, DraftCreatedAt: rpt.CreatedAt}, nil
+	c := reportCase{ReportInputs: in, ReferenceHTML: rpt.HTML, Feedback: feedback, ChangedNotes: changed, DraftCreatedAt: rpt.CreatedAt}
+	c.useSnapshot(*rpt.LevelInstructions)
+	return c, nil
 }
 
 // loadFeedbackComment returns a feedback row's comment, refusing a row on
@@ -335,7 +433,7 @@ func notesChangedSince(in handler.ReportInputs, rpt handler.Report) ([]handler.N
 	return changed, nil
 }
 
-func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath string) error {
+func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath string, x experiment) error {
 	if err := os.RemoveAll(casesDir); err != nil {
 		return fmt.Errorf("clear %s: %w", casesDir, err)
 	}
@@ -371,6 +469,14 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 			"instructions.txt":        []byte(c.Instructions),
 			"reference.html":          []byte(c.ReferenceHTML),
 		}
+		levelFile := "report_instructions.txt"
+		if text, ok := x.candidates[c.LevelName]; ok {
+			if e.Tweak != nil && e.Tweak.StripLevelExamples {
+				text = levelExample.ReplaceAllString(text, "")
+			}
+			levelFile = "candidate_instructions.txt"
+			files[levelFile] = []byte(text)
+		}
 		if len(c.Feedback) > 0 {
 			if files["feedback.json"], err = json.MarshalIndent(c.Feedback, "", "  "); err != nil {
 				return err
@@ -390,7 +496,7 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 				StudentName:        c.StudentName,
 				ClassName:          c.ClassName,
 				Notes:              ref("notes.json"),
-				ReportInstructions: ref("report_instructions.txt"),
+				ReportInstructions: ref(levelFile),
 				Instructions:       ref("instructions.txt"),
 				Reference:          ref("reference.html"),
 			},
@@ -411,6 +517,11 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 			t.Assert = regenerateAsserts(c, e.Expect)
 		default:
 			t.Assert = expectAsserts("the output is a fresh report written from the notes", e.Expect)
+			// Regenerate and tweak cases keep theirs: it is the draft, the same on
+			// both sides, and their rubric lines grade against it.
+			if x.noReference {
+				t.Vars.UseReference = new(bool)
+			}
 		}
 		tests = append(tests, t)
 	}

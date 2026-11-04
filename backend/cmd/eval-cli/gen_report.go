@@ -97,13 +97,14 @@ func genReport(ctx context.Context, db *sql.DB, drafter handler.ReportDrafter, w
 		return err
 	}
 	meta := referenceMeta{
-		StudentID:    o.studentID,
-		StartDate:    o.start,
-		EndDate:      o.end,
-		Instructions: o.instructions,
-		Model:        drafter.Model(),
-		CreatedAt:    time.Now().UTC().Format(time.RFC3339),
-		Notes:        referenceNotes(in.Notes),
+		StudentID:         o.studentID,
+		StartDate:         o.start,
+		EndDate:           o.end,
+		Instructions:      o.instructions,
+		LevelInstructions: in.ReportInstructions,
+		Model:             drafter.Model(),
+		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+		Notes:             referenceNotes(in.Notes),
 	}
 	if err := writeReference(o.refsDir, o.caseID, meta, html); err != nil {
 		return err

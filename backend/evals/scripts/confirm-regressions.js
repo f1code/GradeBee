@@ -33,6 +33,17 @@ function regressed(b, c, band) {
   return hard(c) - hard(b) < -band - 1e-9 || (pass(b) && !pass(c));
 }
 
+// One row for a --repeat run's rows of a case: score and axes their mean,
+// pass only when every repeat passed.
+function meanRow(rows) {
+  const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const namedScores = {};
+  for (const name of new Set(rows.flatMap(r => Object.keys(r.namedScores || {})))) {
+    namedScores[name] = mean(rows.map(r => r.namedScores?.[name]).filter(v => v != null));
+  }
+  return { ...rows[0], score: mean(rows.map(score)), namedScores, gradingResult: undefined, pass: rows.every(pass) };
+}
+
 // Descriptions carry punctuation; anchored so a description sharing another's
 // prefix stays out.
 function descPattern(descs) {
@@ -108,4 +119,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { regressed, descPattern, tally };
+module.exports = { regressed, descPattern, tally, meanRow };

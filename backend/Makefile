@@ -71,6 +71,17 @@ $(EVAL_REPORT_TESTS): $(EVAL_MANIFEST) $(wildcard $(EVAL_DB) $(EVAL_DB)-wal $(if
 eval-fixtures: bin/eval-cli
 	$(GEN_REPORT_CASES)
 
+# Experiment mode compares Level texts on the regression cases: NOREF=1 runs
+# the snapshot texts, CANDIDATE=dir candidate texts named as in map.json, then
+# diffs against BASE, a NOREF run's result. Fresh cases drop the reference on
+# both sides; canonical row only; cache off, or a fallback case would replay
+# the base run. Own test list, so the regression list and its mtime check
+# stay untouched. The later -tests overrides GEN_REPORT_CASES's.
+LEVEL_MAP ?= $(if $(MAIN_TREE),$(MAIN_TREE)/../research/level-instructions/map.json)
+REPORT_EXPERIMENT_TESTS := evals/tests.report.experiment.generated.yaml
+REPEAT ?= 1
+EXPERIMENT_FLAGS = $(if $(CANDIDATE),-candidate $(CANDIDATE) -map $(LEVEL_MAP),$(if $(NOREF),-no-reference))
+
 # Draft a fresh case's reference through production Generate's prompt into
 # $(EVAL_REFS)/CASE, and print a draft manifest entry. No report text printed.
 # Usage: make eval-gen-report CASE=id STUDENT_ID=N START=YYYY-MM-DD END=YYYY-MM-DD [INSTRUCTIONS='...']
@@ -112,11 +123,17 @@ eval-extract: bin/eval-cli
 	  --config promptfooconfig.extract.yaml \
 	  --output results/$$(date +%Y%m%d-%H%M%S)-extract.json
 
-# Run report eval only.
-eval-report: bin/eval-cli $(EVAL_REPORT_TESTS)
+# Run report eval only, or an experiment (see EXPERIMENT_FLAGS).
+# Usage: make eval-report | make eval-report NOREF=1 [REPEAT=n] | make eval-report CANDIDATE=dir BASE=file [REPEAT=n]
+eval-report: bin/eval-cli $(if $(EXPERIMENT_FLAGS),,$(EVAL_REPORT_TESTS))
+	$(if $(CANDIDATE),$(if $(BASE),,$(error CANDIDATE needs BASE=evals/results/<NOREF run>-report.json)))
+	$(if $(EXPERIMENT_FLAGS),$(GEN_REPORT_CASES) -tests $(REPORT_EXPERIMENT_TESTS) $(EXPERIMENT_FLAGS))
 	-cd evals && pnpm exec promptfoo eval \
 	  --config promptfooconfig.report.yaml \
-	  --output results/$$(date +%Y%m%d-%H%M%S)-report.json
+	  $(if $(EXPERIMENT_FLAGS),--tests $(notdir $(REPORT_EXPERIMENT_TESTS)) --filter-providers '^gradebee-report$$' --repeat $(REPEAT) --no-cache) \
+	  --output ../$(REPORT_RESULT)
+	@echo "Result: $(REPORT_RESULT)"
+	$(if $(CANDIDATE),@node evals/scripts/diff-baseline.js $(REPORT_DIFF_FLAGS) $(BASE) $(REPORT_RESULT))
 
 # Open the promptfoo browser UI to browse eval results.
 eval-view:
