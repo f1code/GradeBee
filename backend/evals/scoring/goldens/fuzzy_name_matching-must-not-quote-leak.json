@@ -1,0 +1,155 @@
+{
+  "source": "20260526-080114.json 227f5e10 (gradebee-extract)",
+  "fixture": "fuzzy_name_matching",
+  "expected": {
+    "expected_students": [
+      {
+        "name": "Théo",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "very good participation and motivation",
+          "/making (?:the )?full sentences/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*I can/",
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Inaya",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/repeat.* in full structures/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Camille",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/repeat.* in full structures/",
+          "/easily kn(?:owing|ew) what to take .* area/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Lina",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/jumping/",
+          "animals could"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Lucie",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/jumping/",
+          "animals could"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Margot",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing",
+          "full s"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Romain",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing",
+          "full s"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      }
+    ],
+    "must_not_extract": [
+      "Margot",
+      "Romain"
+    ]
+  },
+  "output": {
+    "students": [
+      {
+        "name": "Théo",
+        "class": "Marcia-Wed@14:10",
+        "quoted_text": "Théo had very good participation and motivation in learning. He was doing well with making full sentences, using phrases like 'Yes, I can' and 'No, I can't.' The class as a whole did well with activities involving Marcia's playing and jumping, as well as understanding what animals could and couldn't do.",
+        "confidence": 1,
+        "candidates": []
+      },
+      {
+        "name": "Inaya",
+        "class": "Marcia-Wed@14:10",
+        "quoted_text": "Inaya did very well, with excellent participation. She was repeating everything in full structures, similar to other students in the class. The class as a whole did well with activities involving Marcia's playing and jumping, as well as understanding what animals could and couldn't do.",
+        "confidence": 0.95,
+        "candidates": []
+      },
+      {
+        "name": "Camille",
+        "class": "Marcia-Wed@14:10",
+        "quoted_text": "Camille repeated everything in full structures and easily knew what to take to which area. The class as a whole did well with activities involving Marcia's playing and jumping, as well as understanding what animals could and couldn't do.",
+        "confidence": 1,
+        "candidates": []
+      },
+      {
+        "name": "Lina",
+        "class": "Marcia-Wed@14:10",
+        "quoted_text": "Lina did well, particularly with activities involving Marcia's playing and jumping. The class as a whole did well with these activities, as well as understanding what animals could and couldn't do.",
+        "confidence": 0.9,
+        "candidates": []
+      },
+      {
+        "name": "Lucie",
+        "class": "Marcia-Wed@14:10",
+        "quoted_text": "Lucie did well, particularly with activities involving Marcia's playing and jumping. The class as a whole did well with these activities, as well as understanding what animals could and couldn't do.",
+        "confidence": 1,
+        "candidates": []
+      }
+    ],
+    "date": "2023-11-01"
+  },
+  "pass": false,
+  "score": 0.5678571428571428,
+  "hard": 0.6785714285714286
+}

@@ -1,0 +1,155 @@
+{
+  "source": "20260901-075339-extract.json 994b4682 (gradebee-extract-small)",
+  "fixture": "fuzzy_name_matching",
+  "expected": {
+    "expected_students": [
+      {
+        "name": "Théo",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "very good participation and motivation",
+          "/making (?:the )?full sentences/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*I can/",
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Inaya",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/repeat.* in full structures/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Camille",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/repeat.* in full structures/",
+          "/easily kn(?:owing|ew) what to take .* area/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Lina",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/jumping/",
+          "animals could"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Lucie",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/jumping/",
+          "animals could"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Margot",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing",
+          "full s"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Romain",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing",
+          "full s"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      }
+    ],
+    "must_not_extract": [
+      "Margot",
+      "Romain"
+    ]
+  },
+  "output": {
+    "students": [
+      {
+        "name": "Théo",
+        "class_name": "Marcia · Wed · 14:10",
+        "quoted_text": "Théo had very good participation and motivation for learning. He was doing well with making full sentences. He was able to respond correctly to prompts like 'Yes, I can' and 'No, I can't'.",
+        "confidence": 0.95,
+        "candidates": []
+      },
+      {
+        "name": "Inaya",
+        "class_name": "Marcia · Wed · 14:10",
+        "quoted_text": "Inaya did very well. She was repeating everything in full structures.",
+        "confidence": 0.9,
+        "candidates": []
+      },
+      {
+        "name": "Camille",
+        "class_name": "Marcia · Wed · 14:10",
+        "quoted_text": "Camille was repeating in full structures and easily knew what to take to which area.",
+        "confidence": 0.9,
+        "candidates": []
+      },
+      {
+        "name": "Lina",
+        "class_name": "Marcia · Wed · 14:10",
+        "quoted_text": "Lina did well with Marcia's playing and jumping.",
+        "confidence": 0.9,
+        "candidates": []
+      },
+      {
+        "name": "Lucie",
+        "class_name": "Marcia · Wed · 14:10",
+        "quoted_text": "Lucie did well with Marcia's playing and jumping.",
+        "confidence": 0.9,
+        "candidates": []
+      }
+    ],
+    "date": "2023-10-04"
+  },
+  "pass": false,
+  "score": 0.5678571428571428,
+  "hard": 0.6785714285714286
+}

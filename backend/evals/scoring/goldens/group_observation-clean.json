@@ -1,0 +1,69 @@
+{
+  "source": "20261029-061728-extract.json f9275142 (gradebee-extract)",
+  "fixture": "group_observation",
+  "expected": {
+    "expected_students": [
+      {
+        "name": "Olivia",
+        "class_name": "Class B",
+        "must_quote_substrings": [
+          "finished early",
+          "fractions worksheet"
+        ],
+        "must_not_quote_substrings": [
+          "not turning in homework",
+          "Marcus"
+        ]
+      },
+      {
+        "name": "Marcus",
+        "class_name": "Class B",
+        "must_quote_substrings": [
+          "not turning in homework",
+          "fractions worksheet"
+        ],
+        "must_not_quote_substrings": [
+          "finished early",
+          "Olivia"
+        ]
+      },
+      {
+        "name": "Zoe",
+        "class_name": "Class B",
+        "must_quote_substrings": [
+          "fractions worksheet"
+        ],
+        "must_not_quote_substrings": [
+          "finished early",
+          "not turning in homework",
+          "Olivia",
+          "Marcus"
+        ]
+      }
+    ],
+    "must_not_extract": []
+  },
+  "output": {
+    "students": [
+      {
+        "name": "Olivia",
+        "quoted_text": "Olivia did really well — she finished early and helped a neighbor.\n\nThe whole class really struggled with the fractions worksheet today, I think we need to revisit that next week.",
+        "class_name": "Class B"
+      },
+      {
+        "name": "Marcus",
+        "quoted_text": "Marcus still not turning in homework, third time this week.\n\nThe whole class really struggled with the fractions worksheet today, I think we need to revisit that next week.",
+        "class_name": "Class B"
+      },
+      {
+        "name": "Zoe",
+        "quoted_text": "The whole class really struggled with the fractions worksheet today, I think we need to revisit that next week.",
+        "class_name": "Class B"
+      }
+    ],
+    "kept": "The whole class really struggled with the fractions worksheet today, I think we need to revisit that next week.\n\nOlivia did really well — she finished early and helped a neighbor.\n\nMarcus still not turning in homework, third time this week."
+  },
+  "pass": true,
+  "score": 1,
+  "hard": 1
+}

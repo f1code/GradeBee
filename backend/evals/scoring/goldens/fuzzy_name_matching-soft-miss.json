@@ -1,0 +1,155 @@
+{
+  "source": "20261029-061728-extract.json ab9d776d (gradebee-extract)",
+  "fixture": "fuzzy_name_matching",
+  "expected": {
+    "expected_students": [
+      {
+        "name": "Théo",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "very good participation and motivation",
+          "/making (?:the )?full sentences/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*I can/",
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Inaya",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/repeat.* in full structures/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Camille",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/repeat.* in full structures/",
+          "/easily kn(?:owing|ew) what to take .* area/",
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Lina",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/jumping/",
+          "animals could"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Lucie",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "/jumping/",
+          "animals could"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Margot",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing",
+          "full s"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      },
+      {
+        "name": "Romain",
+        "class_name": "Marcia · Wed · 14:10",
+        "must_quote_substrings": [
+          "animals could"
+        ],
+        "must_not_quote_substrings": [
+          "jumping",
+          "playing",
+          "full s"
+        ],
+        "should_quote_substrings": [
+          "/Yes,\\s*they can/"
+        ]
+      }
+    ],
+    "must_not_extract": [
+      "Margot",
+      "Romain"
+    ]
+  },
+  "output": {
+    "students": [
+      {
+        "name": "Théo",
+        "quoted_text": "Théo had very good participation and motivation learning. He was doing all right. He was doing good with making the full sentences.\n\nall the kids did well with what the animals could and couldn't do.",
+        "class_name": "Marcia · Wed · 14:10"
+      },
+      {
+        "name": "Inaya",
+        "quoted_text": "Inaia did very good. Excellent. She was repeating everything in full structures.\n\nall the kids did well with what the animals could and couldn't do.",
+        "class_name": "Marcia · Wed · 14:10"
+      },
+      {
+        "name": "Camille",
+        "quoted_text": "So was Camille, was repeating in full structures, was easily knowing what to take to what area.\n\nall the kids did well with what the animals could and couldn't do.",
+        "class_name": "Marcia · Wed · 14:10"
+      },
+      {
+        "name": "Lina",
+        "quoted_text": "Liana and Lucie did well. They did well with Marcia's playing, Marcia's jumping,\n\nall the kids did well with what the animals could and couldn't do.",
+        "class_name": "Marcia · Wed · 14:10"
+      },
+      {
+        "name": "Lucie",
+        "quoted_text": "Liana and Lucie did well. They did well with Marcia's playing, Marcia's jumping,\n\nall the kids did well with what the animals could and couldn't do.",
+        "class_name": "Marcia · Wed · 14:10"
+      },
+      {
+        "name": "Margot",
+        "quoted_text": "all the kids did well with what the animals could and couldn't do.",
+        "class_name": "Marcia · Wed · 14:10"
+      },
+      {
+        "name": "Romain",
+        "quoted_text": "all the kids did well with what the animals could and couldn't do.",
+        "class_name": "Marcia · Wed · 14:10"
+      }
+    ],
+    "kept": "Théo had very good participation and motivation learning. He was doing all right. He was doing good with making the full sentences.\n\nInaia did very good. Excellent. She was repeating everything in full structures.\n\nSo was Camille, was repeating in full structures, was easily knowing what to take to what area.\n\nLiana and Lucie did well. They did well with Marcia's playing, Marcia's jumping,\n\nLiana and Lucie did well. They did well with Marcia's playing, Marcia's jumping,\n\nall the kids did well with what the animals could and couldn't do."
+  },
+  "pass": true,
+  "score": 0.8,
+  "hard": 1
+}

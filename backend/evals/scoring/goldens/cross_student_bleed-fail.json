@@ -1,0 +1,117 @@
+{
+  "source": "20260901-075339-extract.json a11d870d (gradebee-extract-small)",
+  "fixture": "cross_student_bleed",
+  "expected": {
+    "expected_students": [
+      {
+        "name": "Edgar",
+        "class_name": "Oliver · Thu",
+        "must_quote_substrings": [
+          "/doing great/"
+        ],
+        "must_not_quote_substrings": [
+          "Anouk",
+          "Raul",
+          "Erwan"
+        ]
+      },
+      {
+        "name": "Anouk",
+        "class_name": "Oliver · Thu",
+        "must_quote_substrings": [
+          "/not doing that good/"
+        ],
+        "must_not_quote_substrings": [
+          "Edgar",
+          "Raul",
+          "Erwan"
+        ]
+      },
+      {
+        "name": "Raul",
+        "class_name": "Oliver · Thu",
+        "must_quote_substrings": [
+          "/struggled with the counting/"
+        ],
+        "must_not_quote_substrings": [
+          "Edgar",
+          "Anouk",
+          "Erwan"
+        ]
+      },
+      {
+        "name": "Erwan",
+        "class_name": "Oliver · Thu",
+        "must_quote_substrings": [
+          "/on fire the whole hour/"
+        ],
+        "must_not_quote_substrings": [
+          "Edgar",
+          "Anouk",
+          "Raul"
+        ]
+      }
+    ],
+    "must_not_extract": []
+  },
+  "output": {
+    "students": [
+      {
+        "name": "Anouk",
+        "class_name": "Oliver · Thu",
+        "quoted_text": "Today you weren't doing that well.",
+        "confidence": 0.95,
+        "candidates": []
+      },
+      {
+        "name": "Edgar",
+        "class_name": "Oliver · Thu",
+        "quoted_text": "You were doing great.",
+        "confidence": 0.95,
+        "candidates": []
+      },
+      {
+        "name": "Raul",
+        "class_name": "Oliver · Thu",
+        "quoted_text": "You really struggled with the counting.",
+        "confidence": 0.95,
+        "candidates": []
+      },
+      {
+        "name": "Erwan",
+        "class_name": "Oliver · Thu",
+        "quoted_text": "You were on fire the whole hour.",
+        "confidence": 0.95,
+        "candidates": []
+      },
+      {
+        "name": "Lucien",
+        "class_name": "Oliver · Thu",
+        "quoted_text": "The class struggled with fractions.",
+        "confidence": 0.3,
+        "candidates": [
+          {
+            "name": "Anouk",
+            "class_name": "Oliver · Thu"
+          },
+          {
+            "name": "Edgar",
+            "class_name": "Oliver · Thu"
+          },
+          {
+            "name": "Raul",
+            "class_name": "Oliver · Thu"
+          },
+          {
+            "name": "Erwan",
+            "class_name": "Oliver · Thu"
+          }
+        ]
+      }
+    ],
+    "date": ""
+  },
+  "pass": false,
+  "score": 0.7,
+  "hard": 0.7
+}

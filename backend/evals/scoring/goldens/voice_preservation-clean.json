@@ -1,0 +1,50 @@
+{
+  "source": "20261029-061728-extract.json fb2bbb38 (gradebee-extract)",
+  "fixture": "voice_preservation",
+  "expected": {
+    "expected_students": [
+      {
+        "name": "Emma",
+        "class_name": "Class A",
+        "must_quote_substrings": [
+          "did great in math today",
+          "multiplication tables"
+        ],
+        "must_not_quote_substrings": [
+          "reading comprehension",
+          "main idea"
+        ]
+      },
+      {
+        "name": "Ryan",
+        "class_name": "Class A",
+        "must_quote_substrings": [
+          "struggling with the reading comprehension",
+          "main idea"
+        ],
+        "must_not_quote_substrings": [
+          "multiplication"
+        ]
+      }
+    ],
+    "must_not_extract": []
+  },
+  "output": {
+    "students": [
+      {
+        "name": "Emma",
+        "quoted_text": "She did great in math today, really got the hang of the multiplication tables we've been working on.",
+        "class_name": "Class A"
+      },
+      {
+        "name": "Ryan",
+        "quoted_text": "Ryan was really struggling with the reading comprehension exercise, couldn't quite get the main idea from the passage.",
+        "class_name": "Class A"
+      }
+    ],
+    "kept": "She did great in math today, really got the hang of the multiplication tables we've been working on.\n\nRyan was really struggling with the reading comprehension exercise, couldn't quite get the main idea from the passage."
+  },
+  "pass": true,
+  "score": 1,
+  "hard": 1
+}

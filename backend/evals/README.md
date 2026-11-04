@@ -42,6 +42,7 @@ evals/
   fixtures.manifest.json          report cases by id (committed, PII-free)
   tests.report.generated.yaml     report tests (generated, git-ignored)
   scoring/extraction.js           extraction scorer
+  scoring/goldens/                stored outputs with their verdict, replayed by make test
   scoring/assemble.js             folds pass-2 passages into notes, as production does
   scoring/report-wordcounts.js    gives the judge per-section word counts
   scripts/diff-baseline.js        baseline diff
@@ -86,6 +87,8 @@ The **gold-reference** row echoes each case's reference. Its movement is judge n
 The harness grades pass 2 only (transcript → passages for one pinned class). Pass 1 (class pick, header) is graded in `backend/llm_live_test.go`. `scoring/assemble.js` mirrors `guardPassages` (`backend/extract.go`) and `assemblePassages` (`backend/voice_note_passages.go`): change one, change both.
 
 New extraction fixture: add `fixtures/extraction/<name>/` (`transcript.txt`, `classes.json`, `expected.json`) and a test entry in `promptfooconfig.extract.yaml`. Every multi-student fixture should list the other students in `must_not_quote_substrings`.
+
+Goldens (`scoring/goldens/*.json`) pin real outputs to their `pass`, `score` and `hard`; `make test` fails when a scorer edit re-grades one. Each holds a copy of its `expected.json`, so fixture edits do not move it. Re-grade on purpose: `UPDATE_GOLDENS=1 node --test scoring/extraction.test.js`, then review the diff. New golden: copy a row's `response.output` from `results/` as `output` (parsed, not a string) and its `expected.json` (no `_comment`), set the verdict fields to anything, run the update. Swap any name the current fixture does not use (ADR 0005).
 
 ## Baselines
 
