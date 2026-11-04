@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
@@ -44,19 +44,24 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
   const [loadingReport, setLoadingReport] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showEarlier, setShowEarlier] = useState(false)
+  // Auto-open of Latest races a quick click on another row: only the last request may land.
+  const requestedId = useRef<number | null>(null)
 
   const openReport = useCallback(async (id: number) => {
+    requestedId.current = id
     setExpandedId(id)
     setExpandedReport(null)
     setLoadingReport(true)
     try {
       const report = await getReport(id, getToken)
+      if (requestedId.current !== id) return
       setExpandedReport(report)
     } catch (err) {
+      if (requestedId.current !== id) return
       setError(err instanceof Error ? err.message : 'Failed to load report')
       setExpandedId(null)
     } finally {
-      setLoadingReport(false)
+      if (requestedId.current === id) setLoadingReport(false)
     }
   }, [getToken])
 
@@ -83,6 +88,8 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
   function handleExpand(id: number) {
     setTweaked(null)
     if (expandedId === id) {
+      requestedId.current = null
+      setLoadingReport(false)
       setExpandedId(null)
       setExpandedReport(null)
       return
@@ -215,7 +222,7 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
                   aria-expanded={showEarlier}
                   onClick={() => setShowEarlier(v => !v)}
                 >
-                  Earlier drafts ({reports.length - 1}) {showEarlier ? '▴' : '▾'}
+                  Earlier drafts ({reports.length - 1}) <span aria-hidden="true">{showEarlier ? '▴' : '▾'}</span>
                 </button>,
               ]
             })}

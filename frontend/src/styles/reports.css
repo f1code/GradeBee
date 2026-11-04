@@ -632,14 +632,6 @@
 
 .report-latest-badge {
   margin-left: 0.5rem;
-  background: var(--honey);
-  color: var(--ink);
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
   vertical-align: middle;
 }
 
@@ -687,6 +679,10 @@
 
   .report-regenerate-textarea {
     font-size: 1rem;
+  }
+
+  .report-earlier-toggle {
+    min-height: 44px;
   }
 }
 

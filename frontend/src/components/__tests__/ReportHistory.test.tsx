@@ -5,11 +5,13 @@ import { beforeEach, describe, it, expect, onTestFinished, vi } from 'vitest'
 const mockListStudentReports = vi.fn()
 const mockGetReport = vi.fn()
 const mockRegenerateReport = vi.fn()
+const mockDeleteReport = vi.fn()
 
 vi.mock('../../api', () => ({
   listStudentReports: (...args: unknown[]) => mockListStudentReports(...args),
   getReport: (...args: unknown[]) => mockGetReport(...args),
   regenerateReport: (...args: unknown[]) => mockRegenerateReport(...args),
+  deleteReport: (...args: unknown[]) => mockDeleteReport(...args),
 }))
 
 const stableGetToken = vi.fn().mockResolvedValue('tok')
@@ -135,6 +137,50 @@ describe('ReportHistory', () => {
     expect(screen.getByRole('button', { name: 'Copy paragraph' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Regenerate' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Tweak paragraph' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the last-clicked report when an earlier fetch resolves after it', async () => {
+    const reports = [
+      { ...report(9, '<p>Newest</p>'), startDate: '2026-03-01' },
+      { ...report(5, '<p>Older</p>'), startDate: '2026-02-01' },
+    ]
+    mockListStudentReports.mockResolvedValue({ reports })
+    const pending: Record<number, (r: unknown) => void> = {}
+    mockGetReport.mockImplementation((id: number) => new Promise(r => { pending[id] = r }))
+    const { default: ReportHistory } = await import('../ReportHistory')
+    const user = userEvent.setup()
+    render(<ReportHistory studentId={10} studentName="Alice" />)
+
+    await user.click(await screen.findByRole('button', { name: /earlier drafts/i }))
+    await user.click(screen.getByRole('button', { name: /feb/i }))
+    await act(async () => pending[5](reports[1]))
+    await act(async () => pending[9](reports[0]))
+
+    expect(screen.getByText('Older')).toBeInTheDocument()
+    expect(screen.queryByText('Newest')).not.toBeInTheDocument()
+  })
+
+  it('deleting Latest promotes the next report', async () => {
+    vi.stubGlobal('confirm', vi.fn().mockReturnValue(true))
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    const reports = [
+      { ...report(9, '<p>Newest</p>'), startDate: '2026-03-01' },
+      { ...report(5, '<p>Older</p>'), startDate: '2026-02-01' },
+      { ...report(3, '<p>Oldest</p>'), startDate: '2026-01-01' },
+    ]
+    mockListStudentReports.mockResolvedValue({ reports })
+    mockGetReport.mockImplementation(async (id: number) => reports.find(r => r.id === id))
+    mockDeleteReport.mockResolvedValue(undefined)
+    const { default: ReportHistory } = await import('../ReportHistory')
+    const user = userEvent.setup()
+    render(<ReportHistory studentId={10} studentName="Alice" />)
+
+    await screen.findByText('Newest')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    expect(await screen.findByRole('button', { name: /feb.*latest/i })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByRole('button', { name: /latest/i })).toHaveLength(1))
+    expect(screen.getByRole('button', { name: /earlier drafts \(1\)/i })).toBeInTheDocument()
   })
 })
 
