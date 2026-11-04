@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/clerk/clerk-sdk-go/v2"
 	"github.com/stretchr/testify/assert"
@@ -569,4 +570,39 @@ func TestHandleRegenerateReport_SurvivesClientCancel(t *testing.T) {
 	require.Len(t, fb, 1)
 	assert.Equal(t, "down", fb[0].Rating)
 	assert.Equal(t, "regenerated", fb[0].Signal)
+}
+
+// TestHandleRegenerateReport_UpToNowRange: a report ending on its creation
+// day regenerates up to today, so a note dated after it reaches the prompt.
+// An earlier end is an explicit range and stays.
+func TestHandleRegenerateReport_UpToNowRange(t *testing.T) {
+	for _, tc := range []struct {
+		name, createdAt, wantEnd string
+		wantNote                 bool
+	}{
+		{"end on creation day", "2026-03-31T10:00:00.000Z", time.Now().UTC().Format(time.DateOnly), true},
+		{"end after creation day", "2026-03-30T10:00:00.000Z", "2026-03-31", false},
+		{"end before creation day", "2026-04-01T10:00:00.000Z", "2026-03-31", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			f := newRegenFixture(t, func(db *sql.DB, studentID int64, first *Report) {
+				require.NoError(t, (&NoteRepo{db: db}).Create(ctx, &Note{StudentID: studentID, Date: "2026-04-02", Summary: "later note", Source: "manual"}))
+				_, err := db.ExecContext(ctx, `UPDATE reports SET created_at = ? WHERE id = ?`, tc.createdAt, first.ID)
+				require.NoError(t, err)
+			})
+
+			newID, prompt := f.regenerate(f.first.ID, "more on motivation")
+
+			if tc.wantNote {
+				assert.Contains(t, prompt, "- 2026-04-02"+reportNewNoteTag+": later note\n")
+			} else {
+				assert.NotContains(t, prompt, "later note")
+			}
+			got, err := f.reportRepo.GetByID(ctx, newID)
+			require.NoError(t, err)
+			assert.Equal(t, "2026-01-01", got.StartDate)
+			assert.Equal(t, tc.wantEnd, got.EndDate)
+		})
+	}
 }

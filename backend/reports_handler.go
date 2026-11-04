@@ -375,7 +375,12 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	in, _, err := serviceDeps.GetReportInputResolver().ForReport(ctx, groupID, rpt.StudentID, rpt.ID)
+	endDate := regenEndDate(rpt, time.Now())
+	var instructions string
+	if rpt.Instructions != nil {
+		instructions = *rpt.Instructions
+	}
+	in, err := serviceDeps.GetReportInputResolver().ForGenerate(ctx, groupID, ReportStudentInput{StudentID: rpt.StudentID}, rpt.StartDate, endDate, instructions)
 	var missing *ErrLevelInstructionsMissing
 	if errors.As(err, &missing) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": missing.Error()})
@@ -431,6 +436,18 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		EndDate:   in.EndDate,
 		CreatedAt: resp.CreatedAt,
 	})
+}
+
+// regenEndDate extends to today a range that ends on its creation day: the UI
+// defaults end to today, so the Teacher meant "up to now" and wants notes
+// added since. An earlier end is an explicit range and stays, keeping
+// next-term notes out.
+func regenEndDate(rpt Report, now time.Time) string {
+	today := now.UTC().Format(time.DateOnly)
+	if len(rpt.CreatedAt) >= len(time.DateOnly) && rpt.EndDate == rpt.CreatedAt[:len(time.DateOnly)] && today > rpt.EndDate {
+		return today
+	}
+	return rpt.EndDate
 }
 
 // --- Report CRUD handlers ---

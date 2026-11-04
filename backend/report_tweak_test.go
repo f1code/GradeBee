@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +80,8 @@ func TestBuildReportPrompt_Tweak(t *testing.T) {
 func TestHandleRegenerateReport_Tweak(t *testing.T) {
 	ctx := context.Background()
 	f := newRegenFixture(t, func(db *sql.DB, _ int64, first *Report) {
-		_, err := db.ExecContext(ctx, `UPDATE reports SET html = ? WHERE id = ?`, tweakDoc, first.ID)
+		// End on creation day: Tweak extends it to today, like whole-report regenerate.
+		_, err := db.ExecContext(ctx, `UPDATE reports SET html = ?, created_at = '2026-03-31T10:00:00.000Z' WHERE id = ?`, tweakDoc, first.ID)
 		require.NoError(t, err)
 	})
 
@@ -105,6 +107,7 @@ func TestHandleRegenerateReport_Tweak(t *testing.T) {
 	saved, err := f.reportRepo.GetByID(ctx, res.ID)
 	require.NoError(t, err)
 	assert.Equal(t, res.HTML, saved.HTML)
+	assert.Equal(t, time.Now().UTC().Format(time.DateOnly), saved.EndDate)
 	assert.Equal(t, ReportTweakPromptHash, *saved.PromptHash)
 	assert.NotEqual(t, ReportPromptHash, ReportTweakPromptHash)
 
