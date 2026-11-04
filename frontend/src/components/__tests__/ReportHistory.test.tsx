@@ -38,7 +38,6 @@ describe('ReportHistory', () => {
     const user = userEvent.setup()
     render(<ReportHistory studentId={10} studentName="Alice" />)
 
-    await user.click(await screen.findByRole('button', { name: /jan/i }))
     await screen.findByText('Old report')
 
     await user.click(screen.getByRole('button', { name: 'Regenerate' }))
@@ -47,6 +46,8 @@ describe('ReportHistory', () => {
 
     expect(await screen.findByText('New report')).toBeInTheDocument()
     expect(screen.queryByText('Old report')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /jan/i })).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: /earlier drafts \(1\)/i }))
     expect(screen.getAllByRole('button', { name: /jan/i })).toHaveLength(2)
     expect(mockListStudentReports).toHaveBeenCalledTimes(1)
   })
@@ -66,7 +67,6 @@ describe('ReportHistory', () => {
     const user = userEvent.setup()
     render(<ReportHistory studentId={10} studentName="Alice" />)
 
-    await user.click(await screen.findByRole('button', { name: /jan/i }))
     await user.hover(await screen.findByText('Old body'))
     fireEvent.click(screen.getByRole('button', { name: 'Tweak paragraph' }))
     await user.type(screen.getByPlaceholderText(/how should this paragraph change/i), 'Shorter')
@@ -93,7 +93,6 @@ describe('ReportHistory', () => {
     const user = userEvent.setup()
     render(<ReportHistory studentId={10} studentName="Alice" />)
 
-    await user.click(await screen.findByRole('button', { name: /jan/i }))
     await screen.findByText('Old report')
     await user.click(screen.getByRole('button', { name: 'Regenerate' }))
     await user.type(screen.getByPlaceholderText(/what should be different/i), 'Shorter')
@@ -102,8 +101,40 @@ describe('ReportHistory', () => {
     await waitFor(() => expect(screen.queryByText('Old report')).not.toBeInTheDocument())
 
     await act(async () => resolveRegen(report(8, '<p>New report</p>')))
-    expect(screen.getAllByRole('button', { name: /jan/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /jan/i })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: /earlier drafts \(1\)/i })).toBeInTheDocument()
     expect(screen.queryByText('New report')).not.toBeInTheDocument()
+  })
+
+  it('opens the newest report as Latest and keeps earlier drafts read-only behind a toggle', async () => {
+    const reports = [
+      { ...report(9, '<p>Newest</p>'), startDate: '2026-03-01' },
+      { ...report(5, '<p>Older</p>'), startDate: '2026-02-01' },
+      { ...report(3, '<p>Oldest</p>'), startDate: '2026-01-01' },
+    ]
+    mockListStudentReports.mockResolvedValue({ reports })
+    mockGetReport.mockImplementation(async (id: number) => reports.find(r => r.id === id))
+    const { default: ReportHistory } = await import('../ReportHistory')
+    const user = userEvent.setup()
+    render(<ReportHistory studentId={10} studentName="Alice" />)
+
+    expect(await screen.findByText('Newest')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /mar.*latest/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /feb/i })).not.toBeInTheDocument()
+
+    const toggle = screen.getByRole('button', { name: /earlier drafts \(2\)/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.queryByRole('button', { name: /feb.*latest/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /feb/i }))
+    await user.hover(await screen.findByText('Older'))
+    expect(screen.getByRole('button', { name: 'Copy to Clipboard' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Copy paragraph' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Regenerate' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Tweak paragraph' })).not.toBeInTheDocument()
   })
 })
 
