@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
@@ -43,6 +43,27 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
   const [tweaked, setTweaked] = useState<{ reportId: number; paragraph: number } | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showEarlier, setShowEarlier] = useState(false)
+  // Auto-open of Latest races a quick click on another row: only the last request may land.
+  const requestedId = useRef<number | null>(null)
+
+  const openReport = useCallback(async (id: number) => {
+    requestedId.current = id
+    setExpandedId(id)
+    setExpandedReport(null)
+    setLoadingReport(true)
+    try {
+      const report = await getReport(id, getToken)
+      if (requestedId.current !== id) return
+      setExpandedReport(report)
+    } catch (err) {
+      if (requestedId.current !== id) return
+      setError(err instanceof Error ? err.message : 'Failed to load report')
+      setExpandedId(null)
+    } finally {
+      if (requestedId.current === id) setLoadingReport(false)
+    }
+  }, [getToken])
 
   const fetchReports = useCallback(async () => {
     setLoading(true)
@@ -50,40 +71,33 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
     try {
       const { reports: fetched } = await listStudentReports(studentId, getToken)
       setReports(fetched || [])
+      // Newest first from the server: open Latest.
+      if (fetched?.[0]) void openReport(fetched[0].id)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load reports')
     } finally {
       setLoading(false)
     }
-  }, [studentId, getToken])
+  }, [studentId, getToken, openReport])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchReports()
   }, [fetchReports])
 
-  async function handleExpand(id: number) {
+  function handleExpand(id: number) {
     setTweaked(null)
     if (expandedId === id) {
+      requestedId.current = null
+      setLoadingReport(false)
       setExpandedId(null)
       setExpandedReport(null)
       return
     }
-    setExpandedId(id)
-    setExpandedReport(null)
-    setLoadingReport(true)
-    try {
-      const report = await getReport(id, getToken)
-      setExpandedReport(report)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load report')
-      setExpandedId(null)
-    } finally {
-      setLoadingReport(false)
-    }
+    openReport(id)
   }
 
-  // Regenerate saves a new row; the old one stays in history. Expansion follows
+  // Regenerate saves a new row, now Latest; the old one moves to Earlier drafts. Expansion follows
   // only if the old row is still open: the Teacher may have moved on meanwhile.
   function handleRegenerate(oldId: number, report: ReportResult, paragraph?: number) {
     const { id, startDate, endDate, createdAt } = report
@@ -133,8 +147,10 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
         <div className="report-history-list">
           <AnimatePresence initial={false}>
             {reports.map((r, i) => {
+              const isLatest = i === 0
+              if (!isLatest && !showEarlier) return null
               const isExpanded = expandedId === r.id
-              return (
+              const card = (
                 <motion.div
                   key={r.id}
                   className="report-history-card"
@@ -152,6 +168,7 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
                   >
                     <span className="report-history-date-range">
                       {formatDateRange(r.startDate, r.endDate)}
+                      {isLatest && <span className="report-latest-badge">Latest</span>}
                     </span>
                     <span className="report-history-created">
                       {relativeTime(r.createdAt)}
@@ -178,13 +195,14 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
                               <div className="hex" /><div className="hex" /><div className="hex" />
                             </div>
                           </div>
-                        ) : expandedReport ? (
+                        ) : expandedReport?.id === r.id ? (
                           <ReportViewer
                             key={expandedReport.id}
                             reportId={expandedReport.id}
                             html={expandedReport.html}
                             studentName={studentName}
-                            onRegenerate={(report, paragraph) => handleRegenerate(expandedReport.id, report, paragraph)}
+                            // Earlier drafts are read-only: regenerating one drops the newer draft's work.
+                            onRegenerate={isLatest ? (report, paragraph) => handleRegenerate(expandedReport.id, report, paragraph) : undefined}
                             highlightParagraph={tweaked?.reportId === expandedReport.id ? tweaked.paragraph : undefined}
                             onDelete={() => handleDelete(expandedReport.id)}
                           />
@@ -194,6 +212,19 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
                   </AnimatePresence>
                 </motion.div>
               )
+              if (!isLatest || reports.length === 1) return card
+              return [
+                card,
+                <button
+                  key="earlier-toggle"
+                  type="button"
+                  className="text-link report-earlier-toggle"
+                  aria-expanded={showEarlier}
+                  onClick={() => setShowEarlier(v => !v)}
+                >
+                  Earlier drafts ({reports.length - 1}) <span aria-hidden="true">{showEarlier ? '▴' : '▾'}</span>
+                </button>,
+              ]
             })}
           </AnimatePresence>
         </div>

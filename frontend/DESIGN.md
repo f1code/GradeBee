@@ -258,6 +258,7 @@ Use for global/navigation-level errors that appear and auto-dismiss or require a
 - **Student list**: collapses on mobile (≤640px) with a summary toggle; expanded on desktop.
 - **Audio upload**: recording card first; secondary actions in a row on desktop and a 44px stack on mobile.
 - **Report paragraph Copy/Tweak** (`reports.css`, `.para-toolbar`): one toolbar for the hovered or selected `p` (not `li`), in its right gutter, Tweak below Copy. Touch screens (`hover: none`): 44px buttons in a row under the tapped paragraph. After a Tweak regenerate, the rewritten paragraph scrolls to centre and fades from `--honey-light` over 2s (`.para-tweaked`; under `prefers-reduced-motion` the colour holds 2s, no fade, no smooth scroll).
+- **Report history** (`ReportHistory.tsx`): newest report opens expanded with a `.report-latest-badge` (honey, uppercase, 0.65rem). Older reports sit behind a `.text-link` toggle, "Earlier drafts (N)", collapsed by default. Earlier drafts are read-only: Copy and Delete, no Regenerate or Tweak.
 - **Note confirmation save bar**: sticky at viewport bottom on mobile with safe-area inset padding.
 - **Safe area insets**: `env(safe-area-inset-bottom)` applied to sticky bars and app padding for iPhone home indicator clearance.
 

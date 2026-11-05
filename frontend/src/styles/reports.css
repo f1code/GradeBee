@@ -630,6 +630,16 @@
   white-space: nowrap;
 }
 
+.report-latest-badge {
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+.report-earlier-toggle {
+  align-self: flex-start;
+  padding: 0.25rem 0;
+}
+
 .report-history-card .report-viewer {
   padding: 0.75rem 1rem 1rem;
 }
@@ -669,6 +679,10 @@
 
   .report-regenerate-textarea {
     font-size: 1rem;
+  }
+
+  .report-earlier-toggle {
+    min-height: 44px;
   }
 }
 
