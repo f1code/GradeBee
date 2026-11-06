@@ -111,11 +111,15 @@ export default function ReportGeneration() {
   const requestedReportId = useRef<number | null>(null)
 
   const [levels, setLevels] = useState<LevelItem[]>([])
+  const [termName, setTermName] = useState<string | undefined>()
   const [levelsError, setLevelsError] = useState<string | null>(null)
 
   useEffect(() => {
     listLevels(getToken)
-      .then(({ levels }) => setLevels(levels))
+      .then(({ levels, term }) => {
+        setLevels(levels)
+        setTermName(term?.name)
+      })
       .catch((e: unknown) => setLevelsError(e instanceof Error ? e.message : 'Failed to load Levels'))
   }, [getToken])
 
@@ -434,7 +438,7 @@ export default function ReportGeneration() {
                   </p>
                 ) : (
                   <details className="report-level-instructions">
-                    <summary>Report instructions</summary>
+                    <summary>Report Instructions{termName && ` · ${termName}`}</summary>
                     <p className="report-level-instructions-text">{level.reportInstructions}</p>
                   </details>
                 )}

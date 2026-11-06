@@ -7,6 +7,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -20,9 +21,11 @@ type ReportInputs struct {
 	LevelName          string
 	Notes              []Note
 	ReportInstructions string
-	Instructions       string
-	StartDate          string
-	EndDate            string
+	// The Report's Term: matched on StartDate at generation, kept on regenerate.
+	TermID       int64
+	Instructions string
+	StartDate    string
+	EndDate      string
 }
 
 // ErrLevelInstructionsMissing is returned when the student's Level has no
@@ -34,6 +37,10 @@ type ErrLevelInstructionsMissing struct {
 func (e *ErrLevelInstructionsMissing) Error() string {
 	return levelsMissingInstructionsError([]string{e.LevelName})
 }
+
+// ErrNoTermCovers is returned when no active Term contains a generation's
+// start date.
+var ErrNoTermCovers = errors.New("no term covers")
 
 // levelsMissingInstructionsError formats the pre-flight refusal message
 // naming every offending Level.
@@ -54,6 +61,7 @@ type ReportInputResolver struct {
 	students *StudentRepo
 	classes  *ClassRepo
 	levels   *LevelRepo
+	terms    *TermRepo
 	notes    *NoteRepo
 	reports  *ReportRepo
 }
@@ -63,6 +71,7 @@ func NewReportInputResolver(db *sql.DB) *ReportInputResolver {
 		students: &StudentRepo{db: db},
 		classes:  &ClassRepo{db: db},
 		levels:   &LevelRepo{db: db},
+		terms:    &TermRepo{db: db},
 		notes:    &NoteRepo{db: db},
 		reports:  &ReportRepo{db: db},
 	}
@@ -72,7 +81,7 @@ func NewReportInputResolver(db *sql.DB) *ReportInputResolver {
 // from the request, names too unless blank: cmd/eval-cli passes none and gets
 // the DB names ForReport feeds the eval.
 func (r *ReportInputResolver) ForGenerate(ctx context.Context, groupID string, in ReportStudentInput, startDate, endDate, instructions string) (ReportInputs, error) {
-	out, err := r.resolve(ctx, groupID, in.StudentID, startDate, endDate)
+	out, err := r.resolve(ctx, groupID, in.StudentID, 0, startDate, endDate)
 	if err != nil {
 		return ReportInputs{}, err
 	}
@@ -97,14 +106,21 @@ func (r *ReportInputResolver) ForReport(ctx context.Context, groupID string, stu
 	if rpt.StudentID != studentID {
 		return ReportInputs{}, Report{}, fmt.Errorf("report %d belongs to student %d, not student %d", reportID, rpt.StudentID, studentID)
 	}
-	out, err := r.resolve(ctx, groupID, studentID, rpt.StartDate, rpt.EndDate)
+	out, err := r.ForRegenerate(ctx, groupID, rpt, rpt.EndDate)
+	return out, rpt, err
+}
+
+// ForRegenerate resolves a regenerate of rpt up to endDate, on its Term's
+// current text.
+func (r *ReportInputResolver) ForRegenerate(ctx context.Context, groupID string, rpt Report, endDate string) (ReportInputs, error) {
+	out, err := r.resolve(ctx, groupID, rpt.StudentID, rpt.TermID, rpt.StartDate, endDate)
 	if err != nil {
-		return ReportInputs{}, Report{}, err
+		return ReportInputs{}, err
 	}
 	if rpt.Instructions != nil {
 		out.Instructions = *rpt.Instructions
 	}
-	return out, rpt, nil
+	return out, nil
 }
 
 // ClassRoster returns the student's class roster with aliases. cmd/eval-cli
@@ -117,7 +133,8 @@ func (r *ReportInputResolver) ClassRoster(ctx context.Context, studentID int64) 
 	return r.students.ListWithAliases(ctx, student.ClassID)
 }
 
-func (r *ReportInputResolver) resolve(ctx context.Context, groupID string, studentID int64, startDate, endDate string) (ReportInputs, error) {
+// resolve matches the Term on startDate when termID is 0.
+func (r *ReportInputResolver) resolve(ctx context.Context, groupID string, studentID, termID int64, startDate, endDate string) (ReportInputs, error) {
 	student, err := r.students.GetByID(ctx, studentID)
 	if err != nil {
 		return ReportInputs{}, fmt.Errorf("student %d: %w", studentID, err)
@@ -135,9 +152,25 @@ func (r *ReportInputResolver) resolve(ctx context.Context, groupID string, stude
 	if err != nil {
 		return ReportInputs{}, fmt.Errorf("level %d: %w", cls.LevelID, err)
 	}
+	var term Term
+	if termID == 0 {
+		term, err = r.terms.Covering(ctx, groupID, startDate)
+		if errors.Is(err, ErrNotFound) {
+			return ReportInputs{}, fmt.Errorf("%w %s", ErrNoTermCovers, startDate)
+		}
+	} else {
+		term, err = r.terms.GetByID(ctx, groupID, termID)
+	}
+	if err != nil {
+		return ReportInputs{}, fmt.Errorf("term: %w", err)
+	}
+	text, err := r.terms.Instructions(ctx, lvl.ID, term.ID)
+	if err != nil {
+		return ReportInputs{}, err
+	}
 	// Blank only blocks generation: the Levels admin endpoints accept an empty
 	// save, since a Level exists before its instructions are written.
-	if strings.TrimSpace(lvl.ReportInstructions) == "" {
+	if strings.TrimSpace(text) == "" {
 		return ReportInputs{}, &ErrLevelInstructionsMissing{LevelName: lvl.Name}
 	}
 	notes, err := r.notes.ListForStudents(ctx, []int64{studentID}, startDate, endDate)
@@ -150,7 +183,8 @@ func (r *ReportInputResolver) resolve(ctx context.Context, groupID string, stude
 		ClassName:          cls.Name,
 		LevelName:          lvl.Name,
 		Notes:              notes,
-		ReportInstructions: lvl.ReportInstructions,
+		ReportInstructions: text,
+		TermID:             term.ID,
 		StartDate:          startDate,
 		EndDate:            endDate,
 	}, nil

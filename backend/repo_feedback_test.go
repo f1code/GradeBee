@@ -90,7 +90,7 @@ func TestArtifactFeedbackRepo_ReportFeedback(t *testing.T) {
 	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
-	rpt := &Report{StudentID: s.ID, StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<p>Report</p>"}
+	rpt := &Report{StudentID: s.ID, TermID: testTermID(t, r.classes.db, "test-group"), StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<p>Report</p>"}
 	require.NoError(t, r.reports.Create(ctx, rpt))
 
 	// Thumbs-up on report

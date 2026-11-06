@@ -60,6 +60,7 @@ func (f *fakeLLMProvider) Transcribe(_ context.Context, _ TranscribeRequest) (LL
 type reportGenFixture struct {
 	ctx        context.Context
 	db         *sql.DB
+	termID     int64
 	reportRepo *ReportRepo
 	feedback   *ArtifactFeedbackRepo
 	studentID  int64
@@ -119,6 +120,7 @@ func newReportGenFixture(t *testing.T, provider *fakeLLMProvider) *reportGenFixt
 	return &reportGenFixture{
 		ctx:        ctx,
 		db:         db,
+		termID:     testTermID(t, db, "test-group"),
 		reportRepo: reportRepo,
 		feedback:   &ArtifactFeedbackRepo{db: db},
 		studentID:  stu.ID,
@@ -137,6 +139,7 @@ func (f *reportGenFixture) inputs() ReportInputs {
 		EndDate:            fixtureEnd,
 		Instructions:       fixtureInstructions,
 		ReportInstructions: fixtureSpec,
+		TermID:             f.termID,
 		Notes:              f.notes,
 	}
 }
@@ -256,7 +259,7 @@ func TestLLMReportGenerator_Generate_LLMErrorLeavesNoRow(t *testing.T) {
 
 	// A pre-existing report proves the "no new row" check is looking at a
 	// table that can hold rows, not an empty one by construction.
-	existing := &Report{StudentID: f.studentID, StartDate: "2025-09-01", EndDate: "2025-12-20", HTML: "<p>autumn draft</p>"}
+	existing := &Report{StudentID: f.studentID, TermID: f.termID, StartDate: "2025-09-01", EndDate: "2025-12-20", HTML: "<p>autumn draft</p>"}
 	require.NoError(t, f.reportRepo.Create(f.ctx, existing))
 
 	resp, err := f.gen.Generate(f.ctx, f.generateReq())
@@ -278,6 +281,7 @@ func TestLLMReportGenerator_Regenerate_WritesNewRowKeepsOld(t *testing.T) {
 
 	oldInstr := "be terse"
 	old := &Report{
+		TermID:       testTermID(t, f.db, "test-group"),
 		StudentID:    f.studentID,
 		StartDate:    fixtureStart,
 		EndDate:      fixtureEnd,
@@ -338,7 +342,7 @@ func TestLLMReportGenerator_Regenerate_WritesNewRowKeepsOld(t *testing.T) {
 
 func TestLLMReportGenerator_Regenerate_RecordsFeedbackLinkedToBothReports(t *testing.T) {
 	f := newReportGenFixture(t, &fakeLLMProvider{text: regeneratedHTML})
-	old := &Report{StudentID: f.studentID, StartDate: fixtureStart, EndDate: fixtureEnd, HTML: "<p>old draft</p>"}
+	old := &Report{StudentID: f.studentID, TermID: f.termID, StartDate: fixtureStart, EndDate: fixtureEnd, HTML: "<p>old draft</p>"}
 	require.NoError(t, f.reportRepo.Create(f.ctx, old))
 
 	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{
@@ -369,7 +373,7 @@ func TestLLMReportGenerator_Regenerate_RecordsFeedbackLinkedToBothReports(t *tes
 // otherwise lose a round.
 func TestLLMReportGenerator_Regenerate_FeedbackWriteFailureLeavesNoReport(t *testing.T) {
 	f := newReportGenFixture(t, &fakeLLMProvider{text: regeneratedHTML})
-	old := &Report{StudentID: f.studentID, StartDate: fixtureStart, EndDate: fixtureEnd, HTML: "<p>old draft</p>"}
+	old := &Report{StudentID: f.studentID, TermID: f.termID, StartDate: fixtureStart, EndDate: fixtureEnd, HTML: "<p>old draft</p>"}
 	require.NoError(t, f.reportRepo.Create(f.ctx, old))
 	_, err := f.db.ExecContext(f.ctx, `
 		CREATE TRIGGER fail_regen_feedback BEFORE INSERT ON artifact_feedback
@@ -395,7 +399,7 @@ func TestLLMReportGenerator_Regenerate_LLMErrorLeavesOldRowIntact(t *testing.T) 
 	llmErr := errors.New("fake provider timed out")
 	f := newReportGenFixture(t, &fakeLLMProvider{err: llmErr})
 
-	old := &Report{StudentID: f.studentID, StartDate: fixtureStart, EndDate: fixtureEnd, HTML: "<p>old draft</p>"}
+	old := &Report{StudentID: f.studentID, TermID: f.termID, StartDate: fixtureStart, EndDate: fixtureEnd, HTML: "<p>old draft</p>"}
 	require.NoError(t, f.reportRepo.Create(f.ctx, old))
 
 	resp, err := f.gen.Regenerate(f.ctx, RegenerateReportRequest{

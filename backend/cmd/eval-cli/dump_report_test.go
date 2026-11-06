@@ -24,15 +24,17 @@ func seedDumpDB(t *testing.T) *sql.DB {
 	t.Cleanup(func() { db.Close() })
 	require.NoError(t, handler.RunMigrations(db))
 	for _, stmt := range []string{
-		`INSERT INTO levels (id, group_id, name, report_instructions) VALUES (1, 'g', 'Marcia', 'Three sections.')`,
+		`INSERT INTO levels (id, group_id, name) VALUES (1, 'g', 'Marcia')`,
+		`INSERT INTO terms (id, group_id, name, start_date, end_date) VALUES (1, 'g', 'Term 1', '2000-01-01', '2099-12-31')`,
+		`INSERT INTO report_instructions (level_id, term_id, text) VALUES (1, 1, 'Three sections.')`,
 		`INSERT INTO classes (id, user_id, level_id, day) VALUES (1, 'u', 1, 'Monday'), (2, 'u', 1, 'Tuesday')`,
 		`INSERT INTO students (id, class_id, name) VALUES (1, 1, 'Élodie'), (2, 1, 'Ann'), (3, 1, 'Bob'), (4, 2, 'Zoé')`,
 		`INSERT INTO student_aliases (student_id, class_id, alias) VALUES (1, 1, 'Lulu'), (3, 1, 'Bobby')`,
 		`INSERT INTO notes (student_id, date, summary) VALUES
 			(1, '2026-03-10', 'ÉLODIE played the Marcia piece with ann; Annual recital next.'),
 			(1, '2026-03-11', 'Lulu and Bobby argued; Bob''s sister came. Zoé visited.')`,
-		`INSERT INTO reports (id, student_id, start_date, end_date, html, instructions, created_at) VALUES
-			(10, 1, '2026-03-01', '2026-03-31', '<p>Élodie helped Ann.</p>', 'Mention Lulu''s solo', '2026-04-03T00:00:00Z')`,
+		`INSERT INTO reports (id, student_id, term_id, start_date, end_date, html, instructions, created_at) VALUES
+			(10, 1, 1, '2026-03-01', '2026-03-31', '<p>Élodie helped Ann.</p>', 'Mention Lulu''s solo', '2026-04-03T00:00:00Z')`,
 	} {
 		_, err := db.Exec(stmt)
 		require.NoError(t, err)

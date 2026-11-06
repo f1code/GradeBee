@@ -110,6 +110,10 @@ Level, or edit its Report Instructions — Teachers get a read-only list.
  */
 export interface ListLevelsResponse {
   levels: Level[];
+  /**
+   * The Term whose text Levels carry; null before any Term has started.
+   */
+  term?: Term;
 }
 
 //////////
@@ -490,6 +494,9 @@ export interface Level {
   id: number /* int64 */;
   groupId: string;
   name: string;
+  /**
+   * The current Term's text.
+   */
   reportInstructions: string;
   createdAt: string;
 }
@@ -586,6 +593,28 @@ export interface StudentAlias {
   classId: number /* int64 */;
   alias: string;
   createdAt: string;
+}
+
+//////////
+// source: repo_term.go
+
+/**
+ * TermRepo reads a Group's Terms and their per-Level Report Instructions.
+ * Term reads are scoped by group_id; Instructions trusts ids the caller
+ * already scoped.
+ */
+export interface TermRepo {
+}
+/**
+ * Term represents a row in the terms table.
+ */
+export interface Term {
+  id: number /* int64 */;
+  groupId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  archivedAt?: string;
 }
 
 //////////

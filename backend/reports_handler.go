@@ -118,6 +118,10 @@ func handleGenerateReports(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		in, err := resolver.ForGenerate(ctx, groupID, s, req.StartDate, req.EndDate, req.Instructions)
+		if errors.Is(err, ErrNoTermCovers) {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
 		var missing *ErrLevelInstructionsMissing
 		if errors.As(err, &missing) {
 			if !seenLevels[missing.LevelName] {
@@ -375,12 +379,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	endDate := regenEndDate(rpt, time.Now())
-	var instructions string
-	if rpt.Instructions != nil {
-		instructions = *rpt.Instructions
-	}
-	in, err := serviceDeps.GetReportInputResolver().ForGenerate(ctx, groupID, ReportStudentInput{StudentID: rpt.StudentID}, rpt.StartDate, endDate, instructions)
+	in, err := serviceDeps.GetReportInputResolver().ForRegenerate(ctx, groupID, rpt, regenEndDate(rpt, time.Now()))
 	var missing *ErrLevelInstructionsMissing
 	if errors.As(err, &missing) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": missing.Error()})

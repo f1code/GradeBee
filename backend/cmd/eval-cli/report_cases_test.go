@@ -196,7 +196,7 @@ func TestWriteReportCases_Tweak(t *testing.T) {
 func TestLoadFeedbackComment(t *testing.T) {
 	db := seedDumpDB(t)
 	for _, stmt := range []string{
-		`INSERT INTO reports (id, student_id, start_date, end_date, html, created_at) VALUES (20, 2, '2026-03-01', '2026-03-31', '<p/>', '2026-04-03T00:00:00Z')`,
+		`INSERT INTO reports (id, student_id, term_id, start_date, end_date, html, created_at) VALUES (20, 2, 1, '2026-03-01', '2026-03-31', '<p/>', '2026-04-03T00:00:00Z')`,
 		`INSERT INTO artifact_feedback (id, artifact_type, artifact_id, rating, signal, comment, user_id) VALUES
 			(1, 'report', 10, 'down', 'regenerated', 'warmer', 'u'),
 			(2, 'report', 20, 'down', 'regenerated', 'shorter', 'u'),
@@ -285,7 +285,7 @@ func setLevelSnapshot(t *testing.T, refs, text string) {
 
 func TestLoadFreshCase_LevelSnapshot(t *testing.T) {
 	db, refs := seedReferenceStore(t)
-	_, err := db.Exec(`UPDATE levels SET report_instructions = 'Edited since.'`)
+	_, err := db.Exec(`UPDATE report_instructions SET text = 'Edited since.'`)
 	require.NoError(t, err)
 	resolver := handler.NewReportInputResolver(db)
 	e := reportManifestEntry{ID: "c", Description: "d", StudentID: 1}

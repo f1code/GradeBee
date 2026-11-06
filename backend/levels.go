@@ -15,6 +15,8 @@ import (
 // ListLevelsResponse is the JSON envelope for handleListLevels.
 type ListLevelsResponse struct {
 	Levels []Level `json:"levels"`
+	// The Term whose text Levels carry; null before any Term has started.
+	Term *Term `json:"term"`
 }
 
 // requireGroup extracts the active Group ID from the request, writing the
@@ -33,7 +35,8 @@ func handleListLevels(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	levels, err := serviceDeps.GetLevelRepo().List(r.Context(), groupID)
+	repo := serviceDeps.GetLevelRepo()
+	levels, err := repo.List(r.Context(), groupID)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -41,7 +44,16 @@ func handleListLevels(w http.ResponseWriter, r *http.Request) {
 	if levels == nil {
 		levels = []Level{}
 	}
-	writeJSON(w, http.StatusOK, ListLevelsResponse{Levels: levels})
+	resp := ListLevelsResponse{Levels: levels}
+	term, err := repo.CurrentTerm(r.Context(), groupID)
+	switch {
+	case err == nil:
+		resp.Term = &term
+	case !errors.Is(err, ErrNoCurrentTerm):
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func handleCreateLevel(w http.ResponseWriter, r *http.Request) {
@@ -124,6 +136,10 @@ func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.ReportInstructions != nil {
 		if err := repo.UpdateReportInstructions(r.Context(), groupID, id, *req.ReportInstructions); err != nil {
+			if errors.Is(err, ErrNoCurrentTerm) {
+				writeJSON(w, http.StatusConflict, map[string]string{"error": "no term has started yet"})
+				return
+			}
 			if errors.Is(err, ErrNotFound) {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "level not found"})
 				return

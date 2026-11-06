@@ -17,6 +17,8 @@ var (
 	// ErrInvalidDay is returned when a Class's day is missing or not one of
 	// the seven canonical weekday names.
 	ErrInvalidDay = errors.New("invalid day")
+	// ErrNoCurrentTerm is returned when no active Term has started.
+	ErrNoCurrentTerm = errors.New("no current term")
 )
 
 // ErrDuplicateAlias is returned by AddAlias when the alias collides with an

@@ -71,6 +71,46 @@ func TestHandleGenerateReports_RefusesUnsetLevelInstructions(t *testing.T) {
 	assert.Empty(t, jobs, "nothing enqueued on gate refusal")
 }
 
+// No active Term contains the start date: refused before anything is queued.
+func TestHandleGenerateReports_RefusesWithoutTerm(t *testing.T) {
+	db := setupTestDB(t)
+	classRepo := &ClassRepo{db: db}
+	studentRepo := &StudentRepo{db: db}
+	levelRepo := &LevelRepo{db: db}
+	ctx := context.Background()
+
+	cls := newTestClass(t, classRepo, "test-group", "user_abc", "Sam", "")
+	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
+	stu, err := studentRepo.Create(ctx, cls.ID, "Alice")
+	require.NoError(t, err)
+	withDeps(t, &mockDepsAll{
+		db:          db,
+		classRepo:   classRepo,
+		studentRepo: studentRepo,
+		reportRepo:  &ReportRepo{db: db},
+		reportGen:   &stubReportGenerator{},
+		levelRepo:   levelRepo,
+	})
+
+	reqBody, err := json.Marshal(map[string]any{
+		"students":  []map[string]any{{"studentId": stu.ID, "name": "Alice", "className": "Sam"}},
+		"startDate": "1999-12-31",
+		"endDate":   "2000-03-31",
+	})
+	require.NoError(t, err)
+	req := clerkReq(httptest.NewRequest(http.MethodPost, "/reports", bytes.NewReader(reqBody)), "user_abc")
+	rec := httptest.NewRecorder()
+	handleGenerateReports(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code, "body = %s", rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "no term covers 1999-12-31")
+	queue, err := serviceDeps.GetReportBatchQueue()
+	require.NoError(t, err)
+	jobs, err := queue.ListJobs(ctx, "user_abc")
+	require.NoError(t, err)
+	assert.Empty(t, jobs)
+}
+
 // TestHandleGenerateReports_MixedLevelBatchRefusesWhole covers a batch
 // spanning two Levels where only one is unset: the whole batch is refused,
 // not just the offending student, and no report row lands for either Level.
@@ -149,6 +189,7 @@ func TestHandleRegenerateReport_RefusesUnsetLevelInstructions(t *testing.T) {
 	stu, err := studentRepo.Create(ctx, cls.ID, "Maxence")
 	require.NoError(t, err)
 	rpt := &Report{
+		TermID:    testTermID(t, db, "test-group"),
 		StudentID: stu.ID,
 		StartDate: "2026-01-01",
 		EndDate:   "2026-03-31",

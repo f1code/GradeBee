@@ -57,6 +57,32 @@ func TestHandleListLevels_ScopedToCallersGroup(t *testing.T) {
 	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
 	require.Len(t, resp.Levels, 1)
 	assert.Equal(t, "Marcia", resp.Levels[0].Name)
+	require.NotNil(t, resp.Term)
+	assert.Equal(t, "Test Term", resp.Term.Name)
+	assert.Equal(t, "org_a", resp.Term.GroupID)
+}
+
+func TestHandleUpdateLevel_ReportInstructions_NoTerm(t *testing.T) {
+	levelsTestDeps(t)
+	db := serviceDeps.GetDB()
+	target := newTestLevel(t, db, "org_a", "Marcia")
+	_, err := db.Exec(`UPDATE terms SET start_date = '2099-01-01'`)
+	require.NoError(t, err)
+
+	body, err := json.Marshal(map[string]string{"reportInstructions": "x"})
+	require.NoError(t, err)
+	r := levelsReq(http.MethodPut, "/levels/"+itoa(target.ID), body, "org_a", "org:admin")
+	r.SetPathValue("id", itoa(target.ID))
+	w := httptest.NewRecorder()
+	handleUpdateLevel(w, r)
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	r = levelsReq(http.MethodGet, "/levels", nil, "org_a", "org:member")
+	w = httptest.NewRecorder()
+	handleListLevels(w, r)
+	var resp ListLevelsResponse
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	assert.Nil(t, resp.Term)
 }
 
 func TestHandleListLevels_TeacherCanRead(t *testing.T) {

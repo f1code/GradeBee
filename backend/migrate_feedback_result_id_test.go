@@ -27,31 +27,9 @@ func TestMigration019_KeepsReportsAndSeedsAboveFeedbackIDs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db, err := OpenDB(":memory:")
-			require.NoError(t, err)
-			t.Cleanup(func() { db.Close() })
+			db := migrateBefore(t, "019_")
 
-			_, err = db.Exec(`CREATE TABLE IF NOT EXISTS _migrations (
-				name       TEXT PRIMARY KEY,
-				applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-			)`)
-			require.NoError(t, err)
-			entries, err := migrations.ReadDir("sql")
-			require.NoError(t, err)
-			// Nothing at or after 019 may run ahead of the one under test.
-			for _, e := range entries {
-				if e.Name() >= "019_" {
-					continue
-				}
-				content, err := migrations.ReadFile("sql/" + e.Name())
-				require.NoError(t, err)
-				_, err = db.Exec(string(content))
-				require.NoError(t, err, e.Name())
-				_, err = db.Exec("INSERT INTO _migrations (name) VALUES (?)", e.Name())
-				require.NoError(t, err)
-			}
-
-			_, err = db.Exec(`INSERT INTO levels (group_id, name) VALUES ('g', 'L')`)
+			_, err := db.Exec(`INSERT INTO levels (group_id, name) VALUES ('g', 'L')`)
 			require.NoError(t, err)
 			_, err = db.Exec(`INSERT INTO classes (user_id, level_id, day) VALUES ('u1', 1, 'Monday')`)
 			require.NoError(t, err)
@@ -81,6 +59,7 @@ func TestMigration019_KeepsReportsAndSeedsAboveFeedbackIDs(t *testing.T) {
 			assert.Equal(t, Report{
 				ID:           1,
 				StudentID:    1,
+				TermID:       1,
 				StartDate:    "2026-01-01",
 				EndDate:      "2026-03-31",
 				HTML:         "<p>one</p>",
@@ -97,7 +76,7 @@ func TestMigration019_KeepsReportsAndSeedsAboveFeedbackIDs(t *testing.T) {
 
 func assertNextReportID(t *testing.T, db *sql.DB, want int64) {
 	t.Helper()
-	next := &Report{StudentID: 1, StartDate: "2026-06-01", EndDate: "2026-06-30", HTML: "<p>new</p>"}
+	next := &Report{StudentID: 1, TermID: 1, StartDate: "2026-06-01", EndDate: "2026-06-30", HTML: "<p>new</p>"}
 	require.NoError(t, (&ReportRepo{db: db}).Create(context.Background(), next))
 	assert.Equal(t, want, next.ID)
 }

@@ -20,6 +20,7 @@ import type {
   NoteLink,
   AliasResponse,
   Level as LevelItem,
+  ListLevelsResponse,
 } from './api-types.gen'
 
 export type {
@@ -807,7 +808,7 @@ export async function undoAssignment(
 
 export async function listLevels(
   getToken: () => Promise<string | null>
-): Promise<{ levels: LevelItem[] }> {
+): Promise<ListLevelsResponse> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/levels`, {
     headers: { Authorization: `Bearer ${token}` },

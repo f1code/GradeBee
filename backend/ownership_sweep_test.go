@@ -114,7 +114,7 @@ func newSweepFixture(t *testing.T) *sweepFixture {
 	require.NoError(t, err)
 	f.noteA = Note{StudentID: f.studentA.ID, Date: "2026-02-03", Summary: sweepNoteSummary, Source: "auto"}
 	require.NoError(t, f.noteRepo.Create(ctx, &f.noteA))
-	f.reportA = Report{StudentID: f.studentA.ID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: sweepReportHTML}
+	f.reportA = Report{StudentID: f.studentA.ID, TermID: testTermID(t, f.db, sweepGroupA), StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: sweepReportHTML}
 	require.NoError(t, f.reportRepo.Create(ctx, &f.reportA))
 	f.uploadA, err = f.voiceNotes.Create(ctx, sweepUserA, "monday.m4a", "/nowhere/monday.m4a")
 	require.NoError(t, err)

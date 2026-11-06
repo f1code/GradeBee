@@ -145,6 +145,7 @@ describe('LevelsAdmin', () => {
     const user = userEvent.setup()
     mockListLevels.mockResolvedValueOnce({
       levels: [{ id: 1, groupId: 'org_a', name: 'Marcia', reportInstructions: '', createdAt: '2026-01-01T00:00:00Z' }],
+      term: { id: 1, groupId: 'org_a', name: 'Term 1', startDate: '2026-08-15', endDate: '2026-11-01' },
     })
     mockUpdateInstructions.mockResolvedValueOnce({
       id: 1, groupId: 'org_a', name: 'Marcia', reportInstructions: 'Focus on fluency.', createdAt: '2026-01-01T00:00:00Z',
@@ -157,7 +158,7 @@ describe('LevelsAdmin', () => {
     })
 
     await user.click(screen.getByText('Marcia'))
-    const textarea = await screen.findByPlaceholderText(/how report cards should read/)
+    const textarea = await screen.findByLabelText('Report Instructions · Term 1')
     fireEvent.change(textarea, { target: { value: 'Focus on fluency.' } })
     fireEvent.blur(textarea)
 

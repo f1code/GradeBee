@@ -495,7 +495,10 @@ describe('ReportGeneration — Level instructions gate', () => {
     mockListStudents.mockResolvedValue({
       students: [{ id: 10, name: studentName, classId: 1, createdAt: '', aliases: [] }],
     })
-    mockListLevels.mockResolvedValue({ levels: [level(1, levelName, reportInstructions)] })
+    mockListLevels.mockResolvedValue({
+      levels: [level(1, levelName, reportInstructions)],
+      term: { id: 1, groupId: 'g1', name: 'Term 1', startDate: '2026-08-15', endDate: '2026-11-01' },
+    })
     const { default: ReportGeneration } = await import('../ReportGeneration')
     const user = userEvent.setup()
     render(<ReportGeneration />)
@@ -532,6 +535,7 @@ describe('ReportGeneration — Level instructions gate', () => {
       expect(screen.queryByTestId('level-instructions-blocker')).not.toBeInTheDocument()
       expect(screen.getByTestId('level-instructions-block')).toHaveTextContent('ClassA')
       expect(screen.getByTestId('level-instructions-block')).toHaveTextContent('Keep it warm and encouraging.')
+      expect(screen.getByText('Report Instructions · Term 1')).toBeInTheDocument()
     })
     const generateBtn = screen.getByRole('button', { name: /Generate/ })
     expect(generateBtn).not.toBeDisabled()

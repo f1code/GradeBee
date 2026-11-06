@@ -78,6 +78,7 @@ func TestHandleRegenerateReport_LooksUpFromDB(t *testing.T) {
 	require.NoError(t, err)
 	instructions := "be concise"
 	rpt := &Report{
+		TermID:       testTermID(t, db, "test-group"),
 		StudentID:    stu.ID,
 		StartDate:    "2026-01-01",
 		EndDate:      "2026-03-31",
@@ -149,7 +150,7 @@ func newRegenFixture(t *testing.T, setup func(db *sql.DB, studentID int64, first
 	stu, err := studentRepo.Create(ctx, cls.ID, "Maxence")
 	require.NoError(t, err)
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
-	first := &Report{StudentID: stu.ID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>first</p>"}
+	first := &Report{StudentID: stu.ID, TermID: testTermID(t, db, "test-group"), StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>first</p>"}
 	require.NoError(t, reportRepo.Create(ctx, first))
 	if setup != nil {
 		setup(db, stu.ID, first)
@@ -246,7 +247,7 @@ func TestHandleRegenerateReport_DeletedReportIDNotReused(t *testing.T) {
 	assert.NotContains(t, prompt, reportEarlierFeedbackHeader)
 
 	require.NoError(t, reportRepo.Delete(ctx, again))
-	fresh := &Report{StudentID: source.StudentID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>fresh</p>"}
+	fresh := &Report{StudentID: source.StudentID, TermID: source.TermID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>fresh</p>"}
 	require.NoError(t, reportRepo.Create(ctx, fresh))
 	assert.NotEqual(t, again, fresh.ID)
 	assert.NotEqual(t, deleted, fresh.ID)
@@ -394,6 +395,7 @@ func TestHandleRegenerateReport_ResponseShape(t *testing.T) {
 	stu, err := studentRepo.Create(ctx, cls.ID, "Bob")
 	require.NoError(t, err)
 	rpt := &Report{
+		TermID:    testTermID(t, db, "test-group"),
 		StudentID: stu.ID,
 		StartDate: "2026-02-01",
 		EndDate:   "2026-02-28",
@@ -458,7 +460,7 @@ func TestHandleGetReport_IncludesStudentAndClass(t *testing.T) {
 	cls := newTestClass(t, classRepo, "test-group", "user_abc", "History", "")
 	stu, err := studentRepo.Create(ctx, cls.ID, "Carol")
 	require.NoError(t, err)
-	rpt := &Report{StudentID: stu.ID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>report</p>"}
+	rpt := &Report{StudentID: stu.ID, TermID: testTermID(t, db, "test-group"), StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>report</p>"}
 	require.NoError(t, reportRepo.Create(ctx, rpt))
 
 	withDeps(t, &mockDepsAll{
@@ -493,7 +495,7 @@ func TestHandleRegenerateReport_LevelOutsideGroup(t *testing.T) {
 	cls := newTestClass(t, &ClassRepo{db: db}, "other-group", "user_abc", "Elsewhere", "")
 	stu, err := (&StudentRepo{db: db}).Create(ctx, cls.ID, "Alice")
 	require.NoError(t, err)
-	rpt := &Report{StudentID: stu.ID, StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>old</p>"}
+	rpt := &Report{StudentID: stu.ID, TermID: testTermID(t, db, "other-group"), StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>old</p>"}
 	require.NoError(t, (&ReportRepo{db: db}).Create(ctx, rpt))
 	gen := &stubReportGenerator{}
 	withDeps(t, &mockDepsAll{
@@ -540,7 +542,7 @@ func TestHandleRegenerateReport_SurvivesClientCancel(t *testing.T) {
 	cls := newTestClass(t, classRepo, "test-group", "user_abc", "Science", "")
 	stu, err := studentRepo.Create(ctx, cls.ID, "Bob")
 	require.NoError(t, err)
-	rpt := &Report{StudentID: stu.ID, StartDate: "2026-02-01", EndDate: "2026-02-28", HTML: "<p>old</p>"}
+	rpt := &Report{StudentID: stu.ID, TermID: testTermID(t, db, "test-group"), StartDate: "2026-02-01", EndDate: "2026-02-28", HTML: "<p>old</p>"}
 	require.NoError(t, reportRepo.Create(ctx, rpt))
 	levelRepo := &LevelRepo{db: db}
 	require.NoError(t, levelRepo.UpdateReportInstructions(ctx, "test-group", cls.LevelID, "Write three sections."))
@@ -605,4 +607,28 @@ func TestHandleRegenerateReport_UpToNowRange(t *testing.T) {
 			assert.Equal(t, tc.wantEnd, got.EndDate)
 		})
 	}
+}
+
+// A regenerate reads its Report's Term's current text, even once archived, and
+// the new draft stays in that Term.
+func TestHandleRegenerateReport_KeepsReportTerm(t *testing.T) {
+	ctx := context.Background()
+	var past int64
+	f := newRegenFixture(t, func(db *sql.DB, _ int64, first *Report) {
+		require.NoError(t, db.QueryRow(`INSERT INTO terms (group_id, name, start_date, end_date, archived_at)
+			VALUES ('test-group', 'Past', '1990-01-01', '1990-06-30', '1991-01-01') RETURNING id`).Scan(&past))
+		_, err := db.Exec(`INSERT INTO report_instructions (level_id, term_id, text)
+			SELECT level_id, ?, 'Past text, edited.' FROM classes`, past)
+		require.NoError(t, err)
+		_, err = db.Exec(`UPDATE reports SET term_id = ? WHERE id = ?`, past, first.ID)
+		require.NoError(t, err)
+	})
+
+	id, prompt := f.regenerate(f.first.ID, "warmer")
+	assert.Contains(t, prompt, "Past text, edited.")
+	assert.NotContains(t, prompt, "Write three sections.")
+	got, err := f.reportRepo.GetByID(ctx, id)
+	require.NoError(t, err)
+	assert.Equal(t, past, got.TermID)
+	assert.Equal(t, "Past text, edited.", *got.LevelInstructions)
 }

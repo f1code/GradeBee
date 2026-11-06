@@ -21,6 +21,7 @@ export default function LevelsAdmin() {
   const { getToken } = useAuth()
   const [status, setStatus] = useState<Status>('loading')
   const [levels, setLevels] = useState<LevelItem[]>([])
+  const [termName, setTermName] = useState<string | undefined>()
   const [error, setError] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -32,8 +33,9 @@ export default function LevelsAdmin() {
     setStatus('loading')
     setError(null)
     try {
-      const { levels: lvls } = await listLevels(getToken)
+      const { levels: lvls, term } = await listLevels(getToken)
       setLevels(lvls || [])
+      setTermName(term?.name)
       setStatus('ready')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load Levels')
@@ -185,6 +187,7 @@ export default function LevelsAdmin() {
                 >
                   <ReportInstructionsEditor
                     level={level}
+                    termName={termName}
                     onSave={instructions => handleSaveInstructions(level.id, instructions)}
                   />
                 </ItemRow>
@@ -274,9 +277,11 @@ function AddLevelForm({
 
 function ReportInstructionsEditor({
   level,
+  termName,
   onSave,
 }: {
   level: LevelItem
+  termName?: string
   onSave: (instructions: string) => Promise<void>
 }) {
   const [value, setValue] = useState(level.reportInstructions)
@@ -313,7 +318,9 @@ function ReportInstructionsEditor({
 
   return (
     <div className="report-instructions levels-admin-instructions">
-      <label htmlFor={`level-instructions-${level.id}`}>Report Instructions</label>
+      <label htmlFor={`level-instructions-${level.id}`}>
+        Report Instructions{termName && ` · ${termName}`}
+      </label>
       <textarea
         id={`level-instructions-${level.id}`}
         value={value}
