@@ -531,6 +531,7 @@ var notEntityScoped = map[string]string{
 	"GET /api/levels":                    "lists only the caller's Group's Levels (LevelRepo.List is group_id-scoped)",
 	"POST /api/levels":                   "creates under the caller's Group; the body carries a name, no foreign id",
 	"POST /api/terms":                    "creates under the caller's Group; the body carries a name and dates, no foreign id",
+	"POST /api/terms/rollover":           "takes no ids; archives and copies only the caller's Group's active Terms",
 	"POST /api/voice-notes/upload":       "creates an upload under the caller; multipart file only, no foreign id",
 	"POST /api/text-notes/upload":        "creates under the caller; students are resolved by name within the caller's own roster",
 	"POST /api/voice-notes/drive-import": "imports under the caller; the file id is Google's and read with the caller's own token",

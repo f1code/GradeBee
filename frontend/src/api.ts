@@ -921,6 +921,18 @@ export async function deleteTerm(id: number, getToken: () => Promise<string | nu
   }
 }
 
+export async function rolloverTerms(getToken: () => Promise<string | null>): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/terms/rollover`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await readBody(resp)
+    throw new Error(body.error || 'Failed to start new school year')
+  }
+}
+
 export async function deleteLevel(
   id: number,
   getToken: () => Promise<string | null>

@@ -198,6 +198,13 @@ div.levels-term-chip .icon-btn {
   font-size: var(--text-sm);
 }
 
+/* Rollover sits at the bottom, apart from the Term strip */
+.levels-new-year {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--comb);
+}
+
 /* Touch targets: 44px on phones */
 @media (max-width: 640px) {
   div.levels-term-chip .icon-btn,

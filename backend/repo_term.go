@@ -183,3 +183,51 @@ func (r *TermRepo) Delete(ctx context.Context, groupID string, id int64) error {
 	}
 	return tx.Commit()
 }
+
+// Rollover archives the Group's active Terms and replaces each with a copy one
+// year later holding the same Report Instructions. Returns ErrNoActiveTerms.
+func (r *TermRepo) Rollover(ctx context.Context, groupID string) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after Commit
+	// Archive first: it takes the write lock, so a concurrent rollover can't
+	// read the same active set, and the copies stay out of this UPDATE.
+	rows, err := tx.QueryContext(ctx, `UPDATE terms SET archived_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+		WHERE group_id = ? AND archived_at IS NULL RETURNING id`, groupID)
+	if err != nil {
+		return fmt.Errorf("archive terms: %w", err)
+	}
+	var old []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan archived term: %w", err)
+		}
+		old = append(old, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("archive terms: %w", err)
+	}
+	if len(old) == 0 {
+		return ErrNoActiveTerms
+	}
+	for _, id := range old {
+		// The end shifts as the day after it, so a Term ending Feb 29 ends
+		// Feb 28, not Mar 1, the next Term's new start.
+		var copyID int64
+		if err := tx.QueryRowContext(ctx, `INSERT INTO terms (group_id, name, start_date, end_date)
+			SELECT group_id, name, date(start_date, '+1 year'), date(end_date, '+1 day', '+1 year', '-1 day')
+			FROM terms WHERE id = ? RETURNING id`, id).Scan(&copyID); err != nil {
+			return fmt.Errorf("copy term %d: %w", id, err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO report_instructions (level_id, term_id, text)
+			SELECT level_id, ?, text FROM report_instructions WHERE term_id = ?`, copyID, id); err != nil {
+			return fmt.Errorf("copy report instructions of term %d: %w", id, err)
+		}
+	}
+	return tx.Commit()
+}

@@ -2,7 +2,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-  listLevels, createLevel, renameLevel, updateLevelReportInstructions, deleteLevel, createTerm, updateTerm, deleteTerm,
+  listLevels, createLevel, renameLevel, updateLevelReportInstructions, deleteLevel, createTerm, updateTerm, deleteTerm, rolloverTerms,
 } from '../../api'
 
 const stableGetToken = vi.fn().mockResolvedValue('tok')
@@ -20,6 +20,7 @@ vi.mock('../../api', () => ({
   createTerm: vi.fn(),
   updateTerm: vi.fn(),
   deleteTerm: vi.fn(),
+  rolloverTerms: vi.fn(),
 }))
 
 const mockListLevels = listLevels as ReturnType<typeof vi.fn>
@@ -30,6 +31,7 @@ const mockDeleteLevel = deleteLevel as ReturnType<typeof vi.fn>
 const mockCreateTerm = createTerm as ReturnType<typeof vi.fn>
 const mockUpdateTerm = updateTerm as ReturnType<typeof vi.fn>
 const mockDeleteTerm = deleteTerm as ReturnType<typeof vi.fn>
+const mockRollover = rolloverTerms as ReturnType<typeof vi.fn>
 
 const term1 = { id: 1, groupId: 'org_a', name: 'Term 1', startDate: '2026-08-15', endDate: '2026-11-01' }
 const term2 = { id: 2, groupId: 'org_a', name: 'Term 2', startDate: '2026-11-02', endDate: '2027-01-31' }
@@ -260,6 +262,48 @@ describe('LevelsAdmin', () => {
       render(<LevelsAdmin />)
       await screen.findByText('Marcia')
     }
+
+    it('starts a new school year after confirming, then reloads', async () => {
+      const user = userEvent.setup()
+      await renderWithTerms()
+      mockRollover.mockResolvedValueOnce(undefined)
+      const copy1 = { ...term1, id: 3, startDate: '2027-08-15', endDate: '2027-11-01' }
+      mockListLevels.mockResolvedValueOnce({
+        levels: [{ ...marcia, instructionsByTerm: { 3: 'T1 text' } }], term: null, terms: [copy1],
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Start new school year' }))
+      expect(screen.getByRole('button', { name: 'Start new year' })).toHaveAccessibleDescription(/Term 1 and Term 2 become read-only\./)
+      await user.click(screen.getByRole('button', { name: 'Start new year' }))
+
+      expect(mockRollover).toHaveBeenCalledOnce()
+      expect(await screen.findByRole('button', { name: /^Term 1/ })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^Term 2/ })).not.toBeInTheDocument()
+      expect(screen.queryByText('⚠ No Term 1 text')).not.toBeInTheDocument()
+    })
+
+    it('keeps the confirm open on refusal, and Cancel calls nothing', async () => {
+      const user = userEvent.setup()
+      await renderWithTerms()
+      mockRollover.mockRejectedValueOnce(new Error('No active terms'))
+
+      await user.click(screen.getByRole('button', { name: 'Start new school year' }))
+      expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+      await user.click(screen.getByRole('button', { name: 'Start new year' }))
+      expect(await screen.findByText('No active terms')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Start new year' })).toBeEnabled()
+
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(screen.getByRole('button', { name: 'Start new school year' })).toHaveFocus()
+      expect(mockRollover).toHaveBeenCalledOnce()
+    })
+
+    it('hides Start new school year while the Group has no Terms', async () => {
+      mockListLevels.mockResolvedValueOnce({ levels: [marcia], term: null, terms: [] })
+      render(<LevelsAdmin />)
+      await screen.findByText('Marcia')
+      expect(screen.queryByRole('button', { name: 'Start new school year' })).not.toBeInTheDocument()
+    })
 
     it('spells out Add term while the Group has no Terms', async () => {
       mockListLevels.mockResolvedValueOnce({ levels: [marcia], term: null, terms: [] })

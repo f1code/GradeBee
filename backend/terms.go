@@ -66,6 +66,8 @@ func writeTermError(w http.ResponseWriter, r *http.Request, err error) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "term not found"})
 	case errors.Is(err, ErrTermInUse):
 		writeJSON(w, http.StatusConflict, map[string]string{"error": "Term in use"})
+	case errors.Is(err, ErrNoActiveTerms):
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "No active terms"})
 	default:
 		writeInternalError(w, r, err)
 	}
@@ -125,4 +127,16 @@ func handleDeleteTerm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func handleRolloverTerms(w http.ResponseWriter, r *http.Request) {
+	groupID, ok := requireAdminGroup(w, r)
+	if !ok {
+		return
+	}
+	if err := serviceDeps.GetLevelRepo().Terms().Rollover(r.Context(), groupID); err != nil {
+		writeTermError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "rolled over"})
 }

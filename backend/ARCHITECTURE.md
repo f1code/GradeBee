@@ -61,6 +61,7 @@ Go HTTP backend for GradeBee: student rosters, voice/text notes (upload → tran
 | POST | `/api/terms` | Admin | `handleCreateTerm` | Create a Term (`{name, startDate, endDate}`, `YYYY-MM-DD`); 409 "Overlaps <Term>" when it shares a day with an active Term |
 | PUT | `/api/terms/{id}` | Admin | `handleUpdateTerm` | Rename / redate an active Term; same checks |
 | DELETE | `/api/terms/{id}` | Admin | `handleDeleteTerm` | Delete an active Term; 409 "Term in use" while Reports or Report Instructions point at it |
+| POST | `/api/terms/rollover` | Admin | `handleRolloverTerms` | Start new school year, one transaction (`TermRepo.Rollover`): archive every active Term, copy each with its name, Report Instructions and dates +1 year (a Feb 29 end becomes Feb 28); 409 "No active terms" |
 
 ## Async Upload Pipeline
 

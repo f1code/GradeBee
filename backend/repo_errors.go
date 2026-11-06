@@ -21,6 +21,8 @@ var (
 	ErrNoCurrentTerm = errors.New("no current term")
 	// ErrTermInUse is returned when Reports or Report Instructions point at a Term.
 	ErrTermInUse = errors.New("term in use")
+	// ErrNoActiveTerms is returned when a rollover finds nothing to archive.
+	ErrNoActiveTerms = errors.New("no active terms")
 )
 
 // ErrDuplicateAlias is returned by AddAlias when the alias collides with an

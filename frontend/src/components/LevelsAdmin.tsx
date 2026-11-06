@@ -10,6 +10,7 @@ import {
   createTerm,
   updateTerm,
   deleteTerm,
+  rolloverTerms,
   type LevelItem,
   type Term,
   type TermFields,
@@ -257,7 +258,78 @@ export default function LevelsAdmin() {
         </ul>
       )}
 
+      {terms.length > 0 && <NewSchoolYear terms={terms} onDone={fetchLevels} />}
+
       {flashError && <div className="flash-error">{flashError}</div>}
+    </div>
+  )
+}
+
+// en-GB: "Term 1, Term 2 and Term 3", no Oxford comma.
+const joinNames = new Intl.ListFormat('en-GB', { type: 'conjunction' })
+
+function NewSchoolYear({ terms, onDone }: { terms: Term[]; onDone: () => void }) {
+  const { getToken } = useAuth()
+  const [confirming, setConfirming] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Set on Cancel so the trigger takes focus back, but not on first render.
+  const refocus = useRef(false)
+
+  async function handleConfirm() {
+    setSubmitting(true)
+    setError(null)
+    try {
+      await rolloverTerms(getToken)
+      onDone()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start new school year')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="levels-new-year">
+      {confirming ? (
+        <div className="delete-confirm">
+          <span id="new-year-warning">
+            <strong>Start a new school year?</strong>{' '}
+            {joinNames.format(terms.map(t => t.name))} {terms.length === 1 ? 'becomes' : 'become'} read-only.
+            New copies get every Level's instructions and dates one year later. Check the new dates after.
+          </span>
+          <div className="delete-confirm-actions">
+            <button
+              className="btn-secondary btn-sm"
+              autoFocus
+              aria-describedby="new-year-warning"
+              onClick={() => { refocus.current = true; setConfirming(false) }}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn-danger btn-sm"
+              aria-describedby="new-year-warning"
+              onClick={handleConfirm}
+              disabled={submitting}
+            >
+              Start new year
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p>
+          School year over?{' '}
+          <button
+            className="btn-secondary btn-sm"
+            ref={el => { if (el && refocus.current) { refocus.current = false; el.focus() } }}
+            onClick={() => setConfirming(true)}
+          >
+            Start new school year
+          </button>
+        </p>
+      )}
+      {error && <InlineError onDismiss={() => setError(null)}>{error}</InlineError>}
     </div>
   )
 }

@@ -37,6 +37,7 @@ var apiRoutes = []apiRoute{
 
 	// Terms (Group-owned, admin-only; read via GET /api/levels)
 	{"POST", "/api/terms", handleCreateTerm},
+	{"POST", "/api/terms/rollover", handleRolloverTerms},
 	{"PUT", "/api/terms/{id}", handleUpdateTerm},
 	{"DELETE", "/api/terms/{id}", handleDeleteTerm},
 

@@ -186,3 +186,53 @@ func TestTerms_ArchivedReadOnly(t *testing.T) {
 	w = termCall(t, handleCreateTerm, http.MethodPost, 0, termBody("Archived span", "1990-02-01", "1990-03-01"), "org:admin")
 	assert.Equal(t, http.StatusCreated, w.Code, w.Body.String())
 }
+
+func TestTerms_Rollover(t *testing.T) {
+	levelsTestDeps(t)
+	db := serviceDeps.GetDB()
+	repo := serviceDeps.GetLevelRepo()
+	level := newTestLevel(t, db, "org_a", "Marcia")
+	other := testTermID(t, db, "org_b")
+	// newTestLevel's Test Term spans every date; archiving it frees the calendar.
+	_, err := db.Exec(`UPDATE terms SET archived_at = '1990-07-01' WHERE group_id = 'org_a'`)
+	require.NoError(t, err)
+	t1, err := repo.Terms().Create(t.Context(), "org_a", "Term 1", "2027-09-01", "2027-12-20")
+	require.NoError(t, err)
+	t2, err := repo.Terms().Create(t.Context(), "org_a", "Term 2", "2028-01-05", "2028-02-29")
+	require.NoError(t, err)
+	require.NoError(t, repo.SetReportInstructions(t.Context(), "org_a", level.ID, t1.ID, "Autumn."))
+	require.NoError(t, repo.SetReportInstructions(t.Context(), "org_a", level.ID, t2.ID, "Winter."))
+
+	assert.Equal(t, http.StatusForbidden, termCall(t, handleRolloverTerms, http.MethodPost, 0, nil, "org:member").Code)
+	w := termCall(t, handleRolloverTerms, http.MethodPost, 0, nil, "org:admin")
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+
+	active, err := repo.Terms().ListActive(t.Context(), "org_a")
+	require.NoError(t, err)
+	require.Len(t, active, 2)
+	assert.Equal(t, Term{ID: active[0].ID, GroupID: "org_a", Name: "Term 1", StartDate: "2028-09-01", EndDate: "2028-12-20"}, active[0])
+	// Feb 29 ends Feb 28, not Mar 1.
+	assert.Equal(t, Term{ID: active[1].ID, GroupID: "org_a", Name: "Term 2", StartDate: "2029-01-05", EndDate: "2029-02-28"}, active[1])
+	for i, want := range []string{"Autumn.", "Winter."} {
+		text, err := repo.Terms().Instructions(t.Context(), level.ID, active[i].ID)
+		require.NoError(t, err)
+		assert.Equal(t, want, text)
+	}
+	var archivedCount int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM terms WHERE group_id = 'org_a' AND archived_at IS NOT NULL`).Scan(&archivedCount))
+	assert.Equal(t, 3, archivedCount)
+	var oldArchivedAt string
+	require.NoError(t, db.QueryRow(`SELECT archived_at FROM terms WHERE group_id = 'org_a' AND name = 'Test Term'`).Scan(&oldArchivedAt))
+	assert.Equal(t, "1990-07-01", oldArchivedAt)
+
+	// Other Group untouched.
+	b, err := repo.Terms().GetByID(t.Context(), "org_b", other)
+	require.NoError(t, err)
+	assert.Nil(t, b.ArchivedAt)
+
+	_, err = db.Exec(`UPDATE terms SET archived_at = 'x' WHERE group_id = 'org_a'`)
+	require.NoError(t, err)
+	w = termCall(t, handleRolloverTerms, http.MethodPost, 0, nil, "org:admin")
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.JSONEq(t, `{"error":"No active terms"}`, w.Body.String())
+}
