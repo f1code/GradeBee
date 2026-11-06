@@ -35,6 +35,11 @@ var apiRoutes = []apiRoute{
 	{"PUT", "/api/levels/{id}", handleUpdateLevel},
 	{"DELETE", "/api/levels/{id}", handleDeleteLevel},
 
+	// Terms (Group-owned, admin-only; read via GET /api/levels)
+	{"POST", "/api/terms", handleCreateTerm},
+	{"PUT", "/api/terms/{id}", handleUpdateTerm},
+	{"DELETE", "/api/terms/{id}", handleDeleteTerm},
+
 	// Students under class
 	{"GET", "/api/classes/{id}/students", handleListStudents},
 	{"POST", "/api/classes/{id}/students", handleCreateStudent},

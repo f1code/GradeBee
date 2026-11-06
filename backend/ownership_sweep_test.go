@@ -70,6 +70,7 @@ type sweepFixture struct {
 	reportQueue *MemQueue[ReportJob]
 
 	// A's rows.
+	termA    int64
 	levelA   Level
 	classA   Class
 	studentA Student
@@ -105,6 +106,7 @@ func newSweepFixture(t *testing.T) *sweepFixture {
 
 	// Tenant A.
 	f.levelA = newTestLevel(t, f.db, sweepGroupA, sweepLevelName)
+	f.termA = testTermID(t, f.db, sweepGroupA)
 	require.NoError(t, f.levelRepo.UpdateReportInstructions(ctx, sweepGroupA, f.levelA.ID, sweepInstructions))
 	f.classA, err = f.classRepo.Create(ctx, sweepGroupA, sweepUserA, f.levelA.ID, "Monday", "09:00")
 	require.NoError(t, err)
@@ -166,6 +168,8 @@ func newSweepFixture(t *testing.T) *sweepFixture {
 // because a mutation landing on an unexpected row is caught as well.
 type sweepSnapshot struct {
 	LevelAName, LevelAInstructions string
+	TermsA                         []Term
+	InstructionsA                  map[int64]map[int64]string
 	LevelCount                     map[string]int // group -> number of levels
 	ClassA                         Class
 	ClassesForA, ClassesForB       int
@@ -188,6 +192,10 @@ func (f *sweepFixture) snapshot(t *testing.T) sweepSnapshot {
 	lvl, err := f.levelRepo.GetByID(ctx, sweepGroupA, f.levelA.ID)
 	require.NoError(t, err)
 	s.LevelAName, s.LevelAInstructions = lvl.Name, lvl.ReportInstructions
+	s.TermsA, err = f.levelRepo.Terms().ListActive(ctx, sweepGroupA)
+	require.NoError(t, err)
+	s.InstructionsA, err = f.levelRepo.ActiveInstructions(ctx, sweepGroupA)
+	require.NoError(t, err)
 	s.LevelCount = map[string]int{}
 	for _, g := range []string{sweepGroupA, sweepGroupB} {
 		levels, err := f.levelRepo.List(ctx, g)
@@ -434,6 +442,28 @@ var sweepDenied = []deniedCase{
 		path:       func(f *sweepFixture) string { return fmt.Sprintf("/api/levels/%d", f.levelA.ID) },
 		wantStatus: http.StatusNotFound, wantBody: jsonBody("level not found"),
 	},
+	{
+		// B's own Level, A's Term: only the Term's group_id can refuse.
+		name: "write instructions into another Group's Term as admin", route: "PUT /api/levels/{id}", method: http.MethodPut,
+		path: func(f *sweepFixture) string { return fmt.Sprintf("/api/levels/%d", f.levelB.ID) },
+		body: func(f *sweepFixture) any {
+			return map[string]any{"reportInstructions": "sabotaged", "termId": f.termA}
+		},
+		wantStatus: http.StatusNotFound, wantBody: jsonBody("term not found"),
+	},
+	{
+		name: "edit another Group's Term as admin", route: "PUT /api/terms/{id}", method: http.MethodPut,
+		path: func(f *sweepFixture) string { return fmt.Sprintf("/api/terms/%d", f.termA) },
+		body: func(*sweepFixture) any {
+			return map[string]any{"name": "Hijacked", "startDate": "2030-01-01", "endDate": "2030-02-01"}
+		},
+		wantStatus: http.StatusNotFound, wantBody: jsonBody("term not found"),
+	},
+	{
+		name: "delete another Group's Term as admin", route: "DELETE /api/terms/{id}", method: http.MethodDelete,
+		path:       func(f *sweepFixture) string { return fmt.Sprintf("/api/terms/%d", f.termA) },
+		wantStatus: http.StatusNotFound, wantBody: jsonBody("term not found"),
+	},
 
 	// --- job key gate (voiceNoteKey(userID, uploadID)) ---
 	{
@@ -500,6 +530,7 @@ var notEntityScoped = map[string]string{
 	"GET /api/classes":                   "lists only the caller's own classes (ClassRepo.List is user_id-scoped)",
 	"GET /api/levels":                    "lists only the caller's Group's Levels (LevelRepo.List is group_id-scoped)",
 	"POST /api/levels":                   "creates under the caller's Group; the body carries a name, no foreign id",
+	"POST /api/terms":                    "creates under the caller's Group; the body carries a name and dates, no foreign id",
 	"POST /api/voice-notes/upload":       "creates an upload under the caller; multipart file only, no foreign id",
 	"POST /api/text-notes/upload":        "creates under the caller; students are resolved by name within the caller's own roster",
 	"POST /api/voice-notes/drive-import": "imports under the caller; the file id is Google's and read with the caller's own token",

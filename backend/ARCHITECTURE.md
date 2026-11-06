@@ -54,10 +54,13 @@ Go HTTP backend for GradeBee: student rosters, voice/text notes (upload → tran
 | POST | `/api/voice-notes/{uploadId}/assemble` | Yes | `handleAssembleNotes` | Rerun pass 2 against a class the teacher picked (`{className}`) and file its notes |
 | POST | `/api/voice-notes/{uploadId}/assign` | Yes | `handleAssignPassages` | File unattributed passages to one child (`{classId, studentId, passages: [{kind, summary, spokenLabels?}], appendToNoteId?}`) |
 | DELETE | `/api/voice-notes/{uploadId}/assign/{studentId}` | Yes | `handleUndoAssignment` | Delete the child's `assigned` notes from this recording; returns `{noteIds}` |
-| GET | `/api/levels` | Yes | `handleListLevels` | List the Group's Levels with the current Term's text, plus that `term` (null before any Term starts) |
+| GET | `/api/levels` | Yes | `handleListLevels` | List the Group's Levels with the current Term's text and `instructionsByTerm` (active Term id → text), the current `term` (null before any Term starts) and active `terms` by start |
 | POST | `/api/levels` | Admin | `handleCreateLevel` | Create a Level (`{name}`) |
-| PUT | `/api/levels/{id}` | Admin | `handleUpdateLevel` | Rename / set the current Term's Report Instructions; 409 when no Term has started |
+| PUT | `/api/levels/{id}` | Admin | `handleUpdateLevel` | Rename / set Report Instructions for `termId` (active, own Group; else 404), default the current Term (409 when none has started). Blank text deletes the row |
 | DELETE | `/api/levels/{id}` | Admin | `handleDeleteLevel` | Delete a Level; 409 with the count while Classes use it |
+| POST | `/api/terms` | Admin | `handleCreateTerm` | Create a Term (`{name, startDate, endDate}`, `YYYY-MM-DD`); 409 "Overlaps <Term>" when it shares a day with an active Term |
+| PUT | `/api/terms/{id}` | Admin | `handleUpdateTerm` | Rename / redate an active Term; same checks |
+| DELETE | `/api/terms/{id}` | Admin | `handleDeleteTerm` | Delete an active Term; 409 "Term in use" while Reports or Report Instructions point at it |
 
 ## Async Upload Pipeline
 
@@ -134,7 +137,7 @@ Ownership and input checks run on the request context. LLM call, save and implic
 
 - `clerkAuthMiddleware` verifies the JWT and rejects a session without an active Organization (`403 no_active_org`).
 - `userIDFromRequest`, `groupIDFromRequest` (active Org = Group), `isAdmin` (`org:admin`).
-- Levels are Group-owned: `LevelRepo` scopes every method by `group_id`; writes need `isAdmin`. `ClassRepo` checks `level_id` belongs to the caller's Group.
+- Levels and Terms are Group-owned: `LevelRepo` and `TermRepo` scope by `group_id`; writes need `isAdmin` (`requireAdminGroup`). Archived Terms read as not found to writes. `ClassRepo` checks `level_id` belongs to the caller's Group.
 - Google OAuth token for the Drive Picker: `user.ListOAuthAccessTokens` (`oauth_google`).
 
 ### LLM Provider (`llm_provider*.go`)

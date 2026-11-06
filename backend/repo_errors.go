@@ -19,6 +19,8 @@ var (
 	ErrInvalidDay = errors.New("invalid day")
 	// ErrNoCurrentTerm is returned when no active Term has started.
 	ErrNoCurrentTerm = errors.New("no current term")
+	// ErrTermInUse is returned when Reports or Report Instructions point at a Term.
+	ErrTermInUse = errors.New("term in use")
 )
 
 // ErrDuplicateAlias is returned by AddAlias when the alias collides with an
@@ -96,3 +98,8 @@ func rowsAffectedOrNotFound(res sql.Result) error {
 	}
 	return nil
 }
+
+// ErrTermOverlap names the active Term whose dates a Term would share.
+type ErrTermOverlap struct{ Name string }
+
+func (e *ErrTermOverlap) Error() string { return "overlaps " + e.Name }

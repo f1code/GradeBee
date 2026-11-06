@@ -1,7 +1,10 @@
 /* === GradeBee — Levels admin screen === */
 
 /* --- Muted text (sizes: tokens.css --text-*) --- */
-.levels-admin-instructions label {
+.levels-admin-instructions label,
+.levels-term-summary,
+.levels-term-fields-row label,
+.levels-term-note {
   color: var(--ink-muted);
   font-size: var(--text-sm);
 }
@@ -56,4 +59,156 @@
 
 .levels-admin-instructions-empty {
   color: var(--honey-dark);
+}
+
+/* --- Term strip: chips pick the Term every instructions box edits --- */
+.levels-terms {
+  margin-bottom: 1rem;
+}
+
+.levels-terms-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Chip look borrowed from .passage-review-student */
+.levels-term-chip {
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.25rem 0.6rem;
+  min-height: auto;
+}
+
+div.levels-term-chip.levels-term-chip-active,
+div.levels-term-chip.levels-term-chip-active:hover {
+  background: var(--honey);
+  border: 1.5px solid var(--honey-dark);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.3rem 0.35rem 0.3rem 0.8rem;
+}
+
+/* Each chip is a box holding name, dates, ✎ and trash */
+div.levels-term-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.1rem 0.25rem 0.1rem 0.6rem;
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  background: var(--chalk);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+div.levels-term-chip:hover {
+  background: var(--honey-light);
+  border-color: var(--honey);
+}
+
+.levels-term-chip-name,
+.levels-term-chip-name:hover {
+  background: none;
+  border: none;
+  box-shadow: none;
+  transform: none;
+  padding: 0;
+  min-height: auto;
+  font: inherit;
+  color: inherit;
+}
+
+.levels-term-chip-dates {
+  font-weight: 400;
+}
+
+/* Fixed square so ✎ (text) and trash (svg) get the same hover box */
+div.levels-term-chip .icon-btn {
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.levels-term-chip-active .icon-btn {
+  color: var(--ink);
+}
+
+.levels-term-chip-active .icon-btn:hover {
+  background: var(--honey-light);
+}
+
+.levels-term-chip-active .icon-btn-danger:hover {
+  color: var(--error-red);
+}
+
+.levels-term-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.levels-term-summary .levels-term-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.levels-term-fields {
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--comb);
+  border-radius: var(--radius-sm);
+  background: var(--chalk);
+}
+
+.levels-term-fields-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.levels-term-fields-row label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* .add-class-input stretches; here it sits inside a label */
+.levels-term-fields-row .add-class-input {
+  flex: none;
+}
+
+.levels-term-note {
+  margin: 0.35rem 0 0;
+}
+
+/* Level row badge: the picked Term has no text for this Level */
+.levels-admin-missing {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--honey-dark);
+  font-size: var(--text-sm);
+}
+
+/* Touch targets: 44px on phones */
+@media (max-width: 640px) {
+  div.levels-term-chip .icon-btn,
+  .levels-terms-picker > .icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  div.levels-term-chip .levels-term-chip-name,
+  button.levels-term-chip,
+  .levels-term-fields-row .btn-sm {
+    min-height: 44px;
+  }
 }

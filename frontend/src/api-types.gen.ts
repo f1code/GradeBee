@@ -114,6 +114,10 @@ export interface ListLevelsResponse {
    * The Term whose text Levels carry; null before any Term has started.
    */
   term?: Term;
+  /**
+   * Active Terms by start date.
+   */
+  terms: Term[];
 }
 
 //////////
@@ -447,6 +451,12 @@ export interface ErrDuplicateStudentName {
 export interface ErrLevelInUse {
   Count: number /* int */;
 }
+/**
+ * ErrTermOverlap names the active Term whose dates a Term would share.
+ */
+export interface ErrTermOverlap {
+  Name: string;
+}
 
 //////////
 // source: repo_feedback.go
@@ -499,6 +509,10 @@ export interface Level {
    */
   reportInstructions: string;
   createdAt: string;
+  /**
+   * Text per active Term id; set by handleListLevels only.
+   */
+  instructionsByTerm?: { [key: number /* int64 */]: string};
 }
 
 //////////
@@ -855,6 +869,14 @@ export interface ClassStudent {
   name: string;
   aliases?: string[];
 }
+
+//////////
+// source: terms.go
+/*
+terms.go handles Admin writes to a Group's Terms from the Levels screen.
+Reads ride on GET /api/levels.
+*/
+
 
 //////////
 // source: text_notes.go

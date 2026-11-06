@@ -30,7 +30,7 @@ A shared tenancy boundary (a school or a subgroup within a school) that owns all
 _Avoid_: Team, org (in UI), school (that is one kind of Group)
 
 **Term**:
-A Group-owned school term: free name, start and end dates, archived once its school year ends. Active Terms never overlap. Each Level holds one Report Instructions text per Term. The current Term, the one the Levels screen shows, is the latest active Term already started.
+A Group-owned school term: free name, start and end dates, archived once its school year ends. Active Terms never overlap. Each Level holds one Report Instructions text per Term. The current Term is the latest active Term already started; the Levels screen opens on it and lets an Admin pick any active Term.
 _Avoid_: Semester, period
 
 **Admin**:
