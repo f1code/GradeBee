@@ -62,6 +62,33 @@ func TestHandleListLevels_ScopedToCallersGroup(t *testing.T) {
 	assert.Equal(t, "org_a", resp.Term.GroupID)
 }
 
+func TestHandleListLevels_TermsScopedAndActive(t *testing.T) {
+	levelsTestDeps(t)
+	db := serviceDeps.GetDB()
+	a := newTestLevel(t, db, "org_a", "Marcia")
+	b := newTestLevel(t, db, "org_b", "Oliver")
+	termA := testTermID(t, db, "org_a")
+	termB := testTermID(t, db, "org_b")
+	var archived int64
+	require.NoError(t, db.QueryRow(`INSERT INTO terms (group_id, name, start_date, end_date, archived_at)
+		VALUES ('org_a', 'Old', '1990-01-01', '1990-06-01', '2000-01-01') RETURNING id`).Scan(&archived))
+	_, err := db.Exec(`INSERT INTO report_instructions (level_id, term_id, text) VALUES (?, ?, 'A'), (?, ?, 'old'), (?, ?, 'B')`,
+		a.ID, termA, a.ID, archived, b.ID, termB)
+	require.NoError(t, err)
+
+	r := levelsReq(http.MethodGet, "/levels", nil, "org_a", "org:member")
+	w := httptest.NewRecorder()
+	handleListLevels(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	var resp ListLevelsResponse
+	require.NoError(t, json.NewDecoder(w.Body).Decode(&resp))
+	require.Len(t, resp.Terms, 1)
+	assert.Equal(t, termA, resp.Terms[0].ID)
+	require.Len(t, resp.Levels, 1)
+	assert.Equal(t, map[int64]string{termA: "A"}, resp.Levels[0].InstructionsByTerm)
+}
+
 func TestHandleUpdateLevel_ReportInstructions_NoTerm(t *testing.T) {
 	levelsTestDeps(t)
 	db := serviceDeps.GetDB()

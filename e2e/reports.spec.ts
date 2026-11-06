@@ -21,7 +21,8 @@ async function mockClassesAndStudents(page: Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          levels: [{ id: 1, groupId: 'g1', name: 'Science', reportInstructions: 'Focus on scientific curiosity and observation skills.', createdAt: '2026-01-01T00:00:00Z' }],
+          levels: [{ id: 1, groupId: 'g1', name: 'Science', reportInstructions: 'Focus on scientific curiosity and observation skills.', createdAt: '2026-01-01T00:00:00Z', instructionsByTerm: { 1: 'Focus on scientific curiosity and observation skills.' } }],
+          terms: [{ id: 1, groupId: 'g1', name: 'Term 1', startDate: '2000-01-01', endDate: '2099-12-31' }],
         }),
       })
     } else {
@@ -167,7 +168,8 @@ test.describe('Report generation', () => {
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            levels: [{ id: 1, groupId: 'g1', name: 'Math', reportInstructions: 'Keep comments under 100 words.', createdAt: '2026-01-01T00:00:00Z' }],
+            levels: [{ id: 1, groupId: 'g1', name: 'Math', reportInstructions: 'Keep comments under 100 words.', createdAt: '2026-01-01T00:00:00Z', instructionsByTerm: { 1: 'Keep comments under 100 words.' } }],
+            terms: [{ id: 1, groupId: 'g1', name: 'Term 1', startDate: '2000-01-01', endDate: '2099-12-31' }],
           }),
         })
       } else {

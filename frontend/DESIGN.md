@@ -166,6 +166,10 @@ the real gate.
   `.report-level-block-blocker`, `.report-level-name`,
   `.report-level-blocker-text`, `.report-level-instructions`,
   `.report-level-instructions-text` — defined in `reports.css`.
+- The Term matching the From date shows beside the dates as `.report-period-term`
+  ("Term 1 instructions"), an `aria-live` region; the blocks show that Term's text.
+  No Term → `.report-period-term-missing` (`--error-red`, "⚠ No term covers
+  <date>"), no blocks, Generate disabled.
 
 ### Done cards (job card)
 

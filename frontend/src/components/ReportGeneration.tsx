@@ -17,6 +17,7 @@ import {
   type ReportBatch,
   type ReportBatchStudent,
 } from '../api'
+import type { Term } from '../api-types.gen'
 import {
   ReportBatchFinished,
   ReportBatchRunning,
@@ -85,14 +86,15 @@ export default function ReportGeneration() {
   const [classes, setClasses] = useState<ClassWithStudents[]>([])
   const [loadingStudents, setLoadingStudents] = useState(true)
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
   const [startDate, setStartDate] = useState(() => {
     const d = new Date()
     d.setMonth(d.getMonth() - 3)
     return d.toISOString().slice(0, 10)
   })
-  const [endDate, setEndDate] = useState(
-    () => new Date().toISOString().slice(0, 10)
-  )
+  // The Term default must not overwrite a date the Teacher already picked.
+  const startTouched = useRef(false)
+  const [endDate, setEndDate] = useState(today)
   const [instructions, setInstructions] = useState('')
   const [posting, setPosting] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -111,17 +113,32 @@ export default function ReportGeneration() {
   const requestedReportId = useRef<number | null>(null)
 
   const [levels, setLevels] = useState<LevelItem[]>([])
-  const [termName, setTermName] = useState<string | undefined>()
+  // null until Levels load, so the no-Term warning doesn't flash.
+  const [terms, setTerms] = useState<Term[] | null>(null)
   const [levelsError, setLevelsError] = useState<string | null>(null)
 
   useEffect(() => {
     listLevels(getToken)
-      .then(({ levels, term }) => {
+      .then(({ levels, terms }) => {
         setLevels(levels)
-        setTermName(term?.name)
+        setTerms(terms)
+        // Latest started Term; none started keeps today − 3 months.
+        const current = terms.filter(t => t.startDate <= today).at(-1)
+        if (current && !startTouched.current) setStartDate(current.startDate)
       })
       .catch((e: unknown) => setLevelsError(e instanceof Error ? e.message : 'Failed to load Levels'))
-  }, [getToken])
+  }, [getToken, today])
+
+  // Same rule as the backend's TermRepo.Covering; active Terms never overlap.
+  const matchedTerm = useMemo(
+    () => terms?.find(t => t.startDate <= startDate && startDate <= t.endDate),
+    [terms, startDate]
+  )
+  const noTerm = terms !== null && !matchedTerm
+  const levelText = useCallback(
+    (level: LevelItem) => (matchedTerm && level.instructionsByTerm?.[matchedTerm.id]) ?? '',
+    [matchedTerm]
+  )
 
   const loadStudents = useCallback(async () => {
     try {
@@ -228,12 +245,12 @@ export default function ReportGeneration() {
   }, [classes, selected, levels])
 
   const unsetLevels = useMemo(
-    () => selectedLevels.filter(l => l.reportInstructions.trim() === ''),
-    [selectedLevels]
+    () => selectedLevels.filter(l => levelText(l).trim() === ''),
+    [selectedLevels, levelText]
   )
 
   async function handleGenerate() {
-    if (selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel) return
+    if (selectedCount === 0 || !startDate || !endDate || !matchedTerm || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel) return
     setPosting(true)
     setError(null)
     setInterrupted(false)
@@ -361,12 +378,26 @@ export default function ReportGeneration() {
       <div className="report-period">
         <label>
           <span>From</span>
-          <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => {
+              startTouched.current = true
+              setStartDate(e.target.value)
+            }}
+          />
         </label>
         <label>
           <span>To</span>
           <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
         </label>
+        <span
+          className={`report-period-term${matchedTerm ? '' : ' report-period-term-missing'}`}
+          data-testid="report-period-term"
+          aria-live="polite"
+        >
+          {matchedTerm ? `${matchedTerm.name} instructions` : noTerm && startDate && `⚠ No term covers ${startDate}`}
+        </span>
       </div>
 
       {/* Student selector */}
@@ -420,10 +451,11 @@ export default function ReportGeneration() {
       )}
 
       {/* Level report instructions — one read-only block per distinct selected Level */}
-      {selectedLevels.length > 0 && (
+      {matchedTerm && selectedLevels.length > 0 && (
         <div className="report-levels">
           {selectedLevels.map(level => {
-            const isUnset = level.reportInstructions.trim() === ''
+            const text = levelText(level)
+            const isUnset = text.trim() === ''
             return (
               <div
                 key={level.id}
@@ -433,13 +465,13 @@ export default function ReportGeneration() {
                 <h4 className="report-level-name">{level.name}</h4>
                 {isUnset ? (
                   <p className="report-level-blocker-text">
-                    No report instructions set. An admin must add report instructions for this
-                    Level before reports can be generated.
+                    No {matchedTerm.name} report instructions set. An admin must add report
+                    instructions for this Level before reports can be generated.
                   </p>
                 ) : (
                   <details className="report-level-instructions">
-                    <summary>Report Instructions{termName && ` · ${termName}`}</summary>
-                    <p className="report-level-instructions-text">{level.reportInstructions}</p>
+                    <summary>Report Instructions · {matchedTerm.name}</summary>
+                    <p className="report-level-instructions-text">{text}</p>
                   </details>
                 )}
               </div>
@@ -462,7 +494,7 @@ export default function ReportGeneration() {
       <button
         className="report-generate-btn"
         onClick={handleGenerate}
-        disabled={posting || retrying || running || selectedCount === 0 || !startDate || !endDate || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel}
+        disabled={posting || retrying || running || selectedCount === 0 || !startDate || !endDate || !matchedTerm || unsetLevels.length > 0 || !!levelsError || hasUnresolvedLevel}
       >
         {posting || retrying || running ? (
           <span className="btn-loading"><span className="honeycomb-spinner honeycomb-spinner-inline"><span className="hex" /><span className="hex" /><span className="hex" /></span> Generating...</span>
