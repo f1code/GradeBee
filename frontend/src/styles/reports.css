@@ -79,6 +79,16 @@
   box-shadow: 0 0 0 3px rgba(232, 163, 23, 0.12);
 }
 
+.report-period-term {
+  align-self: flex-end;
+  padding-bottom: 0.55rem;
+  font-size: var(--text-md);
+}
+
+.report-period-term-missing {
+  color: var(--error-red);
+}
+
 .report-students h3,
 .report-instructions h3 {
   font-family: var(--font-display);
@@ -277,6 +287,10 @@
 @media (max-width: 480px) {
   .report-period {
     flex-direction: column;
+  }
+  .report-period-term {
+    align-self: flex-start;
+    padding-bottom: 0;
   }
   .report-student-list {
     grid-template-columns: 1fr;

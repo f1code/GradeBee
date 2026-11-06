@@ -42,7 +42,7 @@ func TestHandleSubmitFeedback_ReportThumbsDown(t *testing.T) {
 	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
-	rpt := &Report{StudentID: s.ID, StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<p>r</p>"}
+	rpt := &Report{StudentID: s.ID, TermID: testTermID(t, db, "test-group"), StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<p>r</p>"}
 	require.NoError(t, r.reports.Create(ctx, rpt))
 
 	comment := "tone was off"
@@ -126,7 +126,7 @@ func TestHandleSubmitFeedback_WrongUser(t *testing.T) {
 	c := newTestClass(t, r.classes, "test-group", "user1", "Math", "")
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err)
-	rpt := &Report{StudentID: s.ID, StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<p>r</p>"}
+	rpt := &Report{StudentID: s.ID, TermID: testTermID(t, db, "test-group"), StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<p>r</p>"}
 	require.NoError(t, r.reports.Create(ctx, rpt))
 
 	body, err := json.Marshal(submitFeedbackRequest{

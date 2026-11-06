@@ -233,7 +233,7 @@ func TestReportRepo_CRUD(t *testing.T) {
 	s, err := r.students.Create(ctx, c.ID, "Alice")
 	require.NoError(t, err, "create student")
 
-	rpt := &Report{StudentID: s.ID, StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<h1>Report</h1>"}
+	rpt := &Report{StudentID: s.ID, TermID: testTermID(t, r.classes.db, "test-group"), StartDate: "2026-01-01", EndDate: "2026-01-31", HTML: "<h1>Report</h1>"}
 	require.NoError(t, r.reports.Create(ctx, rpt), "create")
 	assert.NotZero(t, rpt.ID)
 

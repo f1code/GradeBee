@@ -15,6 +15,10 @@ import (
 // ListLevelsResponse is the JSON envelope for handleListLevels.
 type ListLevelsResponse struct {
 	Levels []Level `json:"levels"`
+	// The Term whose text Levels carry; null before any Term has started.
+	Term *Term `json:"term"`
+	// Active Terms by start date.
+	Terms []Term `json:"terms"`
 }
 
 // requireGroup extracts the active Group ID from the request, writing the
@@ -33,7 +37,8 @@ func handleListLevels(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	levels, err := serviceDeps.GetLevelRepo().List(r.Context(), groupID)
+	repo := serviceDeps.GetLevelRepo()
+	levels, err := repo.List(r.Context(), groupID)
 	if err != nil {
 		writeInternalError(w, r, err)
 		return
@@ -41,16 +46,34 @@ func handleListLevels(w http.ResponseWriter, r *http.Request) {
 	if levels == nil {
 		levels = []Level{}
 	}
-	writeJSON(w, http.StatusOK, ListLevelsResponse{Levels: levels})
+	byLevel, err := repo.ActiveInstructions(r.Context(), groupID)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	for i := range levels {
+		levels[i].InstructionsByTerm = byLevel[levels[i].ID]
+	}
+	terms, err := repo.Terms().ListActive(r.Context(), groupID)
+	if err != nil {
+		writeInternalError(w, r, err)
+		return
+	}
+	resp := ListLevelsResponse{Levels: levels, Terms: terms}
+	term, err := repo.CurrentTerm(r.Context(), groupID)
+	switch {
+	case err == nil:
+		resp.Term = &term
+	case !errors.Is(err, ErrNoCurrentTerm):
+		writeInternalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func handleCreateLevel(w http.ResponseWriter, r *http.Request) {
-	groupID, ok := requireGroup(w, r)
+	groupID, ok := requireAdminGroup(w, r)
 	if !ok {
-		return
-	}
-	if !isAdmin(r) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin role required"})
 		return
 	}
 	var req struct {
@@ -77,12 +100,8 @@ func handleCreateLevel(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
-	groupID, ok := requireGroup(w, r)
+	groupID, ok := requireAdminGroup(w, r)
 	if !ok {
-		return
-	}
-	if !isAdmin(r) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin role required"})
 		return
 	}
 	id, ok := idParam(r, "id")
@@ -93,6 +112,8 @@ func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name               *string `json:"name"`
 		ReportInstructions *string `json:"reportInstructions"`
+		// Defaults to the current Term.
+		TermID *int64 `json:"termId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -123,7 +144,28 @@ func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if req.ReportInstructions != nil {
-		if err := repo.UpdateReportInstructions(r.Context(), groupID, id, *req.ReportInstructions); err != nil {
+		var term Term
+		var err error
+		if req.TermID != nil {
+			term, err = repo.Terms().GetByID(r.Context(), groupID, *req.TermID)
+			if err == nil && term.ArchivedAt != nil {
+				err = ErrNotFound
+			}
+		} else {
+			term, err = repo.CurrentTerm(r.Context(), groupID)
+		}
+		switch {
+		case errors.Is(err, ErrNoCurrentTerm):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "no term has started yet"})
+			return
+		case errors.Is(err, ErrNotFound):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "term not found"})
+			return
+		case err != nil:
+			writeInternalError(w, r, err)
+			return
+		}
+		if err := repo.SetReportInstructions(r.Context(), groupID, id, term.ID, *req.ReportInstructions); err != nil {
 			if errors.Is(err, ErrNotFound) {
 				writeJSON(w, http.StatusNotFound, map[string]string{"error": "level not found"})
 				return
@@ -145,12 +187,8 @@ func handleUpdateLevel(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDeleteLevel(w http.ResponseWriter, r *http.Request) {
-	groupID, ok := requireGroup(w, r)
+	groupID, ok := requireAdminGroup(w, r)
 	if !ok {
-		return
-	}
-	if !isAdmin(r) {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "admin role required"})
 		return
 	}
 	id, ok := idParam(r, "id")

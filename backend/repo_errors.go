@@ -17,6 +17,12 @@ var (
 	// ErrInvalidDay is returned when a Class's day is missing or not one of
 	// the seven canonical weekday names.
 	ErrInvalidDay = errors.New("invalid day")
+	// ErrNoCurrentTerm is returned when no active Term has started.
+	ErrNoCurrentTerm = errors.New("no current term")
+	// ErrTermInUse is returned when Reports or Report Instructions point at a Term.
+	ErrTermInUse = errors.New("term in use")
+	// ErrNoActiveTerms is returned when a rollover finds nothing to archive.
+	ErrNoActiveTerms = errors.New("no active terms")
 )
 
 // ErrDuplicateAlias is returned by AddAlias when the alias collides with an
@@ -94,3 +100,8 @@ func rowsAffectedOrNotFound(res sql.Result) error {
 	}
 	return nil
 }
+
+// ErrTermOverlap names the active Term whose dates a Term would share.
+type ErrTermOverlap struct{ Name string }
+
+func (e *ErrTermOverlap) Error() string { return "overlaps " + e.Name }

@@ -354,6 +354,7 @@ func withDeps(t *testing.T, d deps) {
 // a data migration should not be load-bearing for the unit suite.
 func newTestLevel(t *testing.T, db *sql.DB, groupID, name string) Level {
 	t.Helper()
+	testTermID(t, db, groupID)
 	l, err := (&LevelRepo{db: db}).Create(context.Background(), groupID, name)
 	if err != nil {
 		t.Fatalf("newTestLevel: %v", err)
@@ -367,6 +368,7 @@ func newTestLevel(t *testing.T, db *sql.DB, groupID, name string) Level {
 // checks) resolves to the same Level rather than erroring on Level creation.
 func testLevelID(t *testing.T, db *sql.DB, groupID, name string) int64 {
 	t.Helper()
+	testTermID(t, db, groupID)
 	repo := &LevelRepo{db: db}
 	l, err := repo.Create(context.Background(), groupID, name)
 	if err == nil {
@@ -428,4 +430,20 @@ func fakeAuth(userID, orgID, role string) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// testTermID returns the Group's test Term, creating it on first call. It
+// covers every fixture date and has already started.
+func testTermID(t *testing.T, db *sql.DB, groupID string) int64 {
+	t.Helper()
+	var id int64
+	err := db.QueryRow(`SELECT id FROM terms WHERE group_id = ? AND name = 'Test Term'`, groupID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = db.QueryRow(`INSERT INTO terms (group_id, name, start_date, end_date)
+			VALUES (?, 'Test Term', '2000-01-01', '2099-12-31') RETURNING id`, groupID).Scan(&id)
+	}
+	if err != nil {
+		t.Fatalf("testTermID: %v", err)
+	}
+	return id
 }

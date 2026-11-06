@@ -54,10 +54,14 @@ Go HTTP backend for GradeBee: student rosters, voice/text notes (upload → tran
 | POST | `/api/voice-notes/{uploadId}/assemble` | Yes | `handleAssembleNotes` | Rerun pass 2 against a class the teacher picked (`{className}`) and file its notes |
 | POST | `/api/voice-notes/{uploadId}/assign` | Yes | `handleAssignPassages` | File unattributed passages to one child (`{classId, studentId, passages: [{kind, summary, spokenLabels?}], appendToNoteId?}`) |
 | DELETE | `/api/voice-notes/{uploadId}/assign/{studentId}` | Yes | `handleUndoAssignment` | Delete the child's `assigned` notes from this recording; returns `{noteIds}` |
-| GET | `/api/levels` | Yes | `handleListLevels` | List the Group's Levels |
+| GET | `/api/levels` | Yes | `handleListLevels` | List the Group's Levels with the current Term's text and `instructionsByTerm` (active Term id → text), the current `term` (null before any Term starts) and active `terms` by start |
 | POST | `/api/levels` | Admin | `handleCreateLevel` | Create a Level (`{name}`) |
-| PUT | `/api/levels/{id}` | Admin | `handleUpdateLevel` | Rename / set Report Instructions |
+| PUT | `/api/levels/{id}` | Admin | `handleUpdateLevel` | Rename / set Report Instructions for `termId` (active, own Group; else 404), default the current Term (409 when none has started). Blank text deletes the row |
 | DELETE | `/api/levels/{id}` | Admin | `handleDeleteLevel` | Delete a Level; 409 with the count while Classes use it |
+| POST | `/api/terms` | Admin | `handleCreateTerm` | Create a Term (`{name, startDate, endDate}`, `YYYY-MM-DD`); 409 "Overlaps <Term>" when it shares a day with an active Term |
+| PUT | `/api/terms/{id}` | Admin | `handleUpdateTerm` | Rename / redate an active Term; same checks |
+| DELETE | `/api/terms/{id}` | Admin | `handleDeleteTerm` | Delete an active Term; 409 "Term in use" while Reports or Report Instructions point at it |
+| POST | `/api/terms/rollover` | Admin | `handleRolloverTerms` | Start new school year, one transaction (`TermRepo.Rollover`): archive every active Term, copy each with its name, Report Instructions and dates +1 year (a Feb 29 end becomes Feb 28); 409 "No active terms" |
 
 ## Async Upload Pipeline
 
@@ -98,7 +102,7 @@ Audio is deleted right after transcription. The row and its transcript go after 
 
 ## Report batches (`report_batch_job.go`)
 
-`POST /api/reports` checks ownership and Level instructions in the request (`400`, nothing queued), then publishes one `ReportJob` on `MemQueue[ReportJob]` (1 worker: batches run one at a time across all Teachers). Key `userID/<batchID>`. The job holds inputs resolved at POST time and one row per student: `queued` → `generating` → `done` + `reportId` | `failed` + fixed error text. Running while any row is `queued` or `generating`.
+`POST /api/reports` checks ownership, the Term and Level instructions in the request (`400`, nothing queued: "no term covers <date>" when no active Term contains `startDate`; Level names when that Term has no text for them), then publishes one `ReportJob` on `MemQueue[ReportJob]` (1 worker: batches run one at a time across all Teachers). Key `userID/<batchID>`. The job holds inputs resolved at POST time and one row per student: `queued` → `generating` → `done` + `reportId` | `failed` + fixed error text. Running while any row is `queued` or `generating`.
 
 - Lock: `takeUploadLock("report-batch/"+userID)` guards check, publish and prune; the worker never holds it.
 - Retry: same lock. Flips `failed` rows back to `queued` and republishes the same job with its POST-time inputs; `done` rows keep their report. A failed publish restores the rows and answers `503`.
@@ -109,7 +113,7 @@ Audio is deleted right after transcription. The row and its transcript go after 
 
 ## Report regenerate (`handleRegenerateReport`)
 
-Feedback required (`400` when blank). The prompt carries the report's HTML as the previous draft (`reportPrevDraftHeader`) and the feedback of every round behind it, oldest first (`ArtifactFeedbackRepo.RegenerateChain` walks `artifact_feedback`, so a deleted draft keeps the chain; `reportEarlierFeedbackHeader`). Range: the source report's, except a regenerate or Tweak whose `end_date` falls on its creation day ("up to now"; the UI defaults end to today) runs to today (`regenEndDate`); the new report stores that range. Notes with `updated_at` after the draft's `created_at` are tagged `(new)`; the model adds their facts and keeps the rest of the draft. The new report and its `regenerated` feedback row (thumbs-down on the source, `result_id` = the new report) are written in one transaction (`ReportRepo.CreateRegenerated`); either failing fails the regenerate.
+Feedback required (`400` when blank). Reads the current text of the report's own Term (`ReportInputResolver.ForRegenerate`), archived or not; the new report keeps that Term. The prompt carries the report's HTML as the previous draft (`reportPrevDraftHeader`) and the feedback of every round behind it, oldest first (`ArtifactFeedbackRepo.RegenerateChain` walks `artifact_feedback`, so a deleted draft keeps the chain; `reportEarlierFeedbackHeader`). Range: the source report's, except a regenerate or Tweak whose `end_date` falls on its creation day ("up to now"; the UI defaults end to today) runs to today (`regenEndDate`); the new report stores that range. Notes with `updated_at` after the draft's `created_at` are tagged `(new)`; the model adds their facts and keeps the rest of the draft. The new report and its `regenerated` feedback row (thumbs-down on the source, `result_id` = the new report) are written in one transaction (`ReportRepo.CreateRegenerated`); either failing fails the regenerate.
 
 Paragraph tweak: the viewer's per-paragraph Tweak sends `paragraph` (index of the block in `p, li` document order) and `excerpt` (start of its text). `400` unless that block exists in the stored HTML and its text starts with the excerpt. The prompt shows the whole report as context and asks for that block's content only (`reportTweak*` in `prompts_version.go`; Level length, placeholder and padding rules yield to the ask). `spliceParagraph` (`report_tweak.go`) puts the answer back between the block's tags by byte offset, so every other byte stays as stored; an answer holding block tags or unbalanced inline tags fails the call. The feedback row stores `In the paragraph starting "<excerpt>": <ask>` so later rounds read it as scoped. Rows carry `ReportTweakPromptHash`.
 
@@ -134,7 +138,7 @@ Ownership and input checks run on the request context. LLM call, save and implic
 
 - `clerkAuthMiddleware` verifies the JWT and rejects a session without an active Organization (`403 no_active_org`).
 - `userIDFromRequest`, `groupIDFromRequest` (active Org = Group), `isAdmin` (`org:admin`).
-- Levels are Group-owned: `LevelRepo` scopes every method by `group_id`; writes need `isAdmin`. `ClassRepo` checks `level_id` belongs to the caller's Group.
+- Levels and Terms are Group-owned: `LevelRepo` and `TermRepo` scope by `group_id`; writes need `isAdmin` (`requireAdminGroup`). Archived Terms read as not found to writes. `ClassRepo` checks `level_id` belongs to the caller's Group.
 - Google OAuth token for the Drive Picker: `user.ListOAuthAccessTokens` (`oauth_google`).
 
 ### LLM Provider (`llm_provider*.go`)
@@ -149,12 +153,14 @@ SQLite, WAL (`db.go`). Migrations in `sql/`, embedded, applied in filename order
 
 | Table | Purpose |
 |-------|---------|
-| `levels` | Group-owned curriculum tiers; `name` unique per `group_id`; blank `report_instructions` blocks report generation (400) |
+| `levels` | Group-owned curriculum tiers; `name` unique per `group_id` |
+| `terms` | Group-owned school terms: `name`, `start_date`, `end_date` (inclusive, `YYYY-MM-DD`), `archived_at`. Current Term: latest active one with `start_date` ≤ today (UTC) |
+| `report_instructions` | Report Instructions per `(level_id, term_id)`; Level delete cascades, Term delete restricted. Missing or blank text blocks generation (400) |
 | `classes` | A Level instance: `level_id` (`RESTRICT`), `day` (`CHECK` weekday), optional `time_slot`. Name derived in SQL, never stored. Unique `(user_id, level_id, day, time_slot)` |
 | `students` | Students per class |
 | `student_aliases` | Name variants, unique per class, case-insensitive |
 | `notes` | Per-student notes. `trace_id` names the source recording (no FK). `source`: `auto`, `reviewed` (model-written; edit/delete fires implicit thumbs-down), `assigned`, `manual` (not model-written) |
-| `reports` | Generated HTML reports. `level_instructions`: the Level text the prompt used (NULL before task 185), read by the eval only, not in the API. `AUTOINCREMENT`: ids are never reused, because `artifact_feedback.result_id` outlives deleted reports and a reused id would inherit another report's chain |
+| `reports` | Generated HTML reports. `term_id` (`RESTRICT`): the active Term containing `start_date` at generation; regenerate keeps it. `level_instructions`: the Level text the prompt used (NULL before task 185), read by the eval only, not in the API. `AUTOINCREMENT`: ids are never reused, because `artifact_feedback.result_id` outlives deleted reports and a reused id would inherit another report's chain |
 | `voice_notes` | Upload tracking: file path, `processed_at`, `purged_at`, `transcript`, `trace_id` (unique UUID; row ids get reused) |
 | `llm_calls` | One row per AI call: user, trace, provider, model, task, tokens/audio seconds, `ok`. Read by `scripts/ai_cost.sql`; see `docs/ai-usage.md` |
 | `artifact_feedback` | Append-only thumbs ratings: `explicit`, `regenerated`, `edited`, `deleted`. A `regenerated` row's `artifact_id` is the source report and `result_id` the report it produced; rows outlive deleted reports and carry the regenerate chain |

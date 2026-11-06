@@ -12,33 +12,10 @@ import (
 // predate it get none and stay readable. Nothing can say which recording an
 // old note came from, and a made-up key would be a lie the guard could act on.
 func TestMigration017_BackfillsRecordingsNotNotes(t *testing.T) {
-	db, err := OpenDB(":memory:")
-	require.NoError(t, err)
-	t.Cleanup(func() { db.Close() })
-
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS _migrations (
-		name       TEXT PRIMARY KEY,
-		applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-	)`)
-	require.NoError(t, err)
-	entries, err := migrations.ReadDir("sql")
-	require.NoError(t, err)
-	// Everything before 017, in order, and nothing after it: a later
-	// migration must not run ahead of the one under test.
-	for _, e := range entries {
-		if e.Name() >= "017_" {
-			continue
-		}
-		content, err := migrations.ReadFile("sql/" + e.Name())
-		require.NoError(t, err)
-		_, err = db.Exec(string(content))
-		require.NoError(t, err, e.Name())
-		_, err = db.Exec("INSERT INTO _migrations (name) VALUES (?)", e.Name())
-		require.NoError(t, err)
-	}
+	db := migrateBefore(t, "017_")
 
 	// Two recordings and a note from before the column existed.
-	_, err = db.Exec(`INSERT INTO voice_notes (user_id, file_name, file_path) VALUES ('u1', 'a.m4a', '/a'), ('u1', 'b.m4a', '/b')`)
+	_, err := db.Exec(`INSERT INTO voice_notes (user_id, file_name, file_path) VALUES ('u1', 'a.m4a', '/a'), ('u1', 'b.m4a', '/b')`)
 	require.NoError(t, err)
 	_, err = db.Exec(`INSERT INTO levels (group_id, name) VALUES ('g', 'L')`)
 	require.NoError(t, err)

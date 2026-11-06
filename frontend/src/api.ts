@@ -20,6 +20,8 @@ import type {
   NoteLink,
   AliasResponse,
   Level as LevelItem,
+  ListLevelsResponse,
+  Term,
 } from './api-types.gen'
 
 export type {
@@ -41,6 +43,7 @@ export type {
   NoteLink,
   AliasResponse,
   LevelItem,
+  Term,
 }
 
 /**
@@ -807,7 +810,7 @@ export async function undoAssignment(
 
 export async function listLevels(
   getToken: () => Promise<string | null>
-): Promise<{ levels: LevelItem[] }> {
+): Promise<ListLevelsResponse> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/levels`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -857,7 +860,8 @@ export async function renameLevel(
 export async function updateLevelReportInstructions(
   id: number,
   reportInstructions: string,
-  getToken: () => Promise<string | null>
+  getToken: () => Promise<string | null>,
+  termId: number
 ): Promise<LevelItem> {
   const token = await getToken()
   const resp = await fetch(`${apiUrl}/levels/${id}`, {
@@ -866,11 +870,67 @@ export async function updateLevelReportInstructions(
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ reportInstructions }),
+    body: JSON.stringify({ reportInstructions, termId }),
   })
   const body = await readBody(resp)
   if (!resp.ok) throw new Error(body.error || 'Failed to update report instructions')
   return body
+}
+
+// --- Terms (admin) ---
+
+export type TermFields = Pick<Term, 'name' | 'startDate' | 'endDate'>
+
+async function writeTerm(
+  method: 'POST' | 'PUT',
+  path: string,
+  fields: TermFields,
+  getToken: () => Promise<string | null>
+): Promise<Term> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}${path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(fields),
+  })
+  const body = await readBody(resp)
+  if (!resp.ok) throw new Error(body.error || 'Failed to save term')
+  return body
+}
+
+export function createTerm(fields: TermFields, getToken: () => Promise<string | null>): Promise<Term> {
+  return writeTerm('POST', '/terms', fields, getToken)
+}
+
+export function updateTerm(id: number, fields: TermFields, getToken: () => Promise<string | null>): Promise<Term> {
+  return writeTerm('PUT', `/terms/${id}`, fields, getToken)
+}
+
+export async function deleteTerm(id: number, getToken: () => Promise<string | null>): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/terms/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await readBody(resp)
+    throw new Error(body.error || 'Failed to delete term')
+  }
+}
+
+export async function rolloverTerms(getToken: () => Promise<string | null>): Promise<void> {
+  const token = await getToken()
+  const resp = await fetch(`${apiUrl}/terms/rollover`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!resp.ok) {
+    const body = await readBody(resp)
+    throw new Error(body.error || 'Failed to start new school year')
+  }
 }
 
 export async function deleteLevel(

@@ -36,7 +36,7 @@ func newReportInputsFixture(t *testing.T) reportInputsFixture {
 		require.NoError(t, notes.Create(ctx, &n))
 	}
 	instructions := "be concise"
-	rpt := &Report{StudentID: stu.ID, StartDate: "2026-03-05", EndDate: "2026-03-20", HTML: "<p>ref</p>", Instructions: &instructions}
+	rpt := &Report{StudentID: stu.ID, TermID: testTermID(t, db, "org_a"), StartDate: "2026-03-05", EndDate: "2026-03-20", HTML: "<p>ref</p>", Instructions: &instructions}
 	require.NoError(t, (&ReportRepo{db: db}).Create(ctx, rpt))
 	return reportInputsFixture{db: db, resolver: NewReportInputResolver(db), levelID: cls.LevelID, studentID: stu.ID, reportID: rpt.ID}
 }
@@ -149,4 +149,45 @@ func TestReportInputResolver_Errors(t *testing.T) {
 		_, err = f.resolver.ForGenerate(ctx, "org_a", ReportStudentInput{StudentID: f.studentID}, "2026-01-01", "2026-12-31", "")
 		require.ErrorAs(t, err, &missing)
 	})
+}
+
+// Generate picks the active Term containing the start date; archived Terms and
+// dates outside every Term are refused.
+func TestReportInputResolver_ForGenerate_PicksCoveringTerm(t *testing.T) {
+	f := newReportInputsFixture(t)
+	ctx := context.Background()
+	first := testTermID(t, f.db, "org_a")
+	_, err := f.db.Exec(`UPDATE terms SET start_date = '2026-01-01', end_date = '2026-06-30' WHERE id = ?`, first)
+	require.NoError(t, err)
+	addTerm := func(name, start, end string, archived any, text string) int64 {
+		var id int64
+		require.NoError(t, f.db.QueryRow(`INSERT INTO terms (group_id, name, start_date, end_date, archived_at)
+			VALUES ('org_a', ?, ?, ?, ?) RETURNING id`, name, start, end, archived).Scan(&id))
+		_, err := f.db.Exec(`INSERT INTO report_instructions (level_id, term_id, text) VALUES (?, ?, ?)`, f.levelID, id, text)
+		require.NoError(t, err)
+		return id
+	}
+	second := addTerm("T2", "2026-07-01", "2026-12-31", nil, "T2 text.")
+	addTerm("Old", "2025-01-01", "2025-12-31", "2026-01-01", "Old text.")
+
+	for _, tc := range []struct {
+		start    string
+		wantTerm int64
+		wantText string
+	}{
+		{"2026-01-01", first, "Write three sections."},
+		{"2026-06-30", first, "Write three sections."},
+		{"2026-07-01", second, "T2 text."},
+		{"2025-06-01", 0, ""},
+		{"2027-01-01", 0, ""},
+	} {
+		in, err := f.resolver.ForGenerate(ctx, "org_a", ReportStudentInput{StudentID: f.studentID}, tc.start, "2027-12-31", "")
+		if tc.wantTerm == 0 {
+			assert.EqualError(t, err, "no term covers "+tc.start)
+			continue
+		}
+		require.NoError(t, err, tc.start)
+		assert.Equal(t, tc.wantTerm, in.TermID, tc.start)
+		assert.Equal(t, tc.wantText, in.ReportInstructions, tc.start)
+	}
 }

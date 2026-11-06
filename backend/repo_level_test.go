@@ -149,12 +149,37 @@ func TestLevelRepo_UpdateReportInstructions(t *testing.T) {
 
 	l, err := repo.Create(t.Context(), "org_a", "Marcia")
 	require.NoError(t, err)
+	assert.ErrorIs(t, repo.UpdateReportInstructions(t.Context(), "org_a", l.ID, "x"), ErrNoCurrentTerm)
+
+	// The current Term is the latest active one already started.
+	insertTerm := func(name, start, end string) int64 {
+		var id int64
+		require.NoError(t, db.QueryRow(`INSERT INTO terms (group_id, name, start_date, end_date)
+			VALUES ('org_a', ?, ?, ?) RETURNING id`, name, start, end).Scan(&id))
+		return id
+	}
+	insertTerm("T1", "2000-01-01", "2000-06-30")
+	t2 := insertTerm("T2", "2001-01-01", "2001-06-30")
+	future := insertTerm("Next", "2099-01-01", "2099-06-30")
 
 	require.NoError(t, repo.UpdateReportInstructions(t.Context(), "org_a", l.ID, "Focus on reading fluency."))
+	require.NoError(t, repo.UpdateReportInstructions(t.Context(), "org_a", l.ID, "Focus on fluency."))
 
 	got, err := repo.GetByID(t.Context(), "org_a", l.ID)
 	require.NoError(t, err)
-	assert.Equal(t, "Focus on reading fluency.", got.ReportInstructions)
+	assert.Equal(t, "Focus on fluency.", got.ReportInstructions)
+	term, err := repo.CurrentTerm(t.Context(), "org_a")
+	require.NoError(t, err)
+	assert.Equal(t, t2, term.ID)
+	text, err := (&TermRepo{db: db}).Instructions(t.Context(), l.ID, future)
+	require.NoError(t, err)
+	assert.Empty(t, text)
+
+	// Deleting the Level drops its text.
+	require.NoError(t, repo.Delete(t.Context(), "org_a", l.ID))
+	var n int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM report_instructions`).Scan(&n))
+	assert.Zero(t, n)
 }
 
 func TestLevelRepo_UpdateReportInstructions_CrossGroup_NotFound(t *testing.T) {

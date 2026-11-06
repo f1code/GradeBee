@@ -7,7 +7,7 @@ GradeBee is a teacher tool for managing student rosters, turning voice/text obse
 ### Rostering
 
 **Level**:
-A Group-owned entity defining the kind of report card expected (e.g. "Grade 3", "Intermediate"), carrying shared Report Instructions. A row in a `levels` table (`id`, `group_id`, `name` unique within Group, `report_instructions`). Classes reference it by `level_id`.
+A Group-owned entity defining the kind of report card expected (e.g. "Grade 3", "Intermediate"), carrying shared Report Instructions per Term. A row in a `levels` table (`id`, `group_id`, `name` unique within Group). Classes reference it by `level_id`.
 _Avoid_: Class name, grade (when used loosely)
 
 **Day**:
@@ -28,6 +28,10 @@ A learner belonging to exactly one Class.
 **Group**:
 A shared tenancy boundary (a school or a subgroup within a school) that owns all shared Levels and their instructions. Implemented as a Clerk Organization. Every Level, Class, and Report lives within exactly one Group; there is no personal/ungrouped path.
 _Avoid_: Team, org (in UI), school (that is one kind of Group)
+
+**Term**:
+A Group-owned school term: free name, start and end dates, archived once its school year ends. Active Terms never overlap. Each Level holds one Report Instructions text per Term. The current Term is the latest active Term already started; the Levels screen opens on it and lets an Admin pick any active Term.
+_Avoid_: Semester, period
 
 **Admin**:
 A Group member who creates and edits shared Levels and their instructions (Clerk org `admin` role).
@@ -57,10 +61,10 @@ Building a recording's Notes from its Passages, by the join rules under **Passag
 _Avoid_: Fold, merge, collate
 
 **Report**:
-An LLM-generated report card for one Student, drawing on their Notes and the Level's Report Instructions.
+An LLM-generated report card for one Student, drawing on their Notes and the Level's Report Instructions for the Report's Term: the active Term containing its start date, fixed at generation and kept on regenerate.
 
 **Report Instructions**:
-Admin-authored, shared guidance attached to a Level that drives a Report's content, structure, and style. **Required** — a Level with no Report Instructions cannot be used to generate Reports (hard gate).
+Admin-authored, shared guidance attached to a Level for one Term that drives a Report's content, structure, and style. **Required** — a Level with no Report Instructions for the Term cannot be used to generate Reports (hard gate).
 
 **Review Instructions**:
 Deferred. Report review is a future automated LLM self-review pass that runs before the Teacher sees the Report. It will likely reuse the Report Instructions rather than a separate field; a distinct Review Instructions field is added only if evidence later demands it.
@@ -72,8 +76,9 @@ _Avoid_: Additional instructions (legacy UI label)
 ## Relationships
 
 - A **Group** owns many **Levels**; membership + roles (**Admin**/**Teacher**) come from the Clerk Organization.
-- A **Level** carries shared **Report Instructions** (Admin-authored). Automated report review is deferred.
-- A **Report** is generated from **Notes** + Level **Report Instructions** + **Ad-hoc Instructions**.
+- A **Group** owns many **Terms**.
+- A **Level** carries shared **Report Instructions** (Admin-authored), one per **Term**. Automated report review is deferred.
+- A **Report** belongs to one **Term** and is generated from **Notes** + that Term's Level **Report Instructions** + **Ad-hoc Instructions**.
 - A **Class** references exactly one **Level** (`level_id`), a mandatory **Day**, and carries an optional free-text **Time slot**; the (Level, Day, Time slot) triple is unique per teacher.
 - A **Level** belongs to exactly one **Group**.
 - A **Student** belongs to exactly one **Class**.

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // LevelRepo provides CRUD operations for the levels table. Every method is
@@ -14,17 +15,25 @@ type LevelRepo struct{ db *sql.DB }
 
 // Level represents a row in the levels table.
 type Level struct {
-	ID                 int64  `json:"id"`
-	GroupID            string `json:"groupId"`
-	Name               string `json:"name"`
+	ID      int64  `json:"id"`
+	GroupID string `json:"groupId"`
+	Name    string `json:"name"`
+	// The current Term's text.
 	ReportInstructions string `json:"reportInstructions"`
 	CreatedAt          string `json:"createdAt"`
+	// Text per active Term id; set by handleListLevels only.
+	InstructionsByTerm map[int64]string `json:"instructionsByTerm,omitempty"`
 }
+
+// levelInstructionsSQL reads the current Term's text for levels l.
+var levelInstructionsSQL = `COALESCE((SELECT ri.text FROM report_instructions ri
+	WHERE ri.level_id = l.id AND ri.term_id = (` + currentTermSQL("l.group_id") + `)), '')`
 
 // List returns all Levels for a Group, ordered by name.
 func (r *LevelRepo) List(ctx context.Context, groupID string) ([]Level, error) {
 	rows, err := r.db.QueryContext(ctx,
-		"SELECT id, group_id, name, report_instructions, created_at FROM levels WHERE group_id = ? ORDER BY name",
+		`SELECT l.id, l.group_id, l.name, `+levelInstructionsSQL+`, l.created_at
+		 FROM levels l WHERE l.group_id = ? ORDER BY l.name`,
 		groupID)
 	if err != nil {
 		return nil, fmt.Errorf("list levels: %w", err)
@@ -47,7 +56,8 @@ func (r *LevelRepo) List(ctx context.Context, groupID string) ([]Level, error) {
 func (r *LevelRepo) GetByID(ctx context.Context, groupID string, id int64) (Level, error) {
 	var l Level
 	err := r.db.QueryRowContext(ctx,
-		"SELECT id, group_id, name, report_instructions, created_at FROM levels WHERE id = ? AND group_id = ?",
+		`SELECT l.id, l.group_id, l.name, `+levelInstructionsSQL+`, l.created_at
+		 FROM levels l WHERE l.id = ? AND l.group_id = ?`,
 		id, groupID,
 	).Scan(&l.ID, &l.GroupID, &l.Name, &l.ReportInstructions, &l.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -66,9 +76,9 @@ func (r *LevelRepo) Create(ctx context.Context, groupID, name string) (Level, er
 	err := r.db.QueryRowContext(ctx, `
 		INSERT INTO levels (group_id, name)
 		VALUES (?, ?)
-		RETURNING id, group_id, name, report_instructions, created_at`,
+		RETURNING id, group_id, name, created_at`,
 		groupID, name,
-	).Scan(&l.ID, &l.GroupID, &l.Name, &l.ReportInstructions, &l.CreatedAt)
+	).Scan(&l.ID, &l.GroupID, &l.Name, &l.CreatedAt)
 	if err != nil {
 		if isDuplicateErr(err) {
 			return Level{}, fmt.Errorf("create level %q: %w", name, ErrDuplicate)
@@ -94,16 +104,80 @@ func (r *LevelRepo) Rename(ctx context.Context, groupID string, id int64, name s
 	return rowsAffectedOrNotFound(res)
 }
 
-// UpdateReportInstructions updates a Level's Report Instructions within the
-// Group. Returns ErrNotFound if the Level doesn't exist in the Group.
+// CurrentTerm returns the Term List and UpdateReportInstructions read and
+// write, or ErrNoCurrentTerm.
+func (r *LevelRepo) CurrentTerm(ctx context.Context, groupID string) (Term, error) {
+	return (&TermRepo{db: r.db}).Current(ctx, groupID)
+}
+
+// Terms returns a TermRepo on the same DB.
+func (r *LevelRepo) Terms() *TermRepo { return &TermRepo{db: r.db} }
+
+// ActiveInstructions returns the Group's text per Level id, then active Term id.
+func (r *LevelRepo) ActiveInstructions(ctx context.Context, groupID string) (map[int64]map[int64]string, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT ri.level_id, ri.term_id, ri.text
+		FROM report_instructions ri JOIN terms t ON t.id = ri.term_id
+		WHERE t.group_id = ? AND t.archived_at IS NULL`, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("list report instructions: %w", err)
+	}
+	defer rows.Close()
+	out := map[int64]map[int64]string{}
+	for rows.Next() {
+		var levelID, termID int64
+		var text string
+		if err := rows.Scan(&levelID, &termID, &text); err != nil {
+			return nil, fmt.Errorf("scan report instructions: %w", err)
+		}
+		if out[levelID] == nil {
+			out[levelID] = map[int64]string{}
+		}
+		out[levelID][termID] = text
+	}
+	return out, rows.Err()
+}
+
+// UpdateReportInstructions sets a Level's text for the current Term. Returns
+// ErrNotFound if the Level doesn't exist in the Group, ErrNoCurrentTerm if no
+// active Term has started.
 func (r *LevelRepo) UpdateReportInstructions(ctx context.Context, groupID string, id int64, instructions string) error {
-	res, err := r.db.ExecContext(ctx,
-		"UPDATE levels SET report_instructions = ? WHERE id = ? AND group_id = ?",
-		instructions, id, groupID)
+	if _, err := r.GetByID(ctx, groupID, id); err != nil {
+		return err
+	}
+	term, err := r.CurrentTerm(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	return r.SetReportInstructions(ctx, groupID, id, term.ID, instructions)
+}
+
+// SetReportInstructions sets a Level's text for an active Term. Blank text
+// deletes the row, so a Term that reads blank is not "in use". Returns
+// ErrNotFound if the Level or Term isn't the Group's, or the Term is archived.
+func (r *LevelRepo) SetReportInstructions(ctx context.Context, groupID string, id, termID int64, instructions string) error {
+	if _, err := r.GetByID(ctx, groupID, id); err != nil {
+		return err
+	}
+	term, err := r.Terms().GetByID(ctx, groupID, termID)
+	if err != nil {
+		return err
+	}
+	if term.ArchivedAt != nil {
+		return ErrNotFound
+	}
+	if strings.TrimSpace(instructions) == "" {
+		_, err = r.db.ExecContext(ctx,
+			"DELETE FROM report_instructions WHERE level_id = ? AND term_id = ?", id, termID)
+	} else {
+		_, err = r.db.ExecContext(ctx, `
+		INSERT INTO report_instructions (level_id, term_id, text) VALUES (?, ?, ?)
+		ON CONFLICT (level_id, term_id) DO UPDATE SET text = excluded.text`,
+			id, termID, instructions)
+	}
 	if err != nil {
 		return fmt.Errorf("update report instructions: %w", err)
 	}
-	return rowsAffectedOrNotFound(res)
+	return nil
 }
 
 // Delete removes a Level from the Group. Returns ErrNotFound if the Level

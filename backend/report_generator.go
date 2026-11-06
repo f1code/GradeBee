@@ -88,6 +88,7 @@ func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 	promptHash := ReportPromptHash
 	rpt := &Report{
 		StudentID:         req.StudentID,
+		TermID:            req.TermID,
 		StartDate:         req.StartDate,
 		EndDate:           req.EndDate,
 		HTML:              html,
@@ -136,6 +137,7 @@ func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateRepor
 	modelVersion := g.model
 	rpt := &Report{
 		StudentID:         req.StudentID,
+		TermID:            req.TermID,
 		StartDate:         req.StartDate,
 		EndDate:           req.EndDate,
 		HTML:              html,

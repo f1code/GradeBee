@@ -110,6 +110,14 @@ Level, or edit its Report Instructions — Teachers get a read-only list.
  */
 export interface ListLevelsResponse {
   levels: Level[];
+  /**
+   * The Term whose text Levels carry; null before any Term has started.
+   */
+  term?: Term;
+  /**
+   * Active Terms by start date.
+   */
+  terms: Term[];
 }
 
 //////////
@@ -443,6 +451,12 @@ export interface ErrDuplicateStudentName {
 export interface ErrLevelInUse {
   Count: number /* int */;
 }
+/**
+ * ErrTermOverlap names the active Term whose dates a Term would share.
+ */
+export interface ErrTermOverlap {
+  Name: string;
+}
 
 //////////
 // source: repo_feedback.go
@@ -490,8 +504,15 @@ export interface Level {
   id: number /* int64 */;
   groupId: string;
   name: string;
+  /**
+   * The current Term's text.
+   */
   reportInstructions: string;
   createdAt: string;
+  /**
+   * Text per active Term id; set by handleListLevels only.
+   */
+  instructionsByTerm?: { [key: number /* int64 */]: string};
 }
 
 //////////
@@ -586,6 +607,28 @@ export interface StudentAlias {
   classId: number /* int64 */;
   alias: string;
   createdAt: string;
+}
+
+//////////
+// source: repo_term.go
+
+/**
+ * TermRepo reads a Group's Terms and their per-Level Report Instructions.
+ * Term reads are scoped by group_id; Instructions trusts ids the caller
+ * already scoped.
+ */
+export interface TermRepo {
+}
+/**
+ * Term represents a row in the terms table.
+ */
+export interface Term {
+  id: number /* int64 */;
+  groupId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  archivedAt?: string;
 }
 
 //////////
@@ -826,6 +869,14 @@ export interface ClassStudent {
   name: string;
   aliases?: string[];
 }
+
+//////////
+// source: terms.go
+/*
+terms.go handles Admin writes to a Group's Terms from the Levels screen.
+Reads ride on GET /api/levels.
+*/
+
 
 //////////
 // source: text_notes.go

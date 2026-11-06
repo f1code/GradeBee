@@ -142,7 +142,11 @@ A third tab (`🐝 Levels`), visible only when `useAuth().has({ role: 'org:admin
 - Rename reuses the `.inline-edit-input` / `.inline-class-edit` pattern from `StudentList`.
 - Report Instructions is a `<textarea>` inside `.report-instructions` (same class reports/generation uses — see "Known cascade quirk" below), auto-saved on blur. An empty textarea shows an inline `--honey-dark` hint that reports can't generate for this Level yet.
 - Add form reuses `.add-class-form` / `.add-class-input` styling. Duplicate name (case-insensitive) within the Group is caught client-side before submit, surfaced via `<InlineError>`; a 409 from a race is surfaced the same way.
-- New classes: `.levels-admin`, `.levels-admin-header`, `.levels-admin-help`, `.levels-admin-list`, `.levels-admin-instructions`, `.levels-admin-instructions-status/saved/empty` — defined in `levels.css`.
+- Term strip under the help line: one chip (`.levels-term-chip`) per active Term by start, default the current Term, else the first. Each chip holds name, date range, ✎ and trash `.icon-btn`s (with `title` tooltips). A click anywhere on the chip picks it; the name is the keyboard button (`aria-pressed`). Picked chip (`.levels-term-chip-active`) is solid `--honey` and slightly larger. Add term is a "+" `.icon-btn` (tooltip "Add term"); with no Terms yet it is a "+ Add term" chip. On phones, chip buttons grow to 44px.
+- Under the chips: "Report Instructions below are for <Term>." ✎ and Add term open the same Name / From / To form (`.levels-term-fields`, inputs `.add-class-input`) with Save/Add and Cancel. Refusals show as `<InlineError>`; a delete refusal titles it with the Term's name ("**Term 2** Term in use").
+- Every instructions box edits the picked Term's text (label "Report Instructions · <Term>"). A Level with no text for it shows `.levels-admin-missing` ("⚠ No <Term> text") in the row.
+- "School year over? [Start new school year]" sits at the screen bottom (`.levels-new-year`, `--comb` rule above), shown while any Term exists. It opens an inline `.delete-confirm` naming the Terms that become read-only, focus on Cancel (Cancel returns it to the trigger); confirming reloads the screen on the copies.
+- New classes: `.levels-admin`, `.levels-admin-header`, `.levels-admin-help`, `.levels-admin-list`, `.levels-admin-instructions`, `.levels-admin-instructions-status/saved/empty`, `.levels-terms*`, `.levels-term-*`, `.levels-admin-missing`, `.levels-new-year` — defined in `levels.css`.
 
 ### Report Generation — Per-Level Instructions Gate
 
@@ -163,6 +167,10 @@ the real gate.
   `.report-level-block-blocker`, `.report-level-name`,
   `.report-level-blocker-text`, `.report-level-instructions`,
   `.report-level-instructions-text` — defined in `reports.css`.
+- The Term matching the From date shows beside the dates as `.report-period-term`
+  ("Term 1 instructions"), an `aria-live` region; the blocks show that Term's text.
+  No Term → `.report-period-term-missing` (`--error-red`, "⚠ No term covers
+  <date>"), no blocks, Generate disabled.
 
 ### Done cards (job card)
 

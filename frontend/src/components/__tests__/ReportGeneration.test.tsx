@@ -37,13 +37,23 @@ function level(id: number, name: string, reportInstructions: string) {
   return { id, groupId: 'g1', name, reportInstructions, createdAt: '' }
 }
 
+const TERM_1 = { id: 1, groupId: 'g1', name: 'Term 1', startDate: '2000-01-01', endDate: '2099-12-31' }
+
+// listLevels response: one Term covering every date, each Level's text in it.
+function withTerm(levels: ReturnType<typeof level>[]) {
+  return {
+    levels: levels.map(l => ({ ...l, instructionsByTerm: { [TERM_1.id]: l.reportInstructions } })),
+    terms: [TERM_1],
+  }
+}
+
 function batch(students: ReportBatchStudent[], status = 'finished', id = 'b1') {
   return { id, startDate: '2026-01-01', endDate: '2026-03-31', createdAt: '', status, students }
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockListLevels.mockResolvedValue({ levels: [] })
+  mockListLevels.mockResolvedValue(withTerm([]))
   mockListReportBatches.mockResolvedValue({ batches: [] })
 })
 
@@ -61,7 +71,7 @@ async function renderWithStudents() {
       { id: 11, name: 'Bob', classId: 1 },
     ],
   })
-  mockListLevels.mockResolvedValue({ levels: [level(1, 'Math 101', 'Focus on math skills.')] })
+  mockListLevels.mockResolvedValue(withTerm([level(1, 'Math 101', 'Focus on math skills.')]))
   const { default: ReportGeneration } = await import('../ReportGeneration')
   const user = userEvent.setup()
   render(<ReportGeneration />)
@@ -495,7 +505,7 @@ describe('ReportGeneration — Level instructions gate', () => {
     mockListStudents.mockResolvedValue({
       students: [{ id: 10, name: studentName, classId: 1, createdAt: '', aliases: [] }],
     })
-    mockListLevels.mockResolvedValue({ levels: [level(1, levelName, reportInstructions)] })
+    mockListLevels.mockResolvedValue(withTerm([level(1, levelName, reportInstructions)]))
     const { default: ReportGeneration } = await import('../ReportGeneration')
     const user = userEvent.setup()
     render(<ReportGeneration />)
@@ -532,6 +542,7 @@ describe('ReportGeneration — Level instructions gate', () => {
       expect(screen.queryByTestId('level-instructions-blocker')).not.toBeInTheDocument()
       expect(screen.getByTestId('level-instructions-block')).toHaveTextContent('ClassA')
       expect(screen.getByTestId('level-instructions-block')).toHaveTextContent('Keep it warm and encouraging.')
+      expect(screen.getByText('Report Instructions · Term 1')).toBeInTheDocument()
     })
     const generateBtn = screen.getByRole('button', { name: /Generate/ })
     expect(generateBtn).not.toBeDisabled()
@@ -547,7 +558,7 @@ describe('ReportGeneration — Level instructions gate', () => {
     mockListStudents.mockResolvedValue({
       students: [{ id: 10, name: 'Alice', classId: 1, createdAt: '', aliases: [] }],
     })
-    mockListLevels.mockResolvedValue({ levels: [level(1, 'Other', 'Some instructions.')] })
+    mockListLevels.mockResolvedValue(withTerm([level(1, 'Other', 'Some instructions.')]))
     const { default: ReportGeneration } = await import('../ReportGeneration')
     const user = userEvent.setup()
     render(<ReportGeneration />)
@@ -570,7 +581,7 @@ describe('ReportGeneration — Level instructions gate', () => {
         { id: 11, name: 'Bob', classId: 1, createdAt: '', aliases: [] },
       ],
     })
-    mockListLevels.mockResolvedValue({ levels: [level(1, 'Math 101', 'Some instructions.')] })
+    mockListLevels.mockResolvedValue(withTerm([level(1, 'Math 101', 'Some instructions.')]))
     const { default: ReportGeneration } = await import('../ReportGeneration')
     const user = userEvent.setup()
     render(<ReportGeneration />)
@@ -599,9 +610,7 @@ describe('ReportGeneration — Level instructions gate', () => {
           : [{ id: 11, name: 'Bob', classId: 2, createdAt: '', aliases: [] }],
       })
     })
-    mockListLevels.mockResolvedValue({
-      levels: [level(1, 'ClassA', 'Instructions A.'), level(2, 'ClassB', '')],
-    })
+    mockListLevels.mockResolvedValue(withTerm([level(1, 'ClassA', 'Instructions A.'), level(2, 'ClassB', '')]))
     const { default: ReportGeneration } = await import('../ReportGeneration')
     const user = userEvent.setup()
     render(<ReportGeneration />)
@@ -638,6 +647,81 @@ describe('ReportGeneration — Levels load failure', () => {
     await waitFor(() => {
       expect(screen.getByTestId('levels-load-error')).toHaveTextContent('network down')
     })
+    expect(screen.getByRole('button', { name: /Generate/ })).toBeDisabled()
+  })
+})
+
+describe('ReportGeneration — Terms', () => {
+  const term1 = { id: 1, groupId: 'g1', name: 'Term 1', startDate: '2026-08-15', endDate: '2026-11-01' }
+  const term2 = { id: 2, groupId: 'g1', name: 'Term 2', startDate: '2027-01-05', endDate: '2027-03-31' }
+
+  async function renderInTerm2() {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-02-10T12:00:00Z'))
+    mockListClasses.mockResolvedValue({
+      classes: [{ id: 1, name: '3B', levelId: 1, levelName: '3B', studentCount: 1, userId: '', timeSlot: '', position: 0, createdAt: '' }],
+    })
+    mockListStudents.mockResolvedValue({
+      students: [{ id: 10, name: 'Alice', classId: 1, createdAt: '', aliases: [] }],
+    })
+    // Term 1 has text, Term 2 has none.
+    mockListLevels.mockResolvedValue({
+      levels: [{ ...level(1, '3B', ''), instructionsByTerm: { 1: 'Term one text.' } }],
+      terms: [term1, term2],
+    })
+    const { default: ReportGeneration } = await import('../ReportGeneration')
+    const user = userEvent.setup()
+    const { container } = render(<ReportGeneration />)
+    await waitFor(() => expect(screen.getByTestId('report-period-term')).toHaveTextContent('Term 2 instructions'))
+    const [from, to] = container.querySelectorAll<HTMLInputElement>('input[type="date"]')
+    return { user, from, to }
+  }
+
+  it('defaults to the latest started Term through today', async () => {
+    const { from, to } = await renderInTerm2()
+    expect(from).toHaveValue('2027-01-05')
+    expect(to).toHaveValue('2027-02-10')
+  })
+
+  it("keeps a start date the Teacher picked before Terms load", async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2027-02-10T12:00:00Z'))
+    mockListClasses.mockResolvedValue({ classes: [] })
+    let resolveLevels!: (v: unknown) => void
+    mockListLevels.mockReturnValue(new Promise(r => { resolveLevels = r }))
+    const { default: ReportGeneration } = await import('../ReportGeneration')
+    const { container } = render(<ReportGeneration />)
+    const from = container.querySelector<HTMLInputElement>('input[type="date"]')!
+
+    fireEvent.change(from, { target: { value: '2026-09-01' } })
+    await act(async () => resolveLevels({ levels: [], terms: [term1, term2] }))
+
+    expect(screen.getByTestId('report-period-term')).toHaveTextContent('Term 1 instructions')
+    expect(from).toHaveValue('2026-09-01')
+  })
+
+  it('previews and gates on the Term matching the start date', async () => {
+    const { user, from } = await renderInTerm2()
+    await user.click(screen.getByText('Alice'))
+    expect(screen.getByTestId('level-instructions-blocker')).toHaveTextContent('No Term 2 report instructions')
+    expect(screen.getByRole('button', { name: /Generate/ })).toBeDisabled()
+
+    fireEvent.change(from, { target: { value: '2026-09-01' } })
+
+    expect(screen.getByTestId('report-period-term')).toHaveTextContent('Term 1 instructions')
+    expect(screen.getByTestId('level-instructions-block')).toHaveTextContent('Term one text.')
+    expect(screen.getByText('Report Instructions · Term 1')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Generate/ })).toBeEnabled()
+  })
+
+  it('warns and disables Generate when no Term covers the start date', async () => {
+    const { user, from } = await renderInTerm2()
+    await user.click(screen.getByText('Alice'))
+    fireEvent.change(from, { target: { value: '2026-12-01' } })
+
+    expect(screen.getByTestId('report-period-term')).toHaveTextContent('⚠ No term covers 2026-12-01')
+    expect(screen.queryByTestId('level-instructions-block')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('level-instructions-blocker')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Generate/ })).toBeDisabled()
   })
 })

@@ -78,10 +78,11 @@ export default function ItemRow({
           <span className="item-row-name-text">
             {name}
             {subtitle && <span className="item-row-subtitle">{subtitle}</span>}
-            {badge}
           </span>
           <ChevronIcon open={expanded} />
         </span>
+        {/* Outside the name: that cell clips overflow, actions hide until hover. */}
+        {badge}
         <div className="item-row-actions" onClick={(e) => e.stopPropagation()}>
           {actions}
           <button

@@ -459,7 +459,7 @@ func TestHandleListReportBatches_RowOpensLatestDraft(t *testing.T) {
 	reports := f.deps.reportRepo
 	draft := func(source int64) int64 {
 		t.Helper()
-		rpt := &Report{StudentID: f.ids[0], StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>x</p>"}
+		rpt := &Report{StudentID: f.ids[0], TermID: testTermID(t, reports.db, "test-group"), StartDate: "2026-01-01", EndDate: "2026-03-31", HTML: "<p>x</p>"}
 		if source == 0 {
 			require.NoError(t, reports.Create(ctx, rpt))
 			return rpt.ID
