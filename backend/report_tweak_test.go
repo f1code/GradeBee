@@ -59,7 +59,8 @@ func TestCheckParagraph_RejectsDriftedIndex(t *testing.T) {
 func TestBuildReportPrompt_Tweak(t *testing.T) {
 	i := 3
 	notes := []Note{{Date: "2026-02-01", Summary: "edited", UpdatedAt: "2026-05-01T00:00:00Z"}}
-	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, "spec text", "", &ReportRevision{
+	earlier := []EarlierReport{{TermName: "T1", HTML: "<p>t1</p>"}}
+	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, earlier, "spec text", "", &ReportRevision{
 		Draft:           tweakDoc,
 		DraftCreatedAt:  "2026-04-01T00:00:00Z",
 		EarlierFeedback: []string{"warmer"},
@@ -72,6 +73,7 @@ func TestBuildReportPrompt_Tweak(t *testing.T) {
 	assert.Contains(t, prompt, "- 2026-02-01: edited\n", "a tweak tags no note (new)")
 	assert.NotContains(t, prompt, reportPrevDraftHeader)
 	assert.NotContains(t, prompt, reportTaskFooter)
+	assert.NotContains(t, prompt, reportEarlierHeader, "a tweak keeps the rest of the report as written")
 }
 
 // TestHandleRegenerateReport_Tweak rewrites one list item: the rest of the

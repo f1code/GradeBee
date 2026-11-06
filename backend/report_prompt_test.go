@@ -11,7 +11,7 @@ import (
 // TestBuildReportPrompt_AdHocInstructionsOverrideSpec verifies the ad-hoc
 // instructions header states it overrides the Level's Report Specification.
 func TestBuildReportPrompt_AdHocInstructionsOverrideSpec(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "be extra concise", nil)
+	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "be extra concise", nil)
 	assert.Contains(t, prompt, "override the Report Specification")
 	assert.Contains(t, prompt, "be extra concise")
 }
@@ -21,17 +21,17 @@ func TestBuildReportPrompt_AdHocInstructionsOverrideSpec(t *testing.T) {
 // instruction set must not leave a dangling header. The positive arm proves
 // the header string is the one the function really writes.
 func TestBuildReportPrompt_InstructionsSectionOnlyWhenGiven(t *testing.T) {
-	without := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", nil)
+	without := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "", nil)
 	assert.NotContains(t, without, reportInstructionsHeader)
 
-	with := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "be extra concise", nil)
+	with := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "be extra concise", nil)
 	assert.Contains(t, with, reportInstructionsHeader+"be extra concise")
 }
 
 // TestBuildReportPrompt_NotesRemainSoleSourceOfFacts verifies the base
 // framing sentence survives the reframe.
 func TestBuildReportPrompt_NotesRemainSoleSourceOfFacts(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", nil)
+	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "", nil)
 	assert.Contains(t, prompt, "student notes are the sole source of facts")
 }
 
@@ -39,13 +39,13 @@ func TestBuildReportPrompt_NotesRemainSoleSourceOfFacts(t *testing.T) {
 // sections; a regenerate puts draft, earlier rounds oldest first, then the
 // current feedback between the notes and the task.
 func TestBuildReportPrompt_RevisionInOrder(t *testing.T) {
-	without := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", nil)
+	without := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "", nil)
 	assert.NotContains(t, without, reportPrevDraftHeader)
 	assert.NotContains(t, without, reportEarlierFeedbackHeader)
 	assert.NotContains(t, without, reportFeedbackHeader)
 
 	notes := []Note{{Date: "2026-10-01", Summary: "zebra-note"}}
-	with := BuildReportPrompt("Alice", "Grade 3A", notes, "spec text", "be concise", &ReportRevision{
+	with := BuildReportPrompt("Alice", "Grade 3A", notes, nil, "spec text", "be concise", &ReportRevision{
 		Draft:           "<p>draft</p>",
 		EarlierFeedback: []string{"no cushions", "warmer"},
 		Feedback:        "make it shorter",
@@ -70,20 +70,20 @@ func TestBuildReportPrompt_NewNotesTagged(t *testing.T) {
 		{Date: "2026-10-02", Summary: "same", UpdatedAt: "2026-10-12T09:00:00.000Z"},
 		{Date: "2026-10-03", Summary: "after", UpdatedAt: "2026-10-12T09:00:00.500Z"},
 	}
-	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, "spec text", "", &ReportRevision{
+	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, nil, "spec text", "", &ReportRevision{
 		Draft: "<p>draft</p>", DraftCreatedAt: draftAt, Feedback: "warmer",
 	})
 	assert.Contains(t, prompt, "- 2026-10-01: before\n")
 	assert.Contains(t, prompt, "- 2026-10-02: same\n")
 	assert.Contains(t, prompt, "- 2026-10-03"+reportNewNoteTag+": after\n")
 
-	first := BuildReportPrompt("Alice", "Grade 3A", notes, "spec text", "", nil)
+	first := BuildReportPrompt("Alice", "Grade 3A", notes, nil, "spec text", "", nil)
 	assert.Contains(t, first, "- 2026-10-03: after\n", "a first draft tags nothing")
 }
 
 func TestBuildReportPrompt_NotesOldestFirst(t *testing.T) {
 	notes := []Note{{Date: "2026-11-05", Summary: "late"}, {Date: "2026-10-01", Summary: "early"}}
-	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, "spec text", "", nil)
+	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, nil, "spec text", "", nil)
 	assert.Less(t, strings.Index(prompt, "early"), strings.Index(prompt, "late"))
 	assert.Equal(t, "late", notes[0].Summary, "caller's slice untouched")
 }
@@ -92,14 +92,14 @@ func TestBuildReportPrompt_NotesOldestFirst(t *testing.T) {
 // statement sits between the student line and the notes.
 func TestBuildReportPrompt_NotesFiledToStudent(t *testing.T) {
 	notes := []Note{{Date: "2026-09-11", Summary: "Alise repeated after me."}}
-	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, "spec text", "", nil)
+	prompt := BuildReportPrompt("Alice", "Grade 3A", notes, nil, "spec text", "", nil)
 	assert.Contains(t, prompt, "Student: Alice, Class: Grade 3A\n\n"+reportNotesFiling+"- 2026-09-11")
 	assert.Contains(t, reportNotesFiling, "however spelled, is this student")
 }
 
 // #188: reports reused facts across sections and invented before/after stories.
 func TestBuildReportPrompt_FactOnceAndDatedChange(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", nil)
+	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "", nil)
 	assert.Contains(t, prompt, "Use each fact from the notes in one section only.")
 	assert.Contains(t, prompt, "Describe a change over time only when notes on different dates show it or a note states it; "+
 		"what the latest note says is how the student is now.")
@@ -107,14 +107,31 @@ func TestBuildReportPrompt_FactOnceAndDatedChange(t *testing.T) {
 
 // #196: gpt-6-luna cited its source ("the notes also record…").
 func TestBuildReportPrompt_NoSourceMention(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", nil)
+	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "", nil)
 	assert.Contains(t, prompt, "Write each fact as something observed in class; never mention the notes or records, "+
 		"or that something was noted, recorded, described or reported.")
 }
 
 // gpt-6.1-sol kept every fact and overran a teacher's 50-word limit at 60-80 words.
 func TestBuildReportPrompt_AdHocLengthDropsFacts(t *testing.T) {
-	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, "spec text", "", nil)
+	prompt := BuildReportPrompt("Alice", "Grade 3A", nil, nil, "spec text", "", nil)
 	assert.Contains(t, prompt, "A length in the Teacher's Instructions overrides it: "+
 		"keep to that length and leave out the least important facts.")
+}
+
+// Earlier Reports sit before the notes, oldest first; without any, the prompt
+// is as before.
+func TestBuildReportPrompt_EarlierReports(t *testing.T) {
+	notes := []Note{{Date: "2026-07-02", Summary: "reads well"}}
+	without := BuildReportPrompt("Alice", "Grade 3A", notes, nil, "spec text", "", nil)
+	assert.NotContains(t, without, reportEarlierHeader)
+
+	with := BuildReportPrompt("Alice", "Grade 3A", notes, []EarlierReport{{"T1", "<p>one</p>"}, {"T2", "<p>two</p>"}}, "spec text", "", nil)
+	block := reportEarlierHeader + "### T1\n<p>one</p>\n\n### T2\n<p>two</p>\n\n"
+	require.Contains(t, with, block+reportNotesHeader)
+	assert.Equal(t, without, strings.Replace(with, block, "", 1))
+
+	regen := BuildReportPrompt("Alice", "Grade 3A", notes, []EarlierReport{{"T1", "<p>one</p>"}}, "spec text", "",
+		&ReportRevision{Draft: "<p>draft</p>", Feedback: "warmer"})
+	assert.Contains(t, regen, reportEarlierHeader+"### T1\n<p>one</p>\n\n"+reportNotesHeader, "a regenerate keeps the block")
 }

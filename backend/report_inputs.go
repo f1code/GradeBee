@@ -1,5 +1,6 @@
 // report_inputs.go resolves what report generation feeds the prompt:
-// student → class → Level → Report Instructions gate → notes in range. The
+// student → class → Level → Report Instructions gate → notes in range →
+// earlier Terms' Reports. The
 // generate and regenerate handlers and cmd/eval-cli all go through it, so the
 // eval sees the inputs production does.
 package handler
@@ -22,10 +23,19 @@ type ReportInputs struct {
 	Notes              []Note
 	ReportInstructions string
 	// The Report's Term: matched on StartDate at generation, kept on regenerate.
-	TermID       int64
-	Instructions string
-	StartDate    string
-	EndDate      string
+	TermID int64
+	// Newest Report of each earlier Term of the same school year, oldest first (#226).
+	EarlierReports []EarlierReport
+	Instructions   string
+	StartDate      string
+	EndDate        string
+}
+
+// EarlierReport is a student's newest Report in a Term before the one being
+// written.
+type EarlierReport struct {
+	TermName string `json:"termName"`
+	HTML     string `json:"html"`
 }
 
 // ErrLevelInstructionsMissing is returned when the student's Level has no
@@ -177,7 +187,12 @@ func (r *ReportInputResolver) resolve(ctx context.Context, groupID string, stude
 	if err != nil {
 		return ReportInputs{}, fmt.Errorf("report: read notes: %w", err)
 	}
+	earlier, err := r.reports.EarlierTerms(ctx, studentID, term)
+	if err != nil {
+		return ReportInputs{}, err
+	}
 	return ReportInputs{
+		EarlierReports:     earlier,
 		StudentID:          studentID,
 		StudentName:        student.Name,
 		ClassName:          cls.Name,

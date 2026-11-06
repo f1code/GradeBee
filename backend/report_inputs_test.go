@@ -191,3 +191,61 @@ func TestReportInputResolver_ForGenerate_PicksCoveringTerm(t *testing.T) {
 		assert.Equal(t, tc.wantText, in.ReportInstructions, tc.start)
 	}
 }
+
+// Generation sees the student's newest Report of each earlier Term of its year,
+// oldest Term first; archived, current, later Terms and other students stay out.
+func TestReportInputResolver_EarlierReports(t *testing.T) {
+	f := newReportInputsFixture(t)
+	ctx := context.Background()
+	reports := &ReportRepo{db: f.db}
+	t1 := testTermID(t, f.db, "org_a")
+	_, err := f.db.Exec(`UPDATE terms SET start_date = '2026-01-01', end_date = '2026-03-31' WHERE id = ?`, t1)
+	require.NoError(t, err)
+	addTerm := func(name, start, end string, archived any) int64 {
+		var id int64
+		require.NoError(t, f.db.QueryRow(`INSERT INTO terms (group_id, name, start_date, end_date, archived_at)
+			VALUES ('org_a', ?, ?, ?, ?) RETURNING id`, name, start, end, archived).Scan(&id))
+		_, err := f.db.Exec(`INSERT INTO report_instructions (level_id, term_id, text) VALUES (?, ?, 'text')`, f.levelID, id)
+		require.NoError(t, err)
+		return id
+	}
+	t2 := addTerm("T2", "2026-04-01", "2026-06-30", nil)
+	t3 := addTerm("T3", "2026-07-01", "2026-12-31", nil)
+	old := addTerm("Old", "2025-01-01", "2025-12-31", "2026-01-01")
+	oldFirst := addTerm("Old first", "2024-09-01", "2024-12-31", "2026-01-01")
+	olderYear := addTerm("Older year", "2023-09-01", "2023-12-31", "2024-08-01")
+	var classID int64
+	require.NoError(t, f.db.QueryRow(`SELECT class_id FROM students WHERE id = ?`, f.studentID).Scan(&classID))
+	other, err := (&StudentRepo{db: f.db}).Create(ctx, classID, "Bob")
+	require.NoError(t, err)
+	otherGroup := testTermID(t, f.db, "org_b")
+	// The fixture's "<p>ref</p>" is the older t1 Report.
+	for _, r := range []Report{
+		{StudentID: f.studentID, TermID: t1, HTML: "<p>t1 newest</p>"},
+		{StudentID: f.studentID, TermID: otherGroup, HTML: "<p>other group</p>"},
+		{StudentID: f.studentID, TermID: t2, HTML: "<p>t2</p>"},
+		{StudentID: f.studentID, TermID: t3, HTML: "<p>t3 own term</p>"},
+		{StudentID: f.studentID, TermID: old, HTML: "<p>last year</p>"},
+		{StudentID: f.studentID, TermID: oldFirst, HTML: "<p>last year first</p>"},
+		{StudentID: f.studentID, TermID: olderYear, HTML: "<p>older year</p>"},
+		{StudentID: other.ID, TermID: t1, HTML: "<p>bob</p>"},
+	} {
+		r.StartDate, r.EndDate = "2026-01-01", "2026-01-02"
+		require.NoError(t, reports.Create(ctx, &r))
+	}
+	var lastYearID int64
+	require.NoError(t, f.db.QueryRow(`SELECT id FROM reports WHERE html = '<p>last year</p>'`).Scan(&lastYearID))
+
+	in, err := f.resolver.ForGenerate(ctx, "org_a", ReportStudentInput{StudentID: f.studentID}, "2026-07-01", "2026-12-31", "")
+	require.NoError(t, err)
+	assert.Equal(t, []EarlierReport{{"Test Term", "<p>t1 newest</p>"}, {"T2", "<p>t2</p>"}}, in.EarlierReports)
+
+	in, err = f.resolver.ForGenerate(ctx, "org_a", ReportStudentInput{StudentID: f.studentID}, "2026-01-01", "2026-03-31", "")
+	require.NoError(t, err)
+	assert.Empty(t, in.EarlierReports, "first term")
+
+	// A regenerate after rollover reads its own archived year only.
+	in, _, err = f.resolver.ForReport(ctx, "org_a", f.studentID, lastYearID)
+	require.NoError(t, err)
+	assert.Equal(t, []EarlierReport{{"Old first", "<p>last year first</p>"}}, in.EarlierReports)
+}

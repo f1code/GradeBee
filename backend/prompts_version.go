@@ -270,6 +270,23 @@ const reportSpecHeader = "## Report Specification (defines the report's required
 const reportInstructionsHeader = "## Teacher's Instructions for This Report — " +
 	"override the Report Specification where they conflict\n\n"
 
+// reportEarlierHeader prefixes the student's Reports from earlier Terms this
+// year (#226). A school's protocol has later reports build on earlier ones and
+// explain a result that breaks the earlier picture. It relaxes the base and
+// footer rules for this block only, so a first-term prompt stays unchanged.
+const reportEarlierHeader = "## Earlier Reports This Year (oldest first) — context " +
+	"only, never a source of facts for this term\n" +
+	"Use them to show the student's progress across the year: where the notes show " +
+	"the same, better or worse than an earlier report, say so; this comparison is the " +
+	"one exception to the Task's rule on change over time. Where this term's notes or " +
+	"results do not fit the earlier picture, say why if the notes give a reason, else " +
+	"say how they differ. " +
+	"Every fact about this term still comes from the notes. You may name an earlier " +
+	"term or its report.\n\n"
+
+// reportEarlierTerm heads one earlier Report with its Term's name.
+const reportEarlierTerm = "### %s\n%s\n\n"
+
 // reportNotesHeader prefixes the student notes section.
 const reportNotesHeader = "## Student Notes (source of truth — every specific fact " +
 	"must come from these)\n"
@@ -384,16 +401,19 @@ func init() {
 	// The report hash covers all static fragments concatenated with separators.
 	// Dynamic parts (student name, notes, examples, draft, feedback) are represented by
 	// sentinels so the hash captures the structural template, not the data.
-	reportHead := reportPromptBase +
+	reportSpec := reportPromptBase +
 		reportSpecHeader + "<<<reportInstructions>>>" +
-		reportInstructionsHeader + "<<<instructions>>>" +
-		reportNotesHeader + "<<<student>>>" + reportNotesFiling + "<<<notes>>>"
+		reportInstructionsHeader + "<<<instructions>>>"
+	reportNotes := reportNotesHeader + "<<<student>>>" + reportNotesFiling + "<<<notes>>>"
 	earlier := reportEarlierFeedbackHeader + reportEarlierFeedbackRound + "<<<earlierFeedback>>>"
-	ReportPromptHash = hashPrompt(reportHead +
+	ReportPromptHash = hashPrompt(reportSpec +
+		reportEarlierHeader + reportEarlierTerm + "<<<earlierReports>>>" +
+		reportNotes +
 		reportPrevDraftHeader + "<<<draft>>>" + earlier +
 		reportFeedbackHeader + "<<<feedback>>>" +
 		reportTaskFooter)
-	ReportTweakPromptHash = hashPrompt(reportHead +
+	// No earlier Reports: a tweak keeps the rest of the report as written.
+	ReportTweakPromptHash = hashPrompt(reportSpec + reportNotes +
 		reportTweakDraftHeader + "<<<draft>>>" + earlier +
 		reportTweakParagraphHeader + "<<<paragraph>>>" +
 		reportTweakAskHeader + "<<<feedback>>>" +

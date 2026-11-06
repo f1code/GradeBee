@@ -166,6 +166,7 @@ func TestRunBuildReportPrompt(t *testing.T) {
 		"examples":            []interface{}{},
 		"report_instructions": "Write a three-section report.",
 		"instructions":        "",
+		"earlier_reports":     []interface{}{map[string]interface{}{"termName": "T1", "html": "<p>t1</p>"}},
 	})}
 	out, err := captureOutput(func() error { return runBuildReportPrompt(ec) })
 	require.NoError(t, err)
@@ -173,7 +174,7 @@ func TestRunBuildReportPrompt(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &msgs))
 	require.Len(t, msgs, 1)
 	assert.Equal(t, "user", msgs[0]["role"])
-	assert.NotEmpty(t, msgs[0]["content"])
+	assert.Contains(t, msgs[0]["content"], "### T1\n<p>t1</p>")
 }
 
 func regenPromptVars(extra map[string]interface{}) evalContext {

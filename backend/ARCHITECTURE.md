@@ -111,6 +111,10 @@ Audio is deleted right after transcription. The row and its transcript go after 
 - Latest draft: list and retry answers point each row's `reportId` at the newest surviving report regenerated from it (`ArtifactFeedbackRepo.LatestRegenerated`, any depth, any branch). The stored job keeps the original id.
 - Lost on restart. The page polls `GET /api/reports/batches` every 3s and shows "interrupted" when its running batch vanishes.
 
+## Report inputs (`report_inputs.go`)
+
+`ReportInputResolver` feeds generate, regenerate, Tweak and `cmd/eval-cli`: student, class, Level, the Term's Report Instructions, notes in range, and earlier-term Reports (`ReportRepo.EarlierTerms`): the student's newest Report in each Term of the same school year starting before the Report's Term, oldest first. A year is the Terms sharing `archived_at` (NULL while active; one rollover stamps a year), so last year stays out and a regenerate after rollover still reads its own year. The prompt carries them before the notes as context only (`reportEarlierHeader`); none, or a Tweak → no block.
+
 ## Report regenerate (`handleRegenerateReport`)
 
 Feedback required (`400` when blank). Reads the current text of the report's own Term (`ReportInputResolver.ForRegenerate`), archived or not; the new report keeps that Term. The prompt carries the report's HTML as the previous draft (`reportPrevDraftHeader`) and the feedback of every round behind it, oldest first (`ArtifactFeedbackRepo.RegenerateChain` walks `artifact_feedback`, so a deleted draft keeps the chain; `reportEarlierFeedbackHeader`). Range: the source report's, except a regenerate or Tweak whose `end_date` falls on its creation day ("up to now"; the UI defaults end to today) runs to today (`regenEndDate`); the new report stores that range. Notes with `updated_at` after the draft's `created_at` are tagged `(new)`; the model adds their facts and keeps the rest of the draft. The new report and its `regenerated` feedback row (thumbs-down on the source, `result_id` = the new report) are written in one transaction (`ReportRepo.CreateRegenerated`); either failing fails the regenerate.

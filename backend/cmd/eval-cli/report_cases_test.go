@@ -56,6 +56,7 @@ func TestWriteReportCases(t *testing.T) {
 			Notes:              []handler.Note{{ID: 9, Date: "2026-03-10", Summary: "read well", Transcript: &transcript}},
 			ReportInstructions: "Three sections.",
 			Instructions:       "be concise",
+			EarlierReports:     []handler.EarlierReport{{TermName: "T1", HTML: "<p>t1</p>"}},
 		},
 		ReferenceHTML: "<p>ref</p>",
 	}
@@ -86,6 +87,9 @@ func TestWriteReportCases(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, want, string(got))
 	}
+	earlier, err := os.ReadFile(filepath.Join(evals, tests[0].Vars.EarlierReports[len("file://"):]))
+	require.NoError(t, err)
+	assert.JSONEq(t, `[{"termName":"T1","html":"<p>t1</p>"}]`, string(earlier))
 	assert.Empty(t, tests[0].Prompts, "a fresh case runs on every row, gold-reference included")
 	require.Len(t, tests[0].Assert, 1)
 	assert.Equal(t, "expect", tests[0].Assert[0].Metric)

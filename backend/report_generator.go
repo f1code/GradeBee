@@ -71,7 +71,7 @@ func newDBReportGenerator(provider LLMProvider, rr *ReportRepo) (*llmReportGener
 }
 
 func (g *llmReportGenerator) Draft(ctx context.Context, in ReportInputs) (string, error) {
-	return g.callLLM(ctx, BuildReportPrompt(in.StudentName, in.ClassName, in.Notes, in.ReportInstructions, in.Instructions, nil))
+	return g.callLLM(ctx, BuildReportPrompt(in.StudentName, in.ClassName, in.Notes, in.EarlierReports, in.ReportInstructions, in.Instructions, nil))
 }
 
 func (g *llmReportGenerator) Model() string { return g.model }
@@ -112,7 +112,7 @@ func (g *llmReportGenerator) Generate(ctx context.Context, req GenerateReportReq
 
 func (g *llmReportGenerator) Regenerate(ctx context.Context, req RegenerateReportRequest) (*GenerateReportResponse, error) {
 	// 1. Build prompt with previous draft and feedback, call LLM.
-	prompt := BuildReportPrompt(req.StudentName, req.ClassName, req.Notes, req.ReportInstructions, req.Instructions, &req.ReportRevision)
+	prompt := BuildReportPrompt(req.StudentName, req.ClassName, req.Notes, req.EarlierReports, req.ReportInstructions, req.Instructions, &req.ReportRevision)
 	html, err := g.callLLM(ctx, prompt)
 	if err != nil {
 		return nil, err

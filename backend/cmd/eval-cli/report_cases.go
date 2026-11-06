@@ -77,6 +77,7 @@ type reportTestVars struct {
 	Draft              string `yaml:"draft,omitempty"`
 	DraftCreatedAt     string `yaml:"draft_created_at,omitempty"`
 	Feedback           string `yaml:"feedback,omitempty"`
+	EarlierReports     string `yaml:"earlier_reports,omitempty"`
 	Paragraph          *int   `yaml:"paragraph,omitempty"`
 	// Experiment runs set it false on fresh cases: the reference was written
 	// under the snapshot text, so it would pull the candidate side toward it.
@@ -482,6 +483,13 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 				return err
 			}
 		}
+		// ponytail: newest earlier Reports at dump time, which may postdate the
+		// reference; filter on reference id if replays drift.
+		if len(c.EarlierReports) > 0 {
+			if files["earlier_reports.json"], err = json.MarshalIndent(c.EarlierReports, "", "  "); err != nil {
+				return err
+			}
+		}
 		for name, content := range files {
 			if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
 				return err
@@ -500,6 +508,9 @@ func writeReportCases(m reportManifest, cases []reportCase, casesDir, testsPath 
 				Instructions:       ref("instructions.txt"),
 				Reference:          ref("reference.html"),
 			},
+		}
+		if _, ok := files["earlier_reports.json"]; ok {
+			t.Vars.EarlierReports = ref("earlier_reports.json")
 		}
 		switch {
 		case e.Tweak != nil:

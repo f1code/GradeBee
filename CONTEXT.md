@@ -78,7 +78,7 @@ _Avoid_: Additional instructions (legacy UI label)
 - A **Group** owns many **Levels**; membership + roles (**Admin**/**Teacher**) come from the Clerk Organization.
 - A **Group** owns many **Terms**.
 - A **Level** carries shared **Report Instructions** (Admin-authored), one per **Term**. Automated report review is deferred.
-- A **Report** belongs to one **Term** and is generated from **Notes** + that Term's Level **Report Instructions** + **Ad-hoc Instructions**.
+- A **Report** belongs to one **Term** and is generated from **Notes** + that Term's Level **Report Instructions** + **Ad-hoc Instructions**, with the Student's newest Report of each earlier Term of the same school year as context only.
 - A **Class** references exactly one **Level** (`level_id`), a mandatory **Day**, and carries an optional free-text **Time slot**; the (Level, Day, Time slot) triple is unique per teacher.
 - A **Level** belongs to exactly one **Group**.
 - A **Student** belongs to exactly one **Class**.

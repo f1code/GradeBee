@@ -145,6 +145,14 @@ defaultTest:
       conflict. Empty means none.
       {{instructions}}
       </adhoc_instructions>
+      {% if earlier_reports %}
+      <earlier_reports>
+      The student's reports from earlier terms this year. Context only: never a source of facts about
+      this term, but a comparison with them ("since the start of the year", "more readily than before")
+      is grounded when the notes show this term's side of it.
+      {{earlier_reports}}
+      </earlier_reports>
+      {% endif %}
       {% if feedback %}
       <teacher_feedback>
       The Teacher's feedback on earlier drafts, oldest first; like ad-hoc instructions, it overrides
@@ -214,7 +222,8 @@ defaultTest:
         Check every time-ordered claim ("at the start of term", "at first", "recently", "since then",
         "now", "improving", "week by week", "more and more") against the note dates. A change is
         supported when an earlier note and a later note differ on the same skill, or when a note
-        itself states it ("participates more"), and only as far as that note states it; a difficulty
+        itself states it ("participates more"), or when an earlier report states the before and a
+        note the now, and only as far as that note states it; a difficulty
         the latest note still shows is current, never "at the start of term". An unsupported change or
         trend is an invented fact.
         Example, invented: notes on two dates both show one-word answers, the later one "a little

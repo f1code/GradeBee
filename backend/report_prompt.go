@@ -26,7 +26,7 @@ type ReportRevision struct {
 
 // BuildReportPrompt builds the GPT system prompt for report card generation;
 // rev is nil for a first draft. Exported for use by cmd/eval-cli.
-func BuildReportPrompt(student, className string, notes []Note, reportInstructions, instructions string, rev *ReportRevision) string {
+func BuildReportPrompt(student, className string, notes []Note, earlier []EarlierReport, reportInstructions, instructions string, rev *ReportRevision) string {
 	var sb strings.Builder
 
 	sb.WriteString(reportPromptBase)
@@ -41,6 +41,15 @@ func BuildReportPrompt(student, className string, notes []Note, reportInstructio
 		sb.WriteString(reportInstructionsHeader)
 		sb.WriteString(instructions)
 		sb.WriteString("\n\n")
+	}
+
+	// Before the notes, so the newest notes stay next to the task. Not in a
+	// tweak: "show progress" would fight "change nothing the ask does not cover".
+	if len(earlier) > 0 && (rev == nil || rev.Paragraph == nil) {
+		sb.WriteString(reportEarlierHeader)
+		for _, e := range earlier {
+			fmt.Fprintf(&sb, reportEarlierTerm, e.TermName, e.HTML)
+		}
 	}
 
 	// Student notes

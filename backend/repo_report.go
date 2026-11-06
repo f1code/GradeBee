@@ -123,3 +123,29 @@ func (r *ReportRepo) Delete(ctx context.Context, id int64) error {
 	}
 	return rowsAffectedOrNotFound(res)
 }
+
+// EarlierTerms returns the student's newest Report in each Term of term's
+// school year starting before it, oldest Term first. A year is the Group's
+// Terms sharing archived_at: NULL while active, one rollover's timestamp after.
+func (r *ReportRepo) EarlierTerms(ctx context.Context, studentID int64, term Term) ([]EarlierReport, error) {
+	// MAX(id), not created_at: ids rise with each insert; created_at strings
+	// with and without milliseconds sort wrong.
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT t.name, r.html FROM reports r JOIN terms t ON t.id = r.term_id
+		WHERE r.id IN (SELECT MAX(id) FROM reports WHERE student_id = ? GROUP BY term_id)
+		  AND t.group_id = ? AND t.archived_at IS ? AND t.start_date < ?
+		ORDER BY t.start_date`, studentID, term.GroupID, term.ArchivedAt, term.StartDate)
+	if err != nil {
+		return nil, fmt.Errorf("list earlier reports: %w", err)
+	}
+	defer rows.Close()
+	var out []EarlierReport
+	for rows.Next() {
+		var e EarlierReport
+		if err := rows.Scan(&e.TermName, &e.HTML); err != nil {
+			return nil, fmt.Errorf("scan earlier report: %w", err)
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}

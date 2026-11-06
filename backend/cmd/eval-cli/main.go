@@ -156,6 +156,7 @@ func runBuildExtractPrompt(ec evalContext) error {
 // the case's draft, in round 0 only: later drafts are newer than every note.
 // vars.paragraph makes the last round a paragraph tweak of that p/li block;
 // the output is the paragraph alone, as the model returns it.
+// vars.earlier_reports holds earlier Terms' Reports, [{termName, html}].
 func runBuildReportPrompt(ec evalContext) error {
 	var studentName, className, instructions, reportInstructions, draft, draftCreatedAt string
 	for name, v := range map[string]*string{
@@ -172,6 +173,10 @@ func runBuildReportPrompt(ec evalContext) error {
 	}
 	var notes []handler.Note
 	if err := ec.unmarshalVar("notes", &notes); err != nil {
+		return err
+	}
+	var earlier []handler.EarlierReport
+	if err := ec.unmarshalVar("earlier_reports", &earlier); err != nil {
 		return err
 	}
 	var feedbacks []string
@@ -208,7 +213,7 @@ func runBuildReportPrompt(ec evalContext) error {
 		return fmt.Errorf("vars.draft or vars.paragraph needs vars.feedback")
 	}
 	// Production sends the built prompt as a single user message (no system role).
-	prompt := handler.BuildReportPrompt(studentName, className, notes, reportInstructions, instructions, rev)
+	prompt := handler.BuildReportPrompt(studentName, className, notes, earlier, reportInstructions, instructions, rev)
 	return writeJSON([]map[string]string{
 		{"role": "user", "content": prompt},
 	})
