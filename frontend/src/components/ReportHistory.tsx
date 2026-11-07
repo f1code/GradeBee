@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { useAuth } from '@clerk/react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
@@ -9,7 +9,7 @@ import {
 } from '../api'
 import ReportViewer from './ReportViewer'
 import { ChevronIcon } from './Icons'
-import { formatDateRange, formatNoteDate } from '../lib/date'
+import { formatNoteDate } from '../lib/date'
 
 interface ReportHistoryProps {
   studentId: number
@@ -45,38 +45,62 @@ function groupByTerm(reports: ReportSummary[]): ReportSummary[][] {
   return [...groups.values()].sort((a, b) => b[0].termStartDate.localeCompare(a[0].termStartDate))
 }
 
+function toggled<T>(prev: Set<T>, v: T): Set<T> {
+  const next = new Set(prev)
+  if (!next.delete(v)) next.add(v)
+  return next
+}
+
+const fold = {
+  initial: { opacity: 0, height: 0 },
+  animate: { opacity: 1, height: 'auto' },
+  exit: { opacity: 0, height: 0 },
+  transition: { duration: 0.25 },
+}
+
+const spinner = (
+  <div className="honeycomb-spinner">
+    <div className="hex" /><div className="hex" /><div className="hex" />
+  </div>
+)
+
 export default function ReportHistory({ studentId, studentName }: ReportHistoryProps) {
   const { getToken } = useAuth()
   const [reports, setReports] = useState<ReportSummary[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [expandedReport, setExpandedReport] = useState<ReportResult | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  // Fetched reports by id; null when the fetch failed.
+  const [bodies, setBodies] = useState<Record<number, ReportResult | null>>({})
+  // Fetch each report once: a failed fetch must not retry on every render.
+  const requested = useRef(new Set<number>())
+  const [openTerms, setOpenTerms] = useState<Set<number>>(new Set())
+  const [showEarlier, setShowEarlier] = useState(false)
+  const [openDrafts, setOpenDrafts] = useState<Set<number>>(new Set())
   // The paragraph the last Tweak rewrote, for the new report's viewer to highlight.
   const [tweaked, setTweaked] = useState<{ reportId: number; paragraph: number } | null>(null)
-  const [loadingReport, setLoadingReport] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  // Terms whose Earlier drafts are shown.
-  const [openTerms, setOpenTerms] = useState<Set<number>>(new Set())
-  // Auto-open of Latest races a quick click on another row: only the last request may land.
-  const requestedId = useRef<number | null>(null)
 
-  const openReport = useCallback(async (id: number) => {
-    requestedId.current = id
-    setExpandedId(id)
-    setExpandedReport(null)
-    setLoadingReport(true)
-    try {
-      const report = await getReport(id, getToken)
-      if (requestedId.current !== id) return
-      setExpandedReport(report)
-    } catch (err) {
-      if (requestedId.current !== id) return
-      setError(err instanceof Error ? err.message : 'Failed to load report')
-      setExpandedId(null)
-    } finally {
-      if (requestedId.current === id) setLoadingReport(false)
+  const groups = useMemo(() => groupByTerm(reports), [reports])
+  // An open Term always shows its newest report.
+  const wanted = useMemo(
+    () => [...groups.filter(g => openTerms.has(g[0].termId)).map(g => g[0].id), ...openDrafts],
+    [groups, openTerms, openDrafts],
+  )
+
+  useEffect(() => {
+    for (const id of wanted) {
+      if (requested.current.has(id)) continue
+      requested.current.add(id)
+      getReport(id, getToken)
+        .then(r => {
+          setBodies(prev => ({ ...prev, [id]: r }))
+          setError(null)
+        })
+        .catch(err => {
+          setBodies(prev => ({ ...prev, [id]: null }))
+          setError(err instanceof Error ? err.message : 'Failed to load report')
+        })
     }
-  }, [getToken])
+  }, [wanted, getToken])
 
   const fetchReports = useCallback(async () => {
     setLoading(true)
@@ -84,126 +108,102 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
     try {
       const { reports: fetched } = await listStudentReports(studentId, getToken)
       setReports(fetched || [])
-      // Newest first from the server: open Latest.
-      if (fetched?.[0]) void openReport(fetched[0].id)
+      const newest = groupByTerm(fetched || [])[0]
+      setOpenTerms(new Set(newest ? [newest[0].termId] : []))
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load reports')
     } finally {
       setLoading(false)
     }
-  }, [studentId, getToken, openReport])
+  }, [studentId, getToken])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchReports()
   }, [fetchReports])
 
-  function handleExpand(id: number) {
+  // Only toggling retries failed loads, so a retry always starts from the spinner.
+  function dropFailed() {
+    for (const [id, b] of Object.entries(bodies)) if (b === null) requested.current.delete(Number(id))
+    setBodies(prev => Object.fromEntries(Object.entries(prev).filter(([, b]) => b !== null)))
+  }
+
+  function toggleTerm(termId: number) {
     setTweaked(null)
-    if (expandedId === id) {
-      requestedId.current = null
-      setLoadingReport(false)
-      setExpandedId(null)
-      setExpandedReport(null)
-      return
-    }
-    openReport(id)
+    dropFailed()
+    setOpenTerms(prev => toggled(prev, termId))
   }
 
-  function toggleEarlier(termId: number) {
-    setOpenTerms(prev => {
-      const next = new Set(prev)
-      if (!next.delete(termId)) next.add(termId)
-      return next
-    })
+  function toggleDraft(id: number) {
+    setTweaked(null)
+    dropFailed()
+    setOpenDrafts(prev => toggled(prev, id))
   }
 
-  // Regenerate saves a new row in the source's Term, now its Latest; the source moves to Earlier
-  // drafts. Expansion follows only if the old row is still open: the Teacher may have moved on.
+  // Regenerate saves a new row in the source's Term, which becomes the Term's shown report.
   function handleRegenerate(source: ReportSummary, report: ReportResult, paragraph?: number) {
-    const oldId = source.id
     const { id, startDate, endDate, createdAt } = report
+    requested.current.add(id)
+    setBodies(prev => ({ ...prev, [id]: report }))
     setReports(prev => [{ ...source, id, startDate, endDate, createdAt }, ...prev])
-    setExpandedId(prev => (prev === oldId ? id : prev))
-    setExpandedReport(prev => (prev?.id === oldId ? report : prev))
-    setTweaked(paragraph === undefined ? null : { reportId: report.id, paragraph })
+    setTweaked(paragraph === undefined ? null : { reportId: id, paragraph })
   }
 
   function handleDelete(reportId: number) {
     setReports(prev => prev.filter(r => r.id !== reportId))
-    if (expandedId === reportId) {
-      setExpandedId(null)
-      setExpandedReport(null)
-    }
   }
 
-  function renderEntry(r: ReportSummary, isLatest: boolean) {
-    const isExpanded = expandedId === r.id
+  function renderViewer(r: ReportSummary, editable: boolean) {
+    const body = bodies[r.id]
+    if (body === undefined) return <div className="report-loading-inline">{spinner}</div>
+    if (body === null) return <p className="report-history-failed">Could not load this report.</p>
     return (
-      <motion.div
-        key={r.id}
-        className={`report-history-entry${isLatest ? '' : ' report-history-draft'}`}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        layout
-      >
+      <ReportViewer
+        key={body.id}
+        reportId={body.id}
+        html={body.html}
+        studentName={studentName}
+        // Drafts are read-only: regenerating one drops the newer report's work.
+        onRegenerate={editable ? (report, paragraph) => handleRegenerate(r, report, paragraph) : undefined}
+        highlightParagraph={tweaked?.reportId === body.id ? tweaked.paragraph : undefined}
+        onDelete={() => handleDelete(body.id)}
+      />
+    )
+  }
+
+  function renderDraft(r: ReportSummary) {
+    const isOpen = openDrafts.has(r.id)
+    return (
+      <div key={r.id} className="report-history-entry report-history-draft">
         <div
-          className={`report-history-item${isExpanded ? ' report-history-item-expanded' : ''}`}
-          onClick={() => handleExpand(r.id)}
+          className={`report-history-item${isOpen ? ' report-history-item-expanded' : ''}`}
+          onClick={() => toggleDraft(r.id)}
           role="button"
           tabIndex={0}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(r.id) } }}
+          aria-expanded={isOpen}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleDraft(r.id) } }}
         >
-          <span className="report-history-label" title={isLatest ? `Created ${relativeTime(r.createdAt)}` : undefined}>
-            Notes up to {formatNoteDate(r.endDate)}
-            {isLatest && r.termCurrent && <span className="report-latest-badge">Latest</span>}
-          </span>
+          <span className="report-history-label">Notes up to {formatNoteDate(r.endDate)}</span>
           {/* Tweaks keep the source's end date: creation time tells drafts apart. */}
-          {!isLatest && <span className="report-history-created">{relativeTime(r.createdAt)}</span>}
-          <ChevronIcon open={isExpanded} />
+          <span className="report-history-created">{relativeTime(r.createdAt)}</span>
+          <ChevronIcon open={isOpen} />
         </div>
         <AnimatePresence>
-          {isExpanded && (
+          {isOpen && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25 }}
+              {...fold}
               style={{ overflow: 'hidden' }}
             >
-              {loadingReport ? (
-                <div className="report-loading-inline">
-                  <div className="honeycomb-spinner">
-                    <div className="hex" /><div className="hex" /><div className="hex" />
-                  </div>
-                </div>
-              ) : expandedReport?.id === r.id ? (
-                <ReportViewer
-                  key={expandedReport.id}
-                  reportId={expandedReport.id}
-                  html={expandedReport.html}
-                  studentName={studentName}
-                  // Earlier drafts are read-only: regenerating one drops the newer draft's work.
-                  onRegenerate={isLatest ? (report, paragraph) => handleRegenerate(r, report, paragraph) : undefined}
-                  highlightParagraph={tweaked?.reportId === expandedReport.id ? tweaked.paragraph : undefined}
-                  onDelete={() => handleDelete(expandedReport.id)}
-                />
-              ) : null}
+              {renderViewer(r, false)}
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.div>
+      </div>
     )
   }
 
   if (loading) {
-    return (
-      <div className="report-history-loading">
-        <div className="honeycomb-spinner">
-          <div className="hex" /><div className="hex" /><div className="hex" />
-        </div>
-      </div>
-    )
+    return <div className="report-history-loading">{spinner}</div>
   }
 
   return (
@@ -225,47 +225,65 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
         </div>
       ) : (
         <div className="report-history-list">
-          {groupByTerm(reports).map(([latest, ...earlier]) => {
-            const showEarlier = openTerms.has(latest.termId)
-            const draftsId = `report-drafts-${latest.termId}`
+          {groups.map(([shown, ...earlier]) => {
+            const open = openTerms.has(shown.termId)
+            const cardId = `report-term-${shown.termId}`
+            // Past Terms show only their final report.
+            const drafts = shown.termCurrent ? earlier : []
             return (
-              <section key={latest.termId} className="report-term-group">
+              <section key={shown.termId} className="report-term-group">
                 <h4 className="report-term-heading">
-                  {latest.termName}{latest.termArchived && ' (archived)'}
-                  <span className="report-term-dates"> · {formatDateRange(latest.termStartDate, latest.termEndDate)}</span>
+                  <button
+                    type="button"
+                    className="text-link report-term-toggle"
+                    aria-expanded={open}
+                    aria-controls={cardId}
+                    onClick={() => toggleTerm(shown.termId)}
+                  >
+                    <span>
+                      {shown.termName}{shown.termArchived && ' (archived)'}
+                      <span className="report-term-dates"> · {formatNoteDate(shown.termStartDate)} – {formatNoteDate(shown.termEndDate)}</span>
+                    </span>
+                    <ChevronIcon open={open} />
+                  </button>
                 </h4>
-                <div className="report-history-card">
-                  {renderEntry(latest, true)}
-                  {earlier.length > 0 && (
-                    <button
-                      type="button"
-                      className="text-link report-earlier-toggle"
-                      aria-expanded={showEarlier}
-                      aria-controls={draftsId}
-                      onClick={() => toggleEarlier(latest.termId)}
+                <AnimatePresence initial={false}>
+                  {open && (
+                    <motion.div
+                      id={cardId}
+                      className="report-history-card"
+                      {...fold}
                     >
-                      <ChevronIcon open={showEarlier} />
-                      {showEarlier
-                        ? 'Hide earlier drafts'
-                        : `${earlier.length} earlier draft${earlier.length === 1 ? '' : 's'}`}
-                    </button>
+                      {renderViewer(shown, true)}
+                      {drafts.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-link report-earlier-toggle"
+                          aria-expanded={showEarlier}
+                          aria-controls="report-earlier-drafts"
+                          onClick={() => setShowEarlier(v => !v)}
+                        >
+                          <ChevronIcon open={showEarlier} />
+                          {showEarlier
+                            ? 'Hide earlier drafts'
+                            : `${drafts.length} earlier draft${drafts.length === 1 ? '' : 's'}`}
+                        </button>
+                      )}
+                      <AnimatePresence initial={false}>
+                        {drafts.length > 0 && showEarlier && (
+                          <motion.div
+                            id="report-earlier-drafts"
+                            className="report-earlier-drafts"
+                            {...fold}
+                            style={{ overflow: 'hidden' }}
+                          >
+                            {drafts.map(renderDraft)}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
                   )}
-                  <AnimatePresence initial={false}>
-                    {showEarlier && (
-                      <motion.div
-                        id={draftsId}
-                        className="report-earlier-drafts"
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.25 }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        {earlier.map(r => renderEntry(r, false))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
+                </AnimatePresence>
               </section>
             )
           })}
@@ -274,3 +292,4 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
     </div>
   )
 }
+

@@ -11,7 +11,9 @@
 .report-class-count,
 .report-level-instructions summary,
 .thumb-comment-privacy-hint,
-.report-ai-label {
+.report-ai-label,
+.report-history-created,
+.report-history-failed {
   color: var(--ink-muted);
   font-size: var(--text-sm);
 }
@@ -620,10 +622,25 @@
   margin: 0;
 }
 
+/* Inherits the heading's look over .text-link's. */
+.report-term-toggle {
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  width: 100%;
+  justify-content: space-between;
+  text-align: left;
+}
+
 .report-term-dates {
   text-transform: none;
   letter-spacing: normal;
-  white-space: nowrap;
+}
+
+.report-history-failed {
+  margin: 0;
+  padding: 0.75rem 1rem;
 }
 
 .report-history-card {
@@ -665,14 +682,7 @@
 }
 
 .report-history-created {
-  color: var(--ink-muted);
-  font-size: var(--text-sm);
   white-space: nowrap;
-}
-
-.report-latest-badge {
-  margin-left: 0.5rem;
-  vertical-align: middle;
 }
 
 /* One card per Term: newest on top, earlier drafts folded under a footer. */

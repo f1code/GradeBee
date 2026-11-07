@@ -607,8 +607,7 @@
   font-family: var(--font-body);
 }
 
-.job-new-badge,
-.report-latest-badge {
+.job-new-badge {
   display: inline-block;
   background: var(--honey);
   color: var(--ink);
