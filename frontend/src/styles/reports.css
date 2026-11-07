@@ -11,7 +11,6 @@
 .report-class-count,
 .report-level-instructions summary,
 .thumb-comment-privacy-hint,
-.report-history-created,
 .report-ai-label {
   color: var(--ink-muted);
   font-size: var(--text-sm);
@@ -580,14 +579,6 @@
   margin-top: 0.25rem;
 }
 
-.report-history-heading {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: 1rem;
-  color: var(--ink);
-  margin: 0 0 0.75rem;
-}
-
 .report-history-loading {
   display: flex;
   justify-content: center;
@@ -606,7 +597,33 @@
 .report-history-list {
   display: flex;
   flex-direction: column;
+  gap: 1rem;
+}
+
+.report-term-group {
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
+}
+
+.report-term-group + .report-term-group {
+  border-top: 1px solid var(--comb);
+  padding-top: 0.75rem;
+}
+
+.report-term-heading {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ink-muted);
+  margin: 0;
+}
+
+.report-term-dates {
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: nowrap;
 }
 
 .report-history-card {
@@ -625,6 +642,13 @@
   transition: background 0.12s;
 }
 
+/* Inset: the card's overflow:hidden clips an outside ring. */
+.report-history-item:focus-visible,
+.report-earlier-toggle:focus-visible {
+  outline: 2px solid var(--honey);
+  outline-offset: -2px;
+}
+
 .report-history-item:hover {
   background: var(--honey-light);
 }
@@ -633,7 +657,7 @@
   border-bottom: 1px solid var(--comb);
 }
 
-.report-history-date-range {
+.report-history-label {
   font-weight: 500;
   color: var(--ink);
   font-size: 0.9rem;
@@ -641,6 +665,8 @@
 }
 
 .report-history-created {
+  color: var(--ink-muted);
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 
@@ -649,9 +675,31 @@
   vertical-align: middle;
 }
 
+/* One card per Term: newest on top, earlier drafts folded under a footer. */
+.report-history-entry + .report-history-entry,
+.report-earlier-toggle,
+.report-earlier-drafts {
+  border-top: 1px solid var(--comb);
+}
+
 .report-earlier-toggle {
-  align-self: flex-start;
-  padding: 0.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 1rem;
+  text-align: left;
+  /* Base button rule rounds corners, curving the divider above. */
+  border-radius: 0;
+}
+
+.report-earlier-drafts {
+  background: var(--parchment);
+}
+
+.report-history-draft .report-history-label {
+  font-weight: 400;
+  color: var(--ink-muted);
 }
 
 .report-history-card .report-viewer {
@@ -701,15 +749,6 @@
 }
 
 @media (max-width: 480px) {
-  .report-history-item {
-    flex-wrap: wrap;
-    gap: 0.25rem 0.5rem;
-  }
-
-  .report-history-created {
-    width: 100%;
-  }
-
   .report-result-item-static {
     flex-wrap: wrap;
     gap: 0.25rem 0.5rem;

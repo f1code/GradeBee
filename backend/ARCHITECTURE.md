@@ -40,7 +40,7 @@ Go HTTP backend for GradeBee: student rosters, voice/text notes (upload → tran
 | GET | `/api/reports/batches` | Yes | `handleListReportBatches` | `{batches}` newest first (0–1 today) |
 | POST | `/api/reports/batches/{id}/retry` | Yes | `handleRetryReportBatch` | Requeue a finished batch's failed rows; `202` + snapshot, `404` not the caller's, `409` running, lock held or nothing failed, `503` queue full |
 | POST | `/api/reports/{id}/regenerate` | Yes | `handleRegenerateReport` | Regenerate with feedback |
-| GET | `/api/students/{id}/reports` | Yes | `handleListReports` | List reports for a student |
+| GET | `/api/students/{id}/reports` | Yes | `handleListReports` | List reports for a student, newest first, each with its Term (id, name, dates, archived, current) |
 | GET | `/api/reports/{id}` | Yes | `handleGetReport` | Get single report HTML |
 | DELETE | `/api/reports/{id}` | Yes | `handleDeleteReport` | Delete a report |
 | POST | `/api/feedback` | Yes | `handleSubmitFeedback` | Thumbs rating on a report or auto note |

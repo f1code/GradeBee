@@ -33,14 +33,25 @@ type ReportSummary struct {
 	StartDate string `json:"startDate"`
 	EndDate   string `json:"endDate"`
 	CreatedAt string `json:"createdAt"`
+	// The report's Term, so the Reports tab can group by it (task 227).
+	TermID        int64  `json:"termId"`
+	TermName      string `json:"termName"`
+	TermStartDate string `json:"termStartDate"`
+	TermEndDate   string `json:"termEndDate"`
+	TermArchived  bool   `json:"termArchived"`
+	// The Term the Levels screen edits: latest active Term already started.
+	TermCurrent bool `json:"termCurrent"`
 }
 
 // List returns reports for a student (without HTML body), newest first.
 func (r *ReportRepo) List(ctx context.Context, studentID int64) ([]ReportSummary, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, start_date, end_date, created_at
-		FROM reports WHERE student_id = ?
-		ORDER BY created_at DESC`, studentID)
+		SELECT r.id, r.start_date, r.end_date, r.created_at,
+		       t.id, t.name, t.start_date, t.end_date, t.archived_at IS NOT NULL,
+		       t.id IS (`+currentTermSQL("t.group_id")+`)
+		FROM reports r JOIN terms t ON t.id = r.term_id
+		WHERE r.student_id = ?
+		ORDER BY r.created_at DESC`, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("list reports: %w", err)
 	}
@@ -49,7 +60,8 @@ func (r *ReportRepo) List(ctx context.Context, studentID int64) ([]ReportSummary
 	var result []ReportSummary
 	for rows.Next() {
 		var rpt ReportSummary
-		if err := rows.Scan(&rpt.ID, &rpt.StartDate, &rpt.EndDate, &rpt.CreatedAt); err != nil {
+		if err := rows.Scan(&rpt.ID, &rpt.StartDate, &rpt.EndDate, &rpt.CreatedAt,
+			&rpt.TermID, &rpt.TermName, &rpt.TermStartDate, &rpt.TermEndDate, &rpt.TermArchived, &rpt.TermCurrent); err != nil {
 			return nil, fmt.Errorf("scan report: %w", err)
 		}
 		result = append(result, rpt)

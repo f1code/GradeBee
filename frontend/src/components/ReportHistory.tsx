@@ -8,7 +8,8 @@ import {
   type ReportResult,
 } from '../api'
 import ReportViewer from './ReportViewer'
-import { formatDateRange } from '../lib/date'
+import { ChevronIcon } from './Icons'
+import { formatDateRange, formatNoteDate } from '../lib/date'
 
 interface ReportHistoryProps {
   studentId: number
@@ -33,6 +34,17 @@ function relativeTime(dateStr: string): string {
   return rtf.format(diffSec, 'second')
 }
 
+// Keeps the server's newest-first order inside each Term; Terms newest first by start date.
+function groupByTerm(reports: ReportSummary[]): ReportSummary[][] {
+  const groups = new Map<number, ReportSummary[]>()
+  for (const r of reports) {
+    const g = groups.get(r.termId)
+    if (g) g.push(r)
+    else groups.set(r.termId, [r])
+  }
+  return [...groups.values()].sort((a, b) => b[0].termStartDate.localeCompare(a[0].termStartDate))
+}
+
 export default function ReportHistory({ studentId, studentName }: ReportHistoryProps) {
   const { getToken } = useAuth()
   const [reports, setReports] = useState<ReportSummary[]>([])
@@ -43,7 +55,8 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
   const [tweaked, setTweaked] = useState<{ reportId: number; paragraph: number } | null>(null)
   const [loadingReport, setLoadingReport] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [showEarlier, setShowEarlier] = useState(false)
+  // Terms whose Earlier drafts are shown.
+  const [openTerms, setOpenTerms] = useState<Set<number>>(new Set())
   // Auto-open of Latest races a quick click on another row: only the last request may land.
   const requestedId = useRef<number | null>(null)
 
@@ -97,11 +110,20 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
     openReport(id)
   }
 
-  // Regenerate saves a new row, now Latest; the old one moves to Earlier drafts. Expansion follows
-  // only if the old row is still open: the Teacher may have moved on meanwhile.
-  function handleRegenerate(oldId: number, report: ReportResult, paragraph?: number) {
+  function toggleEarlier(termId: number) {
+    setOpenTerms(prev => {
+      const next = new Set(prev)
+      if (!next.delete(termId)) next.add(termId)
+      return next
+    })
+  }
+
+  // Regenerate saves a new row in the source's Term, now its Latest; the source moves to Earlier
+  // drafts. Expansion follows only if the old row is still open: the Teacher may have moved on.
+  function handleRegenerate(source: ReportSummary, report: ReportResult, paragraph?: number) {
+    const oldId = source.id
     const { id, startDate, endDate, createdAt } = report
-    setReports(prev => [{ id, startDate, endDate, createdAt }, ...prev])
+    setReports(prev => [{ ...source, id, startDate, endDate, createdAt }, ...prev])
     setExpandedId(prev => (prev === oldId ? id : prev))
     setExpandedReport(prev => (prev?.id === oldId ? report : prev))
     setTweaked(paragraph === undefined ? null : { reportId: report.id, paragraph })
@@ -113,6 +135,65 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
       setExpandedId(null)
       setExpandedReport(null)
     }
+  }
+
+  function renderEntry(r: ReportSummary, isLatest: boolean) {
+    const isExpanded = expandedId === r.id
+    return (
+      <motion.div
+        key={r.id}
+        className={`report-history-entry${isLatest ? '' : ' report-history-draft'}`}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        layout
+      >
+        <div
+          className={`report-history-item${isExpanded ? ' report-history-item-expanded' : ''}`}
+          onClick={() => handleExpand(r.id)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(r.id) } }}
+        >
+          <span className="report-history-label" title={isLatest ? `Created ${relativeTime(r.createdAt)}` : undefined}>
+            Notes up to {formatNoteDate(r.endDate)}
+            {isLatest && r.termCurrent && <span className="report-latest-badge">Latest</span>}
+          </span>
+          {/* Tweaks keep the source's end date: creation time tells drafts apart. */}
+          {!isLatest && <span className="report-history-created">{relativeTime(r.createdAt)}</span>}
+          <ChevronIcon open={isExpanded} />
+        </div>
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25 }}
+              style={{ overflow: 'hidden' }}
+            >
+              {loadingReport ? (
+                <div className="report-loading-inline">
+                  <div className="honeycomb-spinner">
+                    <div className="hex" /><div className="hex" /><div className="hex" />
+                  </div>
+                </div>
+              ) : expandedReport?.id === r.id ? (
+                <ReportViewer
+                  key={expandedReport.id}
+                  reportId={expandedReport.id}
+                  html={expandedReport.html}
+                  studentName={studentName}
+                  // Earlier drafts are read-only: regenerating one drops the newer draft's work.
+                  onRegenerate={isLatest ? (report, paragraph) => handleRegenerate(r, report, paragraph) : undefined}
+                  highlightParagraph={tweaked?.reportId === expandedReport.id ? tweaked.paragraph : undefined}
+                  onDelete={() => handleDelete(expandedReport.id)}
+                />
+              ) : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    )
   }
 
   if (loading) {
@@ -127,7 +208,6 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
 
   return (
     <div className="report-history">
-      <h4 className="report-history-heading">Past Reports</h4>
 
       {error && (
         <motion.div
@@ -145,88 +225,50 @@ export default function ReportHistory({ studentId, studentName }: ReportHistoryP
         </div>
       ) : (
         <div className="report-history-list">
-          <AnimatePresence initial={false}>
-            {reports.map((r, i) => {
-              const isLatest = i === 0
-              if (!isLatest && !showEarlier) return null
-              const isExpanded = expandedId === r.id
-              const card = (
-                <motion.div
-                  key={r.id}
-                  className="report-history-card"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  layout
-                >
-                  <div
-                    className={`report-history-item${isExpanded ? ' report-history-item-expanded' : ''}`}
-                    onClick={() => handleExpand(r.id)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleExpand(r.id) } }}
-                  >
-                    <span className="report-history-date-range">
-                      {formatDateRange(r.startDate, r.endDate)}
-                      {isLatest && <span className="report-latest-badge">Latest</span>}
-                    </span>
-                    <span className="report-history-created">
-                      {relativeTime(r.createdAt)}
-                    </span>
-                    <svg
-                      width="16" height="16" viewBox="0 0 16 16" fill="none"
-                      style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}
+          {groupByTerm(reports).map(([latest, ...earlier]) => {
+            const showEarlier = openTerms.has(latest.termId)
+            const draftsId = `report-drafts-${latest.termId}`
+            return (
+              <section key={latest.termId} className="report-term-group">
+                <h4 className="report-term-heading">
+                  {latest.termName}{latest.termArchived && ' (archived)'}
+                  <span className="report-term-dates"> · {formatDateRange(latest.termStartDate, latest.termEndDate)}</span>
+                </h4>
+                <div className="report-history-card">
+                  {renderEntry(latest, true)}
+                  {earlier.length > 0 && (
+                    <button
+                      type="button"
+                      className="text-link report-earlier-toggle"
+                      aria-expanded={showEarlier}
+                      aria-controls={draftsId}
+                      onClick={() => toggleEarlier(latest.termId)}
                     >
-                      <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <AnimatePresence>
-                    {isExpanded && (
+                      <ChevronIcon open={showEarlier} />
+                      {showEarlier
+                        ? 'Hide earlier drafts'
+                        : `${earlier.length} earlier draft${earlier.length === 1 ? '' : 's'}`}
+                    </button>
+                  )}
+                  <AnimatePresence initial={false}>
+                    {showEarlier && (
                       <motion.div
+                        id={draftsId}
+                        className="report-earlier-drafts"
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.25 }}
                         style={{ overflow: 'hidden' }}
                       >
-                        {loadingReport ? (
-                          <div className="report-loading-inline">
-                            <div className="honeycomb-spinner">
-                              <div className="hex" /><div className="hex" /><div className="hex" />
-                            </div>
-                          </div>
-                        ) : expandedReport?.id === r.id ? (
-                          <ReportViewer
-                            key={expandedReport.id}
-                            reportId={expandedReport.id}
-                            html={expandedReport.html}
-                            studentName={studentName}
-                            // Earlier drafts are read-only: regenerating one drops the newer draft's work.
-                            onRegenerate={isLatest ? (report, paragraph) => handleRegenerate(expandedReport.id, report, paragraph) : undefined}
-                            highlightParagraph={tweaked?.reportId === expandedReport.id ? tweaked.paragraph : undefined}
-                            onDelete={() => handleDelete(expandedReport.id)}
-                          />
-                        ) : null}
+                        {earlier.map(r => renderEntry(r, false))}
                       </motion.div>
                     )}
                   </AnimatePresence>
-                </motion.div>
-              )
-              if (!isLatest || reports.length === 1) return card
-              return [
-                card,
-                <button
-                  key="earlier-toggle"
-                  type="button"
-                  className="text-link report-earlier-toggle"
-                  aria-expanded={showEarlier}
-                  onClick={() => setShowEarlier(v => !v)}
-                >
-                  Earlier drafts ({reports.length - 1}) <span aria-hidden="true">{showEarlier ? '▴' : '▾'}</span>
-                </button>,
-              ]
-            })}
-          </AnimatePresence>
+                </div>
+              </section>
+            )
+          })}
         </div>
       )}
     </div>

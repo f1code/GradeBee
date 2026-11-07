@@ -578,6 +578,18 @@ export interface ReportSummary {
   startDate: string;
   endDate: string;
   createdAt: string;
+  /**
+   * The report's Term, so the Reports tab can group by it (task 227).
+   */
+  termId: number /* int64 */;
+  termName: string;
+  termStartDate: string;
+  termEndDate: string;
+  termArchived: boolean;
+  /**
+   * The Term the Levels screen edits: latest active Term already started.
+   */
+  termCurrent: boolean;
 }
 
 //////////
