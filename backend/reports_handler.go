@@ -440,7 +440,7 @@ func handleRegenerateReport(w http.ResponseWriter, r *http.Request) {
 // regenEndDate extends to today a range that ends on its creation day: the UI
 // defaults end to today, so the Teacher meant "up to now" and wants notes
 // added since. An earlier end is an explicit range and stays, keeping
-// next-term notes out.
+// next-term notes out. ForRegenerate stops "now" at the Term's end.
 func regenEndDate(rpt Report, now time.Time) string {
 	today := now.UTC().Format(time.DateOnly)
 	if len(rpt.CreatedAt) >= len(time.DateOnly) && rpt.EndDate == rpt.CreatedAt[:len(time.DateOnly)] && today > rpt.EndDate {

@@ -575,16 +575,18 @@ func TestHandleRegenerateReport_SurvivesClientCancel(t *testing.T) {
 }
 
 // TestHandleRegenerateReport_UpToNowRange: a report ending on its creation
-// day regenerates up to today, so a note dated after it reaches the prompt.
-// An earlier end is an explicit range and stays.
+// day regenerates up to today, so a note dated after it reaches the prompt,
+// capped at the Term's end. An earlier end is an explicit range and stays.
 func TestHandleRegenerateReport_UpToNowRange(t *testing.T) {
 	for _, tc := range []struct {
-		name, createdAt, wantEnd string
-		wantNote                 bool
+		name, createdAt, termEnd, wantEnd string
+		wantNote                          bool
 	}{
-		{"end on creation day", "2026-03-31T10:00:00.000Z", time.Now().UTC().Format(time.DateOnly), true},
-		{"end after creation day", "2026-03-30T10:00:00.000Z", "2026-03-31", false},
-		{"end before creation day", "2026-04-01T10:00:00.000Z", "2026-03-31", false},
+		{"end on creation day", "2026-03-31T10:00:00.000Z", "", time.Now().UTC().Format(time.DateOnly), true},
+		{"end on creation day, Term ended", "2026-03-31T10:00:00.000Z", "2026-04-05", "2026-04-05", true},
+		{"end on creation day, Term ends with report", "2026-03-31T10:00:00.000Z", "2026-03-31", "2026-03-31", false},
+		{"end after creation day", "2026-03-30T10:00:00.000Z", "", "2026-03-31", false},
+		{"end before creation day", "2026-04-01T10:00:00.000Z", "", "2026-03-31", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
@@ -592,6 +594,10 @@ func TestHandleRegenerateReport_UpToNowRange(t *testing.T) {
 				require.NoError(t, (&NoteRepo{db: db}).Create(ctx, &Note{StudentID: studentID, Date: "2026-04-02", Summary: "later note", Source: "manual"}))
 				_, err := db.ExecContext(ctx, `UPDATE reports SET created_at = ? WHERE id = ?`, tc.createdAt, first.ID)
 				require.NoError(t, err)
+				if tc.termEnd != "" {
+					_, err = db.ExecContext(ctx, `UPDATE terms SET end_date = ? WHERE id = ?`, tc.termEnd, first.TermID)
+					require.NoError(t, err)
+				}
 			})
 
 			newID, prompt := f.regenerate(f.first.ID, "more on motivation")

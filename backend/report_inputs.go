@@ -121,8 +121,16 @@ func (r *ReportInputResolver) ForReport(ctx context.Context, groupID string, stu
 }
 
 // ForRegenerate resolves a regenerate of rpt up to endDate, on its Term's
-// current text.
+// current text. An extension past rpt's end stops at the Term's end, so after
+// rollover last Term's report keeps this Term's notes out.
 func (r *ReportInputResolver) ForRegenerate(ctx context.Context, groupID string, rpt Report, endDate string) (ReportInputs, error) {
+	if endDate > rpt.EndDate {
+		term, err := r.terms.GetByID(ctx, groupID, rpt.TermID)
+		if err != nil {
+			return ReportInputs{}, fmt.Errorf("term: %w", err)
+		}
+		endDate = max(rpt.EndDate, min(endDate, term.EndDate))
+	}
 	out, err := r.resolve(ctx, groupID, rpt.StudentID, rpt.TermID, rpt.StartDate, endDate)
 	if err != nil {
 		return ReportInputs{}, err
